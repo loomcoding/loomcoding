@@ -9,13 +9,13 @@ pub const MIN_OPTIONS: usize = 2;
 /// Número máximo de opciones por pregunta.
 pub const MAX_OPTIONS: usize = 6;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct QuestionOption {
     pub label: String,
     pub description: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Question {
     pub header: String,
     pub question: String,
@@ -23,7 +23,7 @@ pub struct Question {
     pub multi_select: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Answer {
     pub question: String,
     pub selected: Vec<String>,

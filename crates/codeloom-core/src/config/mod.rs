@@ -1,12 +1,12 @@
 use crate::error::{CoreError, Result};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 pub mod context;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum ProviderKind {
     #[serde(rename = "openai_compat")]
     OpenAiCompat,

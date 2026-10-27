@@ -6,7 +6,7 @@ use serde_json::Value;
 pub const MAX_TODOS: usize = 50;
 
 /// Estado de una tarea.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TodoStatus {
     Pending,
     InProgress,
@@ -14,7 +14,7 @@ pub enum TodoStatus {
 }
 
 /// Una tarea de la lista.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TodoItem {
     pub content: String,
     pub status: TodoStatus,

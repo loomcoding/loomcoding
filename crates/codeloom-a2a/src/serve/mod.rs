@@ -89,6 +89,8 @@ mod tests {
             host: Arc::new(SinTareas),
             auth: Authenticator::new(auth),
             card: tarjeta,
+            expected_tenant: None,
+            agent_cards: Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
             max_wait: Duration::from_secs(1),
         })
     }

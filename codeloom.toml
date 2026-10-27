@@ -3,10 +3,19 @@
 #   "mistralai/mistral-nemo"        (el mas barato con tool calling)
 #   "openai/gpt-6-luna"             (barato y fiable)
 #   "anthropic/claude-haiku-5.5"    (barato y muy fiable con tools)
-model = "mistralai/mistral-nemo"
+model = "anthropic/claude-haiku-5.5"
 max_steps = 8
 
 [provider]
 kind = "openai_compat"
 base_url = "https://openrouter.ai/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
+
+# Compactacion anticipada: el resumen se prepara en segundo plano al 60 % de la ventana
+# y se activa al 80 %. Coste: si la sesion acaba entre ambos puntos, esa llamada se pierde.
+[compaction]
+background = true
+
+# Agentes remotos por A2A (A8a): descargar tarjetas y delegar en los ya aprobados.
+[a2a]
+role = "consume"

@@ -3,7 +3,7 @@
 //! Se sirve de un JSON de ejemplo embebido en las pruebas: ningún test toca la red.
 
 use crate::config::ProviderKind;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
 use std::io::Write;
@@ -20,7 +20,7 @@ pub const CATALOG_TTL: Duration = Duration::from_secs(24 * 3600);
 const FETCH_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Capacidades de razonamiento de un modelo, según `reasoning_options` de models.dev.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Reasoning {
     /// Niveles con nombre (`low`, `high`…) de la opción `effort`, en el orden del catálogo.
     pub efforts: Vec<String>,
@@ -31,7 +31,7 @@ pub struct Reasoning {
 }
 
 /// Modelo del catálogo, con solo lo que CodeLoom puede aprovechar.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CatalogModel {
     pub id: String,
     pub name: String,
@@ -50,7 +50,7 @@ pub struct CatalogModel {
 }
 
 /// Proveedor del catálogo, ya traducido a un tipo de SDK soportado.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CatalogProvider {
     pub id: String,
     pub name: String,
@@ -62,7 +62,7 @@ pub struct CatalogProvider {
 }
 
 /// Catálogo completo, listo para la interfaz.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Catalog {
     pub providers: Vec<CatalogProvider>,
 }

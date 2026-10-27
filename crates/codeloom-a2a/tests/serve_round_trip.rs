@@ -159,6 +159,9 @@ async fn cliente(servidor: &Servidor, token: &str) -> JsonRpcClient {
     .json()
     .await
     .unwrap();
+    let tenant = tarjeta["supportedInterfaces"][0]["tenant"]
+        .as_str()
+        .map(str::to_owned);
     let seguridad = CardSecurity::from_card_json(&tarjeta).to_json();
     let credenciales: BTreeMap<String, String> =
         [("codeloom".to_string(), "VAR_DEL_CLIENTE".to_string())].into();
@@ -170,7 +173,7 @@ async fn cliente(servidor: &Servidor, token: &str) -> JsonRpcClient {
     JsonRpcClient::new(
         reqwest::Client::new(),
         format!("http://{}/a2a", servidor.addr),
-        None,
+        tenant,
         64 * 1024,
     )
     .with_auth(plan)
@@ -309,7 +312,7 @@ async fn send_streaming_message_streams_the_task_to_its_terminal_state_over_real
     let servidor = arrancar(Arc::new(ConTexto("flujo de CodeLoom")), config_servidor()).await;
     let cuerpo = json!({
         "jsonrpc": "2.0", "id": 9, "method": "SendStreamingMessage",
-        "params": { "message": {
+        "params": { "tenant": "default", "message": {
             "messageId": "m1", "role": "ROLE_USER", "parts": [{ "text": "saluda" }] } }
     });
 
@@ -362,7 +365,7 @@ async fn subscribe_to_task_follows_a_working_task_and_refuses_a_finished_one() {
                 .header("A2A-Version", "1.0")
                 .json(
                     &json!({"jsonrpc": "2.0", "id": 3, "method": "SubscribeToTask",
-                              "params": {"id": id}}),
+                              "params": {"tenant": "default", "id": id}}),
                 )
                 .send()
                 .await

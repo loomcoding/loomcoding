@@ -3,20 +3,21 @@ use crate::error::Result;
 use crate::message::Message;
 use crate::task::TaskStatus;
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 
 pub mod sqlite;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionId(pub i64);
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionInfo {
     pub id: SessionId,
     pub preview: String,
     pub message_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SubagentDescriptor {
     pub parent: SessionId,
     pub child: SessionId,
@@ -60,7 +61,7 @@ impl SubagentDescriptor {
 /// cuando no se conocían; el apunte conserva su precio aunque el catálogo cambie después.
 /// `session` es la sesión que originó el consumo: el padre para su propio turno y el hijo
 /// para lo que gasta un subagente.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsageRecord {
     pub session: SessionId,
     pub model: String,

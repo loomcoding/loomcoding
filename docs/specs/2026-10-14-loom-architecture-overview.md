@@ -11,6 +11,7 @@
 | Pieza | Spec |
 |---|---|
 | Diseño base (crates, concurrencia, turn/step, tools, permisos) | `2026-10-13-loom-design.md` |
+| Servidor local propio y varias TUI cliente | `2026-10-26-codeloom-local-server-client-runtime.md` |
 | Carga en caliente de MCP y skills | `2026-10-14-loom-mcp-skills-hot-reload.md` |
 | Profile de agentes y comunicación A2A | `2026-10-15-loom-agent-profile-a2a.md` |
 | Entrada por voz al prompt | `2026-10-14-loom-voice-prompt-input.md` |
@@ -19,6 +20,7 @@
 | Capa estática de señales/decisiones (hallazgo semantic-router) | `2026-10-14-loom-static-decision-signals.md` |
 | Gauntlet Loop | `2026-10-14-loom-gauntlet-loop.md` |
 | Skills (ponytail / superpowers) | `2026-10-14-loom-skills-ponytail-superpowers.md` |
+| CodeLoom agent-first y skills de desarrollo | `2026-10-25-codeloom-agent-first-development-skills.md` |
 | KPIs y compresión | `2026-10-14-loom-kpis-prompt-compression.md` |
 | Memoria | `2026-10-14-loom-memory.md` |
 | Plan de experimentos | `2026-10-14-loom-decision-experiments.md` |
@@ -73,9 +75,21 @@ todo lo opcional (host, voz, decisión, compresión) vive **fuera de `codeloom-c
 └──────────────────┘
 ```
 
-`codeloom-cli` es el binario: une todo y **autodetecta** el modo (standalone o
-plugin de herdr). `codeloom-decide`, `codeloom-voice`, `codeloom-compress` y `codeloom-herdr`
-son **opcionales**; el core no los conoce.
+El runtime local previsto tiene un servidor propio de CodeLoom. La primera
+invocación de `loom` lo inicia y abre una TUI; las siguientes se conectan al
+mismo servidor y abren sus propias TUI para agentes asociados a sus proyectos.
+Herdr es referencia e integración opcional, no el servidor ni un requisito.
+El contrato pendiente está en
+`docs/specs/2026-10-26-codeloom-local-server-client-runtime.md`.
+
+```text
+loom (proyecto A) ── TUI A ──┐
+loom (proyecto B) ── TUI B ──┼── IPC local ── servidor CodeLoom ── core, agentes y sesiones
+loom (proyecto C) ── TUI C ──┘
+```
+
+`codeloom-decide`, `codeloom-voice`, `codeloom-compress` y `codeloom-herdr`
+siguen siendo integraciones opcionales; el core no las conoce.
 
 Dentro de `codeloom-tui`, el transcript pinta cada herramienta con su pieza de
 render: el registro `atom_for` de `batten::state::tool_atom` elige la pieza según
@@ -154,6 +168,39 @@ concreto y cómo»; lo trivial se decide en proceso.**
 | **Gauntlet** | calidad contra una barra (builder+crítico) | patrón sobre subagentes | por caso |
 
 Todo comparte el mismo contrato: **cargar por demanda, medir y poder podarlo.**
+
+### 5.2 Agent-first: desarrollo coordinado por agentes
+
+CodeLoom prioriza agentes: las tareas se asignan a perfiles con roles claros,
+permisos acotados y resultados visibles. Las skills de desarrollo son una
+capacidad fundamental porque definen procedimientos que los agentes pueden
+seguir sin convertir el motor en un flujo monolítico.
+
+```text
+usuario → padre/coordinador → planificador → aprobación del usuario
+                           → implementador → revisor independiente
+                                             ↘ corrección acotada
+                           → evidencia → aceptación del usuario
+```
+
+- El **perfil** define quién es el agente y qué herramientas puede usar; la
+  **skill** aporta el procedimiento activado para una fase.
+- El **padre** conserva estado y coordina las transiciones. Las skills no
+  sustituyen al runtime ni conceden permisos.
+- El usuario aprueba el plan antes de implementar y acepta el resultado al
+  final; las correcciones se acotan y quedan visibles.
+- El implementador puede aplicar Ponytail para gobernar alcance. El proceso de
+  Superpowers informa planificación y verificación. El revisor mantiene un
+  criterio independiente.
+
+El contrato del flujo está en
+`docs/specs/2026-10-25-codeloom-agent-development-workflow.md`; el principio,
+los candidatos externos y el método de evaluación están en
+`docs/specs/2026-10-25-codeloom-agent-first-development-skills.md`. Los
+candidatos se investigan, no se adoptan por popularidad; la fotografía de
+estrellas del 2026-10-25 y los enlaces fuente están en esa spec.
+El estudio comparativo exhaustivo por catálogo, con solapamientos y propuesta
+de combinación, está en `docs/references/2026-10-25-agent-development-skills-study.md`.
 
 ### 5.1 Una sola puerta de descubrimiento (por qué escala)
 
@@ -251,6 +298,7 @@ implementado.
 | Idea | Estado | Spec | Experimento |
 |---|---|---|---|
 | Diseño base (crates, turn/step, tools) | base | `2026-10-13-loom-design.md` | — |
+| Servidor local CodeLoom y varias TUI cliente | propuesta | `2026-10-26-codeloom-local-server-client-runtime.md` | pendiente de revisión |
 | Carga en caliente de MCP/skills | borrador | `...-mcp-skills-hot-reload.md` | — |
 | Hub de decisiones (jevalan) | borrador | `...-decision-hub-jevalan.md` | P1/P0 |
 | Capa estática de señales/decisiones | borrador | `...-static-decision-signals.md` | P0 |
@@ -258,6 +306,7 @@ implementado.
 | Profile de agentes y comunicación A2A | idea | `...-agent-profile-a2a.md` | — |
 | Gauntlet Loop (+ control §4.1) | borrador | `...-gauntlet-loop.md` | P3 |
 | Skills (ponytail/superpowers) | borrador | `...-skills-ponytail-superpowers.md` | — |
+| Agent-first y skills de desarrollo | marco y candidatos | `...-agent-first-development-skills.md` | evaluación pendiente |
 | KPIs y compresión | idea | `...-kpis-prompt-compression.md` | P2/P4 |
 | Memoria | idea | `...-memory.md` | — |
 | Voz al prompt | idea | `...-voice-prompt-input.md` | — |

@@ -1,24 +1,18 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use clap::Parser;
-use codeloom_core::agent::compact::CompactionConfig;
 use codeloom_core::agent::AgentLoop;
-use codeloom_core::budget::BudgetConfig;
 use codeloom_core::catalog::{
     cache_path, fetch_raw, is_stale, read_cache, refresh, Catalog, CATALOG_URL,
 };
 use codeloom_core::config::{AgentsConfig, CodeLoomConfig, ProviderKind};
 use codeloom_core::event::EventBus;
-use codeloom_core::permission::{DenyAll, PermissionService};
 use codeloom_core::provider::anthropic::AnthropicProvider;
 use codeloom_core::provider::openai::OpenAiCompatProvider;
 use codeloom_core::provider::Provider;
 use codeloom_core::registry::{
     AgentRegistry, AgentSource, BuiltInSource, FileSource, ProfileLevel, TrustStore,
 };
-use codeloom_core::session::sqlite::SqliteStore;
-use codeloom_core::session::SessionStore;
 use codeloom_core::tools::ask_user::AskUserTool;
-use codeloom_core::tools::bash::BashTool;
 use codeloom_core::tools::edit::EditTool;
 use codeloom_core::tools::glob::GlobTool;
 use codeloom_core::tools::grep::GrepTool;
@@ -26,39 +20,50 @@ use codeloom_core::tools::job_kill::JobKillTool;
 use codeloom_core::tools::job_list::JobListTool;
 use codeloom_core::tools::job_output::JobOutputTool;
 use codeloom_core::tools::job_start::JobStartTool;
-use codeloom_core::tools::spill::ToolSpill;
 use codeloom_core::tools::subagent::SubagentTool;
 use codeloom_core::tools::subagent_control::SubagentControlTool;
 use codeloom_core::tools::subagent_list::SubagentListTool;
 use codeloom_core::tools::todo_write::TodoWriteTool;
 use codeloom_core::tools::view::ViewTool;
 use codeloom_core::tools::ToolRegistry;
-use codeloom_herdr::{AgentState, HerdrContext};
-use codeloom_tui::app::{ProviderSettings, SessionChoice};
-use codeloom_tui::run::{SessionCommand, SessionUpdate};
-use codeloom_tui::widgets::permission::UiPermissionResponder;
+use codeloom_tui::app::ProviderSettings;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
-use tokio_util::sync::CancellationToken;
+
+mod ipc;
+mod server;
 
 #[derive(Parser)]
 #[command(name = env!("CARGO_BIN_NAME"), version)]
 struct Cli {
     /// Ejecuta un prompt y sale (sin TUI).
-    #[arg(long)]
+    #[arg(long, conflicts_with = "attach")]
     print: Option<String>,
+    /// Reanuda una instancia local desconectada.
+    #[arg(long)]
+    attach: Option<String>,
+    /// Arranca el daemon local (uso interno).
+    #[arg(long, hide = true)]
+    server: bool,
     #[arg(long)]
     yolo: bool,
 }
 
-fn build_provider(cfg: &CodeLoomConfig) -> Result<Arc<dyn Provider>> {
-    let key = std::env::var(&cfg.provider.api_key_env).with_context(|| {
-        format!(
-            "falta la variable de entorno {} (ponla en .env o en el entorno)",
-            cfg.provider.api_key_env
-        )
-    })?;
+fn build_provider(
+    cfg: &CodeLoomConfig,
+    project_env: &HashMap<String, String>,
+) -> Result<Arc<dyn Provider>> {
+    let key = std::env::var(&cfg.provider.api_key_env)
+        .ok()
+        .or_else(|| project_env.get(&cfg.provider.api_key_env).cloned())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "falta la variable de entorno {} (ponla en .env o en el entorno)",
+                cfg.provider.api_key_env
+            )
+        })?;
     if key.is_empty() {
         bail!("environment variable {} is empty", cfg.provider.api_key_env);
     }
@@ -104,9 +109,10 @@ fn apply_provider_settings(
     current: &CodeLoomConfig,
     config_path: &std::path::Path,
     agent: &AgentLoop,
+    project_env: &HashMap<String, String>,
 ) -> Result<CodeLoomConfig, String> {
     let candidate = config_from_provider_settings(settings, current)?;
-    let provider = build_provider(&candidate).map_err(|error| error.to_string())?;
+    let provider = build_provider(&candidate, project_env).map_err(|error| error.to_string())?;
     candidate
         .save(config_path)
         .map_err(|error| error.to_string())?;
@@ -114,13 +120,15 @@ fn apply_provider_settings(
     Ok(candidate)
 }
 
-fn build_tools() -> ToolRegistry {
+fn build_project_tools(project_env: HashMap<String, String>) -> ToolRegistry {
     let mut tools = ToolRegistry::new();
     tools.register(Arc::new(ViewTool));
     tools.register(Arc::new(GlobTool));
     tools.register(Arc::new(GrepTool));
     tools.register(Arc::new(EditTool));
-    tools.register(Arc::new(BashTool));
+    tools.register(Arc::new(codeloom_core::tools::bash::ProjectBashTool::new(
+        project_env,
+    )));
     tools.register(Arc::new(JobListTool));
     tools.register(Arc::new(JobOutputTool));
     tools.register(Arc::new(JobKillTool));
@@ -133,277 +141,15 @@ fn build_tools() -> ToolRegistry {
     tools
 }
 
-async fn report_herdr(context: &mut Option<HerdrContext>, state: AgentState, message: &str) {
-    if let Some(herdr) = context {
-        if let Err(error) = herdr.report(state, message).await {
-            eprintln!("herdr reporting unavailable; continuing standalone: {error}");
-            *context = None;
-        }
-    }
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let mut herdr = HerdrContext::from_env();
-    let cwd = herdr
-        .as_ref()
-        .and_then(|context| context.workspace_cwd.as_ref())
-        .filter(|path| path.is_dir())
-        .cloned()
-        .unwrap_or(std::env::current_dir()?);
-    load_dotenv(&cwd);
-    let config_path = cwd.join("codeloom.toml");
-    let cfg = CodeLoomConfig::load(&config_path)?;
-    let agents_cfg = AgentsConfig::load(&config_path)?;
-    // Como `[agents]`, un `[budget]` mal escrito impide arrancar con un error claro: un aviso
-    // por stderr se perdería tras la pantalla alternativa de la interfaz.
-    let presupuesto = BudgetConfig::load(&config_path)?;
-    // Igual que `[budget]`: una sección `[compaction]` mal escrita impide arrancar con un error claro.
-    let compactacion = CompactionConfig::load(&config_path)?;
-    // Igual que las anteriores: una sección `[a2a]` mal escrita impide arrancar con un error claro.
-    let a2a = codeloom_a2a::config::A2aConfig::load(&config_path)?;
-    let cwd_label = cwd.display().to_string();
-    let model_label = cfg.model.clone();
-    let provider = build_provider(&cfg)?;
-
-    let data_dir = dirs::home_dir()
-        .unwrap_or_else(|| cwd.clone())
-        .join(".codeloom");
-    std::fs::create_dir_all(&data_dir)?;
-    let store = Arc::new(SqliteStore::open(data_dir.join("sessions.db").to_str().unwrap()).await?);
-    let project = cwd.to_str().unwrap_or_default().to_string();
-    let sessions = if cli.print.is_none() {
-        store.list_sessions(&project).await?
+    if cli.server {
+        server::run_server().await
     } else {
-        Vec::new()
-    };
-
-    let bus = EventBus::new(1024);
-    let bus_rx = bus.subscribe();
-    let arranque = arrancar_agentes(dirs::home_dir().as_deref(), &cwd, &agents_cfg);
-    let registro_agentes = Arc::new(arranque.registro);
-    // La vigilancia dura lo que `main`: al soltar el `WatcherHandle` se detiene.
-    let _vigilancia_agentes = registro_agentes.spawn_watcher(arranque.directorios, bus.clone());
-    let fabrica_remotos = arrancar_remotos(&a2a, &registro_agentes, &bus)?;
-    let refresco_manual = arrancar_refresco_manual(&a2a, &registro_agentes, &bus)?;
-    // Servir A2A (A8b): solo con la interfaz; `-p` termina tras un turno y no deja nada escuchando.
-    if cli.print.is_none() {
-        if let Some(direccion) = arrancar_servidor(
-            &a2a,
-            &registro_agentes,
-            provider.clone(),
-            store.clone(),
-            &cfg,
-            &cwd,
-            &bus,
-        )
-        .await?
-        {
-            eprintln!("A2A: sirviendo en http://{direccion}/a2a");
-        }
+        server::run_client(cli).await
     }
-    let (perm_tx, perm_rx) = tokio::sync::mpsc::channel(8);
-    let (ask_tx, ask_rx) = tokio::sync::mpsc::channel(4);
-    let permission = Arc::new(if cli.print.is_some() {
-        // limitación: `-p` no es interactivo; sin `--yolo` se deniega todo.
-        if cli.yolo {
-            PermissionService::allow_all()
-        } else {
-            PermissionService::with_responder(Box::new(DenyAll))
-        }
-    } else {
-        PermissionService::with_responder(Box::new(
-            UiPermissionResponder::new(perm_tx, cli.yolo).with_questions(ask_tx),
-        ))
-    });
-    // Catálogo compartido con el agente (y sus hijos): vacío hasta que llega la carga en
-    // segundo plano, así que los apuntes de antes llevan precio `NULL`.
-    let catalog = Arc::new(std::sync::RwLock::new(Catalog::default()));
-    // El enrutador se construye antes de ceder el proveedor al bucle.
-    let enrutador = enrutador_de(&agents_cfg, provider.clone(), &cfg.model);
-    let agent = AgentLoop::new(
-        provider,
-        store.clone(),
-        Arc::new(build_tools()),
-        bus,
-        permission,
-        cfg.clone(),
-        cwd,
-    )
-    .with_catalog(catalog.clone())
-    .with_agent_registry(registro_agentes.clone())
-    .with_delegation_confirm(agents_cfg.confirm_delegation)
-    .with_spill(ToolSpill::new(data_dir.join("tool-output")))
-    .with_budget(presupuesto)
-    .with_compaction(compactacion);
-    let agent = match fabrica_remotos {
-        Some(fabrica) => agent.with_remote_clients(fabrica),
-        None => agent,
-    };
-    let agent = match enrutador {
-        Some(enrutador) => agent.with_router(enrutador),
-        None => agent,
-    };
-    let agent = Arc::new(agent);
-
-    if let Some(prompt) = cli.print {
-        let session = store.create_session(&project).await?;
-        let outcome = agent.run(session, prompt, CancellationToken::new()).await?;
-        println!("{}", outcome.final_text);
-        return Ok(());
-    }
-
-    report_herdr(&mut herdr, AgentState::Idle, "ready").await;
-
-    let (prompt_tx, mut prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    let (wake_tx, mut wake_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-    // Compactaciones manuales (`/compact`): el trabajador resume la sesión abierta.
-    let (compact_tx, mut compact_rx) = tokio::sync::mpsc::unbounded_channel::<()>();
-    let (settings_tx, mut settings_rx) =
-        tokio::sync::mpsc::unbounded_channel::<codeloom_tui::run::ProviderSettingsCommand>();
-    let (session_command_tx, mut session_command_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (session_update_tx, session_update_rx) = tokio::sync::mpsc::unbounded_channel();
-    // Solo en modo TUI (`--print` ya ha salido arriba): la carga corre en segundo plano.
-    let (catalog_tx, catalog_rx) = tokio::sync::mpsc::unbounded_channel();
-    tokio::spawn(load_catalog(catalog_tx, catalog.clone()));
-    let active_turn: codeloom_tui::run::ActiveTurn = Arc::new(std::sync::Mutex::new(None));
-    let worker_active_turn = active_turn.clone();
-    let agent_task = agent.clone();
-    let worker_store = store.clone();
-    let worker_project = project.clone();
-    let worker_config_path = config_path.clone();
-    let mut worker_config = cfg.clone();
-    tokio::spawn(async move {
-        let mut herdr = herdr;
-        let mut session = None;
-        let mut wake_open = true;
-        loop {
-            tokio::select! {
-                command = session_command_rx.recv() => match command {
-                    Some(SessionCommand::Refresh) => {
-                        let update = worker_store.list_sessions(&worker_project).await
-                            .map(SessionUpdate::List)
-                            .unwrap_or_else(|error| SessionUpdate::Error(error.to_string()));
-                        let _ = session_update_tx.send(update);
-                    }
-                    Some(SessionCommand::Select(choice)) => {
-                        let loaded = async {
-                            let id = match choice {
-                                SessionChoice::Resume(id) => id,
-                                SessionChoice::New => worker_store.create_session(&worker_project).await?,
-                            };
-                            let messages = worker_store.messages(id).await?;
-                            // Una sesión nueva no tiene apuntes: la consulta devuelve vacío.
-                            let usage = worker_store.session_usage(id).await?;
-                            let subagents = worker_store.list_subagents(id).await?;
-                            Ok::<_, codeloom_core::error::CoreError>((id, messages, usage, subagents))
-                        }.await;
-                        match loaded {
-                            Ok((id, messages, usage, subagents)) => {
-                                session = Some(id);
-                                let _ = session_update_tx.send(SessionUpdate::Loaded(id, messages));
-                                let _ = session_update_tx.send(SessionUpdate::Usage(id, usage));
-                                let _ = session_update_tx.send(SessionUpdate::Subagents(id, subagents));
-                            }
-                            Err(error) => {
-                                let _ = session_update_tx.send(SessionUpdate::Error(error.to_string()));
-                            }
-                        }
-                    }
-                    None => break,
-                },
-                Some(command) = settings_rx.recv() => {
-                    let result = apply_provider_settings(
-                        command.settings,
-                        &worker_config,
-                        &worker_config_path,
-                        &agent_task,
-                    );
-                    if let Ok(config) = &result {
-                        worker_config = config.clone();
-                    }
-                    let _ = command.reply.send(result.map(|_| ( )));
-                }
-                // `/compact`: la interfaz solo lo pide con sesión abierta y sin turno en curso.
-                // `compact_now` publica siempre `ManualCompactionEnded`, que libera a la interfaz.
-                Some(()) = compact_rx.recv() => {
-                    let Some(session_id) = session else { continue; };
-                    agent_task.compact_now(session_id, CancellationToken::new()).await;
-                }
-                prompt = prompt_rx.recv() => match prompt {
-                    Some(prompt) => {
-                        let Some(session_id) = session else { continue; };
-                        report_herdr(&mut herdr, AgentState::Working, "working").await;
-                        let cancel = CancellationToken::new();
-                        *worker_active_turn.lock().unwrap() = Some(cancel.clone());
-                        let result = agent_task.run(session_id, prompt, cancel).await;
-                        *worker_active_turn.lock().unwrap() = None;
-                        match result {
-                            Ok(_) => report_herdr(&mut herdr, AgentState::Idle, "ready").await,
-                            Err(error) => {
-                                report_herdr(&mut herdr, AgentState::Blocked, "error").await;
-                                eprintln!("{}: {error}", env!("CARGO_BIN_NAME"));
-                            }
-                        }
-                    }
-                    None => break,
-                },
-                // Despertar del padre ocioso. Sin sesión activa se ignora. El informe a
-                // herdr solo cambia si el despertar ejecutó turno: `run_woken` no dice de
-                // antemano si lo hará, así que no se emite `Working` previo; un `Ok(None)`
-                // no toca el estado (el padre seguía ocioso) y `Ok(Some)` cierra con `Idle`.
-                wake = wake_rx.recv(), if wake_open => match wake {
-                    Some(()) => {
-                        let Some(session_id) = session else { continue; };
-                        let cancel = CancellationToken::new();
-                        *worker_active_turn.lock().unwrap() = Some(cancel.clone());
-                        let result = agent_task.run_woken(session_id, cancel).await;
-                        *worker_active_turn.lock().unwrap() = None;
-                        match result {
-                            Ok(Some(_)) => report_herdr(&mut herdr, AgentState::Idle, "ready").await,
-                            Ok(None) => {}
-                            Err(error) => {
-                                report_herdr(&mut herdr, AgentState::Blocked, "error").await;
-                                eprintln!("{}: {error}", env!("CARGO_BIN_NAME"));
-                            }
-                        }
-                    }
-                    // Canal cerrado: no volver a entrar en esta rama (evita busy-loop).
-                    None => wake_open = false,
-                }
-            }
-        }
-    });
-
-    let mut app = codeloom_tui::app::App::with_context(cwd_label, model_label);
-    app.set_provider_settings((&cfg).into());
-    app.set_sessions(sessions);
-    app.set_prefs_path(data_dir.join("ui.toml"));
-    app.set_agent_registry(registro_agentes.clone());
-    if let Some(peticiones) = refresco_manual {
-        app.set_refresh_agents_hook(Arc::new(move || {
-            let _ = peticiones.send(());
-        }));
-    }
-    codeloom_tui::run::run(
-        app,
-        prompt_tx,
-        wake_tx,
-        compact_tx,
-        settings_tx,
-        bus_rx,
-        perm_rx,
-        ask_rx,
-        active_turn,
-        session_command_tx,
-        session_update_rx,
-        catalog_rx,
-    )
-    .await?;
-    Ok(())
 }
-
 /// Entrega a la interfaz el catálogo de models.dev: primero la caché (si existe) y, si falta
 /// o ha caducado, uno descargado. Cada catálogo que llega se copia también en `shared`, el que
 /// usa el agente para fijar los precios de los apuntes. Los fallos se ignoran en silencio: sin
@@ -445,11 +191,46 @@ async fn load_catalog(
     }
 }
 
-/// Carga `.env` del directorio de trabajo al entorno del proceso (sin pisar
-/// variables ya definidas). Los secretos viven en `.env`, no en la linea de
-/// comandos.
-fn load_dotenv(dir: &std::path::Path) {
-    let _ = dotenvy::from_path(dir.join(".env"));
+/// Lee el `.env` del proyecto sin incorporarlo al entorno compartido del servidor.
+fn load_dotenv(dir: &std::path::Path) -> HashMap<String, String> {
+    dotenvy::from_path_iter(dir.join(".env"))
+        .map(|entries| entries.filter_map(|entry| entry.ok()).collect())
+        .unwrap_or_default()
+}
+
+/// Entorno mínimo para un shell de proyecto; las variables de otros proyectos y las claves del
+/// entorno padre no se heredan.
+fn shell_env(project_env: &HashMap<String, String>) -> HashMap<String, String> {
+    const SAFE: &[&str] = &[
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "SYSTEMDRIVE",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "HOME",
+        "USER",
+        "USERNAME",
+        "LOGNAME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TERM",
+        "CARGO_HOME",
+        "RUSTUP_HOME",
+    ];
+    let mut env: HashMap<_, _> = std::env::vars()
+        .filter(|(name, _)| SAFE.iter().any(|safe| name.eq_ignore_ascii_case(safe)))
+        .collect();
+    for (name, value) in project_env {
+        env.entry(name.clone()).or_insert_with(|| value.clone());
+    }
+    env
 }
 
 /// Registro de agentes y directorios que vigila, tal como quedan al arrancar.
@@ -579,42 +360,6 @@ fn enrutador_de(
     }
 }
 
-/// Pone en marcha el servidor A2A si `[a2a] role` lo pide (A8b). Con el rol apagado o solo de
-/// consumo no se abre ningún puerto. Si lo pide y falta algo (autenticación, su variable de
-/// entorno, un agente servido válido), el arranque falla con el motivo: nunca se sirve a medias.
-async fn arrancar_servidor(
-    a2a: &codeloom_a2a::config::A2aConfig,
-    registro: &Arc<AgentRegistry>,
-    provider: Arc<dyn Provider>,
-    store: Arc<SqliteStore>,
-    cfg: &CodeLoomConfig,
-    cwd: &Path,
-    bus: &EventBus,
-) -> Result<Option<std::net::SocketAddr>> {
-    use codeloom_a2a::config::A2aRole;
-    if !matches!(a2a.role, A2aRole::Serve | A2aRole::Both) {
-        return Ok(None);
-    }
-    let dependencias = codeloom_a2a::serve::launch::ServeDeps {
-        registry: registro.clone(),
-        provider,
-        store,
-        config: cfg.clone(),
-        cwd: cwd.to_path_buf(),
-        bus: bus.clone(),
-    };
-    // El servidor vive lo que el proceso: no hay quien lo apague antes.
-    let direccion = codeloom_a2a::serve::launch::start(
-        &a2a.serve,
-        dependencias,
-        &|nombre| std::env::var(nombre).ok(),
-        CancellationToken::new(),
-    )
-    .await
-    .context("A2A: no se pudo arrancar el servidor")?;
-    Ok(Some(direccion))
-}
-
 /// Resuelve una ruta de `[agents]`: un `~/` inicial va al directorio personal y una ruta
 /// relativa cuelga de la raíz del proyecto. `None` si depende de un home que no existe.
 fn resolver_ruta(ruta: &Path, home: Option<&Path>, raiz: &Path) -> Option<PathBuf> {
@@ -654,8 +399,29 @@ mod tests {
     fn loads_env_from_directory() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join(".env"), "CODELOOM_TEST_ENV_VAR=hello\n").unwrap();
-        load_dotenv(dir.path());
-        assert_eq!(std::env::var("CODELOOM_TEST_ENV_VAR").unwrap(), "hello");
+        let env = load_dotenv(dir.path());
+        assert_eq!(
+            env.get("CODELOOM_TEST_ENV_VAR").map(String::as_str),
+            Some("hello")
+        );
+        assert!(shell_env(&env).contains_key("CODELOOM_TEST_ENV_VAR"));
+    }
+
+    #[test]
+    fn project_env_files_stay_separate_and_do_not_mutate_the_process() {
+        let key = format!("CODELOOM_ISOLATION_TEST_{}", std::process::id());
+        assert!(std::env::var(&key).is_err());
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        std::fs::write(first.path().join(".env"), format!("{key}=first\n")).unwrap();
+        std::fs::write(second.path().join(".env"), format!("{key}=second\n")).unwrap();
+
+        let first_env = load_dotenv(first.path());
+        let second_env = load_dotenv(second.path());
+
+        assert_eq!(first_env.get(&key).map(String::as_str), Some("first"));
+        assert_eq!(second_env.get(&key).map(String::as_str), Some("second"));
+        assert!(std::env::var(&key).is_err());
     }
 
     #[test]

@@ -21,7 +21,6 @@ use codeloom_core::subagent::InProcessSubagentLauncher;
 use tokio_util::sync::CancellationToken;
 
 use super::auth::Authenticator;
-use super::card::served_card;
 use super::config::ServeConfig;
 use super::host::{served_tools, HostLimits, LauncherHost, MAX_RESULT_BYTES};
 use super::rpc::ServeState;
@@ -42,7 +41,7 @@ pub struct ServeDeps {
 pub async fn start(
     serve: &ServeConfig,
     deps: ServeDeps,
-    env: &dyn Fn(&str) -> Option<String>,
+    env: &(dyn Fn(&str) -> Option<String> + Send + Sync),
     apagado: CancellationToken,
 ) -> Result<SocketAddr> {
     let auth = serve.validate(env)?;
@@ -62,7 +61,16 @@ pub async fn start(
             serve.agent
         )));
     }
-    let tarjeta = served_card(&entrada.card, &interfaz, &auth.scheme);
+    let tarjeta = super::card::served_card_for_tenant(
+        &entrada.card,
+        &interfaz,
+        Some(&serve.agent),
+        &auth.scheme,
+    );
+    let tarjetas = Arc::new(RwLock::new(std::collections::HashMap::from([(
+        serve.agent.clone(),
+        tarjeta.clone(),
+    )])));
 
     // Nadie aprobaría un permiso en nombre de un tercero: lo que pida permiso se deniega.
     let lanzador = Arc::new(
@@ -92,6 +100,8 @@ pub async fn start(
         host: Arc::new(anfitrion),
         auth: Authenticator::new(auth),
         card: tarjeta,
+        expected_tenant: Some(serve.agent.clone()),
+        agent_cards: tarjetas,
         max_wait: std::time::Duration::from_secs(serve.max_wait_secs),
     });
     super::serve(estado, addr, apagado)

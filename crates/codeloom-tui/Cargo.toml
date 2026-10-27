@@ -12,6 +12,7 @@ crossterm = { version = "0.29", features = ["bracketed-paste"] }
 base64 = "0.22"
 tokio.workspace = true
 tokio-util.workspace = true
+serde.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
 futures.workspace = true

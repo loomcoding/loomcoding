@@ -24,11 +24,13 @@ use tokio_util::sync::CancellationToken;
 pub type ActiveTurn = Arc<Mutex<Option<CancellationToken>>>;
 const ESC_DOUBLE_PRESS: Duration = Duration::from_millis(350);
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum SessionCommand {
     Refresh,
     Select(SessionChoice),
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum SessionUpdate {
     List(Vec<codeloom_core::session::SessionInfo>),
     Loaded(

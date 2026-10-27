@@ -7,6 +7,11 @@
 >
 > Documento base de conocimiento: `docs/reference/analisis-herdr-crush-dsh.md`
 
+> Vigencia: esta spec conserva decisiones iniciales. Para el runtime local,
+> queda corregida por [la propuesta de servidor CodeLoom y clientes TUI](2026-10-26-codeloom-local-server-client-runtime.md):
+> CodeLoom posee su servidor; Herdr es solo referencia y una integración
+> opcional, nunca un requisito para arrancar o compartir agentes.
+
 ## 0. Origen y atribución
 
 CodeLoom es un agente de código en Rust cuyo modelo de orquestación **está basado
@@ -24,15 +29,15 @@ en deepseek-harness (dsh)**, el harness de agentes de DeepSeek AI:
   diseño y **mejora la ejecución** aprovechando el paralelismo real de Rust
   (ver §11).
 
-CodeLoom **no es un fork** de ninguno de los tres. Reimplementa el modelo de dsh en
-Rust y se integra con herdr sin parchearlo.
+CodeLoom **no es un fork** de ninguno de los tres. Reimplementa el modelo de dsh
+en Rust. La integración con herdr es opcional.
 
 ## 1. Decisiones cerradas
 
 | # | Decisión | Fecha |
 |---|---|---|
-| 1 | **Crate/binario propio**, integrado con herdr como plugin + socket API, sin parchear herdr | 2026-10-13 |
-| 2 | **Un binario, dos modos**: standalone o plugin de herdr (detección en runtime) | 2026-10-13 |
+| 1 | **Runtime local propio**: CodeLoom es dueño del servidor; herdr solo es referencia o integración opcional | 2026-10-26 |
+| 2 | **Un servidor, varias TUI**: la primera ejecución lo inicia y abre UI; las siguientes se conectan | 2026-10-26 |
 | 3 | **MVP**: motor mínimo (chat + loop + provider + 5 tools), sin subagentes/jobs | 2026-10-13 |
 | 4 | **Provider**: `trait` genérico + adapters OpenAI-compatible y Anthropic; OpenRouter como preset | 2026-10-13 |
 
@@ -66,14 +71,14 @@ codeloom/                  (workspace)
 │   │   └── config/        config + contexto (AGENTS.md)
 │   ├── codeloom-tui/          ratatui: chat + header de subagentes/jobs
 │   ├── codeloom-herdr/        integración opcional: detección + cliente socket
-│   └── codeloom-cli/          binarios `loom` y `codeloom`: une todo, autodetecta el modo
+│   └── codeloom-cli/          binarios `loom` y `codeloom`: conectan la TUI al servidor CodeLoom
 ```
 
 Principios:
 
 - `codeloom-core` **no conoce herdr ni ratatui**: motor testeable y reutilizable.
-- `codeloom-herdr` es **opcional** y activable por detección en runtime.
-- Un solo binario (`codeloom-cli`), dos modos.
+- `codeloom-herdr` es **opcional**; CodeLoom inicia y localiza su propio servidor.
+- Un solo binario (`codeloom-cli`), con servidor local compartido y varias TUI cliente.
 
 ## 3. Concurrencia y paralelismo
 
@@ -384,10 +389,15 @@ catálogo durable + estado en vivo, con `StateDot = running|done|error|idle`.
 Widgets (`codeloom-tui`): `HeaderBar`, `Transcript`, `SubagentCatalog`, `JobList`,
 `Composer`, `PermissionDialog`. Tema/keymap en TOML.
 
-## 8. Integración con herdr
+## 8. Adaptador opcional para herdr
 
-Un binario, dos modos, sin parchear herdr. Solo superficies estables:
-manifiesto de plugin + CLI + socket API.
+Este apartado describe solo la integración opcional para quien ya use herdr. No
+decide ni aloja el runtime local: CodeLoom mantiene su propio servidor tanto si
+herdr está instalado como si no. El diseño vigente del runtime está en la spec
+de servidor local enlazada al inicio de este documento.
+
+El adaptador usa superficies estables de herdr: manifiesto de plugin + CLI +
+socket API, sin parchearlo.
 
 ### 8.1 Detección
 
@@ -487,7 +497,7 @@ Nada de red real en tests.
 - **Modelo**: dsh (agente -> subagentes -> jobs, header, turn/step).
 - **Motor**: Rust, `codeloom-core`, sin herdr ni ratatui; tokio + compute pool.
 - **UI**: ratatui, header de subagentes/jobs, deltas coalescidos.
-- **Host**: herdr opcional vía plugin + socket API; standalone por defecto.
+- **Runtime local**: servidor CodeLoom compartido por varias TUI cliente; herdr es una integración opcional.
 - **Ejecución**: paralelismo real de Rust (§11).
 
 ## 11. Mejoras de ejecución respecto a dsh

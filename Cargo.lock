@@ -460,6 +460,7 @@ name = "codeloom-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "codeloom-a2a",
  "codeloom-core",
@@ -467,10 +468,16 @@ dependencies = [
  "codeloom-tui",
  "dirs",
  "dotenvy",
+ "futures",
+ "getrandom 0.3.4",
+ "libc",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
  "tokio-util",
+ "toml",
+ "windows-sys 0.61.2",
  "wiremock",
 ]
 
@@ -520,6 +527,7 @@ dependencies = [
  "crossterm 0.29.0",
  "futures",
  "ratatui 0.30.2",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",

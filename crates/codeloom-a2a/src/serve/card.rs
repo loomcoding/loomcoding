@@ -37,6 +37,16 @@ fn acotar(texto: &str, max: usize) -> String {
 /// Tarjeta del agente servido. `interface_url` es la URL JSON-RPC pública; `scheme`, el esquema
 /// de autenticación que el servidor exige.
 pub fn served_card(card: &AgentCard, interface_url: &str, scheme: &ServeAuthScheme) -> ServedCard {
+    served_card_for_tenant(card, interface_url, None, scheme)
+}
+
+/// Tarjeta servida para una instancia enrutada mediante el `tenant` estándar de A2A.
+pub fn served_card_for_tenant(
+    card: &AgentCard,
+    interface_url: &str,
+    tenant: Option<&str>,
+    scheme: &ServeAuthScheme,
+) -> ServedCard {
     let esquema = match scheme {
         ServeAuthScheme::Bearer => {
             json!({ "httpAuthSecurityScheme": { "scheme": "Bearer" } })
@@ -58,14 +68,18 @@ pub fn served_card(card: &AgentCard, interface_url: &str, scheme: &ServeAuthSche
             })
         })
         .collect();
+    let mut interfaz = json!({
+        "url": interface_url,
+        "protocolBinding": BINDING_JSONRPC,
+        "protocolVersion": VERSION_SOPORTADA,
+    });
+    if let Some(tenant) = tenant {
+        interfaz["tenant"] = json!(tenant);
+    }
     let json = json!({
         "name": acotar(&card.name, MAX_NOMBRE),
         "description": acotar(&card.description, MAX_TEXTO),
-        "supportedInterfaces": [{
-            "url": interface_url,
-            "protocolBinding": BINDING_JSONRPC,
-            "protocolVersion": VERSION_SOPORTADA,
-        }],
+        "supportedInterfaces": [interfaz],
         "version": acotar(&card.version, MAX_NOMBRE),
         "capabilities": {
             "streaming": true,

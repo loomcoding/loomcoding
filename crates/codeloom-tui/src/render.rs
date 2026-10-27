@@ -57,7 +57,7 @@ fn draw_workspace_header(frame: &mut Frame, area: Rect, app: &App) {
     };
     let mut text = vec![
         Span::styled(
-            " CODELOOM / WORKSPACE  ",
+            " CODEL∞M / WORKSPACE  ",
             app.theme.styles.heading.add_modifier(Modifier::BOLD),
         ),
         batten::widgets::chip(state, tone, &app.theme),
@@ -121,7 +121,7 @@ fn draw_flat_header(frame: &mut Frame, area: Rect, app: &App) {
     };
     let mut text = vec![
         Span::styled(
-            " CODELOOM ",
+            " CODEL∞M ",
             app.theme.styles.heading.add_modifier(Modifier::BOLD),
         ),
         Span::styled("╱╱╱╱", app.theme.styles.muted),
@@ -403,7 +403,7 @@ fn draw_transcript(frame: &mut Frame, area: Rect, app: &mut App, panes: &mut Vec
     if !flat {
         frame.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled("CodeLoom", app.theme.styles.heading),
+                Span::styled("CodeL∞M", app.theme.styles.heading),
                 Span::styled("  ·  project conversation", app.theme.styles.muted),
                 Span::styled(
                     format!("  ·  {}", app.theme_preset.name()),
@@ -1170,7 +1170,7 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     );
     frame.render_widget(Clear, popup);
     let block = Block::default()
-        .title(" Keyboard shortcuts ")
+        .title(" CodeL∞M · Keyboard shortcuts ")
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(app.theme.styles.border);
@@ -1699,8 +1699,8 @@ mod tests {
         let content = buffer_of(&mut app, 40, 10);
         assert!(content.contains("hello"));
         assert!(content.contains('x'));
-        assert!(content.contains("CodeLoom"));
-        assert!(content.contains("CODELOOM / WORKSPACE"));
+        assert!(content.contains("CodeL∞M"));
+        assert!(content.contains("CODEL∞M / WORKSPACE"));
     }
 
     #[test]
@@ -2855,7 +2855,7 @@ tres",
         let mut app = crush_ctx();
         let content = buffer_of(&mut app, 70, 24);
         assert!(!content.contains("MODEL"));
-        assert!(content.contains("CODELOOM"));
+        assert!(content.contains("CODEL∞M"));
     }
 
     #[test]
@@ -2878,7 +2878,7 @@ tres",
         let content = buffer_of(&mut app, 120, 30);
         // `buffer_of` no inserta saltos de línea: la primera fila son las primeras 120 celdas.
         let first: String = content.chars().take(120).collect();
-        assert!(first.contains("CODELOOM"));
+        assert!(first.contains("CODEL∞M"));
         assert!(first.contains("/proj"));
         assert!(first.contains("ready"));
         assert!(!content.contains("WORKSPACE"));

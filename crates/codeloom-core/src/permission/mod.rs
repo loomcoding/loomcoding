@@ -3,14 +3,14 @@ use async_trait::async_trait;
 use std::collections::HashSet;
 use tokio::sync::Mutex;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PermissionRequest {
     pub tool: String,
     pub action: String,
     pub detail: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Decision {
     Allow,
     /// Permitir y no volver a preguntar por este `tool:action` en la sesión.

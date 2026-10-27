@@ -65,7 +65,7 @@ fn rect_contains(area: Rect, x: u16, y: u16) -> bool {
         && u32::from(y) < u32::from(area.y) + u32::from(area.height)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SessionChoice {
     Resume(SessionId),
     New,
@@ -159,7 +159,7 @@ pub(crate) fn windowed_sample_catalog() -> Arc<Catalog> {
 /// sin él, «Save» ocupa esta misma posición.
 pub const SETTINGS_EFFORT_FIELD: usize = 4;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProviderSettings {
     pub kind: ProviderKind,
     pub model: String,

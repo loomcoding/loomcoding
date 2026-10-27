@@ -8,12 +8,13 @@
 use crate::a2a::Message;
 use crate::job::JobStatus;
 use crate::message::now_ms;
+use serde::{Deserialize, Serialize};
 
 /// Estado de una tarea según A2A.
 ///
 /// Cabe señalar que se omite a propósito el valor `unspecified` de protobuf,
 /// que es el valor cero del enumerado y no un estado real de la tarea.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TaskState {
     Submitted,
     Working,
@@ -81,7 +82,7 @@ impl TaskState {
 /// Estado de una tarea con su mensaje y su marca de tiempo, como el `TaskStatus` del proto.
 ///
 /// Cabe señalar que `message` es un `Message` de A2A con sus `Part`s, como en el proto.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskStatus {
     pub state: TaskState,
     pub message: Option<Message>,

@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use axum::body::{to_bytes, Body};
-use axum::extract::{Request, State};
+use axum::extract::{Path, Request, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
@@ -86,19 +86,54 @@ pub enum HostError {
 pub trait TaskHost: Send + Sync {
     /// Crea una tarea con este texto.
     async fn start(&self, prompt: String) -> Result<TaskView, HostError>;
+    async fn start_for(
+        &self,
+        _tenant: Option<&str>,
+        prompt: String,
+    ) -> Result<TaskView, HostError> {
+        self.start(prompt).await
+    }
     /// Una tarea propia; `NotFound` para cualquier otra, exista o no.
     async fn get(&self, id: &str) -> Result<TaskView, HostError>;
+    async fn get_for(&self, _tenant: Option<&str>, id: &str) -> Result<TaskView, HostError> {
+        self.get(id).await
+    }
     async fn cancel(&self, id: &str) -> Result<TaskView, HostError>;
+    async fn cancel_for(&self, _tenant: Option<&str>, id: &str) -> Result<TaskView, HostError> {
+        self.cancel(id).await
+    }
     /// Espera a un estado terminal hasta `max`; si vence, devuelve la tarea como esté.
     async fn wait_terminal(&self, id: &str, max: Duration) -> Result<TaskView, HostError>;
+    async fn wait_terminal_for(
+        &self,
+        _tenant: Option<&str>,
+        id: &str,
+        max: Duration,
+    ) -> Result<TaskView, HostError> {
+        self.wait_terminal(id, max).await
+    }
     /// `SubscribeToTask`: flujo que empieza por la tarea y se cierra al estado terminal. Sin soporte,
     /// el valor por defecto es `Unsupported`.
     async fn subscribe(&self, _id: &str) -> Result<EventStream, HostError> {
         Err(HostError::Unsupported)
     }
+    async fn subscribe_for(
+        &self,
+        _tenant: Option<&str>,
+        id: &str,
+    ) -> Result<EventStream, HostError> {
+        self.subscribe(id).await
+    }
     /// `SendStreamingMessage`: crea la tarea y devuelve su flujo desde el `Task` inicial.
     async fn start_streaming(&self, _prompt: String) -> Result<EventStream, HostError> {
         Err(HostError::Unsupported)
+    }
+    async fn start_streaming_for(
+        &self,
+        _tenant: Option<&str>,
+        prompt: String,
+    ) -> Result<EventStream, HostError> {
+        self.start_streaming(prompt).await
     }
 }
 
@@ -107,6 +142,8 @@ pub struct ServeState {
     pub host: Arc<dyn TaskHost>,
     pub auth: Authenticator,
     pub card: ServedCard,
+    pub expected_tenant: Option<String>,
+    pub agent_cards: Arc<std::sync::RwLock<std::collections::HashMap<String, ServedCard>>>,
     pub max_wait: Duration,
 }
 
@@ -114,12 +151,34 @@ pub struct ServeState {
 pub fn router(estado: Arc<ServeState>) -> Router {
     Router::new()
         .route("/.well-known/agent-card.json", get(tarjeta))
+        .route(
+            "/agents/{tenant}/.well-known/agent-card.json",
+            get(tarjeta_agente),
+        )
         .route("/a2a", post(rpc))
         .with_state(estado)
 }
 
+async fn tarjeta_agente(
+    Path(tenant): Path<String>,
+    State(estado): State<Arc<ServeState>>,
+    cabeceras: HeaderMap,
+) -> Response {
+    let Ok(cards) = estado.agent_cards.read() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let Some(card) = cards.get(&tenant) else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    respuesta_tarjeta(card, &cabeceras)
+}
+
 async fn tarjeta(State(estado): State<Arc<ServeState>>, cabeceras: HeaderMap) -> Response {
-    let etag = HeaderValue::from_str(&estado.card.etag).expect("el ETag es ASCII");
+    respuesta_tarjeta(&estado.card, &cabeceras)
+}
+
+fn respuesta_tarjeta(card: &ServedCard, cabeceras: &HeaderMap) -> Response {
+    let etag = HeaderValue::from_str(&card.etag).expect("el ETag es ASCII");
     if cabeceras
         .get(header::IF_NONE_MATCH)
         .is_some_and(|valor| *valor == etag)
@@ -139,7 +198,7 @@ async fn tarjeta(State(estado): State<Arc<ServeState>>, cabeceras: HeaderMap) ->
                 HeaderValue::from_static("application/json"),
             ),
         ],
-        estado.card.json.to_string(),
+        card.json.to_string(),
     )
         .into_response()
 }
@@ -253,12 +312,28 @@ async fn rpc(State(estado): State<Arc<ServeState>>, peticion: Request) -> Respon
     }
 
     let params = sobre.get("params").cloned().unwrap_or(Value::Null);
+    let tenant = match params.get("tenant") {
+        Some(Value::String(tenant)) => Some(tenant.as_str()),
+        Some(_) => return error_rpc(id, INVALID_PARAMS, "params.tenant must be a string"),
+        None => None,
+    };
+    if estado
+        .expected_tenant
+        .as_deref()
+        .is_some_and(|esperado| tenant != Some(esperado))
+    {
+        return error_rpc(
+            id,
+            INVALID_PARAMS,
+            "params.tenant does not match the selected AgentInterface",
+        );
+    }
     match metodo {
-        "SendMessage" => enviar(&estado, id, &params, false).await,
-        "SendStreamingMessage" => enviar(&estado, id, &params, true).await,
-        "SubscribeToTask" => suscribir(&estado, id, &params).await,
-        "GetTask" => consultar(&estado, id, &params, false).await,
-        "CancelTask" => consultar(&estado, id, &params, true).await,
+        "SendMessage" => enviar(&estado, id, &params, tenant, false).await,
+        "SendStreamingMessage" => enviar(&estado, id, &params, tenant, true).await,
+        "SubscribeToTask" => suscribir(&estado, id, &params, tenant).await,
+        "GetTask" => consultar(&estado, id, &params, tenant, false).await,
+        "CancelTask" => consultar(&estado, id, &params, tenant, true).await,
         "ListTasks" | "GetExtendedAgentCard" => {
             error_rpc(id, UNSUPPORTED_OPERATION, "operation not supported")
         }
@@ -287,7 +362,12 @@ fn respuesta_sse(id: Value, eventos: EventStream) -> Response {
         .into_response()
 }
 
-async fn suscribir(estado: &ServeState, id: Value, params: &Value) -> Response {
+async fn suscribir(
+    estado: &ServeState,
+    id: Value,
+    params: &Value,
+    tenant: Option<&str>,
+) -> Response {
     let tarea = params
         .get("id")
         .and_then(Value::as_str)
@@ -295,13 +375,19 @@ async fn suscribir(estado: &ServeState, id: Value, params: &Value) -> Response {
     let Some(tarea) = tarea else {
         return error_rpc(id, INVALID_PARAMS, "params.id must be a task id");
     };
-    match estado.host.subscribe(tarea).await {
+    match estado.host.subscribe_for(tenant, tarea).await {
         Ok(eventos) => respuesta_sse(id, eventos),
         Err(error) => desde_anfitrion(id, error),
     }
 }
 
-async fn consultar(estado: &ServeState, id: Value, params: &Value, cancelar: bool) -> Response {
+async fn consultar(
+    estado: &ServeState,
+    id: Value,
+    params: &Value,
+    tenant: Option<&str>,
+    cancelar: bool,
+) -> Response {
     let tarea = params
         .get("id")
         .and_then(Value::as_str)
@@ -310,9 +396,9 @@ async fn consultar(estado: &ServeState, id: Value, params: &Value, cancelar: boo
         return error_rpc(id, INVALID_PARAMS, "params.id must be a task id");
     };
     let resultado = if cancelar {
-        estado.host.cancel(tarea).await
+        estado.host.cancel_for(tenant, tarea).await
     } else {
-        estado.host.get(tarea).await
+        estado.host.get_for(tenant, tarea).await
     };
     match resultado {
         Ok(vista) => exito(id, vista.json),
@@ -320,7 +406,13 @@ async fn consultar(estado: &ServeState, id: Value, params: &Value, cancelar: boo
     }
 }
 
-async fn enviar(estado: &ServeState, id: Value, params: &Value, flujo: bool) -> Response {
+async fn enviar(
+    estado: &ServeState,
+    id: Value,
+    params: &Value,
+    tenant: Option<&str>,
+    flujo: bool,
+) -> Response {
     let invalido = |motivo: &str| error_rpc(id.clone(), INVALID_PARAMS, motivo);
     let Some(mensaje) = params.get("message") else {
         return invalido("params.message is required");
@@ -363,7 +455,7 @@ async fn enviar(estado: &ServeState, id: Value, params: &Value, flujo: bool) -> 
         return invalido("params.message is too large");
     }
     if flujo {
-        return match estado.host.start_streaming(prompt).await {
+        return match estado.host.start_streaming_for(tenant, prompt).await {
             Ok(eventos) => respuesta_sse(id, eventos),
             Err(error) => desde_anfitrion(id, error),
         };
@@ -374,13 +466,17 @@ async fn enviar(estado: &ServeState, id: Value, params: &Value, flujo: bool) -> 
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
-    let mut vista = match estado.host.start(prompt).await {
+    let mut vista = match estado.host.start_for(tenant, prompt).await {
         Ok(vista) => vista,
         Err(error) => return desde_anfitrion(id, error),
     };
     if !sin_esperar && !vista.terminal {
         let tarea = vista.json.get("id").and_then(Value::as_str).unwrap_or("");
-        match estado.host.wait_terminal(tarea, estado.max_wait).await {
+        match estado
+            .host
+            .wait_terminal_for(tenant, tarea, estado.max_wait)
+            .await
+        {
             Ok(esperada) => vista = esperada,
             Err(error) => return desde_anfitrion(id, error),
         }
@@ -391,7 +487,6 @@ async fn enviar(estado: &ServeState, id: Value, params: &Value, flujo: bool) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serve::card::served_card;
     use crate::serve::config::{ServeAuthConfig, ServeAuthKind, ServeConfig};
     use codeloom_core::card::AgentCard;
     use std::sync::Mutex;
@@ -488,15 +583,18 @@ mod tests {
             ..ServeConfig::default()
         };
         let resuelta = config.validate(&|_| Some(SECRETO.to_string())).unwrap();
-        let tarjeta = served_card(
+        let tarjeta = crate::serve::card::served_card_for_tenant(
             &AgentCard::local("default", "Agente de CodeLoom", "1.0.0"),
             "http://127.0.0.1:7077/a2a",
+            None,
             &resuelta.scheme,
         );
         let estado = Arc::new(ServeState {
             host: host.clone(),
             auth: Authenticator::new(resuelta),
             card: tarjeta,
+            expected_tenant: None,
+            agent_cards: Arc::new(std::sync::RwLock::new(std::collections::HashMap::new())),
             max_wait: Duration::from_secs(5),
         });
         (estado, host)
@@ -752,6 +850,36 @@ mod tests {
         let (http, _, bytes) = enviar_req(&estado, condicional).await;
         assert_eq!(http, StatusCode::NOT_MODIFIED);
         assert!(bytes.is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_tenant_card_is_directly_discoverable_without_a_list_operation() {
+        let (estado, _) = bearer(Falso::default());
+        let tarjeta = crate::serve::card::served_card_for_tenant(
+            &AgentCard::local("agent-one", "runtime agent", "1.0.0"),
+            "http://127.0.0.1:7077/a2a",
+            Some("tenant-one"),
+            estado.auth.scheme(),
+        );
+        estado
+            .agent_cards
+            .write()
+            .unwrap()
+            .insert("tenant-one".into(), tarjeta);
+        let request = Request::builder()
+            .uri("/agents/tenant-one/.well-known/agent-card.json")
+            .body(Body::empty())
+            .unwrap();
+
+        let (http, _, bytes) = enviar_req(&estado, request).await;
+
+        assert_eq!(http, StatusCode::OK);
+        let card: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(card["supportedInterfaces"][0]["tenant"], "tenant-one");
+        assert_eq!(
+            card["supportedInterfaces"][0]["url"],
+            "http://127.0.0.1:7077/a2a"
+        );
     }
 
     #[tokio::test]

@@ -1,10 +1,11 @@
 use crate::message::Message;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
 /// Cómo entró en efecto una compactación. `Sync` es la vía de siempre: el turno esperó al resumen.
 /// `Background` activó un resumen ya listo, sin llamada al modelo. `BackgroundAwaited` activó un
 /// resumen en curso tras esperarlo `waited_ms` milisegundos.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Activation {
     Sync,
     Background,
@@ -12,7 +13,7 @@ pub enum Activation {
 }
 
 /// Resultado de una compactación pedida a mano (`/compact`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ManualCompaction {
     /// El historial antiguo se resumió y el resumen entró en efecto.
     Compacted,
@@ -22,7 +23,7 @@ pub enum ManualCompaction {
     Failed,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LiveEvent {
     TurnStarted,
     StepStarted {
