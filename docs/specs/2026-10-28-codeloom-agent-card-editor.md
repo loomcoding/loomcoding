@@ -1,6 +1,6 @@
 # Editor de perfiles y tarjetas A2A
 
-> Estado: propuesta para revisión; no implementar hasta aprobar alcance y decisiones abiertas.
+> Estado: implementado; pendiente de revisión final.
 >
 > Fecha: 2026-10-28
 >
@@ -8,7 +8,8 @@
 > `2026-10-27-codeloom-a2a-observatory.md`,
 > `2026-10-27-codeloom-runtime-agent-cards.md`,
 > `2026-10-27-codeloom-runtime-supervisor.md` y
-> `2026-10-15-loom-agent-profile-a2a.md`.
+> `2026-10-15-loom-agent-profile-a2a.md` y
+> `2026-10-28-codeloom-mcp-agent-scope.md` (enforcement de `scope.mcp`).
 
 ## 1. Objetivo
 
@@ -51,25 +52,27 @@ y se editan por separado.
 La sección A2A edita, con validación del esquema A2A:
 
 - identidad pública: `name`, `description`, `version`;
-- capacidades A2A (`AgentSkill`): `id`, `name`, `description`, `tags`, ejemplos y modos de
-  entrada/salida;
-- capacidades del agente (`AgentCapabilities`): streaming, push notifications,
-  extended agent card y extensiones A2A.
+- skills A2A (`AgentSkill`), con sus tags, ejemplos y modos de entrada/salida.
+
+Las capacidades A2A del protocolo (`streaming`, `pushNotifications`, `extendedAgentCard` y
+extensiones) se muestran en solo lectura y proceden del servicio que está activo. El perfil
+no puede activarlas. Si el agente no expone interfaz A2A, la tarjeta muestra esas capacidades
+como no declaradas.
 
 ### 3.2 CodeLoom — configuración local
 
-La sección CodeLoom edita, con validación del perfil local:
+La primera versión edita las declaraciones del scope local:
 
 - asignación MCP (`scope.mcp`) y skills de proceso (`scope.skills`), usando IDs ya conocidos
   por los registros locales;
-- herramientas locales permitidas (`scope.tools`), persona, modelo y límites de ejecución;
-- origen, confianza y aprobación del perfil.
+- herramientas locales declaradas (`scope.tools`). Persona, modelo, límites, origen y
+  aprobación se conservan en el perfil pero no se editan desde esta pantalla.
 
-Un agente solo puede usar servidores MCP que su configuración CodeLoom permita y que el
-runtime tenga configurados. La UI distingue «permitido por perfil» de «disponible ahora». No
-presenta la allowlist como una frontera de seguridad independiente: permisos y aprobación
-de herramientas siguen aplicándose. Si el runtime aún no aplica el scope, la UI lo marca
-como no aplicado y no promete aislamiento.
+Un agente local delegado solo recibe tools de servidores MCP que aparecen tanto en su perfil
+como en la configuración global `~/.codeloom/mcp.toml`. Sin scope no recibe MCP. El runtime
+actual soporta stdio; cada llamada MCP sigue pasando por el permiso normal. Los fallos e IDs
+no disponibles aparecen como avisos locales en la TUI, sin un panel de estado por servidor.
+`scope.skills` y `scope.tools` siguen declarados, pero todavía no se aplican.
 
 ### 3.3 Campos derivados o protegidos
 
@@ -157,16 +160,12 @@ un editor YAML genérico ni un editor de JSON arbitrario.
 - Cambiar cómo se aprueban perfiles, cómo se ejecutan permisos o cómo razona el LLM.
 - Añadir un formato nuevo de perfil o un editor genérico de YAML/JSON.
 
-## 8. Decisiones pendientes para aprobar
+## 8. Decisiones de implementación
 
-1. ¿La primera versión debe habilitar `scope.mcp` de forma ejecutable si el soporte MCP aún
-   no está integrado en el runtime, o limitarse a preparar/mostrar esa configuración hasta
-   que haya enforcement real?
-2. ¿Qué capacidades implementadas puede anunciar hoy cada tipo de agente local? Debe
-   resolverse mediante inventario del runtime antes de habilitar esos controles.
+1. `scope.mcp` es una allowlist efectiva para agentes locales delegados; `scope.skills` y
+   `scope.tools` siguen declarados y no aplicados.
+2. Las capacidades de transporte se derivan de la interfaz activa y son de solo lectura.
 
 ## 9. Nota de proceso
 
-Esta spec propone alcance y criterios, no autoriza implementación. Antes de código se crea y
-revisa un plan ligado a la spec aprobada, según el flujo Superpowers de CodeLoom. La
-aprobación de ese plan y la aceptación final del cambio son decisiones separadas.
+El plan ligado a esta spec está en `docs/plans/2026-10-28-codeloom-agent-card-editor.md`.

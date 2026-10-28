@@ -218,6 +218,7 @@ mod tests {
     fn contexto_con(lanzador: Arc<LanzadorEspia>) -> ToolCtx {
         ToolCtx {
             cwd: std::env::temp_dir(),
+            store: None,
             permission: Arc::new(PermissionService::allow_all()),
             session: SessionId(1),
             jobs: Arc::new(crate::job::LocalJobRegistry::default()),

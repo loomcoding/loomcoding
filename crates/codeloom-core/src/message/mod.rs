@@ -61,7 +61,16 @@ pub struct Message {
     pub parts: Vec<ContentPart>,
     #[serde(default)]
     pub usage: Option<Usage>,
+    /// Opaque provider continuation data. Local to this runtime and never part of A2A.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_state: Option<ProviderState>,
     pub created_at_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderState {
+    pub provider: String,
+    pub data: serde_json::Value,
 }
 
 impl Message {
@@ -71,6 +80,7 @@ impl Message {
             role,
             parts,
             usage: None,
+            provider_state: None,
             created_at_ms: now_ms(),
         }
     }

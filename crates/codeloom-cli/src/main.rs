@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Parser;
 use codeloom_core::agent::AgentLoop;
 use codeloom_core::catalog::{
@@ -7,7 +7,9 @@ use codeloom_core::catalog::{
 use codeloom_core::config::{AgentsConfig, CodeLoomConfig, ProviderKind};
 use codeloom_core::event::EventBus;
 use codeloom_core::provider::anthropic::AnthropicProvider;
+use codeloom_core::provider::gemini::GeminiProvider;
 use codeloom_core::provider::openai::OpenAiCompatProvider;
+use codeloom_core::provider::openai::OpenAiResponsesProvider;
 use codeloom_core::provider::Provider;
 use codeloom_core::registry::{
     AgentRegistry, AgentSource, BuiltInSource, FileSource, ProfileLevel, TrustStore,
@@ -32,6 +34,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::SystemTime;
 
+mod credentials;
 mod ipc;
 mod server;
 
@@ -55,27 +58,65 @@ fn build_provider(
     cfg: &CodeLoomConfig,
     project_env: &HashMap<String, String>,
 ) -> Result<Arc<dyn Provider>> {
-    let key = std::env::var(&cfg.provider.api_key_env)
-        .ok()
+    Ok(build_provider_state(cfg, project_env, None)?.0)
+}
+
+fn build_provider_state(
+    cfg: &CodeLoomConfig,
+    project_env: &HashMap<String, String>,
+    api_key_override: Option<&str>,
+) -> Result<(Arc<dyn Provider>, bool)> {
+    let key = api_key_override
+        .map(str::to_string)
+        .or_else(|| std::env::var(&cfg.provider.api_key_env).ok())
         .or_else(|| project_env.get(&cfg.provider.api_key_env).cloned())
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "falta la variable de entorno {} (ponla en .env o en el entorno)",
-                cfg.provider.api_key_env
-            )
-        })?;
-    if key.is_empty() {
-        bail!("environment variable {} is empty", cfg.provider.api_key_env);
-    }
-    Ok(match cfg.provider.kind {
-        ProviderKind::OpenAiCompat => Arc::new(OpenAiCompatProvider::new(
-            cfg.provider.base_url.clone(),
-            key,
-        )),
-        ProviderKind::Anthropic => {
-            Arc::new(AnthropicProvider::new(cfg.provider.base_url.clone(), key))
+        .filter(|key| !key.trim().is_empty())
+        .or_else(|| credentials::get(&cfg.provider.api_key_env).ok().flatten());
+    let Some(key) = key else {
+        return Ok((Arc::new(UnconfiguredProvider), false));
+    };
+    Ok((
+        match cfg.provider.kind {
+            ProviderKind::OpenAiCompat => Arc::new(OpenAiCompatProvider::new(
+                cfg.provider.base_url.clone(),
+                key,
+            )),
+            ProviderKind::OpenAiResponses => Arc::new(OpenAiResponsesProvider::new(
+                cfg.provider.base_url.clone(),
+                key,
+            )),
+            ProviderKind::Anthropic => {
+                Arc::new(AnthropicProvider::new(cfg.provider.base_url.clone(), key))
+            }
+            ProviderKind::Gemini => {
+                Arc::new(GeminiProvider::new(cfg.provider.base_url.clone(), key))
+            }
+        },
+        true,
+    ))
+}
+
+struct UnconfiguredProvider;
+
+#[async_trait::async_trait]
+impl Provider for UnconfiguredProvider {
+    fn capabilities(&self) -> codeloom_core::provider::Capabilities {
+        codeloom_core::provider::Capabilities {
+            tool_use: false,
+            reasoning: false,
+            streaming: false,
         }
-    })
+    }
+
+    async fn stream(
+        &self,
+        _req: codeloom_core::provider::ProviderRequest,
+        _cancel: tokio_util::sync::CancellationToken,
+    ) -> codeloom_core::error::Result<codeloom_core::provider::ProviderStream> {
+        Err(codeloom_core::error::CoreError::Provider(
+            "No API key configured. Open /settings and save your provider key.".into(),
+        ))
+    }
 }
 
 fn config_from_provider_settings(
@@ -106,26 +147,43 @@ fn config_from_provider_settings(
 
 fn apply_provider_settings(
     settings: ProviderSettings,
+    api_key: Option<&str>,
     current: &CodeLoomConfig,
     config_path: &std::path::Path,
     agent: &AgentLoop,
     project_env: &HashMap<String, String>,
-) -> Result<CodeLoomConfig, String> {
+) -> Result<(CodeLoomConfig, bool), String> {
     let candidate = config_from_provider_settings(settings, current)?;
-    let provider = build_provider(&candidate, project_env).map_err(|error| error.to_string())?;
+    let api_key = api_key.map(str::trim).filter(|key| !key.is_empty());
+    if let Some(key) = api_key {
+        if key.len() > 4096 || key.chars().any(char::is_control) {
+            return Err(
+                "API key must be at most 4096 bytes and contain no control characters".into(),
+            );
+        }
+        credentials::set(&candidate.provider.api_key_env, key)
+            .map_err(|error| format!("could not save API key securely: {error}"))?;
+    }
+    let (provider, configured) = build_provider_state(&candidate, project_env, api_key)
+        .map_err(|error| error.to_string())?;
     candidate
         .save(config_path)
         .map_err(|error| error.to_string())?;
     agent.update_provider(provider, candidate.clone());
-    Ok(candidate)
+    Ok((candidate, configured))
 }
 
 fn build_project_tools(project_env: HashMap<String, String>) -> ToolRegistry {
     let mut tools = ToolRegistry::new();
     tools.register(Arc::new(ViewTool));
+    tools.register(Arc::new(codeloom_core::tools::ls::LsTool));
     tools.register(Arc::new(GlobTool));
     tools.register(Arc::new(GrepTool));
     tools.register(Arc::new(EditTool));
+    tools.register(Arc::new(codeloom_core::tools::write::WriteTool));
+    tools.register(Arc::new(codeloom_core::tools::multiedit::MultiEditTool));
+    tools.register(Arc::new(codeloom_core::tools::lsp::LspTool));
+    tools.register(Arc::new(codeloom_core::tools::web::WebTool));
     tools.register(Arc::new(codeloom_core::tools::bash::ProjectBashTool::new(
         project_env,
     )));
@@ -138,6 +196,9 @@ fn build_project_tools(project_env: HashMap<String, String>) -> ToolRegistry {
     tools.register(Arc::new(SubagentListTool));
     tools.register(Arc::new(TodoWriteTool));
     tools.register(Arc::new(AskUserTool));
+    tools.register(Arc::new(
+        codeloom_core::tools::development_workflow::DevelopmentWorkflowTool,
+    ));
     tools
 }
 
@@ -242,7 +303,17 @@ struct ArranqueAgentes {
 /// Construye el registro con `default` integrado, la fuente global y la de proyecto, de menor
 /// a mayor precedencia. Sin `home` no hay fuente global ni almacén de aprobaciones: los agentes
 /// de proyecto quedan pendientes y nunca se guarda una aprobación dentro del repositorio.
+#[cfg(test)]
 fn arrancar_agentes(home: Option<&Path>, raiz: &Path, agents: &AgentsConfig) -> ArranqueAgentes {
+    arrancar_agentes_con_runtime(home, raiz, agents, None)
+}
+
+fn arrancar_agentes_con_runtime(
+    home: Option<&Path>,
+    raiz: &Path,
+    agents: &AgentsConfig,
+    runtime_peers: Option<PathBuf>,
+) -> ArranqueAgentes {
     let global = match &agents.global_dir {
         Some(ruta) => resolver_ruta(ruta, home, raiz),
         None => home.map(|h| h.join(".agents").join("agents")),
@@ -254,6 +325,10 @@ fn arrancar_agentes(home: Option<&Path>, raiz: &Path, agents: &AgentsConfig) -> 
     let mut fuentes: Vec<Box<dyn AgentSource>> = vec![Box::new(BuiltInSource)];
     let mut directorios = Vec::new();
     if let Some(dir) = global {
+        directorios.push(dir.clone());
+        fuentes.push(Box::new(FileSource::new(dir, ProfileLevel::Global)));
+    }
+    if let Some(dir) = runtime_peers {
         directorios.push(dir.clone());
         fuentes.push(Box::new(FileSource::new(dir, ProfileLevel::Global)));
     }
@@ -279,6 +354,28 @@ fn arrancar_agentes(home: Option<&Path>, raiz: &Path, agents: &AgentsConfig) -> 
     }
 }
 
+fn runtime_peer_dir(data_dir: &Path, generation: &str, project_root: &Path) -> PathBuf {
+    // shortcut: stale generations are left in user data; prune them if repeated runs accumulate noticeably.
+    let project_hash = codeloom_core::registry::content_hash(
+        &std::fs::canonicalize(project_root)
+            .unwrap_or_else(|_| project_root.to_path_buf())
+            .to_string_lossy(),
+    );
+    data_dir
+        .join("runtime")
+        .join("agents")
+        .join(generation)
+        .join(&project_hash[..16])
+}
+
+fn resolve_credential(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| credentials::get(name).ok().flatten())
+        .filter(|value| !value.trim().is_empty())
+}
+
 /// Pone en marcha el consumo de agentes remotos si `[a2a] role` lo pide (A8a). Con el rol apagado
 /// no se crea cliente alguno ni se hace petición. Las tarjetas se descargan en segundo plano para
 /// no retrasar el arranque; un remoto que no responde queda como problema de carga de ese agente
@@ -291,18 +388,37 @@ fn arrancar_remotos(
     let Some(cliente) = codeloom_a2a::remote::http_client(a2a)? else {
         return Ok(None);
     };
-    let Some(fabrica) = codeloom_a2a::client::A2aClientFactory::from_config(a2a)? else {
+    let Some(fabrica) = codeloom_a2a::client::A2aClientFactory::from_config(a2a)?.map(|fabrica| {
+        fabrica
+            .with_event_bus(bus.clone())
+            .with_env(resolve_credential)
+    }) else {
         return Ok(None);
     };
     let (registro, bus, config) = (registro.clone(), bus.clone(), a2a.clone());
     tokio::spawn(async move {
         // El informe se descarta: el registro ya publica el cambio y deja cada fallo como
         // problema de carga de su agente, que es donde la persona usuaria lo ve.
-        let _ = codeloom_a2a::sync::refresh_remote_cards(&registro, &bus, &cliente, &config).await;
+        let _ = codeloom_a2a::sync::refresh_remote_cards_with_env(
+            &registro,
+            &bus,
+            &cliente,
+            &config,
+            &resolve_credential,
+        )
+        .await;
         // Después, cada `card_refresh_secs` (una hora por defecto; `0` lo desactiva): una tarjeta
         // que cambia vuelve a pedir aprobación y un fallo de red no estropea lo que funcionaba.
         if let Some(intervalo) = config.card_refresh_interval() {
-            codeloom_a2a::sync::refresh_loop(registro, bus, cliente, config, intervalo).await;
+            codeloom_a2a::sync::refresh_loop_with_env(
+                registro,
+                bus,
+                cliente,
+                config,
+                intervalo,
+                resolve_credential,
+            )
+            .await;
         }
     });
     Ok(Some(Arc::new(fabrica)))
@@ -325,8 +441,15 @@ fn arrancar_refresco_manual(
         while rx.recv().await.is_some() {
             // Varias pulsaciones seguidas valen por una.
             while rx.try_recv().is_ok() {}
-            let informe =
-                codeloom_a2a::sync::refresh_remote_cards(&registro, &bus, &cliente, &config).await;
+            registro.reload_and_publish(&bus);
+            let informe = codeloom_a2a::sync::refresh_remote_cards_with_env(
+                &registro,
+                &bus,
+                &cliente,
+                &config,
+                &resolve_credential,
+            )
+            .await;
             bus.publish(codeloom_core::event::LiveEvent::AgentCardsRefreshed {
                 ok: informe.ok.len(),
                 failed: informe.failed,

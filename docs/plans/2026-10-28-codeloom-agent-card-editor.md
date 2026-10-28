@@ -1,6 +1,6 @@
 # Plan — Editor de perfiles y tarjetas A2A
 
-> Estado: pendiente de aprobación del plan; no iniciar implementación todavía.
+> Estado: implementado el 2026-10-28; pendiente de revisión final.
 >
 > Spec: `docs/specs/2026-10-28-codeloom-agent-card-editor.md`.
 
@@ -10,16 +10,15 @@ Editar perfiles locales desde `/agents` con secciones A2A y CodeLoom claramente 
 ver las tarjetas reales en `/a2a` y registrar al supervisor como agente local disponible por
 defecto. No mezclar configuración MCP/local con el protocolo A2A.
 
-## Decisiones de implementación propuestas
+## Decisiones aplicadas
 
 1. `name` sigue siendo el ID estable de CodeLoom y se proyecta como `AgentCard.name`; el
    editor muestra esa relación, sin mantener dos copias.
-2. MCP y scope se pueden inspeccionar y editar en la sección CodeLoom. Como el parser actual
-   los marca como no aplicados y este cambio no implementa un runtime MCP, se mostrarán
-   claramente como **declarados, aún no aplicados**; no se afirmará que limitan acceso.
-3. Las capacidades A2A se anuncian solo si el runtime las soporta. La edición de skills A2A
-   no activa capacidades de transporte. Las capabilities de transporte no se habilitan por
-   una casilla del perfil.
+2. `scope.mcp` se inspecciona y edita en CodeLoom y ya filtra herramientas de servidores
+   stdio configurados globalmente para agentes locales delegados. El gate de permisos normal
+   sigue activo. `scope.skills` y `scope.tools` aún no se aplican.
+3. Las capacidades A2A de transporte se derivan del runtime y son de solo lectura en el
+   editor. Editar skills A2A no activa capacidades de transporte.
 4. La ficha del supervisor se registra localmente siempre; su LLM continúa opcional y el
    handler existente conserva el fallback determinista.
 5. Guardar mantiene claves YAML desconocidas y el cuerpo Markdown; se escribe de forma
@@ -40,49 +39,16 @@ defecto. No mezclar configuración MCP/local con el protocolo A2A.
 - `card.rs` ya modela `AgentSkill` y `AgentCapabilities` A2A; los booleanos opcionales
   distinguen no declarado de falso.
 
-## Fases
+## Resultado
 
-### 1. Perfil y proyección A2A
-
-- Añadir al perfil los campos A2A editables que hoy no existen: lista `AgentSkill` y
-  declaraciones permitidas de `AgentCapabilities`/extensiones.
-- Mantener MCP, persona, modelo, herramientas y límites en el lado CodeLoom.
-- Parsear y validar campos; conservar tolerancia a perfiles existentes y campos desconocidos.
-- Proyectar solo nombre, descripción, versión, skills A2A y capacidades realmente
-  soportadas. No proyectar `scope`, persona, provider ni secretos.
-- Mantener advertencia visible para `scope` no aplicado.
-
-### 2. Edición segura del perfil
-
-- Añadir acción de editar a `/agents` para perfiles locales; los remotos quedan de solo
-  lectura y el agente integrado no se convierte en fichero editable.
-- Presentar dos secciones rotuladas: **A2A — ficha pública** y **CodeLoom — ejecución local**.
-  Identidad compartida se explica como proyección; `AgentCard.skills` y `scope.skills` se
-  presentan como listas diferentes.
-- Reutilizar controles de texto/selección existentes, validar antes de guardar y conservar
-  valores desconocidos y el cuerpo Markdown.
-- Guardar atómicamente en la ruta de origen. Tras éxito, refrescar el registro; si cambia un
-  agente de proyecto, su huella nueva deja la aprobación anterior inválida.
-- Mostrar disponibilidad MCP separada de la declaración del scope; no indicar enforcement
-  cuando no lo hay.
-
-### 3. Supervisor y observatorio
-
-- Incluir la tarjeta A2A del supervisor en el directorio local de `/a2a` con marca local
-  `internal` fuera de `AgentCard`.
-- Mostrarlo habilitado por defecto aunque falte configuración de provider/modelo.
-- Derivar interfaces y capacidades de la implementación activa. No anunciar campos no
-  soportados y mantener la tarjeta del supervisor no editable como perfil.
-- Conservar `AgentManager::start_for` y su fallback sin LLM, sin añadir autorización ni
-  acciones implícitas.
-
-### 4. Revisión de límites
-
-- Revisar que los campos A2A y CodeLoom se mantengan separados en perfil, proyección, preview
-  y persistencia.
-- Confirmar que el guardado inválido/no exitoso conserva fichero y entrada anterior.
-- Confirmar que no se filtran secretos, prompts, transcript, rutas absolutas ni `internal` a
-  la tarjeta A2A.
+- `/agents` permite editar perfiles locales mediante secciones separadas A2A y CodeLoom;
+  perfiles remotos y tarjetas integradas no se editan.
+- El guardado valida el perfil, conserva el cuerpo Markdown y las claves desconocidas,
+  comprueba la huella original y recarga el registro al finalizar.
+- El directorio `/a2a` incluye el supervisor como `internal` y habilitado localmente; su
+  tarjeta no anuncia interfaz ni capacidades no activas.
+- `scope.mcp` filtra herramientas MCP stdio para agentes locales delegados; `scope.skills` y
+  `scope.tools` siguen declarados y sin enforcement.
 
 ## Archivos previstos
 
@@ -101,15 +67,14 @@ cualquier archivo ya modificado, inspeccionar y preservar su diff actual.
 
 ## Fuera de este plan
 
-- Implementar transporte o servidores MCP y enforcement de `scope.mcp`.
+- Añadir transportes MCP HTTP o recarga en caliente; tienen specs propias.
 - Cambiar el protocolo A2A, permitir editar tarjetas remotas o activar endpoints desde el
   editor.
 - Hacer configurable la disponibilidad por defecto del supervisor.
 - Reordenar, limpiar o revertir los demás cambios presentes en el árbol.
 
-## Criterio de cierre
+## Verificación y límites conocidos
 
-La experiencia cumple los criterios de aceptación de la spec; el diff queda limitado a los
-archivos previstos y los cambios locales anteriores permanecen intactos. La revisión visual
-en terminal real y cualquier verificación ejecutable se informan según lo que se haya podido
-hacer, sin presentarlas como realizadas si no lo fueron.
+`cargo check --workspace` terminó correctamente. `cargo fmt --all -- --check` reportó formato
+pendiente en los cambios de esta implementación y en `crates/codeloom-cli/src/server.rs`, que
+ya tenía cambios locales. No se ejecutaron tests ni se hizo revisión visual en terminal real.

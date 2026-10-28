@@ -57,6 +57,7 @@ pub fn clear_old_tool_results(history: &[Message], keep: usize) -> Vec<Message> 
             role: message.role,
             parts,
             usage: message.usage.clone(),
+            provider_state: message.provider_state.clone(),
             created_at_ms: message.created_at_ms,
         });
     }

@@ -54,7 +54,7 @@ cargo build
 cargo run -p codeloom-cli --bin loom
 ```
 
-Configuration lives in `codeloom.toml`; provider secrets belong in `.env`,
+Project configuration lives in `codeloom.toml`; provider secrets belong in `.env`,
 never in the configuration file. Copy `.env.example` to `.env` and add your
 key. Here is a minimal example:
 
@@ -83,10 +83,12 @@ cargo clippy -- -D warnings
 
 ## A2A agents
 
-CodeLoom can consume remote agents and serve itself over A2A. Remote agents
-require explicit approval, and serving requires authentication and is read-only
-by default. The [A2A roadmap](docs/plans/2026-10-22-codeloom-a2a-roadmap.md)
-tracks implementation status and links to the protocol designs.
+Project-level `[a2a] role = "consume"` enables configured remote profiles. The
+shared local runtime listener is configured separately in
+`~/.codeloom/runtime.toml`; it requires an explicit `serve` or `both` role and
+authentication. Remote agents require explicit approval. The
+[A2A roadmap](docs/plans/2026-10-22-codeloom-a2a-roadmap.md) tracks implementation
+status and links to the protocol designs.
 
 ## Naming
 

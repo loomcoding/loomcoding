@@ -7,7 +7,7 @@ use crate::error::{CoreError, Result};
 use crate::event::{EventBus, LiveEvent};
 use crate::job::{JobBody, JobHandle, JobId, JobRegistry, JobResult, JobSpec};
 use crate::permission::PermissionService;
-use crate::provider::Provider;
+use crate::provider::{ProfileProviderResolver, Provider};
 use crate::registry::router::{AgentRouter, RouteDecision, RouteRequest};
 use crate::registry::{AgentEntry, AgentRegistry, Approval, Execution, AGENTE_POR_DEFECTO};
 use crate::remote_task::{
@@ -34,6 +34,30 @@ pub trait SubagentLauncher: Send + Sync {
         agent: Option<String>,
         cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)>;
+
+    async fn start_read_only_review(
+        &self,
+        _parent: SessionId,
+        _label: String,
+        _prompt: String,
+        _agent: String,
+        _cancel: CancellationToken,
+    ) -> Result<(SessionId, JobId)> {
+        Err(CoreError::Tool(
+            "read-only workflow reviewer unavailable".into(),
+        ))
+    }
+
+    async fn start_local_workflow_agent(
+        &self,
+        _parent: SessionId,
+        _label: String,
+        _prompt: String,
+        _agent: String,
+        _cancel: CancellationToken,
+    ) -> Result<(SessionId, JobId)> {
+        Err(CoreError::Tool("local workflow agent unavailable".into()))
+    }
 
     async fn control(
         &self,
@@ -129,6 +153,7 @@ pub struct InProcessSubagentLauncher {
     remote_max_follow: std::time::Duration,
     /// Lo máximo que se espera a que la persona conteste a una pregunta de un remoto.
     remote_input_wait: std::time::Duration,
+    profile_provider_resolver: Option<Arc<ProfileProviderResolver>>,
     /// Enrutador de agentes (A12b) y el modo de confirmación con el que convive. Sin él no se elige
     /// agente automáticamente.
     router: Option<(Arc<dyn AgentRouter>, ConfirmDelegation)>,
@@ -262,7 +287,8 @@ impl InProcessSubagentLauncher {
                 tools
                     .without("subagent")
                     .without("subagent_control")
-                    .without("subagent_list"),
+                    .without("subagent_list")
+                    .without("development_workflow"),
             ),
             permission,
             config,
@@ -280,6 +306,7 @@ impl InProcessSubagentLauncher {
             remote_poll: REMOTE_POLL,
             remote_max_follow: REMOTE_MAX_FOLLOW,
             remote_input_wait: REMOTE_ESPERA_RESPUESTA,
+            profile_provider_resolver: None,
             router: None,
         }
     }
@@ -330,6 +357,14 @@ impl InProcessSubagentLauncher {
     /// Comparte el registro de agentes: `start` resuelve ahí el agente pedido.
     pub fn with_registry(mut self, registry: Arc<AgentRegistry>) -> Self {
         self.registry = Some(registry);
+        self
+    }
+
+    pub fn with_profile_provider_resolver(
+        mut self,
+        resolver: Arc<ProfileProviderResolver>,
+    ) -> Self {
+        self.profile_provider_resolver = Some(resolver);
         self
     }
 
@@ -417,8 +452,11 @@ impl InProcessSubagentLauncher {
         }
         if let Execution::Local(spec) = &entrada.execution {
             if let Some(modelo) = &spec.model {
-                // Sin catálogo, o sin proveedor con esta URL base, no hay nada que comprobar.
-                let base_url = self.config.read().unwrap().provider.base_url.clone();
+                let base_url = spec
+                    .provider
+                    .as_ref()
+                    .map(|provider| provider.base_url.clone())
+                    .unwrap_or_else(|| self.config.read().unwrap().provider.base_url.clone());
                 let conocido = self.catalog.read().unwrap().knows_model(&base_url, modelo);
                 if conocido == Some(false) {
                     return Err(CoreError::Tool(format!(
@@ -452,6 +490,7 @@ impl InProcessSubagentLauncher {
     }
 
     /// Arranque común de `start` y `start_follow_up`. La petición ya viene validada.
+    #[allow(clippy::too_many_arguments)]
     async fn arrancar(
         &self,
         parent: SessionId,
@@ -459,11 +498,36 @@ impl InProcessSubagentLauncher {
         prompt: String,
         agent: Option<String>,
         referencias: Vec<SessionId>,
+        read_only: bool,
         parent_cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)> {
         // El agente se valida antes de reservar puesto o crear tarea: un rechazo no deja rastro.
         let perfil = self.resolver_agente(agent.as_deref())?;
+        if read_only
+            && perfil
+                .as_ref()
+                .is_some_and(|entry| !matches!(entry.execution, Execution::Local(_)))
+        {
+            return Err(CoreError::Tool(
+                "workflow reviewer must be a local agent".into(),
+            ));
+        }
         let cliente_remoto = self.cliente_remoto(perfil.as_ref())?;
+        let profile_provider = match &perfil {
+            Some(AgentEntry {
+                execution: Execution::Local(spec),
+                ..
+            }) => match &spec.provider {
+                Some(config) => {
+                    let resolver = self.profile_provider_resolver.as_ref().ok_or_else(|| {
+                        CoreError::Tool("no hay proveedor configurado para el perfil".into())
+                    })?;
+                    Some((resolver(config)?, config.clone()))
+                }
+                None => None,
+            },
+            _ => None,
+        };
         let (agente, origen) = match &perfil {
             Some(entrada) => (Some(entrada.name.clone()), Some(entrada.origin.as_text())),
             None => (None, None),
@@ -481,8 +545,33 @@ impl InProcessSubagentLauncher {
         let child = self.store.create_session(&project).await?;
         let tracker = Arc::new(TaskTracker::new(self.store.clone(), self.bus.clone()));
         let child_store = self.store.clone();
-        let child_tools = self.tools.clone();
-        let child_provider = self.provider.read().unwrap().clone();
+        let scope = perfil
+            .as_ref()
+            .and_then(|entry| match &entry.execution {
+                Execution::Local(spec) => Some(spec.scope.mcp.as_slice()),
+                Execution::Remote(_) => None,
+            })
+            .unwrap_or_default();
+        for server_id in scope {
+            if !self.tools.has_mcp_server(server_id) {
+                self.bus.publish(crate::event::LiveEvent::RuntimeNotice {
+                    message: format!(
+                        "Agent `{}` allows MCP server `{server_id}`, but it is not configured or connected",
+                        agente.as_deref().unwrap_or(AGENTE_POR_DEFECTO)
+                    ),
+                });
+            }
+        }
+        let scoped_tools = self.tools.with_mcp_scope(scope);
+        let child_tools = if read_only {
+            Arc::new(scoped_tools.only(&["view", "glob", "grep"]))
+        } else {
+            Arc::new(scoped_tools)
+        };
+        let child_provider = profile_provider
+            .as_ref()
+            .map(|(provider, _)| provider.clone())
+            .unwrap_or_else(|| self.provider.read().unwrap().clone());
         // Cada hijo tiene su propio servicio de permisos: delega en el del padre y
         // encamina sus preguntas (`ask_user`) al buzón de este lanzador.
         let child_permission = Arc::new(PermissionService::with_responder(Box::new(
@@ -500,6 +589,9 @@ impl InProcessSubagentLauncher {
         // Configuración del hijo: la del padre, con lo que declare el perfil. Lo que el perfil
         // no declara se hereda. Se copia aquí, al arrancar, y la tarea ya no depende del registro.
         let mut child_config = self.config.read().unwrap().clone();
+        if let Some((_, provider)) = &profile_provider {
+            child_config.provider = provider.clone();
+        }
         let mut child_system = None;
         if let Some(AgentEntry {
             execution: Execution::Local(spec),
@@ -679,7 +771,7 @@ impl InProcessSubagentLauncher {
                         Ok(hijos) => hijos
                             .iter()
                             .find(|hijo| hijo.child == child && hijo.status.state.is_terminal())
-                            .map(|hijo| hijo.status.state),
+                            .map(|hijo| hijo.status.clone()),
                         Err(error) => {
                             tracing::warn!("read subagent status: {error}");
                             None
@@ -688,12 +780,21 @@ impl InProcessSubagentLauncher {
                     // Manda el estado ya persistido: un espejo remoto fija el suyo (p. ej. `rejected`)
                     // antes de que el trabajo acabe, y el aviso no debe contradecirlo.
                     let estado_final = match asentado {
-                        Some(persistido) => persistido,
+                        Some(persistido) => persistido.state,
                         None => {
-                            if let Err(error) = tracker
-                                .transition(parent, child, TaskStatus::new(state))
-                                .await
-                            {
+                            let mut status = TaskStatus::new(state);
+                            if state == TaskState::Failed {
+                                if let Some(detail) = snapshot.detail.as_deref() {
+                                    status.message = Some(Message::agent_text(
+                                        crate::tools::limit_bytes(
+                                            detail,
+                                            crate::tools::MAX_NOTICE_BYTES,
+                                        )
+                                        .into_owned(),
+                                    ));
+                                }
+                            }
+                            if let Err(error) = tracker.transition(parent, child, status).await {
                                 tracing::warn!("persist subagent status: {error}");
                             }
                             state
@@ -1266,8 +1367,57 @@ impl SubagentLauncher for InProcessSubagentLauncher {
         parent_cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)> {
         validar_peticion(&label, &prompt)?;
-        self.arrancar(parent, label, prompt, agent, Vec::new(), parent_cancel)
+        self.arrancar(
+            parent,
+            label,
+            prompt,
+            agent,
+            Vec::new(),
+            false,
+            parent_cancel,
+        )
+        .await
+    }
+
+    async fn start_read_only_review(
+        &self,
+        parent: SessionId,
+        label: String,
+        prompt: String,
+        agent: String,
+        cancel: CancellationToken,
+    ) -> Result<(SessionId, JobId)> {
+        validar_peticion(&label, &prompt)?;
+        self.arrancar(parent, label, prompt, Some(agent), Vec::new(), true, cancel)
             .await
+    }
+
+    async fn start_local_workflow_agent(
+        &self,
+        parent: SessionId,
+        label: String,
+        prompt: String,
+        agent: String,
+        cancel: CancellationToken,
+    ) -> Result<(SessionId, JobId)> {
+        validar_peticion(&label, &prompt)?;
+        if self
+            .resolver_agente(Some(&agent))?
+            .as_ref()
+            .is_some_and(|entry| !matches!(entry.execution, Execution::Local(_)))
+        {
+            return Err(CoreError::Tool("workflow agents must be local".into()));
+        }
+        self.arrancar(
+            parent,
+            label,
+            prompt,
+            Some(agent),
+            Vec::new(),
+            false,
+            cancel,
+        )
+        .await
     }
 
     async fn route(
@@ -1334,6 +1484,7 @@ impl SubagentLauncher for InProcessSubagentLauncher {
             prompt,
             agent,
             vec![follow_up_of],
+            false,
             parent_cancel,
         )
         .await
@@ -3584,6 +3735,127 @@ mod tests {
         assert_eq!(esfuerzo.as_deref(), Some("high"));
         assert!(sistema.contains("Rol: Ingeniero\n"), "{sistema}");
         assert!(sistema.contains("Cuerpo del agente."), "{sistema}");
+    }
+
+    #[tokio::test]
+    async fn local_profile_provider_override_does_not_change_the_parent_provider() {
+        let global = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        escribir_perfil(
+            global.path(),
+            "backend",
+            "---\nname: backend\ndescription: Rust\nmodel: recursive/flint-v1.0:free\nprovider:\n  kind: openai_compat\n  base_url: https://openrouter.ai/api/v1\n  api_key_env: OPENROUTER_API_KEY\n---\n\nBackend.\n",
+        );
+        let (store, parent) = tienda_de_prueba(dir.path(), "proveedor-perfil.db").await;
+        let parent_requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let child_requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let parent_provider = ProveedorGrabador {
+            peticiones: parent_requests.clone(),
+            puerta: None,
+        };
+        let child_requests_for_resolver = child_requests.clone();
+        let resolver: Arc<ProfileProviderResolver> = Arc::new(move |config| {
+            assert_eq!(config.base_url, "https://openrouter.ai/api/v1");
+            Ok(Arc::new(ProveedorGrabador {
+                peticiones: child_requests_for_resolver.clone(),
+                puerta: None,
+            }))
+        });
+        let lanzador = lanzador_grabador(
+            dir.path(),
+            store,
+            jobs.clone(),
+            parent_provider,
+            Some(registro_global(global.path())),
+            None,
+        )
+        .with_profile_provider_resolver(resolver);
+
+        let (_, job) = lanzador
+            .start(
+                parent,
+                "backend".into(),
+                "implementa una función".into(),
+                Some("backend".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        jobs.wait(parent, &job).await.unwrap();
+
+        assert!(parent_requests.lock().unwrap().is_empty());
+        assert_eq!(
+            child_requests.lock().unwrap()[0].0,
+            "recursive/flint-v1.0:free"
+        );
+    }
+
+    struct ProveedorFallido;
+
+    #[async_trait]
+    impl Provider for ProveedorFallido {
+        fn capabilities(&self) -> crate::provider::Capabilities {
+            crate::provider::Capabilities {
+                tool_use: false,
+                reasoning: false,
+                streaming: true,
+            }
+        }
+
+        async fn stream(
+            &self,
+            _req: crate::provider::ProviderRequest,
+            _cancel: CancellationToken,
+        ) -> Result<crate::provider::ProviderStream> {
+            Err(CoreError::Provider("mock backend failure".into()))
+        }
+    }
+
+    #[tokio::test]
+    async fn local_subagent_failure_is_persisted_for_diagnosis() {
+        let dir = tempfile::tempdir().unwrap();
+        let (store, parent) = tienda_de_prueba(dir.path(), "fallo-diagnostico.db").await;
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let provider: Arc<dyn Provider> = Arc::new(ProveedorFallido);
+        let runtime = InProcessSubagentLauncher::new(
+            Arc::new(RwLock::new(provider)),
+            store.clone(),
+            Arc::new(ToolRegistry::new()),
+            Arc::new(PermissionService::allow_all()),
+            Arc::new(RwLock::new(config_de_prueba())),
+            dir.path().to_path_buf(),
+            jobs.clone(),
+            EventBus::new(64),
+        );
+
+        let (child, job) = runtime
+            .start(
+                parent,
+                "backend".into(),
+                "revisa arquitectura".into(),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        let outcome = jobs.wait(parent, &job).await.unwrap();
+        assert_eq!(outcome.status, crate::job::JobStatus::Failed);
+        espera_estado_del_hijo(&store, parent, child, TaskState::Failed).await;
+
+        let descriptor = store
+            .list_subagents(parent)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|descriptor| descriptor.child == child)
+            .unwrap();
+        assert_eq!(descriptor.status.state, TaskState::Failed);
+        assert!(descriptor
+            .status
+            .message_text()
+            .unwrap()
+            .contains("mock backend failure"));
     }
 
     #[tokio::test]

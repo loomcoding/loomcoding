@@ -5,6 +5,7 @@ use std::pin::Pin;
 use tokio_util::sync::CancellationToken;
 
 pub mod anthropic;
+pub mod gemini;
 pub mod openai;
 pub mod sse;
 
@@ -13,6 +14,8 @@ pub struct ToolSpec {
     pub name: String,
     pub description: String,
     pub input_schema: serde_json::Value,
+    /// Whether this tool is read-only and may be called from provider-hosted code.
+    pub programmatic_allowed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -25,6 +28,8 @@ pub struct ProviderRequest {
     pub max_tokens: u32,
     /// Nivel de esfuerzo de razonamiento; `None` significa «default» y la petición no cambia.
     pub effort: Option<String>,
+    /// Explicit opt-in. False keeps the current direct tool-calling protocol.
+    pub programmatic_tool_calling: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +46,8 @@ pub enum StreamChunk {
         name: String,
         input: serde_json::Value,
     },
+    ProviderState(crate::message::ProviderState),
+    ProviderNotice(String),
     Usage(Usage),
     Done(FinishReason),
 }
@@ -63,6 +70,11 @@ pub trait Provider: Send + Sync {
         cancel: CancellationToken,
     ) -> Result<ProviderStream>;
 }
+
+/// Resuelve un proveedor local declarado por un perfil de subagente.
+pub type ProfileProviderResolver = dyn Fn(&crate::config::ProviderConfig) -> crate::error::Result<std::sync::Arc<dyn Provider>>
+    + Send
+    + Sync;
 
 pub async fn stream_with_retry(
     provider: &dyn Provider,
@@ -140,6 +152,7 @@ mod tests {
             temperature: 0.0,
             max_tokens: 16,
             effort: None,
+            programmatic_tool_calling: false,
         };
         let mut s = p
             .stream(req, tokio_util::sync::CancellationToken::new())
@@ -201,6 +214,7 @@ mod retry_tests {
             temperature: 0.0,
             max_tokens: 16,
             effort: None,
+            programmatic_tool_calling: false,
         };
         let res = stream_with_retry(&p, req, CancellationToken::new(), 2).await;
         assert!(res.is_ok());

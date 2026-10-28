@@ -194,9 +194,13 @@ pub async fn fetch_card(
 ) -> Result<RemoteCard, RemoteError> {
     validate_base_url(endpoint).map_err(RemoteError::InvalidEndpoint)?;
     let origen = Url::parse(endpoint).map_err(|e| RemoteError::InvalidEndpoint(e.to_string()))?;
-    let destino = origen
-        .join(RUTA_TARJETA)
-        .map_err(|e| RemoteError::InvalidEndpoint(e.to_string()))?;
+    let destino = if origen.path().ends_with(RUTA_TARJETA) {
+        origen.clone()
+    } else {
+        origen
+            .join(RUTA_TARJETA)
+            .map_err(|e| RemoteError::InvalidEndpoint(e.to_string()))?
+    };
 
     let respuesta = client
         .get(destino)
@@ -377,6 +381,26 @@ mod tests {
         assert_eq!(remota.jsonrpc_url, format!("{}/a2a/v1", servidor.uri()));
         assert_eq!(remota.hash.len(), 64);
         assert!(remota.requires_auth);
+    }
+
+    #[tokio::test]
+    async fn a_direct_tenant_card_url_is_preserved() {
+        let servidor = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/agents/tenant-1/.well-known/agent-card.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                include_str!("../tests/fixtures/agent-card.sample.json"),
+                "application/json",
+            ))
+            .expect(1)
+            .mount(&servidor)
+            .await;
+
+        let endpoint = format!(
+            "{}/agents/tenant-1/.well-known/agent-card.json",
+            servidor.uri()
+        );
+        fetch_card(&cliente(), &endpoint, 64 * 1024).await.unwrap();
     }
 
     #[tokio::test]

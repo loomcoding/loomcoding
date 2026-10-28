@@ -7,6 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 pub mod ask_user;
 pub mod bash;
+pub mod development_workflow;
 pub mod edit;
 pub mod glob;
 pub mod grep;
@@ -14,12 +15,17 @@ pub mod job_kill;
 pub mod job_list;
 pub mod job_output;
 pub mod job_start;
+pub mod ls;
+pub mod lsp;
+pub mod multiedit;
 pub mod spill;
 pub mod subagent;
 pub mod subagent_control;
 pub mod subagent_list;
 pub mod todo_write;
 pub mod view;
+pub mod web;
+pub mod write;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutionMode {
@@ -56,6 +62,8 @@ pub const MAX_TOOL_OUTPUT_BYTES: usize = 20_000;
 /// Tope del texto variable de un aviso (detalle de un job, resultado de un subagente) que
 /// entra al historial como mensaje de usuario, por el que el tope de herramientas no pasa.
 pub const MAX_NOTICE_BYTES: usize = 8_000;
+const MAX_MCP_TOOLS_PER_AGENT: usize = 128;
+const MAX_MCP_SCHEMAS_PER_AGENT: usize = 32_768;
 
 /// Recorta `content` conservando `max / 2` bytes del principio y `max / 2` del final, y
 /// sustituye lo omitido por un marcador con el número de bytes suprimidos. Ambos cortes
@@ -91,6 +99,7 @@ pub fn limit_output(content: &str) -> std::borrow::Cow<'_, str> {
 #[derive(Clone)]
 pub struct ToolCtx {
     pub cwd: PathBuf,
+    pub store: Option<Arc<dyn crate::session::SessionStore>>,
     pub permission: Arc<crate::permission::PermissionService>,
     pub session: crate::session::SessionId,
     pub jobs: Arc<dyn crate::job::JobRegistry>,
@@ -103,6 +112,9 @@ pub trait Tool: Send + Sync {
     fn name(&self) -> &str;
     fn description(&self) -> &str;
     fn schema(&self) -> serde_json::Value;
+    fn mcp_server_id(&self) -> Option<&str> {
+        None
+    }
     fn execution_mode(&self, _input: &serde_json::Value) -> ExecutionMode {
         ExecutionMode::Parallel
     }
@@ -134,6 +146,45 @@ impl ToolRegistry {
         registry.tools.remove(name);
         registry
     }
+    pub fn only(&self, names: &[&str]) -> Self {
+        let mut registry = Self::new();
+        for name in names {
+            if let Some(tool) = self.tools.get(*name) {
+                registry.tools.insert((*name).to_string(), tool.clone());
+            }
+        }
+        registry
+    }
+    /// Keeps every built-in tool and only MCP tools allowed by the local profile.
+    pub fn with_mcp_scope(&self, server_ids: &[String]) -> Self {
+        let mut registry = Self::new();
+        let mut schema_bytes = 0;
+        let mut mcp_count = 0;
+        for (name, tool) in &self.tools {
+            if let Some(server_id) = tool.mcp_server_id() {
+                if !server_ids.iter().any(|allowed| allowed == server_id)
+                    || mcp_count >= MAX_MCP_TOOLS_PER_AGENT
+                {
+                    continue;
+                }
+                let size = name.len()
+                    + tool.description().len()
+                    + serde_json::to_vec(&tool.schema()).map_or(usize::MAX, |schema| schema.len());
+                if size > MAX_MCP_SCHEMAS_PER_AGENT.saturating_sub(schema_bytes) {
+                    continue;
+                }
+                schema_bytes += size;
+                mcp_count += 1;
+            }
+            registry.tools.insert(name.clone(), tool.clone());
+        }
+        registry
+    }
+    pub fn has_mcp_server(&self, server_id: &str) -> bool {
+        self.tools
+            .values()
+            .any(|tool| tool.mcp_server_id() == Some(server_id))
+    }
     pub fn specs(&self) -> Vec<crate::provider::ToolSpec> {
         self.tools
             .values()
@@ -141,6 +192,9 @@ impl ToolRegistry {
                 name: t.name().to_string(),
                 description: t.description().to_string(),
                 input_schema: t.schema(),
+                programmatic_allowed: matches!(t.name(), "view" | "glob" | "grep" | "ls")
+                    && t.execution_mode(&serde_json::Value::Null) == ExecutionMode::Parallel
+                    && t.mcp_server_id().is_none(),
             })
             .collect()
     }

@@ -9,5 +9,5 @@
 3. `cargo test --target-dir .\target` — 1648 aprobadas, 13 ignoradas, 17 suites (Windows).
 4. `cargo fmt --check` — correcto.
 5. `cargo clippy --target-dir .\target -- -D warnings` — correcto; sin errores, aviso preexistente de targets duplicados.
-6. `git diff --check` — correcto. Se usó `--target-dir .\target` porque `CARGO_TARGET_DIR` apunta a `E:\workspace\personal\jevalon\target`.
+6. `git diff --check` — correcto. Se usó `--target-dir .\target` para mantener los artefactos dentro del workspace.
 7. El test de carrera del socket Unix está condicionado a `cfg(unix)` y no se ejecuta en este host Windows; queda cubierto al correr la suite en CI Unix.

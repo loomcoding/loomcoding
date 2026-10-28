@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use codeloom_core::error::CoreError;
-use codeloom_core::event::{EventBus, LiveEvent};
+use codeloom_core::event::{A2aDirection, A2aObservation, A2aOperation, EventBus, LiveEvent};
 use codeloom_core::session::{SessionId, SessionStore, SubagentDescriptor};
 use codeloom_core::subagent::SubagentLauncher;
 use codeloom_core::tools::glob::GlobTool;
@@ -150,15 +150,165 @@ impl LauncherHost {
             })
         });
         let maximo = self.limits.max_result_bytes;
+        let (bus, agent) = (self.bus.clone(), self.agent.clone());
         Ok(flujo_de_tarea(rx, actual, refrescar)
             .map(move |evento| {
                 // El hueco viaja dentro del cierre: se libera cuando el flujo se suelta.
                 let _permiso = &permiso;
+                if let Some(bus) = &bus {
+                    let observacion = match &evento {
+                        codeloom_core::task_events::StreamResponse::StatusUpdate(evento) => {
+                            Some(A2aObservation {
+                                direction: A2aDirection::Outbound,
+                                agent: agent.clone(),
+                                operation: A2aOperation::TaskStatusUpdateEvent,
+                                rpc_id: None,
+                                task_id: Some(evento.task_id.clone()),
+                                context_id: Some(evento.context_id.clone()),
+                                state: Some(evento.status.state.proto_name().to_string()),
+                                artifact: None,
+                                succeeded: true,
+                                elapsed_ms: None,
+                            })
+                        }
+                        codeloom_core::task_events::StreamResponse::ArtifactUpdate(evento) => {
+                            Some(A2aObservation {
+                                direction: A2aDirection::Outbound,
+                                agent: agent.clone(),
+                                operation: A2aOperation::TaskArtifactUpdateEvent,
+                                rpc_id: None,
+                                task_id: Some(evento.task_id.clone()),
+                                context_id: Some(evento.context_id.clone()),
+                                state: None,
+                                artifact: Some(
+                                    evento
+                                        .artifact
+                                        .name
+                                        .clone()
+                                        .unwrap_or_else(|| evento.artifact.artifact_id.clone()),
+                                ),
+                                succeeded: true,
+                                elapsed_ms: None,
+                            })
+                        }
+                        codeloom_core::task_events::StreamResponse::Task(_)
+                        | codeloom_core::task_events::StreamResponse::Message(_) => None,
+                    };
+                    if let Some(observacion) = observacion {
+                        bus.publish(LiveEvent::A2aObserved(observacion));
+                    }
+                }
                 let mut cable = WireStreamResponse::from(&evento);
                 acotar_evento(&mut cable, maximo);
                 serde_json::to_value(&cable).unwrap_or(serde_json::Value::Null)
             })
             .boxed())
+    }
+
+    fn observe(
+        &self,
+        direction: A2aDirection,
+        operation: A2aOperation,
+        task_id: Option<String>,
+        context_id: Option<String>,
+        state: Option<String>,
+        elapsed_ms: Option<u64>,
+    ) {
+        if let Some(bus) = &self.bus {
+            bus.publish(LiveEvent::A2aObserved(A2aObservation {
+                direction,
+                agent: self.agent.clone(),
+                operation,
+                rpc_id: None,
+                task_id,
+                context_id,
+                state,
+                artifact: None,
+                succeeded: true,
+                elapsed_ms,
+            }));
+        }
+    }
+
+    async fn start_with_operation(
+        &self,
+        prompt: String,
+        operation: A2aOperation,
+    ) -> Result<TaskView, HostError> {
+        let started = Instant::now();
+        let _turno = self.arranque.lock().await;
+        let vivas = self
+            .launcher
+            .list(self.parent)
+            .await
+            .map_err(otro)?
+            .iter()
+            .filter(|descriptor| !descriptor.status.state.is_terminal())
+            .count();
+        if vivas >= self.limits.max_concurrent {
+            return Err(HostError::Busy);
+        }
+        let (hijo, _) = self
+            .launcher
+            .start(
+                self.parent,
+                ETIQUETA.to_string(),
+                prompt,
+                Some(self.agent.clone()),
+                CancellationToken::new(),
+            )
+            .await
+            .map_err(otro)?;
+
+        let (lanzador, padre, maximo) = (self.launcher.clone(), self.parent, self.limits.max_task);
+        let (bus, agente) = (self.bus.clone(), self.agent.clone());
+        let aviso = move |d: &SubagentDescriptor| {
+            if let Some(bus) = &bus {
+                bus.publish(LiveEvent::A2aServed {
+                    task: d.child.0.to_string(),
+                    agent: agente.clone(),
+                    state: d.status.state.proto_name().to_string(),
+                });
+            }
+        };
+        tokio::spawn(async move {
+            let limite = Instant::now() + maximo;
+            let mut ultimo = None;
+            loop {
+                tokio::time::sleep(SONDEO.max(Duration::from_millis(100))).await;
+                let actual = lanzador
+                    .list(padre)
+                    .await
+                    .ok()
+                    .and_then(|lista| lista.into_iter().find(|d| d.child == hijo));
+                if let Some(descriptor) = &actual {
+                    if ultimo != Some(descriptor.status.state) {
+                        ultimo = Some(descriptor.status.state);
+                        aviso(descriptor);
+                    }
+                }
+                if actual.is_none_or(|d| d.status.state.is_terminal()) {
+                    return;
+                }
+                if Instant::now() >= limite {
+                    if let Ok(cancelada) = lanzador.cancel(padre, hijo).await {
+                        aviso(&cancelada);
+                    }
+                    return;
+                }
+            }
+        });
+
+        let descriptor = self.descriptor(&hijo.0.to_string()).await?;
+        self.observe(
+            A2aDirection::Inbound,
+            operation,
+            Some(descriptor.child.0.to_string()),
+            Some(descriptor.context_id()),
+            Some(descriptor.status.state.proto_name().to_string()),
+            Some(started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64),
+        );
+        Ok(self.vista(&descriptor))
     }
 
     fn vista(&self, descriptor: &SubagentDescriptor) -> TaskView {
@@ -231,87 +381,30 @@ fn acotar_partes<'a>(partes: impl Iterator<Item = &'a mut WirePart>, max: usize)
 #[async_trait]
 impl TaskHost for LauncherHost {
     async fn start(&self, prompt: String) -> Result<TaskView, HostError> {
-        let _turno = self.arranque.lock().await;
-        let vivas = self
-            .launcher
-            .list(self.parent)
+        self.start_with_operation(prompt, A2aOperation::SendMessage)
             .await
-            .map_err(otro)?
-            .iter()
-            .filter(|descriptor| !descriptor.status.state.is_terminal())
-            .count();
-        if vivas >= self.limits.max_concurrent {
-            return Err(HostError::Busy);
-        }
-        let (hijo, _) = self
-            .launcher
-            .start(
-                self.parent,
-                ETIQUETA.to_string(),
-                prompt,
-                Some(self.agent.clone()),
-                CancellationToken::new(),
-            )
-            .await
-            .map_err(otro)?;
-
-        // Una tarea no puede durar más que el máximo: pasado el tiempo, se cancela.
-        let (lanzador, padre, maximo) = (self.launcher.clone(), self.parent, self.limits.max_task);
-        let (bus, agente) = (self.bus.clone(), self.agent.clone());
-        let aviso = move |d: &SubagentDescriptor| {
-            if let Some(bus) = &bus {
-                bus.publish(LiveEvent::A2aServed {
-                    task: d.child.0.to_string(),
-                    agent: agente.clone(),
-                    state: d.status.state.proto_name().to_string(),
-                });
-            }
-        };
-        tokio::spawn(async move {
-            let limite = Instant::now() + maximo;
-            let mut ultimo = None;
-            loop {
-                tokio::time::sleep(SONDEO.max(Duration::from_millis(100))).await;
-                let actual = lanzador
-                    .list(padre)
-                    .await
-                    .ok()
-                    .and_then(|lista| lista.into_iter().find(|d| d.child == hijo));
-                if let Some(descriptor) = &actual {
-                    // Solo se avisa cuando el estado cambia: la conversación no es un registro de sondeos.
-                    if ultimo != Some(descriptor.status.state) {
-                        ultimo = Some(descriptor.status.state);
-                        aviso(descriptor);
-                    }
-                }
-                if actual.is_none_or(|d| d.status.state.is_terminal()) {
-                    return;
-                }
-                if Instant::now() >= limite {
-                    // Si ya terminó entre medias, `cancel` falla con `TaskNotCancelable`: es lo esperado.
-                    if let Ok(cancelada) = lanzador.cancel(padre, hijo).await {
-                        aviso(&cancelada);
-                    }
-                    return;
-                }
-            }
-        });
-
-        let descriptor = self.descriptor(&hijo.0.to_string()).await?;
-        Ok(self.vista(&descriptor))
     }
 
     async fn subscribe(&self, id: &str) -> Result<EventStream, HostError> {
         let hijo = id.parse::<i64>().map_err(|_| HostError::NotFound)?;
         // Primero se comprueba que la tarea es de este servidor: una ajena es NotFound aunque no
         // queden huecos, y no se revela nada por el orden de los errores.
-        self.descriptor(id).await?;
+        let descriptor = self.descriptor(id).await?;
         let permiso = self
             .flujos
             .clone()
             .try_acquire_owned()
             .map_err(|_| HostError::Busy)?;
-        self.flujo(hijo, permiso, false).await
+        let flujo = self.flujo(hijo, permiso, false).await?;
+        self.observe(
+            A2aDirection::Inbound,
+            A2aOperation::SubscribeToTask,
+            Some(id.to_string()),
+            Some(descriptor.context_id()),
+            Some(descriptor.status.state.proto_name().to_string()),
+            None,
+        );
+        Ok(flujo)
     }
 
     async fn start_streaming(&self, prompt: String) -> Result<EventStream, HostError> {
@@ -321,7 +414,9 @@ impl TaskHost for LauncherHost {
             .clone()
             .try_acquire_owned()
             .map_err(|_| HostError::Busy)?;
-        let vista = self.start(prompt).await?;
+        let vista = self
+            .start_with_operation(prompt, A2aOperation::SendStreamingMessage)
+            .await?;
         let hijo = vista
             .json
             .get("id")
@@ -332,13 +427,32 @@ impl TaskHost for LauncherHost {
     }
 
     async fn get(&self, id: &str) -> Result<TaskView, HostError> {
-        Ok(self.vista(&self.descriptor(id).await?))
+        let descriptor = self.descriptor(id).await?;
+        self.observe(
+            A2aDirection::Inbound,
+            A2aOperation::GetTask,
+            Some(id.to_string()),
+            Some(descriptor.context_id()),
+            Some(descriptor.status.state.proto_name().to_string()),
+            None,
+        );
+        Ok(self.vista(&descriptor))
     }
 
     async fn cancel(&self, id: &str) -> Result<TaskView, HostError> {
         let hijo = id.parse::<i64>().map_err(|_| HostError::NotFound)?;
         match self.launcher.cancel(self.parent, SessionId(hijo)).await {
-            Ok(descriptor) => Ok(self.vista(&descriptor)),
+            Ok(descriptor) => {
+                self.observe(
+                    A2aDirection::Inbound,
+                    A2aOperation::CancelTask,
+                    Some(id.to_string()),
+                    Some(descriptor.context_id()),
+                    Some(descriptor.status.state.proto_name().to_string()),
+                    None,
+                );
+                Ok(self.vista(&descriptor))
+            }
             Err(CoreError::TaskNotFound(_)) => Err(HostError::NotFound),
             Err(CoreError::TaskNotCancelable { .. }) => Err(HostError::NotCancelable),
             Err(error) => Err(otro(error)),
@@ -523,6 +637,34 @@ mod tests {
             fin.json["artifacts"][0]["parts"][0]["text"],
             "hola desde el servidor"
         );
+    }
+
+    #[tokio::test]
+    async fn incoming_send_is_observed_without_copying_its_message() {
+        let montaje = montar(Arc::new(ConTexto("ok".into())), limites()).await;
+        let mut eventos = montaje.bus.subscribe();
+        let tarea = montaje
+            .host
+            .start("mensaje privado de prueba".into())
+            .await
+            .unwrap();
+        let id = id_de(&tarea);
+
+        loop {
+            let evento = tokio::time::timeout(Duration::from_secs(2), eventos.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            if let LiveEvent::A2aObserved(observacion) = evento {
+                assert_eq!(observacion.direction, A2aDirection::Inbound);
+                assert_eq!(observacion.operation, A2aOperation::SendMessage);
+                assert_eq!(observacion.task_id.as_deref(), Some(id.as_str()));
+                assert_eq!(observacion.context_id.as_deref(), Some("1"));
+                assert!(observacion.succeeded);
+                assert_eq!(observacion.artifact, None);
+                break;
+            }
+        }
     }
 
     #[tokio::test]

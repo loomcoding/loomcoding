@@ -134,7 +134,7 @@ visual de todas las secciones queda pendiente de una sesión en terminal real.
 Validación de esta integración: `cargo build`, `cargo test` (342 pruebas),
 `cargo fmt --check` y `git diff --check` pasan. Build y tests usan
 `CARGO_TARGET_DIR=E:\workspace\personal\loom\target` porque el target compartido
-de jevalon tiene `loom.exe` abierto. `cargo clippy -- -D warnings` falla por siete
+un target compartido tiene `loom.exe` abierto. `cargo clippy -- -D warnings` falla por siete
 avisos preexistentes en `attachment_preview`, `help_overlay`, `profile_view`,
 `session_list`, `settings_panel` y `status_bar` de Batten.
 

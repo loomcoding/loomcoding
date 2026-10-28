@@ -55,6 +55,7 @@ pub enum ClientCommand {
     ProviderSettings {
         id: u64,
         settings: codeloom_tui::app::ProviderSettings,
+        api_key: Option<String>,
     },
     PermissionReply {
         id: u64,
@@ -84,9 +85,11 @@ impl ServerFrame {
 pub enum ServerEvent {
     Ready {
         agent_id: String,
+        runtime_generation: String,
         cwd: String,
         model: String,
         settings: codeloom_tui::app::ProviderSettings,
+        api_key_configured: bool,
     },
     Live(codeloom_core::event::LiveEvent),
     Session(codeloom_tui::run::SessionUpdate),
@@ -112,7 +115,7 @@ pub enum ServerEvent {
     },
     ProviderSettingsResult {
         id: u64,
-        result: Result<(), String>,
+        result: Result<bool, String>,
     },
     PrintResult {
         result: Result<String, String>,
@@ -130,6 +133,7 @@ enum AgentCommand {
     ProviderSettings {
         id: u64,
         settings: codeloom_tui::app::ProviderSettings,
+        api_key: Option<String>,
     },
     A2aPrompt {
         task: Arc<RuntimeTask>,
@@ -261,6 +265,7 @@ async fn ejecutar_supervisor(
         temperature: 0.1,
         max_tokens: 512,
         effort: None,
+        programmatic_tool_calling: false,
     };
     let cancel = task.cancel.clone();
     let result = tokio::select! {
@@ -497,12 +502,14 @@ struct AgentEntry {
     project_key: String,
     model: StdRwLock<String>,
     settings: StdRwLock<codeloom_tui::app::ProviderSettings>,
+    api_key_configured: AtomicBool,
     config: StdRwLock<codeloom_core::config::CodeLoomConfig>,
     ui: Arc<AgentUi>,
     commands: mpsc::Sender<AgentCommand>,
     store: Arc<codeloom_core::session::sqlite::SqliteStore>,
     config_path: PathBuf,
     project_env: HashMap<String, String>,
+    a2a_consumes: bool,
     refresher: Option<mpsc::UnboundedSender<()>>,
     _watcher: StdMutex<Option<codeloom_core::registry::watch::WatcherHandle>>,
     current_session: AtomicI64,
@@ -520,13 +527,16 @@ struct AgentSetup {
     project: String,
     config_path: PathBuf,
     cfg: codeloom_core::config::CodeLoomConfig,
+    api_key_configured: bool,
     project_env: HashMap<String, String>,
+    a2a_consumes: bool,
     refresher: Option<mpsc::UnboundedSender<()>>,
     watcher: codeloom_core::registry::watch::WatcherHandle,
     bus_rx: tokio::sync::broadcast::Receiver<LiveEvent>,
 }
 
 async fn build_agent(
+    manager: &Arc<AgentManager>,
     cwd: PathBuf,
     id: &str,
     ui: Arc<AgentUi>,
@@ -541,17 +551,21 @@ async fn build_agent(
     }
     let config_path = cwd.join("codeloom.toml");
     let project_env = super::load_dotenv(&cwd);
-    let cfg = codeloom_core::config::CodeLoomConfig::load(&config_path)?;
+    let cfg = codeloom_core::config::CodeLoomConfig::load_or_create(&config_path)?;
     let agents_cfg = codeloom_core::config::AgentsConfig::load(&config_path)?;
     let budget = codeloom_core::budget::BudgetConfig::load(&config_path)?;
     let compaction = codeloom_core::agent::compact::CompactionConfig::load(&config_path)?;
     let a2a = codeloom_a2a::config::A2aConfig::load(&config_path)?;
-    let provider = super::build_provider(&cfg, &project_env)?;
+    let (provider, api_key_configured) = super::build_provider_state(&cfg, &project_env, None)?;
     let project = format!("{}#codeloom-agent:{id}", cwd.display());
     let bus = codeloom_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
     let home = dirs::home_dir();
-    let launch = super::arrancar_agentes(home.as_deref(), &cwd, &agents_cfg);
+    let runtime_peers = a2a
+        .consumes()
+        .then(|| super::runtime_peer_dir(data_dir, &manager.runtime_generation, &cwd));
+    let launch =
+        super::arrancar_agentes_con_runtime(home.as_deref(), &cwd, &agents_cfg, runtime_peers);
     let registry = Arc::new(launch.registro);
     let watcher = registry.spawn_watcher(launch.directorios, bus.clone());
     let remote_clients = super::arrancar_remotos(&a2a, &registry, &bus)?;
@@ -582,7 +596,38 @@ async fn build_agent(
     let (catalog_tx, _catalog_rx) = mpsc::unbounded_channel();
     tokio::spawn(super::load_catalog(catalog_tx, catalog.clone()));
     let tools = super::build_project_tools(super::shell_env(&project_env));
+    let mcp_config_path = data_dir.join("mcp.toml");
+    let mcp_tools = match codeloom_mcp::McpConfig::load(&mcp_config_path) {
+        Ok(config) => {
+            let mcp = codeloom_mcp::McpRuntime::start(config, &cwd).await;
+            for issue in mcp.issues() {
+                bus.publish(LiveEvent::RuntimeNotice {
+                    message: format!(
+                        "MCP server `{}` unavailable: {}",
+                        issue.server_id, issue.reason
+                    ),
+                });
+            }
+            mcp.tools()
+        }
+        Err(_) => {
+            bus.publish(LiveEvent::RuntimeNotice {
+                message: "MCP configuration rejected; no MCP tools loaded. Check ~/.codeloom/mcp.toml".into(),
+            });
+            Vec::new()
+        }
+    };
     let router = super::enrutador_de(&agents_cfg, provider.clone(), &cfg.model);
+    let profile_env = project_env.clone();
+    let profile_config = cfg.clone();
+    let profile_provider_resolver = Arc::new(
+        move |profile_provider: &codeloom_core::config::ProviderConfig| {
+            let mut config = profile_config.clone();
+            config.provider = profile_provider.clone();
+            super::build_provider(&config, &profile_env)
+                .map_err(|error| CoreError::Provider(error.to_string()))
+        },
+    );
     let agent = codeloom_core::agent::AgentLoop::new(
         provider,
         store.clone(),
@@ -593,6 +638,8 @@ async fn build_agent(
         cwd.clone(),
     )
     .with_catalog(catalog)
+    .with_subagent_tools(mcp_tools)
+    .with_profile_provider_resolver(profile_provider_resolver)
     .with_agent_registry(registry.clone())
     .with_delegation_confirm(agents_cfg.confirm_delegation)
     .with_spill(codeloom_core::tools::spill::ToolSpill::new(
@@ -615,7 +662,9 @@ async fn build_agent(
         project,
         config_path,
         cfg,
+        api_key_configured,
         project_env,
+        a2a_consumes: a2a.consumes(),
         refresher,
         watcher,
         bus_rx,
@@ -640,6 +689,53 @@ fn project_label(cwd: &std::path::Path) -> String {
         .filter(|name| !name.is_empty())
         .unwrap_or("workspace");
     codeloom_core::tools::limit_bytes(label, 64).into_owned()
+}
+
+fn runtime_peer_name(cwd: &std::path::Path, duplicate: bool, id: &str) -> String {
+    let folder = cwd
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("project");
+    let mut name = String::new();
+    let mut separator = false;
+    for byte in folder.bytes() {
+        if byte.is_ascii_alphanumeric() {
+            if separator && !name.is_empty() {
+                name.push('-');
+            }
+            separator = false;
+            if name.len() < 48 {
+                name.push((byte as char).to_ascii_lowercase());
+            }
+        } else {
+            separator = true;
+        }
+    }
+    if name.is_empty() {
+        name.push_str("project");
+    }
+    if duplicate {
+        name.push('-');
+        name.push_str(&id[..8]);
+    }
+    name
+}
+
+fn runtime_card_url(interface: &str, tenant: &str) -> String {
+    let interface = interface.trim_end_matches('/');
+    let base = interface.strip_suffix("/a2a").unwrap_or(interface);
+    format!(
+        "{}/agents/{tenant}/.well-known/agent-card.json",
+        base.trim_end_matches('/')
+    )
+}
+
+fn runtime_peer_profile(name: &str, description: &str, endpoint: &str, auth_env: &str) -> String {
+    let description = serde_json::to_string(description).expect("string serialization cannot fail");
+    let endpoint = serde_json::to_string(endpoint).expect("string serialization cannot fail");
+    format!(
+        "---\nname: {name}\ndescription: {description}\ntransport: a2a-remote\na2a:\n  endpoint: {endpoint}\n  credentials:\n    codeloom: {auth_env}\n---\n"
+    )
 }
 
 async fn open_agent(
@@ -677,7 +773,17 @@ async fn open_agent(
 
     let id = generate_agent_id()?;
     let ui = Arc::new(AgentUi::new(events));
-    let setup = build_agent(cwd, &id, ui.clone(), store.clone(), data_dir, yolo, true).await?;
+    let setup = build_agent(
+        manager,
+        cwd,
+        &id,
+        ui.clone(),
+        store.clone(),
+        data_dir,
+        yolo,
+        true,
+    )
+    .await?;
     let (commands, receiver) = mpsc::channel(32);
     let initial_session = store.create_session(&setup.project).await?;
     let project = project_label(&setup.cwd);
@@ -694,12 +800,14 @@ async fn open_agent(
         project_key: setup.project.clone(),
         model: StdRwLock::new(setup.cfg.model.clone()),
         settings: StdRwLock::new((&setup.cfg).into()),
+        api_key_configured: AtomicBool::new(setup.api_key_configured),
         config: StdRwLock::new(setup.cfg.clone()),
         ui,
         commands,
         store,
         config_path: setup.config_path.clone(),
         project_env: setup.project_env.clone(),
+        a2a_consumes: setup.a2a_consumes,
         refresher: setup.refresher.clone(),
         _watcher: StdMutex::new(Some(setup.watcher)),
         current_session: AtomicI64::new(initial_session.0),
@@ -716,6 +824,14 @@ async fn open_agent(
         .await
         .insert(id.clone(), entry.clone());
     manager.publish_card(&entry);
+    if let Err(error) = manager.refresh_peer_profiles().await {
+        entry
+            .ui
+            .send(ServerEvent::Error {
+                message: format!("no se pudieron actualizar los peers A2A: {error}"),
+            })
+            .await;
+    }
     tokio::spawn(run_agent_worker(
         entry.clone(),
         setup.agent,
@@ -770,6 +886,11 @@ async fn send_loaded_session(entry: &AgentEntry, id: SessionId) -> anyhow::Resul
     let messages = entry.store.messages(id).await?;
     let usage = entry.store.session_usage(id).await?;
     let subagents = entry.store.list_subagents(id).await?;
+    let workflow = entry
+        .store
+        .latest_development_workflow(id)
+        .await?
+        .map(|w| w.summary());
     let total = messages.len() + usage.len().div_ceil(10) + subagents.len();
     let mut sent = 0usize;
     for message in messages {
@@ -824,6 +945,12 @@ async fn send_loaded_session(entry: &AgentEntry, id: SessionId) -> anyhow::Resul
             })
             .await;
     }
+    entry
+        .ui
+        .send(ServerEvent::Session(
+            codeloom_tui::run::SessionUpdate::Workflow(id, workflow),
+        ))
+        .await;
     Ok(())
 }
 
@@ -941,25 +1068,35 @@ async fn run_agent_worker(
                     }
                 }
             },
-            AgentCommand::ProviderSettings { id, settings } => {
+            AgentCommand::ProviderSettings {
+                id,
+                settings,
+                api_key,
+            } => {
                 let current = entry.config.read().unwrap().clone();
                 let result = super::apply_provider_settings(
                     settings,
+                    api_key.as_deref(),
                     &current,
                     &entry.config_path,
                     &agent,
                     &entry.project_env,
                 );
-                if let Ok(config) = &result {
+                if let Ok((config, configured)) = &result {
                     *entry.model.write().unwrap() = config.model.clone();
                     *entry.settings.write().unwrap() = config.into();
                     *entry.config.write().unwrap() = config.clone();
+                    entry
+                        .api_key_configured
+                        .store(*configured, Ordering::Release);
                 }
                 entry
                     .ui
                     .send(ServerEvent::ProviderSettingsResult {
                         id,
-                        result: result.map(|_| ()).map_err(|error| error.to_string()),
+                        result: result
+                            .map(|(_, configured)| configured)
+                            .map_err(|error| error.to_string()),
                     })
                     .await;
             }
@@ -1095,6 +1232,10 @@ struct AgentManager {
     a2a_interface: Option<String>,
     a2a_auth_scheme: Option<codeloom_a2a::serve::config::ServeAuthScheme>,
     a2a_task_timeout: Duration,
+    runtime_generation: String,
+    data_dir: PathBuf,
+    a2a_auth_env: Option<String>,
+    peer_profile_lock: Mutex<()>,
     supervisor: Option<SupervisorAgent>,
     connected: AtomicUsize,
     last_disconnected: StdMutex<Instant>,
@@ -1106,6 +1247,9 @@ impl AgentManager {
         a2a_cards: Arc<StdRwLock<HashMap<String, codeloom_a2a::serve::card::ServedCard>>>,
         a2a_interface: Option<String>,
         a2a_auth_scheme: Option<codeloom_a2a::serve::config::ServeAuthScheme>,
+        runtime_generation: String,
+        data_dir: PathBuf,
+        a2a_auth_env: Option<String>,
         a2a_max_tasks: usize,
         a2a_task_timeout: Duration,
         supervisor: Option<SupervisorAgent>,
@@ -1118,6 +1262,10 @@ impl AgentManager {
             a2a_interface,
             a2a_auth_scheme,
             a2a_task_timeout,
+            runtime_generation,
+            data_dir,
+            a2a_auth_env,
+            peer_profile_lock: Mutex::new(()),
             supervisor,
             connected: AtomicUsize::new(0),
             last_disconnected: StdMutex::new(Instant::now()),
@@ -1151,6 +1299,68 @@ impl AgentManager {
             .write()
             .unwrap_or_else(|error| error.into_inner())
             .insert(entry.id.clone(), card);
+    }
+
+    async fn refresh_peer_profiles(&self) -> anyhow::Result<()> {
+        let (Some(interface), Some(_), Some(auth_env)) = (
+            self.a2a_interface.as_deref(),
+            self.a2a_auth_scheme.as_ref(),
+            self.a2a_auth_env.as_deref(),
+        ) else {
+            return Ok(());
+        };
+        let _lock = self.peer_profile_lock.lock().await;
+        let agents = self
+            .agents
+            .read()
+            .await
+            .values()
+            .cloned()
+            .collect::<Vec<_>>();
+        for recipient in agents.iter().filter(|agent| agent.a2a_consumes) {
+            let dir =
+                super::runtime_peer_dir(&self.data_dir, &self.runtime_generation, &recipient.cwd);
+            std::fs::create_dir_all(&dir)?;
+            let peers = agents
+                .iter()
+                .filter(|peer| peer.cwd != recipient.cwd)
+                .collect::<Vec<_>>();
+            for peer in &peers {
+                let Some(_) = self
+                    .a2a_cards
+                    .read()
+                    .unwrap_or_else(|error| error.into_inner())
+                    .get(&peer.id)
+                else {
+                    continue;
+                };
+                let folder_name = runtime_peer_name(&peer.cwd, false, &peer.id);
+                let duplicate = peers.iter().any(|other| {
+                    other.id != peer.id
+                        && runtime_peer_name(&other.cwd, false, &other.id) == folder_name
+                });
+                let name = runtime_peer_name(&peer.cwd, duplicate, &peer.id);
+                let profile = runtime_peer_profile(
+                    &name,
+                    &peer.card.description,
+                    &runtime_card_url(interface, &peer.id),
+                    auth_env,
+                );
+                let path = dir.join(format!("{name}.md"));
+                if std::fs::read_to_string(&path).ok().as_deref() == Some(profile.as_str()) {
+                    continue;
+                }
+                let temporary = dir.join(format!(".{name}.tmp"));
+                std::fs::write(&temporary, profile)?;
+                std::fs::rename(temporary, path)?;
+            }
+        }
+        for agent in agents.iter().filter(|agent| agent.a2a_consumes) {
+            if let Some(refresh) = &agent.refresher {
+                let _ = refresh.send(());
+            }
+        }
+        Ok(())
     }
 
     fn should_stop(&self) -> bool {
@@ -1535,7 +1745,14 @@ pub async fn run_server() -> anyhow::Result<()> {
     } else {
         None
     };
-    let runtime_a2a = resolve_runtime_a2a(&a2a, &|name| std::env::var(name).ok())?;
+    if a2a.serves() {
+        if let Some(auth) = &a2a.serve.auth {
+            if super::resolve_credential(&auth.env).is_none() {
+                super::credentials::get_or_create(&auth.env)?;
+            }
+        }
+    }
+    let runtime_a2a = resolve_runtime_a2a(&a2a, &super::resolve_credential)?;
     let (authenticator, interface, auth_scheme) = match runtime_a2a {
         Some((authenticator, interface, scheme)) => {
             (Some(authenticator), Some(interface), Some(scheme))
@@ -1543,10 +1760,14 @@ pub async fn run_server() -> anyhow::Result<()> {
         None => (None, None, None),
     };
     let cards = Arc::new(StdRwLock::new(HashMap::new()));
+    let runtime_generation = generate_agent_id()?;
     let manager = Arc::new(AgentManager::new(
         cards.clone(),
         interface.clone(),
         auth_scheme.clone(),
+        runtime_generation,
+        data_dir.clone(),
+        a2a.serve.auth.as_ref().map(|auth| auth.env.clone()),
         a2a.serve.max_concurrent_tasks,
         Duration::from_secs(a2a.serve.max_task_secs),
         supervisor,
@@ -1718,7 +1939,9 @@ where
                 let cwd = validate_cwd(cwd)?;
                 let id = generate_agent_id()?;
                 let ui = Arc::new(AgentUi::new(mpsc::channel(1).0));
-                let setup = build_agent(cwd, &id, ui, store.clone(), data_dir, yolo, false).await?;
+                let setup =
+                    build_agent(&manager, cwd, &id, ui, store.clone(), data_dir, yolo, false)
+                        .await?;
                 let session = store.create_session(&setup.project).await?;
                 let outcome = setup
                     .agent
@@ -1781,9 +2004,11 @@ where
             };
             let ready = ServerFrame::event(ServerEvent::Ready {
                 agent_id: entry.id.clone(),
+                runtime_generation: manager.runtime_generation.clone(),
                 cwd: entry.cwd.display().to_string(),
                 model: entry.model.read().unwrap().clone(),
                 settings: entry.settings.read().unwrap().clone(),
+                api_key_configured: entry.api_key_configured.load(Ordering::Acquire),
             });
             if ipc::send(writer, &ready).await.is_err() {
                 entry.connected.store(false, Ordering::Release);
@@ -1880,12 +2105,14 @@ mod runtime_tests {
             project_key,
             model: StdRwLock::new(config.model.clone()),
             settings: StdRwLock::new((&config).into()),
+            api_key_configured: AtomicBool::new(false),
             config: StdRwLock::new(config),
             ui: Arc::new(AgentUi::new(mpsc::channel(1).0)),
             commands: mpsc::channel(1).0,
             store,
             config_path: cwd.join("codeloom.toml"),
             project_env: crate::load_dotenv(&cwd),
+            a2a_consumes: false,
             refresher: None,
             _watcher: StdMutex::new(Some(watcher)),
             current_session: AtomicI64::new(session.0),
@@ -2079,6 +2306,9 @@ mod runtime_tests {
             Arc::new(StdRwLock::new(HashMap::new())),
             None,
             None,
+            "generation".into(),
+            directory.path().to_path_buf(),
+            None,
             4,
             Duration::from_secs(10),
             None,
@@ -2238,10 +2468,18 @@ async fn handle_client_command(entry: &AgentEntry, command: ClientCommand) -> an
         ClientCommand::Session(command) => {
             entry.commands.send(AgentCommand::Session(command)).await?
         }
-        ClientCommand::ProviderSettings { id, settings } => {
+        ClientCommand::ProviderSettings {
+            id,
+            settings,
+            api_key,
+        } => {
             entry
                 .commands
-                .send(AgentCommand::ProviderSettings { id, settings })
+                .send(AgentCommand::ProviderSettings {
+                    id,
+                    settings,
+                    api_key,
+                })
                 .await?
         }
         ClientCommand::PermissionReply { id, decision } => {
@@ -2303,7 +2541,7 @@ fn client_cwd() -> anyhow::Result<String> {
     Ok(cwd.to_string_lossy().into_owned())
 }
 
-type PendingSettings = Arc<StdMutex<HashMap<u64, oneshot::Sender<Result<(), String>>>>>;
+type PendingSettings = Arc<StdMutex<HashMap<u64, oneshot::Sender<Result<bool, String>>>>>;
 
 async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     use codeloom_tui::run::{ProviderSettingsCommand, SessionCommand, SessionUpdate};
@@ -2358,7 +2596,7 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
                         let id = next_settings_id;
                         next_settings_id = next_settings_id.wrapping_add(1).max(1);
                         settings_pending.lock().unwrap().insert(id, command.reply);
-                        if frame_commands.send(ClientFrame::Command(ClientCommand::ProviderSettings { id, settings: command.settings })).await.is_err() { break; }
+                        if frame_commands.send(ClientFrame::Command(ClientCommand::ProviderSettings { id, settings: command.settings, api_key: command.api_key })).await.is_err() { break; }
                     }
                     None => break,
                 },
@@ -2386,12 +2624,21 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
             match *event {
                 ServerEvent::Ready {
                     agent_id,
+                    runtime_generation,
                     cwd,
                     model,
                     settings,
+                    api_key_configured,
                 } => {
                     if let Some(reply) = ready_tx.take() {
-                        let _ = reply.send(Ok((agent_id, cwd, model, settings)));
+                        let _ = reply.send(Ok((
+                            agent_id,
+                            runtime_generation,
+                            cwd,
+                            model,
+                            settings,
+                            api_key_configured,
+                        )));
                     }
                 }
                 ServerEvent::Error { message } if ready_tx.is_some() => {
@@ -2507,7 +2754,7 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
         }
     });
 
-    let (agent_id, cwd, model, settings) = ready_rx
+    let (agent_id, runtime_generation, cwd, model, settings, api_key_configured) = ready_rx
         .await
         .map_err(|_| anyhow::anyhow!("local server closed before opening the agent"))?
         .map_err(anyhow::Error::msg)?;
@@ -2515,15 +2762,40 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let config_path = cwd_path.join("codeloom.toml");
     let agents_config = codeloom_core::config::AgentsConfig::load(&config_path)?;
     let a2a_config = codeloom_a2a::config::A2aConfig::load(&config_path)?;
-    let startup = super::arrancar_agentes(dirs::home_dir().as_deref(), &cwd_path, &agents_config);
-    let registry = Arc::new(startup.registro);
-    let _watcher =
-        registry.spawn_watcher(startup.directorios, codeloom_core::event::EventBus::new(8));
-    let mut app = codeloom_tui::app::App::with_context(cwd, model);
-    app.set_provider_settings(settings);
     let data_dir = dirs::home_dir()
-        .unwrap_or_else(|| cwd_path.clone())
+        .unwrap_or_else(std::env::temp_dir)
         .join(".codeloom");
+    let runtime_peers = a2a_config
+        .consumes()
+        .then(|| super::runtime_peer_dir(&data_dir, &runtime_generation, &cwd_path));
+    let startup = super::arrancar_agentes_con_runtime(
+        dirs::home_dir().as_deref(),
+        &cwd_path,
+        &agents_config,
+        runtime_peers,
+    );
+    let registry = Arc::new(startup.registro);
+    let registry_bus = codeloom_core::event::EventBus::new(32);
+    let _watcher = registry.spawn_watcher(startup.directorios, registry_bus.clone());
+    let _remote_clients = super::arrancar_remotos(&a2a_config, &registry, &registry_bus)?;
+    let local_refresher = super::arrancar_refresco_manual(&a2a_config, &registry, &registry_bus)?;
+    if let Some(refresher) = local_refresher.clone() {
+        let mut events = registry_bus.subscribe();
+        tokio::spawn(async move {
+            while let Ok(event) = events.recv().await {
+                if matches!(event, LiveEvent::AgentRegistryChanged { .. }) {
+                    let _ = refresher.send(());
+                }
+            }
+        });
+    }
+    let mut app = codeloom_tui::app::App::with_context(cwd, model);
+    app.use_product_default_view();
+    app.set_provider_settings(settings);
+    app.settings_api_key_configured = api_key_configured;
+    if !api_key_configured {
+        app.status = "API key missing · /settings".into();
+    }
     app.set_prefs_path(data_dir.join("ui.toml"));
     app.set_agent_registry(registry);
     if matches!(
@@ -2531,8 +2803,12 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
         codeloom_a2a::config::A2aRole::Consume | codeloom_a2a::config::A2aRole::Both
     ) {
         let refresh = frame_tx.clone();
+        let local_refresh = local_refresher.clone();
         app.set_refresh_agents_hook(Arc::new(move || {
             let _ = refresh.try_send(ClientFrame::Command(ClientCommand::RefreshAgents));
+            if let Some(local_refresh) = &local_refresh {
+                let _ = local_refresh.send(());
+            }
         }));
     }
     codeloom_tui::run::run(
@@ -2561,6 +2837,44 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runtime_peer_card_url_uses_a_direct_standard_card_path() {
+        assert_eq!(
+            runtime_card_url("http://127.0.0.1:7077/a2a", "tenant"),
+            "http://127.0.0.1:7077/agents/tenant/.well-known/agent-card.json"
+        );
+    }
+
+    #[test]
+    fn runtime_peer_name_uses_project_folder_and_disambiguates_duplicates() {
+        assert_eq!(
+            runtime_peer_name(std::path::Path::new("E:/work/My Animation Lab"), false, "0123456789abcdef"),
+            "my-animation-lab"
+        );
+        assert_eq!(
+            runtime_peer_name(std::path::Path::new("E:/work/Animation"), true, "0123456789abcdef"),
+            "animation-01234567"
+        );
+    }
+
+    #[test]
+    fn runtime_peer_profile_is_a_remote_profile_without_secrets_or_paths() {
+        let profile = runtime_peer_profile(
+            "runtime-0123456789ab",
+            "Project animation agent",
+            "http://127.0.0.1:7077/agents/0123456789abcdef/.well-known/agent-card.json",
+            "CODELOOM_A2A_TOKEN",
+        );
+        let (parsed, _) =
+            codeloom_core::registry::parse_profile("runtime-0123456789ab", &profile).unwrap();
+        assert_eq!(
+            parsed.remote_endpoint.as_deref(),
+            Some("http://127.0.0.1:7077/agents/0123456789abcdef/.well-known/agent-card.json")
+        );
+        assert!(!profile.contains("E:\\workspace"));
+        assert!(!profile.contains("secret-value"));
+    }
 
     #[test]
     fn local_token_comparison_requires_a_full_matching_token() {

@@ -23,6 +23,43 @@ pub enum ManualCompaction {
     Failed,
 }
 
+/// Sentido local de una observación del protocolo A2A.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum A2aDirection {
+    Local,
+    Inbound,
+    Outbound,
+}
+
+/// Operación JSON-RPC o evento SSE observado por CodeLoom.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum A2aOperation {
+    SendMessage,
+    SendStreamingMessage,
+    GetTask,
+    CancelTask,
+    SubscribeToTask,
+    TaskStatusUpdateEvent,
+    TaskArtifactUpdateEvent,
+    TaskStateObserved,
+}
+
+/// Metadatos seguros para la vista local de actividad A2A. Nunca contiene el cuerpo del mensaje,
+/// el contenido de un artefacto ni credenciales.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct A2aObservation {
+    pub direction: A2aDirection,
+    pub agent: String,
+    pub operation: A2aOperation,
+    pub rpc_id: Option<String>,
+    pub task_id: Option<String>,
+    pub context_id: Option<String>,
+    pub state: Option<String>,
+    pub artifact: Option<String>,
+    pub succeeded: bool,
+    pub elapsed_ms: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LiveEvent {
     TurnStarted,
@@ -103,6 +140,7 @@ pub enum LiveEvent {
     },
     JobChanged(crate::job::JobSnapshot),
     SubagentChanged(crate::session::SubagentDescriptor),
+    DevelopmentWorkflowChanged(crate::workflow::WorkflowSummary),
     /// El enrutador (A12b) eligió el agente de una delegación que no nombraba ninguno. Queda a la
     /// vista de la persona usuaria: qué agente, por qué y quién decidió (`rule` o `classifier`).
     AgentRouted {
@@ -124,6 +162,8 @@ pub enum LiveEvent {
         ok: usize,
         failed: Vec<String>,
     },
+    /// Observación local de una operación A2A, nunca se transmite al otro agente.
+    A2aObserved(A2aObservation),
     /// Un hijo queda a la espera de una respuesta de su padre (`input-required`).
     SubagentInputRequested {
         parent: crate::session::SessionId,
@@ -158,6 +198,10 @@ pub enum LiveEvent {
         status: crate::task::TaskState,
     },
     Error {
+        message: String,
+    },
+    /// Aviso local de configuración/runtime; no se persiste ni se envía al modelo o a A2A.
+    RuntimeNotice {
         message: String,
     },
     /// Evento de un hijo reenviado al bus del padre por el lanzador de subagentes.
@@ -196,9 +240,11 @@ impl LiveEvent {
             | LiveEvent::SessionMessageAdded { .. }
             | LiveEvent::JobChanged(_)
             | LiveEvent::SubagentChanged(_)
+            | LiveEvent::DevelopmentWorkflowChanged(_)
             | LiveEvent::A2aServed { .. }
             | LiveEvent::AgentRouted { .. }
             | LiveEvent::AgentCardsRefreshed { .. }
+            | LiveEvent::A2aObserved(_)
             | LiveEvent::SubagentInputRequested { .. }
             | LiveEvent::SubagentInputResolved { .. }
             | LiveEvent::TodosChanged { .. }
@@ -206,6 +252,7 @@ impl LiveEvent {
             | LiveEvent::WakeIdle
             | LiveEvent::ManualCompactionEnded { .. }
             | LiveEvent::SubagentSettled { .. }
+            | LiveEvent::RuntimeNotice { .. }
             | LiveEvent::ChildEvent { .. } => false,
         }
     }

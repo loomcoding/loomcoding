@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crate::card::AgentCard;
-use crate::registry::profile::{parse_profile, AgentProfile, ProfileProblem};
+use crate::config::ProviderConfig;
+use crate::registry::profile::{parse_profile, AgentProfile, AgentScope, ProfileProblem};
 use crate::registry::trust::content_hash;
 
 /// Nombre del agente por defecto, integrado. Un `default.md` de proyecto o global lo redefine.
@@ -67,6 +68,9 @@ pub struct LocalSpec {
     /// Contexto de la persona (`persona.backstory` del perfil).
     pub persona_backstory: Option<String>,
     pub model: Option<String>,
+    pub provider: Option<ProviderConfig>,
+    /// Alcance declarado localmente; el runtime lo muestra pero aún no lo hace cumplir.
+    pub scope: AgentScope,
     pub effort: Option<String>,
     pub max_turns: Option<u32>,
     pub max_depth: Option<u32>,
@@ -297,7 +301,8 @@ impl AgentSource for FileSource {
 }
 
 /// Entrada del registro a partir de un perfil validado. La tarjeta se sintetiza solo con
-/// `name`, `description` y `version`; persona, modelo y esfuerzo no viajan en ella.
+/// `name`, `description`, `version` y skills A2A; persona, modelo, proveedor, scope y esfuerzo
+/// no viajan en ella.
 fn entrada_desde_perfil(
     perfil: AgentProfile,
     origin: AgentOrigin,
@@ -321,10 +326,12 @@ fn entrada_desde_perfil(
             content_hash,
         };
     }
+    let mut card = AgentCard::local(perfil.name.clone(), perfil.description, version);
+    card.skills = perfil.card_skills;
     AgentEntry {
         name: perfil.name.clone(),
         origin,
-        card: AgentCard::local(perfil.name, perfil.description, version),
+        card,
         execution: Execution::Local(LocalSpec {
             body: perfil.body,
             persona_role: perfil.persona_role,
@@ -334,6 +341,8 @@ fn entrada_desde_perfil(
             effort: perfil.effort,
             max_turns: perfil.max_turns,
             max_depth: perfil.max_depth,
+            provider: perfil.provider,
+            scope: perfil.scope,
         }),
         content_hash,
     }
@@ -373,6 +382,8 @@ impl AgentSource for BuiltInSource {
                 effort: None,
                 max_turns: None,
                 max_depth: None,
+                provider: None,
+                scope: AgentScope::default(),
             }),
             content_hash: None,
         };
@@ -437,6 +448,8 @@ mod tests {
             effort: None,
             max_turns: None,
             max_depth: None,
+            provider: None,
+            scope: AgentScope::default(),
         }
     }
 
@@ -504,6 +517,34 @@ mod tests {
                 );
             }
             Execution::Remote(_) => panic!("un perfil de fichero es local"),
+        }
+    }
+
+    #[test]
+    fn provider_and_model_stay_local_to_the_profile_execution() {
+        let dir = tempfile::tempdir().unwrap();
+        escribir(
+            dir.path(),
+            "backend.md",
+            "---\nname: backend\ndescription: Rust\nmodel: recursive/flint-v1.0:free\nprovider:\n  kind: openai_compat\n  base_url: https://openrouter.ai/api/v1\n  api_key_env: OPENROUTER_API_KEY\n---\n\nBackend.\n",
+        );
+
+        let carga = FileSource::new(dir.path().to_path_buf(), ProfileLevel::Global).load();
+        let entrada = &carga.entries[0];
+
+        assert!(carga.problems.is_empty());
+        assert_eq!(entrada.card.name, "backend");
+        match &entrada.execution {
+            Execution::Local(spec) => {
+                assert_eq!(spec.model.as_deref(), Some("recursive/flint-v1.0:free"));
+                assert_eq!(
+                    spec.provider
+                        .as_ref()
+                        .map(|provider| provider.base_url.as_str()),
+                    Some("https://openrouter.ai/api/v1")
+                );
+            }
+            Execution::Remote(_) => panic!("the profile should execute locally"),
         }
     }
 }

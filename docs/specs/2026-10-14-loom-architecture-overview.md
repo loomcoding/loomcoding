@@ -300,6 +300,7 @@ implementado.
 | Diseño base (crates, turn/step, tools) | base | `2026-10-13-loom-design.md` | — |
 | Servidor local CodeLoom y varias TUI cliente | propuesta | `2026-10-26-codeloom-local-server-client-runtime.md` | pendiente de revisión |
 | Carga en caliente de MCP/skills | borrador | `...-mcp-skills-hot-reload.md` | — |
+| Aplicación de `scope.mcp` por perfil | propuesta | `2026-10-28-codeloom-mcp-agent-scope.md` | — |
 | Hub de decisiones (jevalan) | borrador | `...-decision-hub-jevalan.md` | P1/P0 |
 | Capa estática de señales/decisiones | borrador | `...-static-decision-signals.md` | P0 |
 | Puerta única de descubrimiento (tools/skills/MCP) | idea | `...-tool-skill-discovery.md` | — |

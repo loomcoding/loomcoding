@@ -3,6 +3,7 @@ use crate::a2a::{self, Artifact};
 use crate::error::{CoreError, Result};
 use crate::message::{self, Message};
 use crate::task::{TaskState, TaskStatus};
+use crate::workflow::{DevelopmentWorkflow, DevelopmentWorkflowEvent, WorkflowId, WorkflowPhase};
 use async_trait::async_trait;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Row, SqlitePool};
@@ -104,6 +105,40 @@ impl SqliteStore {
                 output_tokens INTEGER NOT NULL,
                 input_price REAL,
                 output_price REAL,
+                created_at_ms INTEGER NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS development_workflows (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_session_id INTEGER NOT NULL,
+                phase TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                payload TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL)",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        sqlx::query(
+            "CREATE UNIQUE INDEX IF NOT EXISTS one_active_development_workflow_per_session
+             ON development_workflows(parent_session_id)
+             WHERE phase NOT IN ('completed', 'cancelled', 'failed')",
+        )
+        .execute(&pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS development_workflow_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                workflow_id INTEGER NOT NULL,
+                from_phase TEXT,
+                to_phase TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                detail TEXT NOT NULL,
                 created_at_ms INTEGER NOT NULL)",
         )
         .execute(&pool)
@@ -471,6 +506,231 @@ impl SessionStore for SqliteStore {
             })
             .collect()
     }
+
+    async fn create_development_workflow(
+        &self,
+        mut workflow: DevelopmentWorkflow,
+        detail: &str,
+    ) -> Result<DevelopmentWorkflow> {
+        if workflow.id != WorkflowId(0)
+            || workflow.version != 0
+            || workflow.phase != WorkflowPhase::Specifying
+            || detail.len() > 2_000
+        {
+            return Err(CoreError::Store("invalid new development workflow".into()));
+        }
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        let now = message::now_ms();
+        workflow.created_at_ms = now;
+        workflow.updated_at_ms = now;
+        workflow.version = 1;
+        let row = sqlx::query(
+            "INSERT INTO development_workflows
+             (parent_session_id, phase, version, payload, created_at_ms, updated_at_ms)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(workflow.parent.0)
+        .bind(workflow.phase.as_str())
+        .bind(workflow.version)
+        .bind(serde_json::to_string(&workflow).map_err(|e| CoreError::Store(e.to_string()))?)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        workflow.id = WorkflowId(row.last_insert_rowid());
+        sqlx::query("UPDATE development_workflows SET payload = ? WHERE id = ?")
+            .bind(serde_json::to_string(&workflow).map_err(|e| CoreError::Store(e.to_string()))?)
+            .bind(workflow.id.0)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        sqlx::query(
+            "INSERT INTO development_workflow_events
+             (workflow_id, from_phase, to_phase, actor, detail, created_at_ms)
+             VALUES (?, NULL, ?, 'parent', ?, ?)",
+        )
+        .bind(workflow.id.0)
+        .bind(workflow.phase.as_str())
+        .bind(detail)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        Ok(workflow)
+    }
+
+    async fn update_development_workflow(
+        &self,
+        mut workflow: DevelopmentWorkflow,
+        actor: &str,
+        detail: &str,
+    ) -> Result<DevelopmentWorkflow> {
+        if actor.is_empty() || actor.len() > 128 || detail.len() > 2_000 {
+            return Err(CoreError::Store("invalid workflow event".into()));
+        }
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        let row = sqlx::query(
+            "SELECT version, payload FROM development_workflows WHERE id = ? AND parent_session_id = ?",
+        )
+        .bind(workflow.id.0)
+        .bind(workflow.parent.0)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?
+        .ok_or_else(|| CoreError::Store("development workflow not found".into()))?;
+        let version: i64 = row.get("version");
+        if version != workflow.version {
+            return Err(CoreError::Store("stale development workflow update".into()));
+        }
+        let current: DevelopmentWorkflow = serde_json::from_str(&row.get::<String, _>("payload"))
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        if current.id != workflow.id || !current.phase.can_transition_to(workflow.phase) {
+            return Err(CoreError::Store(format!(
+                "invalid development workflow transition: {:?} -> {:?}",
+                current.phase, workflow.phase
+            )));
+        }
+        let now = message::now_ms();
+        workflow.version = version + 1;
+        workflow.created_at_ms = current.created_at_ms;
+        workflow.updated_at_ms = now;
+        let changed = sqlx::query(
+            "UPDATE development_workflows SET phase = ?, version = ?, payload = ?, updated_at_ms = ?
+             WHERE id = ? AND version = ?",
+        )
+        .bind(workflow.phase.as_str())
+        .bind(workflow.version)
+        .bind(serde_json::to_string(&workflow).map_err(|e| CoreError::Store(e.to_string()))?)
+        .bind(now)
+        .bind(workflow.id.0)
+        .bind(version)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        if changed.rows_affected() != 1 {
+            return Err(CoreError::Store("stale development workflow update".into()));
+        }
+        sqlx::query(
+            "INSERT INTO development_workflow_events
+             (workflow_id, from_phase, to_phase, actor, detail, created_at_ms)
+             VALUES (?, ?, ?, ?, ?, ?)",
+        )
+        .bind(workflow.id.0)
+        .bind(current.phase.as_str())
+        .bind(workflow.phase.as_str())
+        .bind(actor)
+        .bind(detail)
+        .bind(now)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        Ok(workflow)
+    }
+
+    async fn development_workflow(&self, id: WorkflowId) -> Result<Option<DevelopmentWorkflow>> {
+        let payload: Option<String> =
+            sqlx::query_scalar("SELECT payload FROM development_workflows WHERE id = ?")
+                .bind(id.0)
+                .fetch_optional(&self.pool)
+                .await
+                .map_err(|e| CoreError::Store(e.to_string()))?;
+        payload
+            .map(|payload| {
+                serde_json::from_str(&payload).map_err(|e| CoreError::Store(e.to_string()))
+            })
+            .transpose()
+    }
+
+    async fn active_development_workflow(
+        &self,
+        parent: SessionId,
+    ) -> Result<Option<DevelopmentWorkflow>> {
+        let payload: Option<String> = sqlx::query_scalar(
+            "SELECT payload FROM development_workflows WHERE parent_session_id = ?
+             AND phase NOT IN ('completed', 'cancelled', 'failed') ORDER BY id DESC LIMIT 1",
+        )
+        .bind(parent.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        payload
+            .map(|payload| {
+                serde_json::from_str(&payload).map_err(|e| CoreError::Store(e.to_string()))
+            })
+            .transpose()
+    }
+
+    async fn latest_development_workflow(
+        &self,
+        parent: SessionId,
+    ) -> Result<Option<DevelopmentWorkflow>> {
+        let payload: Option<String> = sqlx::query_scalar(
+            "SELECT payload FROM development_workflows WHERE parent_session_id = ? ORDER BY id DESC LIMIT 1",
+        )
+        .bind(parent.0)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        payload
+            .map(|payload| {
+                serde_json::from_str(&payload).map_err(|e| CoreError::Store(e.to_string()))
+            })
+            .transpose()
+    }
+
+    async fn development_workflow_events(
+        &self,
+        id: WorkflowId,
+    ) -> Result<Vec<DevelopmentWorkflowEvent>> {
+        let rows = sqlx::query(
+            "SELECT id, workflow_id, from_phase, to_phase, actor, detail, created_at_ms
+             FROM development_workflow_events WHERE workflow_id = ? ORDER BY id",
+        )
+        .bind(id.0)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        rows.into_iter()
+            .map(|row| {
+                let parse = |key: &str| -> Result<Option<WorkflowPhase>> {
+                    row.get::<Option<String>, _>(key)
+                        .map(|value| {
+                            value
+                                .parse()
+                                .map_err(|e: serde_json::Error| CoreError::Store(e.to_string()))
+                        })
+                        .transpose()
+                };
+                Ok(DevelopmentWorkflowEvent {
+                    sequence: row.get("id"),
+                    workflow: WorkflowId(row.get("workflow_id")),
+                    from: parse("from_phase")?,
+                    to: row
+                        .get::<String, _>("to_phase")
+                        .parse()
+                        .map_err(|e: serde_json::Error| CoreError::Store(e.to_string()))?,
+                    actor: row.get("actor"),
+                    detail: row.get("detail"),
+                    created_at_ms: row.get("created_at_ms"),
+                })
+            })
+            .collect()
+    }
 }
 
 /// Los tokens se guardan como INTEGER de SQLite (i64); un valor fuera de rango es un error.
@@ -501,6 +761,83 @@ fn decode_status_message(raw: Option<String>, child: i64) -> Option<a2a::Message
             message.message_id = format!("estado-{child}");
             Some(message)
         }
+    }
+}
+
+#[cfg(test)]
+mod development_workflow_tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn workflow(parent: SessionId) -> DevelopmentWorkflow {
+        DevelopmentWorkflow {
+            id: WorkflowId(0),
+            parent,
+            task: "add a safe feature".into(),
+            planner: "planner".into(),
+            implementer: "builder".into(),
+            reviewer: "reviewer".into(),
+            phase: WorkflowPhase::Specifying,
+            version: 0,
+            active_child: None,
+            planner_child: None,
+            implementation_children: Vec::new(),
+            reviewer_children: Vec::new(),
+            correction_round: 0,
+            spec_path: None,
+            plan_path: None,
+            spec_sha256: None,
+            plan_sha256: None,
+            last_report: None,
+            created_at_ms: 0,
+            updated_at_ms: 0,
+        }
+    }
+
+    #[tokio::test]
+    async fn workflow_state_and_append_only_events_survive_reopen() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("sessions.db");
+        let store = SqliteStore::open(path.to_str().unwrap()).await.unwrap();
+        let parent = store.create_session("project").await.unwrap();
+        let created = store
+            .create_development_workflow(workflow(parent), "planner started")
+            .await
+            .unwrap();
+
+        let mut pending = created.clone();
+        pending.phase = WorkflowPhase::AwaitingPlanApproval;
+        pending.spec_path = Some("docs/spec.md".into());
+        pending.spec_sha256 = Some("a".repeat(64));
+        let pending = store
+            .update_development_workflow(pending, "parent", "plan ready")
+            .await
+            .unwrap();
+
+        let mut stale = created;
+        stale.phase = WorkflowPhase::Implementing;
+        assert!(store
+            .update_development_workflow(stale, "parent", "must not overwrite")
+            .await
+            .is_err());
+
+        let events = store.development_workflow_events(pending.id).await.unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[1].from, Some(WorkflowPhase::Specifying));
+        assert_eq!(events[1].to, WorkflowPhase::AwaitingPlanApproval);
+        drop(store);
+
+        let reopened = SqliteStore::open(path.to_str().unwrap()).await.unwrap();
+        let loaded = reopened
+            .development_workflow(pending.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(loaded, pending);
+        assert_eq!(
+            reopened.active_development_workflow(parent).await.unwrap(),
+            Some(loaded)
+        );
     }
 }
 

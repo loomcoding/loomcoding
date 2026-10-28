@@ -186,9 +186,25 @@ pub async fn refresh_loop(
     config: A2aConfig,
     intervalo: std::time::Duration,
 ) {
+    refresh_loop_with_env(registry, bus, client, config, intervalo, |variable| {
+        std::env::var(variable).ok()
+    })
+    .await;
+}
+
+/// Como [`refresh_loop`], resolviendo las credenciales con la fuente local del cliente.
+pub async fn refresh_loop_with_env(
+    registry: std::sync::Arc<AgentRegistry>,
+    bus: EventBus,
+    client: Client,
+    config: A2aConfig,
+    intervalo: std::time::Duration,
+    env: impl Fn(&str) -> Option<String> + Send + Sync + 'static,
+) {
+    let env = std::sync::Arc::new(env);
     loop {
         tokio::time::sleep(intervalo).await;
-        let _ = refresh_remote_cards(&registry, &bus, &client, &config).await;
+        let _ = refresh_remote_cards_with_env(&registry, &bus, &client, &config, &*env).await;
     }
 }
 

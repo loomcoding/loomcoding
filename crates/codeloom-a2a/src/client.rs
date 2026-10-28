@@ -7,10 +7,11 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use codeloom_core::a2a::{Artifact, Message};
+use codeloom_core::event::{A2aDirection, A2aObservation, A2aOperation, EventBus, LiveEvent};
 use codeloom_core::registry::RemoteSpec;
 use codeloom_core::remote_task::{
     RemoteClientFactory, RemoteReply, RemoteTask, RemoteTaskClient, RemoteTaskError,
@@ -75,6 +76,8 @@ pub struct JsonRpcClient {
     auth: AuthPlan,
     /// La tarjeta declara streaming: solo entonces se intenta `SubscribeToTask` (A8c).
     streaming: bool,
+    agent: String,
+    observer: Option<EventBus>,
 }
 
 impl JsonRpcClient {
@@ -94,6 +97,8 @@ impl JsonRpcClient {
             siguiente_id: AtomicU64::new(1),
             auth: AuthPlan::open(),
             streaming: false,
+            agent: String::new(),
+            observer: None,
         }
     }
 
@@ -107,6 +112,18 @@ impl JsonRpcClient {
     pub fn with_auth(mut self, auth: AuthPlan) -> Self {
         self.auth = auth;
         self
+    }
+
+    fn with_observer(mut self, agent: &str, observer: Option<EventBus>) -> Self {
+        self.agent = agent.to_string();
+        self.observer = observer;
+        self
+    }
+
+    fn observe(&self, observation: A2aObservation) {
+        if let Some(bus) = &self.observer {
+            bus.publish(LiveEvent::A2aObserved(observation));
+        }
     }
 
     /// Envía una petición autenticada. Si el remoto rechaza un token (401), se olvida y se pide otro
@@ -146,7 +163,69 @@ impl JsonRpcClient {
     }
 
     async fn llamar(&self, metodo: &str, params: Value) -> Result<Value, RemoteTaskError> {
-        let id = self.siguiente_id.fetch_add(1, Ordering::Relaxed);
+        let started = Instant::now();
+        let operation = match metodo {
+            "SendMessage" => A2aOperation::SendMessage,
+            "GetTask" => A2aOperation::GetTask,
+            "CancelTask" => A2aOperation::CancelTask,
+            _ => return Err(RemoteTaskError::Unsupported(metodo.to_string())),
+        };
+        let requested_task = params
+            .get("id")
+            .and_then(Value::as_str)
+            .or_else(|| {
+                params
+                    .get("message")
+                    .and_then(|message| message.get("taskId"))
+                    .and_then(Value::as_str)
+            })
+            .map(str::to_string);
+        let requested_context = params
+            .get("message")
+            .and_then(|message| message.get("contextId"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let rpc_id = self.siguiente_id.fetch_add(1, Ordering::Relaxed);
+        let response = self.llamar_inner(metodo, params, rpc_id).await;
+        let task = response.as_ref().ok().and_then(|value| {
+            value
+                .get("task")
+                .filter(|task| task.is_object())
+                .or(Some(value))
+        });
+        self.observe(A2aObservation {
+            direction: A2aDirection::Outbound,
+            agent: self.agent.clone(),
+            operation,
+            rpc_id: Some(rpc_id.to_string()),
+            task_id: requested_task.or_else(|| {
+                task.and_then(|task| task.get("id"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            }),
+            context_id: requested_context.or_else(|| {
+                task.and_then(|task| task.get("contextId"))
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+            }),
+            state: task
+                .and_then(|task| task.get("status"))
+                .and_then(|status| status.get("state"))
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            artifact: None,
+            succeeded: response.is_ok(),
+            elapsed_ms: Some(started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64),
+        });
+        response
+    }
+
+    async fn llamar_inner(
+        &self,
+        metodo: &str,
+        params: Value,
+        id: u64,
+    ) -> Result<Value, RemoteTaskError> {
         let cuerpo = json!({ "jsonrpc": "2.0", "id": id, "method": metodo, "params": params });
         let respuesta = self
             .enviar(|| {
@@ -208,6 +287,7 @@ pub struct A2aClientFactory {
     config: A2aConfig,
     max_result_bytes: usize,
     env: LectorDeEntorno,
+    observer: Option<EventBus>,
 }
 
 impl A2aClientFactory {
@@ -217,6 +297,12 @@ impl A2aClientFactory {
         env: impl Fn(&str) -> Option<String> + Send + Sync + 'static,
     ) -> Self {
         self.env = Arc::new(env);
+        self
+    }
+
+    /// Publica observaciones seguras de las operaciones remotas en el bus local.
+    pub fn with_event_bus(mut self, bus: EventBus) -> Self {
+        self.observer = Some(bus);
         self
     }
 
@@ -247,13 +333,14 @@ impl A2aClientFactory {
             config: config.clone(),
             max_result_bytes: config.max_result_bytes,
             env: Arc::new(|variable| std::env::var(variable).ok()),
+            observer: None,
         }))
     }
 }
 
 impl RemoteClientFactory for A2aClientFactory {
     /// Cliente de la interfaz que la tarjeta descargada declaró; sin tarjeta, ninguno.
-    fn client_for(&self, _name: &str, spec: &RemoteSpec) -> Option<Arc<dyn RemoteTaskClient>> {
+    fn client_for(&self, name: &str, spec: &RemoteSpec) -> Option<Arc<dyn RemoteTaskClient>> {
         let descargada = spec.fetched.as_ref()?;
         // Sin un plan de autenticación válido no hay cliente: jamás se habla sin credencial a un
         // remoto que la pide.
@@ -269,7 +356,8 @@ impl RemoteClientFactory for A2aClientFactory {
                 self.max_result_bytes,
             )
             .with_auth(plan)
-            .with_streaming(descargada.streaming),
+            .with_streaming(descargada.streaming)
+            .with_observer(name, self.observer.clone()),
         ))
     }
 
@@ -357,10 +445,36 @@ struct LecturaFlujo {
     rpc_id: u64,
     max_bytes: usize,
     terminado: bool,
+    agent: String,
+    observer: Option<EventBus>,
 }
 
 /// Aplica un evento (`data:`) del flujo a la tarea que se sigue. Todo lo que no cuadra corta el flujo:
 /// es dato de un tercero y no se interpreta a medias.
+fn observar_flujo(
+    lectura: &LecturaFlujo,
+    operation: A2aOperation,
+    task_id: String,
+    context_id: Option<String>,
+    state: Option<String>,
+    artifact: Option<String>,
+) {
+    if let Some(bus) = &lectura.observer {
+        bus.publish(LiveEvent::A2aObserved(A2aObservation {
+            direction: A2aDirection::Outbound,
+            agent: lectura.agent.clone(),
+            operation,
+            rpc_id: Some(lectura.rpc_id.to_string()),
+            task_id: Some(task_id),
+            context_id,
+            state,
+            artifact,
+            succeeded: true,
+            elapsed_ms: None,
+        }));
+    }
+}
+
 fn aplicar_evento(lectura: &mut LecturaFlujo, datos: &str) -> Result<RemoteTask, RemoteTaskError> {
     let rpc: RespuestaRpc = serde_json::from_str(datos).map_err(invalida)?;
     if rpc.id != json!(lectura.rpc_id) {
@@ -393,6 +507,11 @@ fn aplicar_evento(lectura: &mut LecturaFlujo, datos: &str) -> Result<RemoteTask,
         lectura.actual = Some(tarea_desde_wire(tarea)?);
     } else if let Some(cambio) = evento.status_update {
         propia(&cambio.task_id)?;
+        let (task_id, context_id, state) = (
+            cambio.task_id.clone(),
+            Some(cambio.context_id.clone()),
+            cambio.status.state.clone(),
+        );
         let actual = lectura
             .actual
             .as_mut()
@@ -404,8 +523,23 @@ fn aplicar_evento(lectura: &mut LecturaFlujo, datos: &str) -> Result<RemoteTask,
             artifacts: Vec::new(),
         };
         actual.status = tarea_desde_wire(temporal)?.status;
+        observar_flujo(
+            lectura,
+            A2aOperation::TaskStatusUpdateEvent,
+            task_id,
+            context_id,
+            Some(state),
+            None,
+        );
     } else if let Some(cambio) = evento.artifact_update {
         propia(&cambio.task_id)?;
+        let task_id = cambio.task_id.clone();
+        let context_id = Some(cambio.context_id.clone());
+        let nombre = cambio
+            .artifact
+            .name
+            .clone()
+            .or_else(|| Some(cambio.artifact.artifact_id.clone()));
         let actual = lectura
             .actual
             .as_mut()
@@ -427,6 +561,14 @@ fn aplicar_evento(lectura: &mut LecturaFlujo, datos: &str) -> Result<RemoteTask,
                 "the stream result is larger than allowed".into(),
             ));
         }
+        observar_flujo(
+            lectura,
+            A2aOperation::TaskArtifactUpdateEvent,
+            task_id,
+            context_id,
+            None,
+            nombre,
+        );
     } else {
         return Err(RemoteTaskError::Other(
             "unexpected message in a task stream".into(),
@@ -479,6 +621,7 @@ impl RemoteTaskClient for JsonRpcClient {
         &self,
         id: &str,
     ) -> Result<BoxStream<'static, Result<RemoteTask, RemoteTaskError>>, RemoteTaskError> {
+        let started = Instant::now();
         // Se comprueba la tarjeta antes de intentarlo (§3.3.4): sin streaming declarado, ni se pregunta.
         if !self.streaming {
             return Err(RemoteTaskError::Unsupported(
@@ -533,7 +676,21 @@ impl RemoteTaskClient for JsonRpcClient {
             rpc_id,
             max_bytes: self.max_result_bytes,
             terminado: false,
+            agent: self.agent.clone(),
+            observer: self.observer.clone(),
         };
+        self.observe(A2aObservation {
+            direction: A2aDirection::Outbound,
+            agent: self.agent.clone(),
+            operation: A2aOperation::SubscribeToTask,
+            rpc_id: Some(rpc_id.to_string()),
+            task_id: Some(id.to_string()),
+            context_id: None,
+            state: None,
+            artifact: None,
+            succeeded: true,
+            elapsed_ms: Some(started.elapsed().as_millis().min(u128::from(u64::MAX)) as u64),
+        });
         Ok(futures::stream::unfold(lectura, |mut lectura| async move {
             loop {
                 if lectura.terminado {
@@ -668,7 +825,12 @@ mod tests {
         .concat();
         montar(&servidor, "SubscribeToTask", flujo_sse(cuerpo)).await;
 
-        let tareas = recoger(&cliente(&servidor, Some("t")).with_streaming(true)).await;
+        let bus = EventBus::new(16);
+        let mut observaciones = bus.subscribe();
+        let cliente = cliente(&servidor, Some("t"))
+            .with_streaming(true)
+            .with_observer("meteo", Some(bus));
+        let tareas = recoger(&cliente).await;
 
         let tareas: Vec<_> = tareas.into_iter().map(|t| t.unwrap()).collect();
         assert_eq!(tareas.len(), 4);
@@ -688,6 +850,23 @@ mundo"
         assert_eq!(cuerpo["params"]["id"], "t-1");
         assert_eq!(cuerpo["params"]["tenant"], "t");
         assert_eq!(recibidas[0].headers["accept"], "text/event-stream");
+        let mut operaciones = Vec::new();
+        while let Ok(LiveEvent::A2aObserved(observacion)) = observaciones.try_recv() {
+            operaciones.push((observacion.operation, observacion.state));
+        }
+        assert_eq!(
+            operaciones.iter().map(|(op, _)| *op).collect::<Vec<_>>(),
+            [
+                A2aOperation::SubscribeToTask,
+                A2aOperation::TaskArtifactUpdateEvent,
+                A2aOperation::TaskArtifactUpdateEvent,
+                A2aOperation::TaskStatusUpdateEvent,
+            ]
+        );
+        assert_eq!(
+            operaciones.last().unwrap().1.as_deref(),
+            Some("TASK_STATE_COMPLETED")
+        );
     }
 
     #[tokio::test]
@@ -849,10 +1028,25 @@ mundo"
         )
         .await;
 
+        let bus = EventBus::new(4);
+        let mut observaciones = bus.subscribe();
         let respuesta = cliente(&servidor, None)
+            .with_observer("meteo", Some(bus))
             .send(Message::user_text("What is the weather today?"))
             .await
             .unwrap();
+
+        let LiveEvent::A2aObserved(observacion) = observaciones.recv().await.unwrap() else {
+            panic!("se esperaba la observación local del intercambio A2A");
+        };
+        assert_eq!(observacion.agent, "meteo");
+        assert_eq!(observacion.operation, A2aOperation::SendMessage);
+        assert_eq!(observacion.rpc_id.as_deref(), Some("1"));
+        assert_eq!(observacion.task_id.as_deref(), Some("task-uuid"));
+        assert_eq!(observacion.context_id.as_deref(), Some("context-uuid"));
+        assert_eq!(observacion.state.as_deref(), Some("TASK_STATE_COMPLETED"));
+        assert!(observacion.succeeded);
+        assert!(observacion.artifact.is_none());
 
         match respuesta {
             RemoteReply::Task(tarea) => {

@@ -114,6 +114,64 @@ pub trait SessionStore: Send + Sync {
     async fn record_usage(&self, session: SessionId, record: &UsageRecord) -> Result<()>;
     /// Apuntes de la sesión y de sus hijos (`subagents`), en orden de inserción.
     async fn session_usage(&self, session: SessionId) -> Result<Vec<UsageRecord>>;
+
+    async fn create_development_workflow(
+        &self,
+        workflow: crate::workflow::DevelopmentWorkflow,
+        detail: &str,
+    ) -> Result<crate::workflow::DevelopmentWorkflow> {
+        let _ = (workflow, detail);
+        Err(crate::error::CoreError::Store(
+            "development workflow storage unavailable".into(),
+        ))
+    }
+    async fn update_development_workflow(
+        &self,
+        workflow: crate::workflow::DevelopmentWorkflow,
+        actor: &str,
+        detail: &str,
+    ) -> Result<crate::workflow::DevelopmentWorkflow> {
+        let _ = (workflow, actor, detail);
+        Err(crate::error::CoreError::Store(
+            "development workflow storage unavailable".into(),
+        ))
+    }
+    async fn development_workflow(
+        &self,
+        id: crate::workflow::WorkflowId,
+    ) -> Result<Option<crate::workflow::DevelopmentWorkflow>> {
+        let _ = id;
+        Err(crate::error::CoreError::Store(
+            "development workflow storage unavailable".into(),
+        ))
+    }
+    async fn active_development_workflow(
+        &self,
+        parent: SessionId,
+    ) -> Result<Option<crate::workflow::DevelopmentWorkflow>> {
+        let _ = parent;
+        Err(crate::error::CoreError::Store(
+            "development workflow storage unavailable".into(),
+        ))
+    }
+    async fn latest_development_workflow(
+        &self,
+        parent: SessionId,
+    ) -> Result<Option<crate::workflow::DevelopmentWorkflow>> {
+        let _ = parent;
+        Err(crate::error::CoreError::Store(
+            "development workflow storage unavailable".into(),
+        ))
+    }
+    async fn development_workflow_events(
+        &self,
+        id: crate::workflow::WorkflowId,
+    ) -> Result<Vec<crate::workflow::DevelopmentWorkflowEvent>> {
+        let _ = id;
+        Err(crate::error::CoreError::Store(
+            "development workflow storage unavailable".into(),
+        ))
+    }
 }
 
 #[cfg(test)]

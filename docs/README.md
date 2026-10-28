@@ -44,8 +44,15 @@ ejecutarlo).
   para que CodeLoom comparta su propio runtime entre proyectos; Herdr es opcional.
 - [Flujo de desarrollo coordinado por agentes](specs/2026-10-25-codeloom-agent-development-workflow.md)
   y [su plan](plans/2026-10-25-codeloom-agent-development-workflow.md):
-  propuesta lista para aprobación; todavía no describe comportamiento del
-  runtime.
+  implementación realizada; quedan tareas de cierre y verificación.
+- [Aplicación de `scope.mcp` por agente](specs/2026-10-28-codeloom-mcp-agent-scope.md)
+  y [su plan](plans/2026-10-28-codeloom-mcp-agent-scope.md): implementación stdio
+  parcial; quedan pruebas y cierre de seguridad.
+- [Llamadas programáticas de herramientas por provider](specs/2026-10-28-codeloom-programmatic-tool-calling.md)
+  y [su plan de tareas](plans/2026-10-28-codeloom-programmatic-tool-calling.md), además de
+  [referencias oficiales comparadas](references/2026-10-28-programmatic-tool-calling-providers.md):
+  adapters separados para Anthropic, OpenAI Responses y Gemini, condicionados al contrato
+  real de cada API.
 - [Marco agent-first y evaluación de skills](specs/2026-10-25-codeloom-agent-first-development-skills.md)
   y [estudio comparativo](references/2026-10-25-agent-development-skills-study.md):
   documentación de evaluación; las skills candidatas no están adoptadas.

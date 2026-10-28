@@ -46,7 +46,7 @@ Definir e implementar el runtime local propiedad de CodeLoom: una instancia serv
 - Las AgentCards locales llevan una marca interna solo en el registro runtime. El JSON de la tarjeta se mantiene A2A estándar.
 - El supervisor opera con registro determinista y LLM opcional; el provider del perfil, credencial, sesión y uso están separados de los agentes. Los errores y timeout caen al estado determinista y nunca aprueban permisos.
 - Checks finales en Windows: `cargo build --target-dir .\target` correcto; `cargo test --target-dir .\target` 1648 aprobadas y 13 ignoradas; `cargo fmt --check`, `cargo clippy --target-dir .\target -- -D warnings` y `git diff --check` correctos. Build/clippy conservan el aviso existente de `main.rs` compartido entre los binarios `loom` y `codeloom`.
-- El test de carrera de socket `cfg(unix)` está añadido, pero necesita ejecutarse en CI Unix. Se especificó `--target-dir .\target` porque `CARGO_TARGET_DIR` apunta a `E:\workspace\personal\jevalon\target`.
+- El test de carrera de socket `cfg(unix)` está añadido, pero necesita ejecutarse en CI Unix. Se especificó `--target-dir .\target` para mantener los artefactos dentro del workspace.
 
 ## Backlog de tareas
 
@@ -61,11 +61,11 @@ Definir e implementar el runtime local propiedad de CodeLoom: una instancia serv
 
 ## Avance de implementación R2–R5
 
-- `~/.codeloom/runtime.toml` es la configuración de runtime. `[a2a] role = "serve"` o `"both"` crea un solo listener autenticado; si no se activa, no se abre puerto. El secreto A2A sale del entorno del proceso.
+- `~/.codeloom/runtime.toml` es la configuración de runtime. `[a2a] role = "serve"` o `"both"` crea un solo listener autenticado; si no se activa, no se abre puerto. El secreto se resuelve del entorno o Credential Manager; en Windows se genera y guarda ahí cuando se activa serving sin secreto previo.
 - Las AgentCards de agentes vivos se resuelven directamente en `/agents/{tenant}/.well-known/agent-card.json`; cada interfaz declara el tenant estándar. `SendMessage`, `SendStreamingMessage`, `GetTask`, `CancelTask` y `SubscribeToTask` comparten el host del runtime y no añaden métodos A2A.
 - Las tareas de agentes pasan por su cola y sesión de proyecto, con límites de concurrencia, duración y resultado. Los permisos siguen vinculados a la TUI; cancelación de tarea no cancela las otras sesiones.
 - La tarjeta `supervisor` publica una instantánea determinista. Si `[supervisor]` tiene provider/modelo y la credencial de entorno existe, una petición explícita usa una sesión propia, sin herramientas, con timeout de 15 s y salida limitada. Si falta o falla, completa con estado determinista.
-- Se eliminó `E:\workspace\personal\jevalon\target` por instrucción del usuario; se liberaron aproximadamente 4 GB. La compilación usó un target nuevo dentro del workspace y la ruta obsoleta se volvió a eliminar al final.
+- Se eliminó el target compartido anterior por instrucción del usuario; se liberó espacio y las compilaciones posteriores usaron el target dentro del workspace.
 
 ## Evidencia de la inspección
 

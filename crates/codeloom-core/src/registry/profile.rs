@@ -2,15 +2,51 @@
 //!
 //! Formato de la sección 2 de `docs/specs/2026-10-15-loom-agent-profile-a2a.md`, con las
 //! decisiones de `docs/specs/2026-10-22-codeloom-a2a-agent-registry-design.md`. Hoy se
-//! interpretan `name`, `description`, `version`, `persona`, `model`, `effort`, `max_turns` y
-//! `max_depth`. `transport: a2a-remote` con `a2a.endpoint` declara un agente remoto (A8a) y se
+//! interpretan `name`, `description`, `version`, `persona`, `model`, `provider`, `effort`,
+//! `max_turns` y `max_depth`. `transport: a2a-remote` con `a2a.endpoint` declara un agente remoto (A8a) y se
 //! aplica. `scope`, `delegation` y cualquier otro `transport` o `a2a` se leen, se declaran como no
 //! aplicados y no se ejecutan. Cualquier otra clave se ignora con aviso: un campo nuevo no
 //! rompe la carga.
 
 use std::collections::BTreeMap;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::path::Path;
 
+use crate::card::AgentSkill;
+use crate::config::ProviderConfig;
+use serde::{Deserialize, Serialize};
 use serde_yaml_bw::{Mapping, Value};
+
+/// Permisos declarados localmente por un perfil. Se muestran en la UI; el runtime todavía no
+/// los aplica como allowlist.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentScope {
+    #[serde(default)]
+    pub mcp: Vec<String>,
+    #[serde(default)]
+    pub skills: Vec<String>,
+    #[serde(default)]
+    pub tools: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentProfileEdit {
+    pub description: String,
+    pub version: Option<String>,
+    pub card_skills: Vec<AgentSkill>,
+    pub scope: AgentScope,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProfileSaveError {
+    #[error("perfil cambiado desde que se abrió el editor")]
+    Changed,
+    #[error("error al leer o guardar el perfil: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("perfil no válido: {0}")]
+    Invalid(#[from] ProfileProblem),
+}
 
 /// Perfil ya validado de un agente local.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +60,12 @@ pub struct AgentProfile {
     /// Cuerpo markdown del fichero; es el prompt de sistema del agente.
     pub body: String,
     pub model: Option<String>,
+    /// Proveedor privado del perfil local; nunca se serializa en `AgentCard`.
+    pub provider: Option<ProviderConfig>,
+    /// Skills públicas de `AgentCard`; distintas de `scope.skills`.
+    pub card_skills: Vec<AgentSkill>,
+    /// Configuración local CodeLoom. Se muestra, pero no aplica permisos todavía.
+    pub scope: AgentScope,
     pub effort: Option<String>,
     pub max_turns: Option<u32>,
     pub max_depth: Option<u32>,
@@ -53,6 +95,8 @@ pub enum ProfileProblem {
     UnknownField(String),
     #[error("campo `{0}` declarado y no aplicado todavía")]
     DeclaredNotApplied(String),
+    #[error("proveedor de perfil no válido")]
+    InvalidProvider,
 }
 
 /// Lee un perfil. `file_stem` es el nombre del fichero sin extensión; el `name` del
@@ -99,6 +143,15 @@ pub fn parse_profile(
                 "clave no textual en el frontmatter".to_string(),
             ));
         };
+        if clave == "scope" {
+            declared_not_applied.push(clave.to_string());
+            avisos.push(ProfileProblem::DeclaredNotApplied(clave.to_string()));
+            continue;
+        }
+        // El perfil local puede declarar `a2a.card`; las interfaces se derivan del runtime.
+        if clave == "a2a" {
+            continue;
+        }
         if CLAVES_CONOCIDAS.contains(&clave) {
             continue;
         }
@@ -155,6 +208,10 @@ pub fn parse_profile(
         }
     };
 
+    let provider = proveedor_local(mapa)?;
+    if remote_endpoint.is_some() && provider.is_some() {
+        return Err(ProfileProblem::InvalidProvider);
+    }
     let perfil = AgentProfile {
         name: nombre,
         description,
@@ -164,6 +221,9 @@ pub fn parse_profile(
         persona_backstory,
         body: cuerpo.trim().to_string(),
         model: texto_opcional(mapa, "model")?,
+        provider,
+        card_skills: habilidades_a2a(mapa)?,
+        scope: scope_local(mapa)?,
         effort: texto_opcional(mapa, "effort")?,
         max_turns: entero_opcional(mapa, "max_turns")?,
         max_depth: entero_opcional(mapa, "max_depth")?,
@@ -181,10 +241,187 @@ const CLAVES_CONOCIDAS: &[&str] = &[
     "version",
     "persona",
     "model",
+    "provider",
     "effort",
     "max_turns",
     "max_depth",
 ];
+
+const MAX_PROFILE_LIST: usize = 100;
+const MAX_CARD_SKILLS: usize = 50;
+const MAX_CARD_TEXT: usize = 2_000;
+
+fn scope_local(mapa: &Mapping) -> Result<AgentScope, ProfileProblem> {
+    let Some(valor) = mapa.get("scope") else {
+        return Ok(AgentScope::default());
+    };
+    let scope: AgentScope = serde_yaml_bw::from_value(valor.clone()).map_err(|_| {
+        ProfileProblem::BadFrontmatter("`scope` debe ser un mapa de listas de texto".into())
+    })?;
+    for lista in [&scope.mcp, &scope.skills, &scope.tools] {
+        if lista.len() > MAX_PROFILE_LIST
+            || lista
+                .iter()
+                .any(|item| item.trim().is_empty() || item.len() > 128)
+        {
+            return Err(ProfileProblem::BadFrontmatter(
+                "`scope` contiene una lista o identificador no válido".into(),
+            ));
+        }
+    }
+    if scope.mcp.iter().any(|id| {
+        id.is_empty()
+            || id.len() > 16
+            || !id
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    }) {
+        return Err(ProfileProblem::BadFrontmatter(
+            "`scope.mcp` usa IDs de servidor de 1-16 letras minúsculas, números o guiones".into(),
+        ));
+    }
+    Ok(scope)
+}
+
+fn habilidades_a2a(mapa: &Mapping) -> Result<Vec<AgentSkill>, ProfileProblem> {
+    let Some(skills) = mapa
+        .get("a2a")
+        .and_then(Value::as_mapping)
+        .and_then(|a2a| a2a.get("card"))
+        .and_then(Value::as_mapping)
+        .and_then(|card| card.get("skills"))
+    else {
+        return Ok(Vec::new());
+    };
+    let skills: Vec<AgentSkill> = serde_yaml_bw::from_value(skills.clone()).map_err(|_| {
+        ProfileProblem::BadFrontmatter(
+            "`a2a.card.skills` debe ser una lista de skills A2A".into(),
+        )
+    })?;
+    if skills.len() > MAX_CARD_SKILLS
+        || skills.iter().any(|skill| {
+            skill.id.trim().is_empty()
+                || skill.name.trim().is_empty()
+                || [skill.id.as_str(), skill.name.as_str(), skill.description.as_str()]
+                    .iter()
+                    .any(|value| value.len() > MAX_CARD_TEXT)
+                || skill.tags.iter().any(|tag| tag.len() > 128)
+        })
+    {
+        return Err(ProfileProblem::BadFrontmatter(
+            "`a2a.card.skills` excede los límites o contiene una skill sin id/nombre".into(),
+        ));
+    }
+    Ok(skills)
+}
+
+/// Valida y actualiza los campos del editor, conservando las demás claves YAML y el cuerpo.
+/// La huella evita pisar cambios externos hechos mientras el editor estaba abierto.
+pub fn save_profile_edit(
+    path: &Path,
+    expected_hash: &str,
+    edit: &AgentProfileEdit,
+) -> Result<String, ProfileSaveError> {
+    let original = fs::read_to_string(path)?;
+    if crate::registry::trust::content_hash(&original) != expected_hash {
+        return Err(ProfileSaveError::Changed);
+    }
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| ProfileProblem::InvalidName(String::new()))?;
+    parse_profile(stem, &original)?;
+    if edit.description.trim().is_empty() || edit.description.len() > MAX_CARD_TEXT {
+        return Err(ProfileProblem::BadFrontmatter(
+            "la descripción A2A debe tener entre 1 y 2000 bytes".into(),
+        )
+        .into());
+    }
+    if edit.version.as_ref().is_some_and(|version| {
+        version.trim().is_empty() || version.len() > 128
+    }) {
+        return Err(ProfileProblem::BadFrontmatter("la versión no es válida".into()).into());
+    }
+
+    let normalized = original.replace("\r\n", "\n");
+    let (frontmatter, body) = separar_frontmatter(&normalized)?;
+    let mut root: Value = serde_yaml_bw::from_str(frontmatter)
+        .map_err(|error| ProfileProblem::BadFrontmatter(error.to_string()))?;
+    let map = root
+        .as_mapping_mut()
+        .ok_or_else(|| ProfileProblem::BadFrontmatter("el frontmatter debe ser un mapa".into()))?;
+    map.insert(Value::from("description"), Value::from(edit.description.trim()));
+    match edit.version.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+        Some(version) => {
+            map.insert(Value::from("version"), Value::from(version));
+        }
+        None => {
+            map.remove(Value::from("version"));
+        }
+    }
+
+    if edit.scope == AgentScope::default() {
+        map.remove(Value::from("scope"));
+    } else {
+        map.insert(Value::from("scope"), serde_yaml_bw::to_value(&edit.scope)
+            .map_err(|error| ProfileProblem::BadFrontmatter(error.to_string()))?);
+    }
+    let a2a = mapping_entry(map, "a2a")?;
+    let card = mapping_entry(a2a, "card")?;
+    card.insert(
+        Value::from("skills"),
+        serde_yaml_bw::to_value(&edit.card_skills)
+            .map_err(|error| ProfileProblem::BadFrontmatter(error.to_string()))?,
+    );
+
+    let yaml = serde_yaml_bw::to_string(&root)
+        .map_err(|error| ProfileProblem::BadFrontmatter(error.to_string()))?;
+    let updated = format!("---\n{}---\n{body}", yaml.trim_end().to_string() + "\n");
+    parse_profile(stem, &updated)?;
+
+    let filename = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .unwrap_or("agent.md");
+    let temporary = path.with_file_name(format!(".{filename}.{}.tmp", std::process::id()));
+    let result = (|| -> Result<(), std::io::Error> {
+        let mut file = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
+        file.write_all(updated.as_bytes())?;
+        file.sync_all()?;
+        file.set_permissions(fs::metadata(path)?.permissions())?;
+        fs::rename(&temporary, path)?;
+        Ok(())
+    })();
+    if let Err(error) = result {
+        let _ = fs::remove_file(&temporary);
+        return Err(error.into());
+    }
+    Ok(crate::registry::trust::content_hash(&updated))
+}
+
+fn mapping_entry<'a>(map: &'a mut Mapping, key: &str) -> Result<&'a mut Mapping, ProfileProblem> {
+    let key = Value::from(key);
+    if !map.contains_key(&key) {
+        map.insert(key.clone(), Value::Mapping(Mapping::new()));
+    }
+    map.get_mut(&key)
+        .and_then(Value::as_mapping_mut)
+        .ok_or_else(|| ProfileProblem::BadFrontmatter("`a2a.card` debe ser un mapa".into()))
+}
+
+fn proveedor_local(mapa: &Mapping) -> Result<Option<ProviderConfig>, ProfileProblem> {
+    let Some(value) = mapa.get("provider") else {
+        return Ok(None);
+    };
+    let provider: ProviderConfig =
+        serde_yaml_bw::from_value(value.clone()).map_err(|_| ProfileProblem::InvalidProvider)?;
+    crate::config::validate_base_url(&provider.base_url)
+        .map_err(|_| ProfileProblem::InvalidProvider)?;
+    if !es_nombre_de_variable(&provider.api_key_env) {
+        return Err(ProfileProblem::InvalidProvider);
+    }
+    Ok(Some(provider))
+}
 
 /// Claves que se leen y se declaran, pero que no se aplican todavía.
 const CLAVES_NO_APLICADAS: &[&str] = &["scope", "delegation", "transport", "a2a"];
@@ -458,12 +695,47 @@ Si la tarea es de otra especialidad, dilo y delega con `delegate`.
         assert_eq!(perfil.persona_goal, None);
         assert_eq!(perfil.persona_backstory, None);
         assert_eq!(perfil.model, None);
+        assert_eq!(perfil.provider, None);
         assert_eq!(perfil.effort, None);
         assert_eq!(perfil.max_turns, None);
         assert_eq!(perfil.max_depth, None);
         assert!(perfil.declared_not_applied.is_empty());
         assert_eq!(perfil.body, "Eres el agente.");
         assert!(problemas.is_empty());
+    }
+
+    #[test]
+    fn local_profile_parses_a_valid_provider_without_a_secret_value() {
+        let texto = "---\nname: backend\ndescription: Rust\nmodel: recursive/flint-v1.0:free\nprovider:\n  kind: openai_compat\n  base_url: https://openrouter.ai/api/v1\n  api_key_env: OPENROUTER_API_KEY\n---\n\nBackend.\n";
+
+        let (profile, problems) = parse_profile("backend", texto).unwrap();
+
+        assert_eq!(profile.model.as_deref(), Some("recursive/flint-v1.0:free"));
+        assert_eq!(
+            profile.provider,
+            Some(ProviderConfig {
+                kind: crate::config::ProviderKind::OpenAiCompat,
+                base_url: "https://openrouter.ai/api/v1".into(),
+                api_key_env: "OPENROUTER_API_KEY".into(),
+            })
+        );
+        assert!(problems.is_empty());
+    }
+
+    #[test]
+    fn local_profile_rejects_an_insecure_provider_url_or_literal_secret() {
+        for provider in [
+            "kind: openai_compat\n  base_url: http://openrouter.ai/api/v1\n  api_key_env: OPENROUTER_API_KEY",
+            "kind: openai_compat\n  base_url: https://openrouter.ai/api/v1\n  api_key_env: sk-or-v1-secret",
+        ] {
+            let texto = format!(
+                "---\nname: backend\ndescription: Rust\nprovider:\n  {provider}\n---\n\nBackend.\n"
+            );
+            assert!(matches!(
+                parse_profile("backend", &texto),
+                Err(ProfileProblem::InvalidProvider)
+            ));
+        }
     }
 
     #[test]

@@ -168,6 +168,7 @@ mod tests {
         let mut events = bus.subscribe();
         let ctx = ToolCtx {
             cwd: std::env::current_dir().unwrap(),
+            store: None,
             permission: Arc::new(PermissionService::allow_all()),
             session: SessionId(12),
             jobs: jobs.clone(),

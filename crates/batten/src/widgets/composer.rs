@@ -5,7 +5,9 @@ use crate::widgets::{ComposerStyle, Theme};
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Wrap};
+use ratatui::widgets::{
+    Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState, Wrap,
+};
 use ratatui::Frame;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -165,6 +167,50 @@ fn stable_top(view_top: usize, cursor_row: usize, visible: usize, total_rows: us
         // Red de seguridad: si el cursor cae fuera de las filas, nunca lo
         // dejamos por encima de su ventana mínima.
         .max(lowest)
+}
+
+fn content_width(width: u16) -> u16 {
+    if width > 1 {
+        width - 1
+    } else {
+        width
+    }
+}
+
+fn composer_areas(area: Rect) -> (Rect, Option<Rect>) {
+    if area.width <= 1 {
+        return (area, None);
+    }
+    let text = Rect {
+        width: area.width - 1,
+        ..area
+    };
+    let scrollbar = Rect::new(area.right() - 1, area.y, 1, area.height);
+    (text, Some(scrollbar))
+}
+
+fn render_scrollbar(
+    frame: &mut Frame,
+    area: Rect,
+    offset: usize,
+    content: usize,
+    viewport: usize,
+    theme: &Theme,
+) {
+    if area.is_empty() || content <= viewport {
+        return;
+    }
+    let mut state = ScrollbarState::new(content)
+        .position(offset)
+        .viewport_content_length(viewport);
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(None)
+        .end_symbol(None)
+        .track_symbol(Some("│"))
+        .thumb_symbol("▏")
+        .style(theme.style(StyleToken::Muted))
+        .thumb_style(theme.style(StyleToken::Accent));
+    frame.render_stateful_widget(scrollbar, area, &mut state);
 }
 
 /// Columnas del prefijo de cada línea del composer Classic (`❯ ` o `│ `).
@@ -349,12 +395,61 @@ fn crush_layout_at(composer: &Composer, cursor: usize, width: u16) -> ComposerLa
     )
 }
 
+/// Mueve el cursor por filas visibles para que la rueda desplace también una
+/// línea lógica larga que se parte visualmente en Crush.
+pub fn scroll_cursor_by_rows(
+    theme: &Theme,
+    composer: &mut Composer,
+    area: Rect,
+    down: bool,
+    rows: usize,
+) {
+    let (current, target, byte) = match theme.look.composer {
+        ComposerStyle::Crush => {
+            let layout = crush_layout(composer, area.width);
+            let current = layout.cursor.0;
+            let last = layout.rows.len().saturating_sub(1);
+            let target = if down {
+                current.saturating_add(rows).min(last)
+            } else {
+                current.saturating_sub(rows)
+            };
+            (
+                current,
+                target,
+                layout.rows.get(target).map(|row| row.start),
+            )
+        }
+        ComposerStyle::Classic => {
+            let current = composer.row_of_grapheme(composer.cursor());
+            let last = composer.lines().saturating_sub(1);
+            let target = if down {
+                current.saturating_add(rows).min(last)
+            } else {
+                current.saturating_sub(rows)
+            };
+            let byte = composer
+                .text()
+                .split('\n')
+                .take(target)
+                .map(|line| line.len() + 1)
+                .sum();
+            (current, target, Some(byte))
+        }
+    };
+    if target != current {
+        if let Some(byte) = byte {
+            composer.set_cursor(grapheme_count(composer.text(), byte));
+        }
+    }
+}
+
 /// Altura del composer según el look activo, acotada por `max`.
 pub fn height_for_look(theme: &Theme, composer: &Composer, width: u16, max: u16) -> u16 {
     let max = usize::from(max);
     let height = match theme.look.composer {
         ComposerStyle::Classic => (composer.lines() + 2).min(max),
-        ComposerStyle::Crush => crush_layout(composer, width)
+        ComposerStyle::Crush => crush_layout(composer, content_width(width))
             .rows
             .len()
             .clamp(3, 15)
@@ -372,19 +467,47 @@ pub fn render_for_look(
     model: &str,
     theme: &Theme,
 ) {
+    let (text_area, scrollbar_area) = composer_areas(area);
     match theme.look.composer {
         ComposerStyle::Classic => {
-            render_focused_with_model(frame, area, composer, focused, model, theme);
+            render_focused_with_model(frame, text_area, composer, focused, model, theme);
+            if let Some(scrollbar_area) = scrollbar_area {
+                let viewport = usize::from(text_area.height.saturating_sub(2));
+                render_scrollbar(
+                    frame,
+                    Rect::new(
+                        scrollbar_area.x,
+                        scrollbar_area.y.saturating_add(1),
+                        scrollbar_area.width,
+                        scrollbar_area.height.saturating_sub(2),
+                    ),
+                    composer.view_top(),
+                    composer.lines(),
+                    viewport,
+                    theme,
+                );
+            }
         }
         ComposerStyle::Crush => {
             render_crush(
                 frame,
-                area,
+                text_area,
                 composer,
                 focused,
                 "Describe what you want to build…",
                 theme,
             );
+            if let Some(scrollbar_area) = scrollbar_area {
+                let total = crush_layout(composer, text_area.width).rows.len();
+                render_scrollbar(
+                    frame,
+                    scrollbar_area,
+                    composer.view_top(),
+                    total,
+                    usize::from(text_area.height),
+                    theme,
+                );
+            }
         }
     }
 }
@@ -1094,6 +1217,51 @@ mod tests {
     }
 
     #[test]
+    fn composer_scrollbar_is_thin_and_thumb_reaches_both_ends() {
+        let theme = Theme::preset(crate::widgets::ThemePreset::Crush);
+        let mut c = Composer::new();
+        c.set_text(
+            &(0..30)
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
+        let area = Rect::new(0, 0, 20, 5);
+        let mut term = Terminal::new(TestBackend::new(20, 5)).unwrap();
+
+        c.set_cursor(0);
+        term.draw(|f| render_for_look(f, area, &c, true, "", &theme))
+            .unwrap();
+        let top = (0..5)
+            .find(|&y| term.backend().buffer()[(19, y)].symbol() == "▏")
+            .expect("el thumb debe comenzar arriba");
+        assert_eq!(top, 0);
+
+        c.set_cursor(c.text().graphemes(true).count());
+        term.draw(|f| render_for_look(f, area, &c, true, "", &theme))
+            .unwrap();
+        let bottom = (0..5)
+            .find(|&y| term.backend().buffer()[(19, y)].symbol() == "▏")
+            .expect("el thumb debe permanecer visible");
+        assert!(bottom > top, "thumb arriba={top}, abajo={bottom}");
+    }
+
+    #[test]
+    fn wheel_scroll_moves_through_wrapped_rows_in_crush() {
+        let theme = Theme::preset(crate::widgets::ThemePreset::Crush);
+        let mut composer = Composer::new();
+        composer.set_text(&"x".repeat(500));
+        composer.set_cursor(250);
+        let area = Rect::new(0, 0, 20, 8);
+        let before = composer.cursor();
+
+        scroll_cursor_by_rows(&theme, &mut composer, area, true, 100);
+
+        assert!(composer.cursor() > before);
+        assert!(composer.cursor() > 450);
+    }
+
+    #[test]
     fn classic_view_top_stays_when_cursor_moves_inside_the_viewport() {
         let theme = Theme::test();
         let mut c = Composer::new();
@@ -1407,7 +1575,7 @@ mod tests {
                     theme.look.composer
                 );
                 assert_eq!(
-                    hit_index(&theme, &c, area, x, y),
+                    hit_index(&theme, &c, composer_areas(area).0, x, y),
                     Some(pos),
                     "{:?}: el cursor {pos} se pintó en ({x}, {y})",
                     theme.look.composer

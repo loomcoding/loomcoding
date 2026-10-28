@@ -4,6 +4,8 @@ use crate::error::{CoreError, Result};
 use crate::message::{FinishReason, Usage};
 use async_trait::async_trait;
 use futures::StreamExt;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Default)]
@@ -119,6 +121,7 @@ pub struct AnthropicProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
+    capability_cache: Mutex<HashMap<String, bool>>,
 }
 
 impl AnthropicProvider {
@@ -127,29 +130,41 @@ impl AnthropicProvider {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             api_key: api_key.into(),
             client: reqwest::Client::new(),
+            capability_cache: Mutex::new(HashMap::new()),
         }
     }
 
     fn build_body(&self, req: &ProviderRequest) -> serde_json::Value {
-        let messages = wire_messages(&req.messages);
-        let tools: Vec<serde_json::Value> = req
+        let messages = wire_messages(&req.messages, &req.model, &self.base_url);
+        let mut tools: Vec<serde_json::Value> = req
             .tools
             .iter()
             .map(|t| {
-                serde_json::json!({
+                let mut tool = serde_json::json!({
                     "name": t.name,
                     "description": t.description,
                     "input_schema": t.input_schema
-                })
+                });
+                if req.programmatic_tool_calling && t.programmatic_allowed {
+                    tool["allowed_callers"] =
+                        serde_json::json!(["direct", "code_execution_20260120"]);
+                }
+                tool
             })
             .collect();
+        if req.programmatic_tool_calling {
+            tools.push(serde_json::json!({
+                "type": "code_execution_20260521",
+                "name": "code_execution"
+            }));
+        }
         let mut cuerpo = serde_json::json!({
             "model": req.model,
             "max_tokens": req.max_tokens,
             "system": req.system,
             "messages": messages,
             "tools": tools,
-            "stream": true,
+            "stream": !req.programmatic_tool_calling,
             "temperature": req.temperature
         });
         // Sin esfuerzo (o con un nivel fuera de la tabla), el cuerpo no cambia.
@@ -167,7 +182,142 @@ impl AnthropicProvider {
                 obj.remove("temperature");
             }
         }
+        if let Some(container) = req.messages.iter().rev().find_map(|message| {
+            message
+                .provider_state
+                .as_ref()
+                .filter(|state| {
+                    state.provider == "anthropic"
+                        && state.data["model"] == req.model
+                        && state.data["base_url"] == self.base_url
+                })
+                .and_then(|state| state.data.get("container_id"))
+                .and_then(serde_json::Value::as_str)
+        }) {
+            cuerpo["container"] = serde_json::json!({ "id": container });
+        }
         cuerpo
+    }
+
+    async fn supports_code_execution(&self, model: &str) -> Option<bool> {
+        if let Some(supported) = self.capability_cache.lock().ok()?.get(model).copied() {
+            return Some(supported);
+        }
+        let mut url = reqwest::Url::parse(&format!("{}/v1/models/", self.base_url)).ok()?;
+        url.path_segments_mut().ok()?.pop_if_empty().push(model);
+        let response = self
+            .client
+            .get(url)
+            .header("x-api-key", &self.api_key)
+            .header("anthropic-version", "2023-06-01")
+            .send()
+            .await
+            .ok()?;
+        if !response.status().is_success() {
+            return None;
+        }
+        let value: serde_json::Value = response.json().await.ok()?;
+        let supported = value
+            .pointer("/capabilities/code_execution/supported")?
+            .as_bool()?;
+        if let Ok(mut cache) = self.capability_cache.lock() {
+            cache.insert(model.to_string(), supported);
+        }
+        Some(supported)
+    }
+
+    async fn stream_programmatic(
+        &self,
+        req: ProviderRequest,
+        cancel: CancellationToken,
+    ) -> Result<ProviderStream> {
+        let url = format!("{}/v1/messages", self.base_url);
+        let response = tokio::select! {
+            _ = cancel.cancelled() => return Err(CoreError::Cancelled),
+            response = self.client.post(url)
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", "2023-06-01")
+                .json(&self.build_body(&req))
+                .send() => response.map_err(|error| CoreError::Provider(error.to_string()))?,
+        };
+        if !response.status().is_success() {
+            return Err(CoreError::Provider(format!("http {}", response.status())));
+        }
+        let response: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|error| CoreError::Provider(format!("invalid Anthropic response: {error}")))?;
+        let content = response
+            .get("content")
+            .and_then(serde_json::Value::as_array)
+            .cloned()
+            .ok_or_else(|| CoreError::Provider("Anthropic response has no content".into()))?;
+        if serde_json::to_vec(&content).map_or(true, |bytes| bytes.len() > 64 * 1024) {
+            return Err(CoreError::Provider(
+                "Anthropic continuation state exceeds 64 KiB".into(),
+            ));
+        }
+        let has_pending_programmatic_call = content.iter().any(|block| {
+            block["type"] == "tool_use"
+                && block
+                    .pointer("/caller/type")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|caller| caller.starts_with("code_execution_"))
+        });
+        if has_pending_programmatic_call && response.pointer("/container/id").is_none() {
+            return Err(CoreError::Provider(
+                "Anthropic paused programmatic calls without a container ID".into(),
+            ));
+        }
+        let state = crate::message::ProviderState {
+            provider: "anthropic".into(),
+            data: serde_json::json!({
+                "model": req.model,
+                "base_url": self.base_url,
+                "container_id": response.pointer("/container/id"),
+                "assistant_content": content,
+            }),
+        };
+        let mut chunks = vec![StreamChunk::Started];
+        for block in &content {
+            match block.get("type").and_then(serde_json::Value::as_str) {
+                Some("text") => {
+                    if let Some(text) = block.get("text").and_then(serde_json::Value::as_str) {
+                        chunks.push(StreamChunk::TextDelta(text.to_string()));
+                    }
+                }
+                Some("tool_use") => {
+                    if let (Some(id), Some(name)) = (
+                        block.get("id").and_then(serde_json::Value::as_str),
+                        block.get("name").and_then(serde_json::Value::as_str),
+                    ) {
+                        chunks.push(StreamChunk::ToolCallComplete {
+                            id: id.to_string(),
+                            name: name.to_string(),
+                            input: block
+                                .get("input")
+                                .cloned()
+                                .unwrap_or(serde_json::Value::Null),
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(usage) = response.get("usage") {
+            chunks.push(StreamChunk::Usage(crate::message::Usage {
+                input_tokens: usage["input_tokens"].as_u64().unwrap_or(0) as u32,
+                output_tokens: usage["output_tokens"].as_u64().unwrap_or(0) as u32,
+            }));
+        }
+        chunks.push(StreamChunk::ProviderState(state));
+        let finish = if response["stop_reason"] == "tool_use" {
+            FinishReason::ToolCalls
+        } else {
+            FinishReason::Stop
+        };
+        chunks.push(StreamChunk::Done(finish));
+        Ok(Box::pin(futures::stream::iter(chunks)))
     }
 }
 
@@ -183,12 +333,29 @@ fn role_str(r: crate::message::Role) -> &'static str {
 
 /// Traduce los mensajes al formato Messages: bloques `tool_use` en el
 /// asistente y `tool_result` en un mensaje de usuario (uno por ToolResult).
-fn wire_messages(messages: &[crate::message::Message]) -> Vec<serde_json::Value> {
+fn wire_messages(
+    messages: &[crate::message::Message],
+    model: &str,
+    base_url: &str,
+) -> Vec<serde_json::Value> {
     use crate::message::{ContentPart, Role};
     let mut out = Vec::new();
     for m in messages {
         match m.role {
             Role::Assistant => {
+                if let Some(content) = m
+                    .provider_state
+                    .as_ref()
+                    .filter(|state| {
+                        state.provider == "anthropic"
+                            && state.data["model"] == model
+                            && state.data["base_url"] == base_url
+                    })
+                    .and_then(|state| state.data.get("assistant_content"))
+                {
+                    out.push(serde_json::json!({ "role": "assistant", "content": content }));
+                    continue;
+                }
                 let mut blocks: Vec<serde_json::Value> = Vec::new();
                 let text = m.text();
                 if !text.is_empty() {
@@ -213,13 +380,16 @@ fn wire_messages(messages: &[crate::message::Message]) -> Vec<serde_json::Value>
                 let mut blocks: Vec<serde_json::Value> = Vec::new();
                 for p in &m.parts {
                     if let ContentPart::ToolResult {
-                        call_id, content, ..
+                        call_id,
+                        content,
+                        is_error,
                     } = p
                     {
                         blocks.push(serde_json::json!({
                             "type": "tool_result",
                             "tool_use_id": call_id,
-                            "content": crate::tools::limit_output(content)
+                            "content": crate::tools::limit_output(content),
+                            "is_error": is_error,
                         }));
                     }
                 }
@@ -250,6 +420,26 @@ impl Provider for AnthropicProvider {
         req: ProviderRequest,
         cancel: CancellationToken,
     ) -> Result<ProviderStream> {
+        let mut fallback_notice = None;
+        if req.programmatic_tool_calling && req.tools.iter().any(|tool| tool.programmatic_allowed) {
+            match self.supports_code_execution(&req.model).await {
+                Some(true) => return self.stream_programmatic(req, cancel).await,
+                Some(false) => {
+                    tracing::info!(model = %req.model, "Anthropic model lacks code_execution; using direct tool calls");
+                    fallback_notice = Some(format!(
+                        "Anthropic model `{}` does not support code execution; using direct tool calls",
+                        req.model
+                    ));
+                }
+                None => {
+                    tracing::info!(model = %req.model, "Anthropic code_execution capability is unknown; using direct tool calls");
+                    fallback_notice = Some(format!(
+                        "Could not verify code execution for Anthropic model `{}`; using direct tool calls",
+                        req.model
+                    ));
+                }
+            }
+        }
         let url = format!("{}/v1/messages", self.base_url);
         let resp = self
             .client
@@ -316,7 +506,15 @@ impl Provider for AnthropicProvider {
             }
         });
 
-        Ok(Box::pin(s))
+        let stream: ProviderStream = Box::pin(s);
+        if let Some(message) = fallback_notice {
+            Ok(Box::pin(
+                futures::stream::once(async move { StreamChunk::ProviderNotice(message) })
+                    .chain(stream),
+            ))
+        } else {
+            Ok(stream)
+        }
     }
 }
 
@@ -401,6 +599,7 @@ mod wire_tests {
             temperature: 0.0,
             max_tokens: 16,
             effort: None,
+            programmatic_tool_calling: false,
         };
         let body = p.build_body(&req);
         let msgs = body["messages"].as_array().unwrap();
@@ -446,10 +645,12 @@ mod effort_tests {
                 name: "view".into(),
                 description: "Ve un fichero".into(),
                 input_schema: json!({ "type": "object" }),
+                programmatic_allowed: true,
             }],
             temperature: 0.5,
             max_tokens,
             effort: effort.map(String::from),
+            programmatic_tool_calling: false,
         }
     }
 

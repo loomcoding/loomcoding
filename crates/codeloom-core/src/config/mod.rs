@@ -10,11 +10,15 @@ pub mod context;
 pub enum ProviderKind {
     #[serde(rename = "openai_compat")]
     OpenAiCompat,
+    #[serde(rename = "openai_responses")]
+    OpenAiResponses,
     #[serde(rename = "anthropic")]
     Anthropic,
+    #[serde(rename = "gemini")]
+    Gemini,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ProviderConfig {
     pub kind: ProviderKind,
     pub base_url: String,
@@ -127,6 +131,32 @@ pub fn validate_base_url(input: &str) -> std::result::Result<(), String> {
 }
 
 impl CodeLoomConfig {
+    /// Creates a usable project configuration on first launch without credentials.
+    pub fn load_or_create(path: &Path) -> Result<CodeLoomConfig> {
+        const DEFAULT: &str = "# CodeLoom project settings. Add the API key in /settings.\nmodel = \"nvidia/nemotron-3.5-super-vl:free\"\nmax_steps = 8\n\n[provider]\nkind = \"openai_compat\"\nbase_url = \"https://openrouter.ai/api/v1\"\napi_key_env = \"OPENROUTER_API_KEY\"\n";
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+        {
+            Ok(mut file) => file
+                .write_all(DEFAULT.as_bytes())
+                .map_err(|e| CoreError::Config(format!("write {}: {e}", path.display())))?,
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Self::load(path)
+                    .map_err(|_| CoreError::Config(format!("create {}: {error}", path.display())))
+            }
+            Err(error) => {
+                return Err(CoreError::Config(format!(
+                    "create {}: {error}",
+                    path.display()
+                )))
+            }
+        }
+        Self::load(path)
+    }
+
     pub fn load(path: &Path) -> Result<CodeLoomConfig> {
         let text = std::fs::read_to_string(path)
             .map_err(|e| CoreError::Config(format!("read {}: {e}", path.display())))?;
@@ -141,7 +171,9 @@ impl CodeLoomConfig {
         document["model"] = toml_edit::value(self.model.clone());
         document["provider"]["kind"] = toml_edit::value(match self.provider.kind {
             ProviderKind::OpenAiCompat => "openai_compat",
+            ProviderKind::OpenAiResponses => "openai_responses",
             ProviderKind::Anthropic => "anthropic",
+            ProviderKind::Gemini => "gemini",
         });
         document["provider"]["base_url"] = toml_edit::value(self.provider.base_url.clone());
         document["provider"]["api_key_env"] = toml_edit::value(self.provider.api_key_env.clone());

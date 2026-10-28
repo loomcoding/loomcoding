@@ -12,7 +12,7 @@ use crate::error::Result;
 use crate::event::{Activation, EventBus, LiveEvent};
 use crate::message::{ContentPart, FinishReason, Message, Role, Usage};
 use crate::permission::PermissionService;
-use crate::provider::{Provider, ProviderRequest, StreamChunk};
+use crate::provider::{ProfileProviderResolver, Provider, ProviderRequest, StreamChunk};
 use crate::session::{SessionId, SessionStore, UsageRecord};
 use crate::tools::spill::ToolSpill;
 use crate::tools::{limit_bytes, ToolCtx, ToolRegistry, MAX_NOTICE_BYTES, MAX_TOOL_OUTPUT_BYTES};
@@ -130,6 +130,8 @@ pub struct AgentLoop {
     provider: Arc<RwLock<Arc<dyn Provider>>>,
     store: Arc<dyn SessionStore>,
     tools: Arc<ToolRegistry>,
+    /// Tools available only to local profile-based subagents (currently MCP).
+    subagent_tools: Vec<Arc<dyn crate::tools::Tool>>,
     bus: EventBus,
     permission: Arc<PermissionService>,
     config: Arc<RwLock<CodeLoomConfig>>,
@@ -151,6 +153,7 @@ pub struct AgentLoop {
     /// Volcado a disco de las salidas recortadas; `None` no guarda nada y no añade ruta.
     spill: Option<ToolSpill>,
     remote_clients: Option<Arc<dyn crate::remote_task::RemoteClientFactory>>,
+    profile_provider_resolver: Option<Arc<ProfileProviderResolver>>,
     /// Presupuesto de gasto de la sesión; vacío no avisa ni lee el consumo acumulado. Los
     /// subagentes lo reciben y suman al mismo total (véase `budget_family`).
     budget: BudgetConfig,
@@ -223,6 +226,7 @@ impl AgentLoop {
             provider,
             store,
             tools,
+            subagent_tools: Vec::new(),
             bus,
             permission,
             config,
@@ -236,6 +240,7 @@ impl AgentLoop {
             router: None,
             spill: None,
             remote_clients: None,
+            profile_provider_resolver: None,
             budget: BudgetConfig::default(),
             budget_family: None,
             compaction: compact::CompactionConfig::default(),
@@ -275,6 +280,27 @@ impl AgentLoop {
     /// `with_catalog`, reconstruye el lanzador si ya existía.
     pub fn with_agent_registry(mut self, registry: Arc<crate::registry::AgentRegistry>) -> Self {
         self.registry = Some(registry);
+        if self.subagents.is_some() {
+            self.subagents = Some(self.subagent_launcher());
+        }
+        self
+    }
+
+    /// Provides MCP tools to delegated agents; the root agent never receives them implicitly.
+    pub fn with_subagent_tools(mut self, tools: Vec<Arc<dyn crate::tools::Tool>>) -> Self {
+        self.subagent_tools = tools;
+        if self.subagents.is_some() {
+            self.subagents = Some(self.subagent_launcher());
+        }
+        self
+    }
+
+    /// Resuelve proveedores opcionales de perfiles locales sin cambiar el del agente padre.
+    pub fn with_profile_provider_resolver(
+        mut self,
+        resolver: Arc<ProfileProviderResolver>,
+    ) -> Self {
+        self.profile_provider_resolver = Some(resolver);
         if self.subagents.is_some() {
             self.subagents = Some(self.subagent_launcher());
         }
@@ -414,10 +440,14 @@ impl AgentLoop {
 
     /// Lanzador de subagentes con el estado actual de este agente, catálogo y registro incluidos.
     fn subagent_launcher(&self) -> Arc<dyn crate::subagent::SubagentLauncher> {
+        let mut tools = self.tools.as_ref().clone();
+        for tool in &self.subagent_tools {
+            tools.register(tool.clone());
+        }
         let lanzador = crate::subagent::InProcessSubagentLauncher::new(
             self.provider.clone(),
             self.store.clone(),
-            self.tools.clone(),
+            Arc::new(tools),
             self.permission.clone(),
             self.config.clone(),
             self.cwd.clone(),
@@ -426,6 +456,10 @@ impl AgentLoop {
         )
         .with_catalog(self.catalog.clone())
         .with_budget(self.budget.clone());
+        let lanzador = match &self.profile_provider_resolver {
+            Some(resolver) => lanzador.with_profile_provider_resolver(resolver.clone()),
+            None => lanzador,
+        };
         let lanzador = match &self.registry {
             Some(registro) => lanzador.with_registry(registro.clone()),
             None => lanzador,
@@ -546,6 +580,7 @@ impl AgentLoop {
         let system = self.system_prompt();
         let ctx = ToolCtx {
             cwd: self.cwd.clone(),
+            store: Some(self.store.clone()),
             permission: self.permission.clone(),
             session,
             jobs: self.jobs.clone(),
@@ -645,6 +680,7 @@ impl AgentLoop {
                 temperature: 0.0,
                 max_tokens: 4096,
                 effort: config.effort.clone(),
+                programmatic_tool_calling: programmatic_tool_calling_enabled(),
             };
             let abierto = tokio::select! {
                 _ = cancel.cancelled() => break,
@@ -683,6 +719,7 @@ impl AgentLoop {
             let mut text_buf = String::new();
             let mut tool_calls: Vec<(String, String, serde_json::Value)> = Vec::new();
             let mut usage: Option<Usage> = None;
+            let mut provider_state = None;
             let mut finish = FinishReason::Stop;
 
             while let Some(chunk) = tokio::select! {
@@ -712,6 +749,19 @@ impl AgentLoop {
                     }
                     StreamChunk::ToolCallComplete { id, name, input } => {
                         tool_calls.push((id, name, input));
+                    }
+                    StreamChunk::ProviderState(state) => {
+                        if serde_json::to_vec(&state)
+                            .map_or(true, |bytes| bytes.len() > 64 * 1024)
+                        {
+                            return Err(crate::error::CoreError::Provider(
+                                "provider continuation state exceeds 64 KiB".into(),
+                            ));
+                        }
+                        provider_state = Some(state);
+                    }
+                    StreamChunk::ProviderNotice(message) => {
+                        self.bus.publish(LiveEvent::RuntimeNotice { message });
                     }
                     StreamChunk::Done(r) => finish = r,
                     _ => {}
@@ -744,6 +794,7 @@ impl AgentLoop {
             parts.push(ContentPart::Finish { reason: finish });
             let mut assistant = Message::assistant(parts);
             assistant.usage = usage;
+            assistant.provider_state = provider_state;
             self.store.append_message(session, &assistant).await?;
             self.bus.publish(LiveEvent::MessageAdded(assistant.clone()));
             history.push(assistant);
@@ -1002,6 +1053,13 @@ impl AgentLoop {
     }
 }
 
+fn programmatic_tool_calling_enabled() -> bool {
+    matches!(
+        std::env::var("CODELOOM_PROGRAMMATIC_TOOL_CALLING").as_deref(),
+        Ok("1" | "true" | "yes")
+    )
+}
+
 /// Resumen del tramo antiguo del historial, aún sin activar. `covers` es el corte: los mensajes
 /// anteriores a él quedan cubiertos por `text`. `usage` es el consumo de la llamada de resumen.
 #[derive(Debug, Clone)]
@@ -1045,6 +1103,7 @@ pub async fn generate_summary(
         temperature: 0.0,
         max_tokens: compact::SUMMARY_MAX_TOKENS,
         effort: None,
+        programmatic_tool_calling: false,
     };
     let mut stream = tokio::select! {
         _ = cancel.cancelled() => return Ok((None, None)),

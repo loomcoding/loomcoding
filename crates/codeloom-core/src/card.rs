@@ -59,7 +59,7 @@ pub struct AgentInterface {
 ///
 /// Los campos opcionales (`examples`, `input_modes`, `output_modes`) se deserializan vacíos
 /// si faltan. Quedan fuera `security_requirements` hasta A8.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentSkill {
     pub id: String,
     pub name: String,

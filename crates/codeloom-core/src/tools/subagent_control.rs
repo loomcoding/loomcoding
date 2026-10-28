@@ -193,6 +193,7 @@ mod tests {
     fn ctx(dir: &std::path::Path, launcher: Arc<RecordingLauncher>) -> ToolCtx {
         ToolCtx {
             cwd: dir.to_path_buf(),
+            store: None,
             permission: Arc::new(PermissionService::allow_all()),
             session: SessionId(1),
             jobs: Arc::new(crate::job::LocalJobRegistry::default()),

@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-pub const PROTOCOL_VERSION: u16 = 1;
+pub const PROTOCOL_VERSION: u16 = 3;
 pub const MAX_FRAME_BYTES: usize = 64 * 1024;
 
 pub trait AsyncStream: AsyncRead + AsyncWrite {}

@@ -7,6 +7,7 @@ use codeloom_core::budget::BudgetMetric;
 use codeloom_core::catalog::{Catalog, CatalogModel, CatalogProvider};
 use codeloom_core::config::{CodeLoomConfig, ProviderKind};
 use codeloom_core::event::LiveEvent;
+use codeloom_core::event::{A2aDirection, A2aObservation, A2aOperation};
 use codeloom_core::message::{ContentPart, Message, Role};
 use codeloom_core::permission::{Decision, PermissionRequest};
 use codeloom_core::question::{Answer, Question};
@@ -23,6 +24,7 @@ use std::time::{Duration, Instant};
 
 /// Líneas a partir de las cuales se pliega un bloque largo de la conversación.
 pub const MAX_BLOCK_LINES: usize = 10;
+pub const MAX_A2A_OBSERVATIONS: usize = 128;
 
 /// Transcript vacío con el pliegue de bloques largos activado.
 fn new_transcript() -> batten::state::Transcript {
@@ -63,6 +65,17 @@ fn rect_contains(area: Rect, x: u16, y: u16) -> bool {
         && y >= area.y
         && u32::from(x) < u32::from(area.x) + u32::from(area.width)
         && u32::from(y) < u32::from(area.y) + u32::from(area.height)
+}
+
+pub(crate) fn composer_text_area(area: Rect) -> Rect {
+    Rect {
+        width: if area.width > 1 {
+            area.width - 1
+        } else {
+            area.width
+        },
+        ..area
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -441,6 +454,13 @@ pub struct AgentRow {
     /// Modelo y esfuerzo propios del perfil, o la herencia.
     pub execution: String,
     pub description: String,
+    pub version: String,
+    pub card_skills: Vec<codeloom_core::card::AgentSkill>,
+    pub scope: codeloom_core::registry::profile::AgentScope,
+    pub profile_path: Option<std::path::PathBuf>,
+    pub content_hash: Option<String>,
+    pub editable: bool,
+    pub capabilities: codeloom_core::card::AgentCapabilities,
     /// Prompt de sistema del perfil: lo que la persona usuaria revisa antes de aprobar.
     pub body: String,
 }
@@ -492,9 +512,56 @@ impl AgentRow {
                 .unwrap_or(codeloom_core::registry::Approval::Pending),
             execution,
             description: entrada.card.description.trim().to_string(),
+            version: entrada.card.version.clone(),
+            card_skills: entrada.card.skills.clone(),
+            scope: match &entrada.execution {
+                codeloom_core::registry::Execution::Local(local) => local.scope.clone(),
+                codeloom_core::registry::Execution::Remote(_) => Default::default(),
+            },
+            profile_path: match &entrada.origin {
+                codeloom_core::registry::AgentOrigin::File { path, .. }
+                    if matches!(&entrada.execution, codeloom_core::registry::Execution::Local(_)) =>
+                {
+                    Some(path.clone())
+                }
+                _ => None,
+            },
+            content_hash: entrada.content_hash.clone(),
+            editable: matches!(
+                (&entrada.origin, &entrada.execution),
+                (
+                    codeloom_core::registry::AgentOrigin::File { .. },
+                    codeloom_core::registry::Execution::Local(_)
+                )
+            ),
+            capabilities: entrada.card.capabilities.clone(),
             body,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentEditorDraft {
+    pub description: String,
+    pub version: String,
+    /// Una skill por línea: id | nombre | descripción | tags | ejemplos | input modes | output modes.
+    pub card_skills: String,
+    pub mcp: String,
+    pub local_skills: String,
+    pub tools: String,
+    pub field: usize,
+    pub editing_value: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct A2aAgentView {
+    pub name: String,
+    pub card: codeloom_core::card::AgentCard,
+    pub origin: String,
+    pub approval: Option<codeloom_core::registry::Approval>,
+    pub internal: bool,
+    pub enabled: bool,
+    pub execution: Option<codeloom_core::registry::Execution>,
 }
 
 /// Ventana de contexto ya buscada en el catálogo, con las entradas que la determinan. Mientras
@@ -596,6 +663,13 @@ pub struct App {
     pub tools_open: bool,
     pub tool_selected: usize,
     pub tool_scroll: (u16, u16),
+    pub a2a_open: bool,
+    pub a2a_focus: usize,
+    pub a2a_agent_selected: usize,
+    pub a2a_task_selected: usize,
+    pub a2a_event_selected: usize,
+    pub a2a_detail_scroll: u16,
+    pub a2a_observations: VecDeque<A2aObservation>,
     pub reasoning: String,
     pub thinking: bool,
     pub input_tokens: u64,
@@ -727,6 +801,8 @@ pub struct App {
     pub settings_field: usize,
     pub settings_editing: bool,
     pub settings_editor: batten::state::Composer,
+    pub settings_api_key: String,
+    pub settings_api_key_configured: bool,
     pub settings_save_requested: bool,
     pub settings_saving: bool,
     pub settings_feedback: Option<String>,
@@ -741,6 +817,8 @@ pub struct App {
     pub agents_open: bool,
     pub agent_rows: Vec<AgentRow>,
     pub agents_selected: usize,
+    pub agent_edit: Option<AgentEditorDraft>,
+    pub agent_editor: batten::state::Composer,
     /// Resultado de la última aprobación o revocación, para pintarlo en el popup.
     pub agents_status: Option<String>,
 }
@@ -752,6 +830,11 @@ impl Default for App {
 }
 
 impl App {
+    /// Selecciona el look inicial de la TUI de CodeLoom.
+    pub fn use_product_default_view(&mut self) {
+        self.set_theme(batten::widgets::ThemePreset::Crush);
+    }
+
     /// Pasa al siguiente preset de la rotación (`/theme`).
     pub fn cycle_theme(&mut self) {
         use batten::widgets::ThemePreset;
@@ -858,6 +941,13 @@ impl App {
             tools_open: false,
             tool_selected: 0,
             tool_scroll: (0, 0),
+            a2a_open: false,
+            a2a_focus: 0,
+            a2a_agent_selected: 0,
+            a2a_task_selected: 0,
+            a2a_event_selected: 0,
+            a2a_detail_scroll: 0,
+            a2a_observations: VecDeque::new(),
             reasoning: String::new(),
             thinking: false,
             input_tokens: 0,
@@ -925,6 +1015,8 @@ impl App {
             settings_field: 0,
             settings_editing: false,
             settings_editor: batten::state::Composer::new(),
+            settings_api_key: String::new(),
+            settings_api_key_configured: false,
             settings_save_requested: false,
             settings_saving: false,
             settings_feedback: None,
@@ -935,6 +1027,8 @@ impl App {
             agents_open: false,
             agent_rows: Vec::new(),
             agents_selected: 0,
+            agent_edit: None,
+            agent_editor: batten::state::Composer::new(),
             agents_status: None,
             sidebar_expanded: false,
             rail_hidden: false,
@@ -959,6 +1053,7 @@ impl App {
             || self.settings_open
             || self.help_open
             || self.agents_open
+            || self.a2a_open
             || self.tools_open
             || self.queue_open
             || self.slash_dismissed.as_deref() == Some(text)
@@ -998,6 +1093,7 @@ impl App {
             || self.session_picker_open
             || self.settings_open
             || self.settings_saving
+            || self.a2a_open
         {
             return false;
         }
@@ -1124,6 +1220,199 @@ impl App {
         self.agents_open = true;
     }
 
+    pub fn begin_agent_edit(&mut self) {
+        let Some(row) = self.agent_rows.get(self.agents_selected) else {
+            return;
+        };
+        if !row.editable {
+            self.agents_status = Some("Only local file agents can be edited".into());
+            return;
+        }
+        self.agent_edit = Some(AgentEditorDraft {
+            description: row.description.clone(),
+            version: row.version.clone(),
+            card_skills: card_skills_to_text(&row.card_skills),
+            mcp: row.scope.mcp.join("\n"),
+            local_skills: row.scope.skills.join("\n"),
+            tools: row.scope.tools.join("\n"),
+            field: 0,
+            editing_value: false,
+        });
+        self.agents_status = None;
+    }
+
+    pub fn move_agent_edit_field(&mut self, delta: isize) {
+        if let Some(edit) = &mut self.agent_edit {
+            edit.field = edit.field.saturating_add_signed(delta).min(6);
+        }
+    }
+
+    pub fn start_agent_edit_value(&mut self) {
+        if self
+            .agent_edit
+            .as_ref()
+            .is_some_and(|edit| edit.field == 6)
+        {
+            self.save_agent_edit();
+            return;
+        }
+        let Some(edit) = &mut self.agent_edit else {
+            return;
+        };
+        self.agent_editor.set_text(&agent_edit_value(edit, edit.field));
+        edit.editing_value = true;
+    }
+
+    pub fn finish_agent_edit_value(&mut self, save: bool) {
+        let Some(edit) = &mut self.agent_edit else {
+            return;
+        };
+        if save {
+            set_agent_edit_value(edit, edit.field, self.agent_editor.text().to_string());
+        }
+        edit.editing_value = false;
+    }
+
+    pub fn cancel_agent_edit(&mut self) {
+        self.agent_edit = None;
+        self.agents_status = Some("Edit cancelled".into());
+    }
+
+    pub fn save_agent_edit(&mut self) {
+        let (Some(edit), Some(row), Some(registry)) = (
+            self.agent_edit.clone(),
+            self.agent_rows.get(self.agents_selected).cloned(),
+            self.agent_registry.clone(),
+        ) else {
+            return;
+        };
+        let (Some(path), Some(hash)) = (row.profile_path, row.content_hash) else {
+            self.agents_status = Some("This profile has no editable source file".into());
+            return;
+        };
+        let skills = match card_skills_from_text(&edit.card_skills) {
+            Ok(skills) => skills,
+            Err(error) => {
+                self.agents_status = Some(error);
+                return;
+            }
+        };
+        let scope = codeloom_core::registry::profile::AgentScope {
+            mcp: scope_list(&edit.mcp),
+            skills: scope_list(&edit.local_skills),
+            tools: scope_list(&edit.tools),
+        };
+        let version = if edit.version.trim().is_empty() {
+            None
+        } else {
+            Some(edit.version)
+        };
+        let profile = codeloom_core::registry::profile::AgentProfileEdit {
+            description: edit.description,
+            version,
+            card_skills: skills,
+            scope,
+        };
+        match codeloom_core::registry::profile::save_profile_edit(&path, &hash, &profile) {
+            Ok(_) => {
+                registry.reload();
+                self.refresh_agent_rows();
+                self.agents_status = Some(format!("Saved `{}`; project trust may need approval", row.name));
+                self.agent_edit = None;
+            }
+            Err(error) => self.agents_status = Some(format!("Not saved: {error}")),
+        }
+    }
+
+    pub fn a2a_agents(&self) -> Vec<A2aAgentView> {
+        let mut agents = self
+            .agent_registry
+            .as_ref()
+            .map(|registry| {
+                let snapshot = registry.snapshot();
+                snapshot
+                    .entries()
+                    .into_iter()
+                    .map(|entry| A2aAgentView {
+                        name: entry.name.clone(),
+                        card: entry.card.clone(),
+                        origin: match &entry.origin {
+                            codeloom_core::registry::AgentOrigin::BuiltIn => "built-in".into(),
+                            codeloom_core::registry::AgentOrigin::File { level, .. } => match level {
+                                codeloom_core::registry::ProfileLevel::Global => "global profile".into(),
+                                codeloom_core::registry::ProfileLevel::Project => "project profile".into(),
+                            },
+                            codeloom_core::registry::AgentOrigin::Remote { .. } => "remote".into(),
+                        },
+                        approval: snapshot.approval(&entry.name),
+                        internal: false,
+                        enabled: matches!(
+                            snapshot.approval(&entry.name),
+                            Some(codeloom_core::registry::Approval::NotRequired | codeloom_core::registry::Approval::Approved)
+                        ),
+                        execution: Some(entry.execution.clone()),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        agents.push(A2aAgentView {
+            name: "supervisor".into(),
+            card: codeloom_core::card::AgentCard::local(
+                "CodeLoom Runtime Supervisor",
+                "Local runtime directory and deterministic supervision; optional LLM assistance.",
+                env!("CARGO_PKG_VERSION"),
+            ),
+            origin: "CodeLoom runtime".into(),
+            approval: None,
+            internal: true,
+            enabled: true,
+            execution: None,
+        });
+        agents
+    }
+
+    pub fn a2a_approval(&self, name: &str) -> Option<codeloom_core::registry::Approval> {
+        self.agent_registry
+            .as_ref()
+            .and_then(|registry| registry.snapshot().approval(name))
+    }
+
+    pub fn a2a_focus_next(&mut self) {
+        self.a2a_focus = (self.a2a_focus + 1) % 3;
+        self.a2a_detail_scroll = 0;
+    }
+
+    pub fn a2a_move(&mut self, delta: isize) {
+        self.a2a_detail_scroll = 0;
+        match self.a2a_focus {
+            0 => {
+                self.a2a_agent_selected = self
+                    .a2a_agent_selected
+                    .saturating_add_signed(delta)
+                    .min(self.a2a_agents().len().saturating_sub(1));
+            }
+            1 => {
+                self.a2a_task_selected = self
+                    .a2a_task_selected
+                    .saturating_add_signed(delta)
+                    .min(self.subagents.len().saturating_sub(1));
+            }
+            _ => {
+                self.a2a_event_selected = self
+                    .a2a_event_selected
+                    .saturating_add_signed(delta)
+                    .min(self.a2a_observations.len().saturating_sub(1));
+            }
+        }
+    }
+
+    fn record_a2a_observation(&mut self, observation: A2aObservation) {
+        if self.a2a_observations.len() == MAX_A2A_OBSERVATIONS {
+            self.a2a_observations.pop_front();
+        }
+        self.a2a_observations.push_back(observation);
+    }
+
     /// Reconstruye las filas desde la instantánea vigente, conservando la selección acotada.
     /// El estado de aprobación se consulta en vivo, así que aprobar se refleja sin recargar.
     fn refresh_agent_rows(&mut self) {
@@ -1183,13 +1472,14 @@ impl App {
 
     /// `true` si los ajustes en pantalla difieren de la copia guardada.
     pub fn settings_dirty(&self) -> bool {
-        match (&self.provider_settings, &self.settings_baseline) {
-            (Some(current), Some(baseline)) => current != baseline,
-            _ => false,
-        }
+        !self.settings_api_key.is_empty()
+            || match (&self.provider_settings, &self.settings_baseline) {
+                (Some(current), Some(baseline)) => current != baseline,
+                _ => false,
+            }
     }
 
-    /// `true` si el campo `index` (0 proveedor, 1 modelo, 2 URL, 3 variable de clave,
+    /// `true` si el campo `index` (0 proveedor, 1 modelo, 2 URL, 3 API key,
     /// 4 esfuerzo) difiere de la copia guardada. El esfuerzo solo cuenta mientras el
     /// campo existe: un cambio que el modelo actual no puede mostrar no se marca.
     pub fn settings_field_changed(&self, index: usize) -> bool {
@@ -1198,7 +1488,7 @@ impl App {
                 0 => current.kind != baseline.kind,
                 1 => current.model != baseline.model,
                 2 => current.base_url != baseline.base_url,
-                3 => current.api_key_env != baseline.api_key_env,
+                3 => !self.settings_api_key.is_empty(),
                 SETTINGS_EFFORT_FIELD => {
                     self.settings_effort_visible() && current.effort != baseline.effort
                 }
@@ -1439,6 +1729,7 @@ impl App {
         }
         if self.settings_dirty() {
             self.provider_settings = self.settings_baseline.clone();
+            self.settings_api_key.clear();
         }
         self.close_picker();
         self.settings_open = false;
@@ -1464,7 +1755,7 @@ impl App {
         let value = match self.settings_field {
             1 => &settings.model,
             2 => &settings.base_url,
-            3 => &settings.api_key_env,
+            3 => &self.settings_api_key,
             _ => return,
         };
         self.settings_editor.set_text(value);
@@ -1474,11 +1765,12 @@ impl App {
     pub fn commit_settings_value(&mut self) {
         self.settings_disarm();
         let value = self.settings_editor.text().to_string();
-        if let Some(settings) = self.provider_settings.as_mut() {
+        if self.settings_field == 3 {
+            self.settings_api_key = value;
+        } else if let Some(settings) = self.provider_settings.as_mut() {
             match self.settings_field {
                 1 => settings.model = value,
                 2 => settings.base_url = value,
-                3 => settings.api_key_env = value,
                 _ => {}
             }
         }
@@ -1503,6 +1795,13 @@ impl App {
         settings.model = settings.model.trim().to_string();
         settings.base_url = settings.base_url.trim().to_string();
         settings.api_key_env = settings.api_key_env.trim().to_string();
+        self.settings_api_key = self.settings_api_key.trim().to_string();
+        if self.settings_api_key.len() > 4096 || self.settings_api_key.chars().any(char::is_control)
+        {
+            self.settings_feedback =
+                Some("API key must be at most 4096 bytes and contain no control characters".into());
+            return;
+        }
         if settings.model.trim().is_empty()
             || settings.base_url.trim().is_empty()
             || settings.api_key_env.trim().is_empty()
@@ -1514,15 +1813,28 @@ impl App {
         self.settings_feedback = None;
     }
 
-    pub fn settings_saved(&mut self, result: Result<(), String>) {
+    pub fn settings_saved(&mut self, result: Result<bool, String>) {
         self.settings_saving = false;
         self.settings_feedback = Some(match result {
-            Ok(()) => {
+            Ok(configured) => {
+                self.settings_api_key_configured = configured;
+                self.settings_api_key.clear();
+                if self.status.starts_with("API key missing") {
+                    self.status = if configured {
+                        "ready".into()
+                    } else {
+                        "API key missing · /settings".into()
+                    };
+                }
                 if let Some(settings) = &self.provider_settings {
                     self.model = settings.model.clone();
                     self.settings_baseline = Some(settings.clone());
                 }
-                "Settings saved and applied".into()
+                if configured {
+                    "Settings saved and applied".into()
+                } else {
+                    "Settings saved; add an API key before sending prompts".into()
+                }
             }
             Err(error) => error,
         });
@@ -1599,6 +1911,7 @@ impl App {
         self.todo_entry = None;
         self.todo_tool_calls.clear();
         self.tools_open = false;
+        self.a2a_open = false;
         self.tool_selected = 0;
         self.tool_scroll = (0, 0);
         self.changes = batten::state::FileChanges::new();
@@ -1944,7 +2257,7 @@ impl App {
         };
         // El composer y el transcript no comparten selección.
         self.text_sel = None;
-        match hit_index(&self.theme, &self.composer, area, x, y) {
+        match hit_index(&self.theme, &self.composer, composer_text_area(area), x, y) {
             Some(index) => {
                 self.composer.set_cursor(index);
                 self.mouse_drag = Some(index);
@@ -1966,9 +2279,10 @@ impl App {
         if area.is_empty() {
             return;
         }
-        let x = x.clamp(area.x, area.right() - 1);
+        let text_area = composer_text_area(area);
+        let x = x.clamp(text_area.x, text_area.right().saturating_sub(1));
         let y = y.clamp(area.y, area.bottom() - 1);
-        if let Some(head) = hit_index(&self.theme, &self.composer, area, x, y) {
+        if let Some(head) = hit_index(&self.theme, &self.composer, text_area, x, y) {
             self.composer.select_range(anchor, head);
         }
     }
@@ -2167,6 +2481,7 @@ impl App {
         self.queue_editing = false;
         self.help_open = false;
         self.agents_open = false;
+        self.a2a_open = false;
         self.settings_open = false;
         self.settings_editing = false;
         self.permission_queue.push_back((req, reply));
@@ -2210,6 +2525,7 @@ impl App {
         self.queue_editing = false;
         self.help_open = false;
         self.agents_open = false;
+        self.a2a_open = false;
         self.settings_open = false;
         self.settings_editing = false;
         self.question_queue.push_back((questions, reply));
@@ -2813,6 +3129,14 @@ impl App {
                 self.thinking = false;
                 self.matrix_rain.stop();
             }
+            LiveEvent::RuntimeNotice { message } => {
+                self.transcript.push_entry(
+                    batten::state::LineKind::System,
+                    batten::state::Format::Plain,
+                    message,
+                );
+                self.assistant = None;
+            }
             LiveEvent::FileDiff {
                 path,
                 added,
@@ -2854,6 +3178,36 @@ impl App {
                     self.resync_tools();
                 }
             }
+            LiveEvent::DevelopmentWorkflowChanged(summary) => {
+                if Some(summary.parent) == self.session_id {
+                    let agent = match summary.phase {
+                        codeloom_core::workflow::WorkflowPhase::Specifying => &summary.planner,
+                        codeloom_core::workflow::WorkflowPhase::Implementing
+                        | codeloom_core::workflow::WorkflowPhase::ChangesRequested => {
+                            &summary.implementer
+                        }
+                        codeloom_core::workflow::WorkflowPhase::Reviewing => &summary.reviewer,
+                        _ => "coordinador",
+                    };
+                    let decision = match summary.phase {
+                        codeloom_core::workflow::WorkflowPhase::AwaitingPlanApproval => {
+                            " · aprobación del plan pendiente"
+                        }
+                        codeloom_core::workflow::WorkflowPhase::AwaitingFinalAcceptance => {
+                            " · aceptación final pendiente"
+                        }
+                        _ => "",
+                    };
+                    self.transcript.push_entry(
+                        batten::state::LineKind::System,
+                        batten::state::Format::Plain,
+                        format!(
+                            "flujo de desarrollo #{}: {:?} · agente {} · revisión {}{}",
+                            summary.id.0, summary.phase, agent, summary.correction_round, decision
+                        ),
+                    );
+                }
+            }
             LiveEvent::AgentRouted {
                 parent,
                 agent,
@@ -2871,12 +3225,25 @@ impl App {
             }
             LiveEvent::A2aServed { task, agent, state } => {
                 // Un tercero está dictando trabajo a un modelo local: la persona usuaria ha de verlo.
+                self.record_a2a_observation(A2aObservation {
+                    direction: A2aDirection::Local,
+                    agent: agent.clone(),
+                    operation: A2aOperation::TaskStateObserved,
+                    rpc_id: None,
+                    task_id: Some(task.clone()),
+                    context_id: self.session_id.map(|id| id.0.to_string()),
+                    state: Some(state.clone()),
+                    artifact: None,
+                    succeeded: true,
+                    elapsed_ms: None,
+                });
                 self.transcript.push_entry(
                     batten::state::LineKind::System,
                     batten::state::Format::Plain,
                     format!("A2A entrante: tarea {task} · agente {agent} · {state}"),
                 );
             }
+            LiveEvent::A2aObserved(observation) => self.record_a2a_observation(observation),
             LiveEvent::AgentCardsRefreshed { ok, failed } => {
                 let texto = if failed.is_empty() {
                     format!("tarjetas de agentes remotos al día: {ok}")
@@ -3708,6 +4075,85 @@ impl App {
     }
 }
 
+fn scope_list(text: &str) -> Vec<String> {
+    text.lines()
+        .flat_map(|line| line.split(','))
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn card_skills_to_text(skills: &[codeloom_core::card::AgentSkill]) -> String {
+    skills
+        .iter()
+        .map(|skill| {
+            [
+                skill.id.clone(),
+                skill.name.clone(),
+                skill.description.clone(),
+                skill.tags.join(","),
+                skill.examples.join(","),
+                skill.input_modes.join(","),
+                skill.output_modes.join(","),
+            ]
+            .join(" | ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn card_skills_from_text(text: &str) -> Result<Vec<codeloom_core::card::AgentSkill>, String> {
+    let mut skills = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        // shortcut: el editor no escapa «|» ni comas dentro de un valor; usar el formulario
+        // por skill si aparecen en esos campos.
+        let fields = line.split('|').map(str::trim).collect::<Vec<_>>();
+        if fields.len() != 7 || fields[0].is_empty() || fields[1].is_empty() {
+            return Err(format!("A2A skill, línea {}: usa id | nombre | descripción | tags | ejemplos | input modes | output modes", index + 1));
+        }
+        let list = |value: &str| value.split(',').map(str::trim).filter(|item| !item.is_empty()).map(str::to_string).collect();
+        let mut skill = codeloom_core::card::AgentSkill::new(
+            fields[0],
+            fields[1],
+            fields[2],
+            list(fields[3]),
+        );
+        skill.examples = list(fields[4]);
+        skill.input_modes = list(fields[5]);
+        skill.output_modes = list(fields[6]);
+        skills.push(skill);
+    }
+    Ok(skills)
+}
+
+fn agent_edit_value(edit: &AgentEditorDraft, field: usize) -> String {
+    match field {
+        0 => edit.description.clone(),
+        1 => edit.version.clone(),
+        2 => edit.card_skills.clone(),
+        3 => edit.mcp.clone(),
+        4 => edit.local_skills.clone(),
+        5 => edit.tools.clone(),
+        _ => String::new(),
+    }
+}
+
+fn set_agent_edit_value(edit: &mut AgentEditorDraft, field: usize, value: String) {
+    match field {
+        0 => edit.description = value,
+        1 => edit.version = value,
+        2 => edit.card_skills = value,
+        3 => edit.mcp = value,
+        4 => edit.local_skills = value,
+        5 => edit.tools = value,
+        _ => {}
+    }
+}
+
 /// Línea del aviso de presupuesto de gasto. Rótulo de CodeLoom: nunca de A2A. Los tokens pasan
 /// por `format_tokens`; los dólares, con dos decimales. Si `partial`, se advierte de que el coste
 /// no suma los apuntes sin precio conocido.
@@ -4394,6 +4840,35 @@ Cuerpo de front.
         assert!(
             lineas[1].contains("1 al día") && lineas[1].contains("rutas, clima"),
             "{lineas:?}"
+        );
+    }
+
+    #[test]
+    fn a2a_observation_history_stays_bounded_and_keeps_the_newest_events() {
+        let mut app = App::new();
+        for id in 0..(MAX_A2A_OBSERVATIONS + 2) {
+            app.apply(LiveEvent::A2aObserved(A2aObservation {
+                direction: A2aDirection::Outbound,
+                agent: "remote".into(),
+                operation: A2aOperation::GetTask,
+                rpc_id: Some(id.to_string()),
+                task_id: Some(id.to_string()),
+                context_id: None,
+                state: Some("working".into()),
+                artifact: None,
+                succeeded: true,
+                elapsed_ms: Some(1),
+            }));
+        }
+
+        assert_eq!(app.a2a_observations.len(), MAX_A2A_OBSERVATIONS);
+        assert_eq!(
+            app.a2a_observations.front().unwrap().task_id.as_deref(),
+            Some("2")
+        );
+        assert_eq!(
+            app.a2a_observations.back().unwrap().task_id.as_deref(),
+            Some("129")
         );
     }
 
@@ -7571,7 +8046,7 @@ línea dos {}",
     fn set_theme_changes_the_look() {
         use batten::widgets::{Look, ThemePreset};
         let mut app = App::new();
-        app.set_theme(ThemePreset::Crush);
+        app.use_product_default_view();
         assert_eq!(app.theme_preset, ThemePreset::Crush);
         assert_eq!(app.theme.look, Look::crush());
         app.set_theme(ThemePreset::Batten);
@@ -7767,7 +8242,7 @@ línea dos {}",
         let mut app = app_with_settings_open();
         app.provider_settings.as_mut().unwrap().model = "model-b".into();
         app.settings_saving = true;
-        app.settings_saved(Ok(()));
+        app.settings_saved(Ok(true));
         assert!(!app.settings_dirty());
         assert!(app.close_settings());
     }

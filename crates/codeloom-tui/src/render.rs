@@ -2,6 +2,7 @@ use crate::app::{App, Focus, SettingsPicker};
 use crate::rail;
 use batten::widgets::context_meter::{self, MeterStyle};
 use batten::widgets::{ChromeStyle, LayoutStyle};
+use codeloom_core::event::{A2aDirection, A2aOperation};
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
@@ -672,6 +673,11 @@ fn draw_session_picker(frame: &mut Frame, area: Rect, app: &App) {
         .border_style(app.theme.styles.border);
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
+
+    if let Some(edit) = &app.agent_edit {
+        draw_agent_editor(frame, inner, app, edit);
+        return;
+    }
     let [search, list, footer] = Layout::vertical([
         Constraint::Length(search_rows),
         Constraint::Min(1),
@@ -777,11 +783,17 @@ fn draw_provider_settings(frame: &mut Frame, area: Rect, app: &App) {
     };
     let kind = match settings.kind {
         codeloom_core::config::ProviderKind::OpenAiCompat => "OpenAI compatible",
+        codeloom_core::config::ProviderKind::OpenAiResponses => "OpenAI Responses",
         codeloom_core::config::ProviderKind::Anthropic => "Anthropic",
+        codeloom_core::config::ProviderKind::Gemini => "Gemini",
     };
     let value = |index: usize, current: &str| {
         if app.settings_editing && app.settings_field == index {
-            app.settings_editor.text().to_string()
+            if index == 3 {
+                "•".repeat(app.settings_editor.text().chars().count())
+            } else {
+                app.settings_editor.text().to_string()
+            }
         } else {
             current.to_string()
         }
@@ -796,7 +808,17 @@ fn draw_provider_settings(frame: &mut Frame, area: Rect, app: &App) {
         ("Provider", kind.to_string()),
         ("Model", value(1, &settings.model)),
         ("Base URL", value(2, &settings.base_url)),
-        ("API key env", value(3, &settings.api_key_env)),
+        (
+            "API key",
+            value(
+                3,
+                if app.settings_api_key_configured || !app.settings_api_key.is_empty() {
+                    "••••••••"
+                } else {
+                    "Not configured"
+                },
+            ),
+        ),
     ];
     // «Effort» solo aparece si el modelo admite niveles; si no, «Save» ocupa su posición.
     if app.settings_effort_visible() {
@@ -854,7 +876,7 @@ fn draw_provider_settings(frame: &mut Frame, area: Rect, app: &App) {
         } else if app.settings_picker.is_some() {
             "type to filter · ↑/↓ select · Enter choose · Esc close list"
         } else {
-            "↑/↓ select · ←/→ provider/effort · Enter edit/apply · Ctrl+L catalog · Ctrl+S save (idle) · Esc close"
+            "↑/↓ select · Enter edit/save · API key hidden · Ctrl+L catalog · Ctrl+S save · Esc close"
         },
         app.theme.styles.muted,
     ));
@@ -867,7 +889,7 @@ fn draw_provider_settings(frame: &mut Frame, area: Rect, app: &App) {
             "Provider: ".len(),
             "Model: ".len(),
             "Base URL: ".len(),
-            "API key env: ".len(),
+            "API key: ".len(),
             "Effort: ".len(),
             "Save and apply: ".len(),
         ][app.settings_field];
@@ -1212,6 +1234,504 @@ fn approval_label(approval: codeloom_core::registry::Approval) -> &'static str {
     }
 }
 
+fn a2a_clip(text: &str, max_chars: usize) -> String {
+    let mut chars = text.chars();
+    let clipped: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{clipped}…")
+    } else {
+        clipped
+    }
+}
+
+fn a2a_panel(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    items: &[Line<'static>],
+    selected: usize,
+    focused: bool,
+    app: &App,
+) {
+    let style = if focused {
+        app.theme.styles.accent
+    } else {
+        app.theme.styles.border
+    };
+    let block = Block::default()
+        .title(format!(" {title} · {} ", items.len()))
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(style);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    if inner.is_empty() {
+        return;
+    }
+    let start = selected.saturating_sub(usize::from(inner.height).saturating_sub(1));
+    let lines = items
+        .iter()
+        .skip(start)
+        .take(usize::from(inner.height))
+        .cloned()
+        .collect::<Vec<_>>();
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), inner);
+}
+
+fn a2a_agent_lines(
+    app: &App,
+    agents: &[crate::app::A2aAgentView],
+) -> Vec<Line<'static>> {
+    agents
+        .iter()
+        .enumerate()
+        .map(|(index, agent)| {
+            let approval = if agent.internal {
+                "internal · enabled"
+            } else {
+                agent
+                    .approval
+                    .map(approval_label)
+                    .unwrap_or("local")
+            };
+            let style = if index == app.a2a_agent_selected {
+                app.theme.styles.heading
+            } else {
+                Style::default()
+            };
+            Line::styled(
+                format!(
+                    "{} {} · {} · v{}",
+                    if index == app.a2a_agent_selected {
+                        "›"
+                    } else {
+                        " "
+                    },
+                    a2a_clip(&agent.name, 42),
+                    approval,
+                    agent.card.version
+                ),
+                style,
+            )
+        })
+        .collect()
+}
+
+fn a2a_task_lines(app: &App) -> Vec<Line<'static>> {
+    app.subagents
+        .values()
+        .enumerate()
+        .map(|(index, task)| {
+            let state = rail::agent_state(task.status.state);
+            let style = if index == app.a2a_task_selected {
+                app.theme.styles.heading
+            } else {
+                Style::default()
+            };
+            Line::styled(
+                format!(
+                    "{} {} {} · {} · local task {}",
+                    if index == app.a2a_task_selected {
+                        "›"
+                    } else {
+                        " "
+                    },
+                    state.glyph(),
+                    a2a_clip(&task.label, 38),
+                    state.label(),
+                    task.child.0
+                ),
+                style,
+            )
+        })
+        .collect()
+}
+
+fn a2a_event_lines(app: &App) -> Vec<Line<'static>> {
+    app.a2a_observations
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(index, event)| {
+            let direction = match event.direction {
+                A2aDirection::Local => "HOST",
+                A2aDirection::Inbound => "IN ",
+                A2aDirection::Outbound => "OUT",
+            };
+            let status = if event.succeeded { "✓" } else { "×" };
+            let state = event
+                .state
+                .as_deref()
+                .map(|value| format!(" · {value}"))
+                .unwrap_or_default();
+            let elapsed = event
+                .elapsed_ms
+                .map(|value| format!(" · {value} ms"))
+                .unwrap_or_default();
+            let task = event
+                .task_id
+                .as_deref()
+                .map(|value| format!(" · #{value}"))
+                .unwrap_or_default();
+            Line::styled(
+                format!(
+                    "{} {direction} {} · {} {status}{task}{state}{elapsed}",
+                    if index == app.a2a_event_selected {
+                        "›"
+                    } else {
+                        " "
+                    },
+                    a2a_clip(&event.agent, 32),
+                    a2a_operation_name(event.operation)
+                ),
+                if index == app.a2a_event_selected {
+                    app.theme.styles.heading
+                } else if event.succeeded {
+                    Style::default()
+                } else {
+                    app.theme.styles.error
+                },
+            )
+        })
+        .collect()
+}
+
+fn a2a_operation_name(operation: A2aOperation) -> &'static str {
+    match operation {
+        A2aOperation::SendMessage => "SendMessage",
+        A2aOperation::SendStreamingMessage => "SendStreamingMessage",
+        A2aOperation::GetTask => "GetTask",
+        A2aOperation::CancelTask => "CancelTask",
+        A2aOperation::SubscribeToTask => "SubscribeToTask",
+        A2aOperation::TaskStatusUpdateEvent => "TaskStatusUpdateEvent",
+        A2aOperation::TaskArtifactUpdateEvent => "TaskArtifactUpdateEvent",
+        A2aOperation::TaskStateObserved => "host task state",
+    }
+}
+
+fn a2a_details(app: &App, agents: &[crate::app::A2aAgentView]) -> Vec<Line<'static>> {
+    match app.a2a_focus {
+        0 => {
+            let Some(agent) = agents.get(app.a2a_agent_selected) else {
+                return vec![Line::from("Sin tarjetas de agentes en el registro.")];
+            };
+            let card = &agent.card;
+            let capability = |value: Option<bool>| match value {
+                Some(true) => "yes",
+                Some(false) => "no",
+                None => "undeclared",
+            };
+            let mut lines = vec![
+                Line::from(Span::styled(
+                    a2a_clip(&card.description, 180),
+                    app.theme.styles.heading,
+                )),
+                Line::from(format!(
+                    "origin {} · input {} · output {}",
+                    agent.origin,
+                    a2a_clip(&card.default_input_modes.join(", "), 48),
+                    a2a_clip(&card.default_output_modes.join(", "), 48)
+                )),
+                Line::from(format!(
+                    "{} · {}",
+                    if agent.internal { "internal" } else { "external" },
+                    if agent.enabled { "enabled" } else { "disabled or pending approval" }
+                )),
+                Line::from(format!(
+                    "streaming {} · push {} · extended card {} · extensions {}",
+                    capability(card.capabilities.streaming),
+                    capability(card.capabilities.push_notifications),
+                    capability(card.capabilities.extended_agent_card),
+                    card.capabilities.extensions.len()
+                )),
+            ];
+            if let Some(provider) = &card.provider {
+                lines.push(Line::from(format!(
+                    "provider {} · {}",
+                    a2a_clip(&provider.organization, 48),
+                    a2a_clip(&provider.url, 100)
+                )));
+            }
+            for interface in card.supported_interfaces.iter().take(16) {
+                lines.push(Line::from(format!(
+                    "{} · {} · A2A {}{}",
+                    interface.protocol_binding,
+                    a2a_clip(&interface.url, 100),
+                    interface.protocol_version,
+                    interface
+                        .tenant
+                        .as_deref()
+                        .map(|tenant| format!(" · tenant {}", a2a_clip(tenant, 40)))
+                        .unwrap_or_default()
+                )));
+            }
+            if card.supported_interfaces.is_empty() {
+                lines.push(Line::from("No supported interface declared."));
+            } else if card.supported_interfaces.len() > 16 {
+                lines.push(Line::from(format!(
+                    "… {} more interfaces",
+                    card.supported_interfaces.len() - 16
+                )));
+            }
+            if let Some(url) = &card.documentation_url {
+                lines.push(Line::from(format!("documentation {}", a2a_clip(url, 100))));
+            }
+            for skill in card.skills.iter().take(8) {
+                lines.push(Line::from(format!(
+                    "skill {} ({})",
+                    a2a_clip(&skill.name, 48),
+                    a2a_clip(&skill.id, 32)
+                )));
+                lines.push(Line::from(a2a_clip(&skill.description, 140)));
+                lines.push(Line::from(format!(
+                    "tags {} · input {} · output {}",
+                    a2a_clip(&skill.tags.join(", "), 64),
+                    a2a_clip(&skill.input_modes.join(", "), 40),
+                    a2a_clip(&skill.output_modes.join(", "), 40)
+                )));
+                for example in skill.examples.iter().take(2) {
+                    lines.push(Line::from(format!("example {}", a2a_clip(example, 100))));
+                }
+            }
+            if card.skills.len() > 8 {
+                lines.push(Line::from(format!("… {} more skills", card.skills.len() - 8)));
+            }
+            for extension in card.capabilities.extensions.iter().take(16) {
+                lines.push(Line::from(format!(
+                    "extension {} · required {} · {}",
+                    a2a_clip(&extension.uri, 80),
+                    extension.required,
+                    a2a_clip(&extension.description, 100)
+                )));
+            }
+            if card.capabilities.extensions.len() > 16 {
+                lines.push(Line::from(format!(
+                    "… {} more extensions",
+                    card.capabilities.extensions.len() - 16
+                )));
+            }
+            if let Some(codeloom_core::registry::Execution::Remote(remote)) = &agent.execution {
+                let auth = remote
+                    .credentials
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                lines.push(Line::from(format!(
+                    "auth schemes configured: {}",
+                    if auth.is_empty() {
+                        "none".to_string()
+                    } else {
+                        a2a_clip(&auth, 80)
+                    }
+                )));
+                if let Some(fetched) = &remote.fetched {
+                    lines.push(Line::from(format!(
+                        "card hash {} · auth required {} · streaming {}{}",
+                        fetched.card_hash.chars().take(12).collect::<String>(),
+                        fetched.requires_auth,
+                        fetched.streaming,
+                        fetched
+                            .auth_problem
+                            .as_deref()
+                            .map(|problem| {
+                                format!(" · unavailable: {}", a2a_clip(problem, 100))
+                            })
+                            .unwrap_or_default()
+                    )));
+                }
+            }
+            lines
+        }
+        1 => {
+            let Some(task) = app.subagents.values().nth(app.a2a_task_selected) else {
+                return vec![Line::from("Sin tareas A2A en esta sesión.")];
+            };
+            let state = rail::agent_state(task.status.state);
+            let mut lines = vec![
+                Line::from(format!(
+                    "CodeLoom task {} · state {}",
+                    task.child.0,
+                    state.label()
+                )),
+                Line::from(format!("contextId {}", task.context_id())),
+                Line::from(format!(
+                    "agent {} · origin {}",
+                    task.agent
+                        .as_deref()
+                        .map(|agent| a2a_clip(agent, 48))
+                        .unwrap_or_else(|| "default".into()),
+                    task.agent_origin
+                        .as_deref()
+                        .and_then(|origin| origin.split(':').next())
+                        .unwrap_or("local")
+                )),
+                Line::from(format!(
+                    "artifacts {} · reference_task_ids {}",
+                    task.artifacts.len(),
+                    task.reference_task_ids
+                        .iter()
+                        .map(|id| id.0.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )),
+            ];
+            for artifact in task.artifacts.iter().take(16) {
+                lines.push(Line::from(format!(
+                    "artifact {} · {} parts",
+                    a2a_clip(
+                        artifact.name.as_deref().unwrap_or(&artifact.artifact_id),
+                        80
+                    ),
+                    artifact.parts.len()
+                )));
+            }
+            if task.artifacts.len() > 16 {
+                lines.push(Line::from(format!("… {} more artifacts", task.artifacts.len() - 16)));
+            }
+            lines
+        }
+        _ => {
+            let Some(event) = app
+                .a2a_observations
+                .iter()
+                .rev()
+                .nth(app.a2a_event_selected)
+            else {
+                return vec![Line::from("Sin observaciones de actividad A2A.")];
+            };
+            vec![
+                Line::from(format!(
+                    "{} · {} · {}",
+                    match event.direction {
+                        A2aDirection::Local => "local host",
+                        A2aDirection::Inbound => "inbound",
+                        A2aDirection::Outbound => "outbound",
+                    },
+                    event.agent,
+                    a2a_operation_name(event.operation)
+                )),
+                Line::from(format!(
+                    "taskId {}",
+                    event.task_id.as_deref().unwrap_or("—")
+                )),
+                Line::from(format!(
+                    "contextId {} · rpc id {}",
+                    event.context_id.as_deref().unwrap_or("—"),
+                    event.rpc_id.as_deref().unwrap_or("—")
+                )),
+                Line::from(format!(
+                    "state {} · artifact {}",
+                    event.state.as_deref().unwrap_or("—"),
+                    event.artifact.as_deref().unwrap_or("—")
+                )),
+                Line::from(format!(
+                    "result {} · duration {} ms",
+                    if event.succeeded { "ok" } else { "error" },
+                    event
+                        .elapsed_ms
+                        .map(|n| n.to_string())
+                        .unwrap_or_else(|| "—".into())
+                )),
+            ]
+        }
+    }
+}
+
+fn draw_a2a_overlay(frame: &mut Frame, area: Rect, app: &App) {
+    if area.width < 76 || area.height < 18 {
+        draw_resize_hint(frame, area, "A2A observatory", app);
+        return;
+    }
+    let width = area.width.min(136).saturating_sub(2);
+    let height = area.height.min(36).saturating_sub(2);
+    let popup = Rect::new(
+        area.x + (area.width - width) / 2,
+        area.y + (area.height - height) / 2,
+        width,
+        height,
+    );
+    frame.render_widget(Clear, popup);
+    let block = Block::default()
+        .title(" A2A · PROTOCOL OBSERVATORY ")
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(app.theme.styles.accent);
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+    let rows = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Min(1),
+        Constraint::Length(7),
+        Constraint::Length(1),
+    ])
+    .split(inner);
+    let agents = app.a2a_agents();
+    let tasks = a2a_task_lines(app);
+    let events = a2a_event_lines(app);
+    frame.render_widget(
+        Paragraph::new(format!(
+            " {} agents · {} tasks · {} exchanges · payloads and credentials excluded",
+            agents.len(),
+            app.subagents.len(),
+            app.a2a_observations.len()
+        ))
+        .style(app.theme.styles.muted),
+        rows[0],
+    );
+    let [agent_area, task_area, event_area] = Layout::horizontal([
+        Constraint::Percentage(30),
+        Constraint::Percentage(34),
+        Constraint::Percentage(36),
+    ])
+    .areas(rows[1]);
+    a2a_panel(
+        frame,
+        agent_area,
+        "AGENT CARDS",
+        &a2a_agent_lines(app, &agents),
+        app.a2a_agent_selected,
+        app.a2a_focus == 0,
+        app,
+    );
+    a2a_panel(
+        frame,
+        task_area,
+        "TASKS",
+        &tasks,
+        app.a2a_task_selected,
+        app.a2a_focus == 1,
+        app,
+    );
+    a2a_panel(
+        frame,
+        event_area,
+        "JSON-RPC / SSE",
+        &events,
+        app.a2a_event_selected,
+        app.a2a_focus == 2,
+        app,
+    );
+    let detail = a2a_details(app, &agents);
+    frame.render_widget(
+        Paragraph::new(detail)
+            .scroll((app.a2a_detail_scroll, 0))
+            .block(
+                Block::default()
+                    .title(" DETAIL · A2A OBJECT ")
+                    .borders(Borders::ALL)
+                    .border_style(app.theme.styles.border),
+            ),
+        rows[2],
+    );
+    frame.render_widget(
+        Paragraph::new("Tab focus · ↑/↓ select · PgUp/PgDn detail · Esc close")
+            .style(app.theme.styles.muted)
+            .alignment(Alignment::Right),
+        rows[3],
+    );
+}
+
 /// Popup de `/agents`: la lista del registro con el agente seleccionado y, debajo, su detalle
 /// (origen y prompt), que es lo que se revisa antes de aprobar un agente de proyecto.
 fn draw_agents_overlay(frame: &mut Frame, area: Rect, app: &App) {
@@ -1305,10 +1825,100 @@ fn draw_agents_overlay(frame: &mut Frame, area: Rect, app: &App) {
     }
     todo.push(Line::styled(pie, app.theme.styles.muted));
     todo.push(Line::styled(
-        "↑/↓ select · a approve · r revoke · Esc close",
+        "↑/↓ select · e edit local · a approve · r revoke · Esc close",
         app.theme.styles.muted,
     ));
     frame.render_widget(Paragraph::new(todo), inner);
+}
+
+fn draw_agent_editor(
+    frame: &mut Frame,
+    area: Rect,
+    app: &App,
+    edit: &crate::app::AgentEditorDraft,
+) {
+    if edit.editing_value {
+        let label = [
+            "A2A · Description",
+            "A2A · Version",
+            "A2A · Skills",
+            "CodeLoom · MCP scope (not applied)",
+            "CodeLoom · Local skills",
+            "CodeLoom · Local tools",
+        ][edit.field.min(5)];
+        let box_area = Rect::new(area.x, area.y, area.width, area.height.saturating_sub(2));
+        frame.render_widget(
+            Paragraph::new(app.agent_editor.text().to_string())
+                .wrap(Wrap { trim: false })
+                .block(
+                    Block::default()
+                        .title(format!(" {label} · Enter save field · Esc cancel field "))
+                        .borders(Borders::ALL)
+                        .border_style(app.theme.styles.accent),
+                ),
+            box_area,
+        );
+        let (row, col) = app.agent_editor.cursor_row_col();
+        let x = box_area.x.saturating_add(1).saturating_add(col as u16);
+        let y = box_area.y.saturating_add(1).saturating_add(row as u16);
+        if x < box_area.right() && y < box_area.bottom() {
+            frame.set_cursor_position((x, y));
+        }
+        frame.render_widget(
+            Paragraph::new("Ctrl+Enter accept · Ctrl+J newline · Esc cancel field")
+                .style(app.theme.styles.muted),
+            Rect::new(area.x, area.bottom().saturating_sub(1), area.width, 1),
+        );
+        return;
+    }
+
+    let Some(row) = app.agent_rows.get(app.agents_selected) else {
+        return;
+    };
+    let selected = |field| if field == edit.field { "›" } else { " " };
+    let caps = |value: Option<bool>| match value {
+        Some(true) => "yes",
+        Some(false) => "no",
+        None => "undeclared",
+    };
+    let mut lines = vec![
+        Line::styled("A2A · PUBLIC CARD", app.theme.styles.accent),
+        Line::from(format!("{} Description: {}", selected(0), a2a_clip(&edit.description, 96))),
+        Line::from(format!("{} Version: {}", selected(1), a2a_clip(&edit.version, 64))),
+        Line::from(format!(
+            "{} Skills: {} (one per line: id | name | description | tags | examples | input | output)",
+            selected(2),
+            row.card_skills.len()
+        )),
+        Line::from(format!(
+            "  Transport capabilities · streaming {} · push {} · extended card {} (runtime)",
+            caps(row.capabilities.streaming),
+            caps(row.capabilities.push_notifications),
+            caps(row.capabilities.extended_agent_card)
+        )),
+        Line::from(""),
+        Line::styled("CodeLoom · LOCAL EXECUTION", app.theme.styles.accent),
+        Line::from(format!("{} MCP servers allowed (user-configured and connected): {}", selected(3), scope_count(&edit.mcp))),
+        Line::from(format!("{} Local skills: {}", selected(4), scope_count(&edit.local_skills))),
+        Line::from(format!("{} Local tools: {}", selected(5), scope_count(&edit.tools))),
+        Line::from(""),
+        Line::from(format!("{} Save", selected(6))),
+    ];
+    if let Some(status) = &app.agents_status {
+        lines.push(Line::styled(status.clone(), app.theme.styles.warning));
+    }
+    lines.push(Line::styled(
+        "↑/↓ field · Enter edit/save · s save · Esc discard",
+        app.theme.styles.muted,
+    ));
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), area);
+}
+
+fn scope_count(text: &str) -> usize {
+    text.lines()
+        .flat_map(|line| line.split(','))
+        .filter(|item| !item.trim().is_empty())
+        .count()
 }
 
 /// Glifos de borde que el indicador de foco recolorea (nunca el texto del título).
@@ -1512,6 +2122,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.agents_open {
         draw_agents_overlay(frame, area, app);
+    }
+    if app.a2a_open {
+        draw_a2a_overlay(frame, area, app);
     }
     if app.tools_open {
         draw_tool_inspector(frame, area, app);
@@ -3219,5 +3832,20 @@ tres",
         app.transcript_mouse_down(area.x + 2, y);
 
         assert_eq!(app.transcript.entry_lines(0).len(), 25);
+    }
+
+    #[test]
+    fn a2a_observatory_renders_empty_sections_and_protocol_labels() {
+        let mut app = App::new();
+        app.a2a_open = true;
+        app.a2a_focus = 2;
+
+        let content = buffer_of(&mut app, 120, 40);
+
+        assert!(content.contains("A2A · PROTOCOL OBSERVATORY"));
+        assert!(content.contains("AGENT CARDS"));
+        assert!(content.contains("TASKS"));
+        assert!(content.contains("JSON-RPC / SSE"));
+        assert!(content.contains("Sin observaciones de actividad A2A."));
     }
 }

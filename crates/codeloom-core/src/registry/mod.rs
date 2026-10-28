@@ -607,6 +607,8 @@ mod tests {
                 persona_goal: None,
                 persona_backstory: None,
                 model: None,
+                provider: None,
+                scope: crate::registry::profile::AgentScope::default(),
                 effort: None,
                 max_turns: None,
                 max_depth: None,

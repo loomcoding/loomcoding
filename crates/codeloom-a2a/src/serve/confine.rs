@@ -227,6 +227,7 @@ mod tests {
         let herramienta = ConfinedView(ViewTool);
         let ctx = || ToolCtx {
             cwd: dir.path().to_path_buf(),
+            store: None,
             permission: Arc::new(codeloom_core::permission::PermissionService::allow_all()),
             session: codeloom_core::session::SessionId(0),
             jobs: Arc::new(codeloom_core::job::LocalJobRegistry::default()),

@@ -115,6 +115,7 @@ mod tests {
     fn ctx(dir: &std::path::Path, permission: PermissionService) -> ToolCtx {
         ToolCtx {
             cwd: dir.to_path_buf(),
+            store: None,
             permission: Arc::new(permission),
             session: crate::session::SessionId(1),
             jobs: Arc::new(crate::job::LocalJobRegistry::default()),

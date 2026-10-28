@@ -1,6 +1,6 @@
 # CodeLoom — Flujo de desarrollo coordinado por agentes
 
-> Estado: **lista para aprobación**. No implementar hasta aprobar esta spec y su plan.
+> Estado: **aprobada el 2026-10-27** junto con el plan detallado. Implementación en curso.
 >
 > Fecha: 2026-10-25
 >
@@ -23,6 +23,8 @@ trabajo ni avanzar una fase que requiera aprobación humana.
 
 ```text
 petición del usuario
+        ↓
+el usuario pide explícitamente este flujo y el padre lo inicia
         ↓
 padre delega al agente de especificación y planificación
         ↓
@@ -140,6 +142,9 @@ artefactos, diff, comprobaciones y hallazgos; no se define un DSL de workflow.
   framework genérico de workflow.
 - Ejecución remota con permisos implícitos: cada perfil conserva el transporte y
   límites de herramientas aprobados en su registro.
+- Los perfiles remotos no forman parte de la primera versión; se incorporarán
+  cuando el transporte pueda cumplir las mismas puertas y el aislamiento de
+  solo lectura del revisor.
 
 ## 8. Criterios de aceptación
 

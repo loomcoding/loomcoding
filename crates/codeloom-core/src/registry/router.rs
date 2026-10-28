@@ -299,6 +299,7 @@ impl ClassifierRouter {
             temperature: 0.0,
             max_tokens: MAX_TOKENS_CLASIFICADOR,
             effort: None,
+            programmatic_tool_calling: false,
         };
         let cancel = CancellationToken::new();
         let mut flujo = self.provider.stream(req, cancel.clone()).await.ok()?;

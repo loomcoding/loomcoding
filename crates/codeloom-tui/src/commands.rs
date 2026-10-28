@@ -18,6 +18,7 @@ pub enum Command {
     Sidebar,
     Mouse,
     Agents,
+    A2a,
     RefreshAgents,
     Compact,
     Quit,
@@ -52,6 +53,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         "Toggle mouse capture (off: select text with the mouse)",
     ),
     (Command::Agents, "/agents", "List the loaded agents"),
+    (
+        Command::A2a,
+        "/a2a",
+        "Inspect A2A cards, tasks, and exchanges",
+    ),
     (
         Command::RefreshAgents,
         "/refresh-agents",

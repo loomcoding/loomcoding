@@ -46,6 +46,47 @@ pub async fn execute_tools(
                 });
                 match tool {
                     Some(t) => {
+                        if let Some(store) = &ctx.store {
+                            match store.active_development_workflow(ctx.session).await {
+                                Ok(Some(_))
+                                    if !matches!(
+                                        name.as_str(),
+                                        "development_workflow"
+                                            | "view"
+                                            | "ls"
+                                            | "glob"
+                                            | "grep"
+                                            | "lsp"
+                                            | "web"
+                                            | "job_list"
+                                            | "job_output"
+                                            | "subagent_list"
+                                    ) =>
+                                {
+                                    let message = format!(
+                                        "{name} is blocked while a development workflow is active"
+                                    );
+                                    bus.publish(LiveEvent::ToolFinished {
+                                        call_id: id.clone(),
+                                        is_error: true,
+                                    });
+                                    return (id, ToolOutput::err(message));
+                                }
+                                Err(error) => {
+                                    bus.publish(LiveEvent::ToolFinished {
+                                        call_id: id.clone(),
+                                        is_error: true,
+                                    });
+                                    return (
+                                        id,
+                                        ToolOutput::err(format!(
+                                            "cannot verify workflow write gate: {error}"
+                                        )),
+                                    );
+                                }
+                                _ => {}
+                            }
+                        }
                         let out = t
                             .run(ctx, input, cancel)
                             .await
@@ -115,6 +156,7 @@ mod tests {
         r.register(Arc::new(Echo));
         let ctx = ToolCtx {
             cwd: ".".into(),
+            store: None,
             permission: Arc::new(PermissionService::allow_all()),
             session: crate::session::SessionId(0),
             jobs: Arc::new(crate::job::LocalJobRegistry::default()),
@@ -178,6 +220,7 @@ mod tests {
         r.register(Arc::new(ExclusiveEcho));
         let ctx = ToolCtx {
             cwd: ".".into(),
+            store: None,
             permission: Arc::new(PermissionService::allow_all()),
             session: crate::session::SessionId(0),
             jobs: Arc::new(crate::job::LocalJobRegistry::default()),

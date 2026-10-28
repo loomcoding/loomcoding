@@ -46,12 +46,17 @@ pub enum SessionUpdate {
         codeloom_core::session::SessionId,
         Vec<codeloom_core::session::SubagentDescriptor>,
     ),
+    Workflow(
+        codeloom_core::session::SessionId,
+        Option<codeloom_core::workflow::WorkflowSummary>,
+    ),
     Error(String),
 }
 
 pub struct ProviderSettingsCommand {
     pub settings: ProviderSettings,
-    pub reply: oneshot::Sender<Result<(), String>>,
+    pub api_key: Option<String>,
+    pub reply: oneshot::Sender<Result<bool, String>>,
 }
 
 /// Eventos de teclado que se procesan como máximo antes de pintar.
@@ -236,6 +241,63 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         }
         return None;
     }
+    if app.a2a_open {
+        match code {
+            KeyCode::Esc | KeyCode::Char('q') => app.a2a_open = false,
+            KeyCode::Tab | KeyCode::Right => app.a2a_focus_next(),
+            KeyCode::Up => app.a2a_move(-1),
+            KeyCode::Down => app.a2a_move(1),
+            KeyCode::PageUp => app.a2a_detail_scroll = app.a2a_detail_scroll.saturating_sub(5),
+            KeyCode::PageDown => app.a2a_detail_scroll = app.a2a_detail_scroll.saturating_add(5),
+            KeyCode::Home => app.a2a_detail_scroll = 0,
+            _ => {}
+        }
+        return None;
+    }
+    if app.agents_open && app.agent_edit.is_some() {
+        let editing_value = app
+            .agent_edit
+            .as_ref()
+            .is_some_and(|edit| edit.editing_value);
+        if editing_value {
+            match code {
+                KeyCode::Esc => app.finish_agent_edit_value(false),
+                KeyCode::Enter => app.finish_agent_edit_value(true),
+                KeyCode::Char('j') if mods.contains(KeyModifiers::CONTROL) => {
+                    app.agent_editor.newline()
+                }
+                KeyCode::Char('a') if mods.contains(KeyModifiers::CONTROL) => {
+                    app.agent_editor.set_text("")
+                }
+                KeyCode::Backspace => app.agent_editor.backspace(),
+                KeyCode::Delete => app.agent_editor.delete(),
+                KeyCode::Left => app.agent_editor.move_left(),
+                KeyCode::Right => app.agent_editor.move_right(),
+                KeyCode::Up => app.agent_editor.move_up(),
+                KeyCode::Down => app.agent_editor.move_down(),
+                KeyCode::Home => app.agent_editor.move_home(),
+                KeyCode::End => app.agent_editor.move_end(),
+                KeyCode::Char(c) if !mods.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {
+                    if app.agent_editor.text().len() + c.len_utf8() <= 16 * 1024 {
+                        app.agent_editor.insert_char(c);
+                    }
+                }
+                _ => {}
+            }
+        } else {
+            match code {
+                KeyCode::Esc | KeyCode::Char('q') => app.cancel_agent_edit(),
+                KeyCode::Up => app.move_agent_edit_field(-1),
+                KeyCode::Down => app.move_agent_edit_field(1),
+                KeyCode::Home => app.move_agent_edit_field(isize::MIN / 2),
+                KeyCode::End => app.move_agent_edit_field(isize::MAX / 2),
+                KeyCode::Enter | KeyCode::Char('e') => app.start_agent_edit_value(),
+                KeyCode::Char('s') => app.save_agent_edit(),
+                _ => {}
+            }
+        }
+        return None;
+    }
     if app.agents_open {
         match code {
             KeyCode::Esc | KeyCode::Char('q') => app.agents_open = false,
@@ -246,6 +308,7 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
             KeyCode::Home => app.agents_move(isize::MIN / 2),
             KeyCode::Char('a') => app.agents_decide(true),
             KeyCode::Char('r') => app.agents_decide(false),
+            KeyCode::Char('e') => app.begin_agent_edit(),
             _ => {}
         }
         return None;
@@ -725,6 +788,10 @@ fn execute_slash_command(app: &mut App, command: crate::commands::Command) -> Op
             app.show_agents();
             None
         }
+        Command::A2a => {
+            app.a2a_open = true;
+            None
+        }
         Command::RefreshAgents => {
             app.request_refresh_agents();
             None
@@ -839,7 +906,11 @@ fn handle_settings_key(app: &mut App, code: KeyCode, mods: KeyModifiers) {
             KeyCode::Home => app.settings_editor.move_home(),
             KeyCode::End => app.settings_editor.move_end(),
             KeyCode::Char(c) if !mods.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {
-                app.settings_editor.insert_char(c);
+                if app.settings_field != 3
+                    || app.settings_editor.text().len() + c.len_utf8() <= 4096
+                {
+                    app.settings_editor.insert_char(c);
+                }
             }
             _ => {}
         }
@@ -911,9 +982,15 @@ fn toggle_provider(app: &mut App) {
     if let Some(settings) = app.provider_settings.as_mut() {
         settings.kind = match settings.kind {
             codeloom_core::config::ProviderKind::OpenAiCompat => {
+                codeloom_core::config::ProviderKind::OpenAiResponses
+            }
+            codeloom_core::config::ProviderKind::OpenAiResponses => {
                 codeloom_core::config::ProviderKind::Anthropic
             }
             codeloom_core::config::ProviderKind::Anthropic => {
+                codeloom_core::config::ProviderKind::Gemini
+            }
+            codeloom_core::config::ProviderKind::Gemini => {
                 codeloom_core::config::ProviderKind::OpenAiCompat
             }
         };
@@ -970,6 +1047,23 @@ pub fn handle_event(app: &mut App, ev: Event) -> Option<String> {
                 && app.question.is_none() =>
         {
             match mouse.kind {
+                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown
+                    if app.composer_area.is_some_and(|area| {
+                        mouse.column >= area.x
+                            && mouse.column < area.right()
+                            && mouse.row >= area.y
+                            && mouse.row < area.bottom()
+                    }) =>
+                {
+                    app.focus = Focus::Composer;
+                    batten::widgets::composer::scroll_cursor_by_rows(
+                        &app.theme,
+                        &mut app.composer,
+                        crate::app::composer_text_area(app.composer_area.unwrap()),
+                        mouse.kind == MouseEventKind::ScrollDown,
+                        3,
+                    );
+                }
                 MouseEventKind::ScrollUp => app.viewport.scroll_up(3),
                 MouseEventKind::ScrollDown => app.viewport.scroll_down(3),
                 MouseEventKind::Down(MouseButton::Left) => app.mouse_down(mouse.column, mouse.row),
@@ -999,8 +1093,14 @@ pub fn handle_event(app: &mut App, ev: Event) -> Option<String> {
         {
             if app.settings_open {
                 if app.settings_editing && !app.settings_saving {
-                    app.settings_editor
-                        .insert_str(&text.replace(['\r', '\n'], ""));
+                    let pasted = text.replace(['\r', '\n'], "");
+                    if app.settings_field != 3
+                        || app.settings_editor.text().len() + pasted.len() <= 4096
+                    {
+                        app.settings_editor.insert_str(&pasted);
+                    } else {
+                        app.settings_feedback = Some("API key is too long".into());
+                    }
                 }
             } else if app.queue_open && app.queue_editing {
                 app.queue_editor.insert_str(&text);
@@ -1156,7 +1256,7 @@ pub async fn run(
     let (mut bus_open, mut perm_open, mut ask_open) = (true, true, true);
     let mut session_update_open = true;
     let mut catalog_open = true;
-    let mut pending_settings: Option<oneshot::Receiver<Result<(), String>>> = None;
+    let mut pending_settings: Option<oneshot::Receiver<Result<bool, String>>> = None;
     send_session_commands(&mut app, &session_command_tx);
     // Pintar antes de esperar eventos para que la TUI aparezca al arrancar.
     execute!(std::io::stdout(), BeginSynchronizedUpdate)?;
@@ -1227,6 +1327,12 @@ pub async fn run(
                     }
                     Some(SessionUpdate::Subagents(session, subagents)) => {
                         app.load_subagents(session, subagents);
+                    }
+                    Some(SessionUpdate::Workflow(session, workflow)) => {
+                        if let Some(workflow) = workflow {
+                            app.apply(codeloom_core::event::LiveEvent::DevelopmentWorkflowChanged(workflow));
+                        }
+                        let _ = session;
                     }
                     Some(SessionUpdate::Error(error)) => {
                         app.session_load_failed();
@@ -1333,7 +1439,7 @@ pub async fn run(
 fn send_provider_settings(
     app: &mut App,
     tx: &UnboundedSender<ProviderSettingsCommand>,
-    pending: &mut Option<oneshot::Receiver<Result<(), String>>>,
+    pending: &mut Option<oneshot::Receiver<Result<bool, String>>>,
 ) {
     if !std::mem::take(&mut app.settings_save_requested) || pending.is_some() {
         return;
@@ -1342,7 +1448,12 @@ fn send_provider_settings(
         return;
     };
     let (reply, receiver) = oneshot::channel();
-    match tx.send(ProviderSettingsCommand { settings, reply }) {
+    let api_key = (!app.settings_api_key.is_empty()).then(|| app.settings_api_key.clone());
+    match tx.send(ProviderSettingsCommand {
+        settings,
+        api_key,
+        reply,
+    }) {
         Ok(()) => {
             app.settings_saving = true;
             *pending = Some(receiver);
@@ -1363,6 +1474,7 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::layout::Rect;
 
     fn open_dialog(
         app: &mut App,
@@ -1575,6 +1687,40 @@ mod tests {
             }),
         );
         assert!(app.viewport.is_following());
+    }
+
+    #[test]
+    fn mouse_wheel_over_composer_moves_from_middle_to_its_last_line() {
+        use crossterm::event::{MouseEvent, MouseEventKind};
+        let mut app = App::new();
+        app.set_theme(batten::widgets::ThemePreset::Crush);
+        let text = "x".repeat(1000);
+        app.composer.set_text(&text);
+        app.composer.set_cursor(500);
+        app.composer_area = Some(Rect::new(10, 10, 40, 12));
+        app.viewport.set_geometry(100, 10);
+        let transcript_top = app.viewport.top();
+        let before = app.composer.cursor();
+
+        for _ in 0..12 {
+            handle_event(
+                &mut app,
+                Event::Mouse(MouseEvent {
+                    kind: MouseEventKind::ScrollDown,
+                    column: 20,
+                    row: 15,
+                    modifiers: KeyModifiers::NONE,
+                }),
+            );
+        }
+
+        let after = app.composer.cursor();
+        assert!(
+            after > 950,
+            "el cursor terminó en {after}, partió en {before}"
+        );
+        assert_eq!(app.viewport.top(), transcript_top);
+        assert_eq!(app.focus, Focus::Composer);
     }
 
     #[test]
@@ -2365,7 +2511,7 @@ mod tests {
 
         handle_key(&mut app, KeyCode::Char('s'), KeyModifiers::CONTROL);
         send_provider_settings(&mut app, &tx, &mut pending);
-        rx.try_recv().unwrap().reply.send(Ok(())).unwrap();
+        rx.try_recv().unwrap().reply.send(Ok(true)).unwrap();
         app.settings_saved(pending.take().unwrap().try_recv().unwrap());
         assert_eq!(app.model, "new-model");
         assert_eq!(
@@ -3241,6 +3387,22 @@ mod tests {
 
         handle_key(&mut app, KeyCode::Esc, KeyModifiers::NONE);
         assert!(!app.agents_open);
+    }
+
+    #[test]
+    fn a2a_command_opens_a_navigable_protocol_observatory() {
+        let mut app = App::new();
+        app.composer.set_text("/a2a");
+        handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+
+        assert!(app.a2a_open);
+        assert!(app.composer.is_empty());
+        handle_key(&mut app, KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(app.a2a_focus, 1);
+        handle_key(&mut app, KeyCode::Right, KeyModifiers::NONE);
+        assert_eq!(app.a2a_focus, 2);
+        handle_key(&mut app, KeyCode::Esc, KeyModifiers::NONE);
+        assert!(!app.a2a_open);
     }
 
     #[test]

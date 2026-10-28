@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/codeloom-core", "crates/codeloom-tui", "crates/codeloom-cli", "crates/codeloom-herdr", "crates/batten", "crates/codeloom-a2a"]
+members = ["crates/codeloom-core", "crates/codeloom-tui", "crates/codeloom-cli", "crates/codeloom-herdr", "crates/batten", "crates/codeloom-a2a", "crates/codeloom-mcp"]
 
 [workspace.package]
 version = "0.1.0"
@@ -18,3 +18,4 @@ async-trait = "0.1"
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+rmcp = { version = "=3.5.1", default-features = false, features = ["client", "transport-child-process"] }
