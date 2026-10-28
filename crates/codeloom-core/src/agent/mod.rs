@@ -21,6 +21,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use tokio_util::sync::CancellationToken;
 
+const MAX_PROVIDER_STATE_BYTES: usize = 64 * 1024;
+const MAX_TURN_PROVIDER_STATE_BYTES: usize = 256 * 1024;
+
 /// Tope de la sección «Available agents» del prompt de sistema, que crece con el número de
 /// agentes del registro y viaja en cada petición.
 const MAX_AGENT_SECTION_BYTES: usize = 8_000;
@@ -591,6 +594,12 @@ impl AgentLoop {
         let mut final_text = String::new();
         let mut compactions = 0usize;
         let mut compaction_failed = false;
+        let mut tool_calls_this_turn = 0usize;
+        // Provider continuation data is transient and is reattached after the durable history
+        // reload between tool rounds. This keeps opaque provider code out of the session store.
+        let mut provider_states_this_turn: Vec<(Vec<String>, crate::message::ProviderState)> =
+            Vec::new();
+        let mut provider_state_bytes_this_turn = 0usize;
 
         loop {
             if cancel.is_cancelled() {
@@ -663,6 +672,9 @@ impl AgentLoop {
                         break;
                     }
                 }
+            }
+            for (call_ids, state) in &provider_states_this_turn {
+                reattach_provider_state(&mut history, call_ids, state.clone());
             }
             steps += 1;
             self.bus.publish(LiveEvent::StepStarted {
@@ -749,15 +761,31 @@ impl AgentLoop {
                     }
                     StreamChunk::ToolCallComplete { id, name, input } => {
                         tool_calls.push((id, name, input));
-                    }
-                    StreamChunk::ProviderState(state) => {
-                        if serde_json::to_vec(&state)
-                            .map_or(true, |bytes| bytes.len() > 64 * 1024)
-                        {
+                        tool_calls_this_turn = tool_calls_this_turn.saturating_add(1);
+                        if tool_calls.len() > 32 || tool_calls_this_turn > 64 {
                             return Err(crate::error::CoreError::Provider(
-                                "provider continuation state exceeds 64 KiB".into(),
+                                "provider tool-call limit exceeded (32 per response, 64 per turn)"
+                                    .into(),
                             ));
                         }
+                    }
+                    StreamChunk::ProviderState(state) => {
+                        let state_bytes = serde_json::to_vec(&state)
+                            .map_err(|_| {
+                                crate::error::CoreError::Provider(
+                                    "provider continuation state could not be serialized".into(),
+                                )
+                            })?
+                            .len();
+                        if state_bytes > MAX_PROVIDER_STATE_BYTES
+                            || provider_state_bytes_this_turn.saturating_add(state_bytes)
+                                > MAX_TURN_PROVIDER_STATE_BYTES
+                        {
+                            return Err(crate::error::CoreError::Provider(
+                                "provider continuation state exceeds the per-state or per-turn limit".into(),
+                            ));
+                        }
+                        provider_state_bytes_this_turn += state_bytes;
                         provider_state = Some(state);
                     }
                     StreamChunk::ProviderNotice(message) => {
@@ -794,7 +822,7 @@ impl AgentLoop {
             parts.push(ContentPart::Finish { reason: finish });
             let mut assistant = Message::assistant(parts);
             assistant.usage = usage;
-            assistant.provider_state = provider_state;
+            assistant.provider_state = provider_state.clone();
             self.store.append_message(session, &assistant).await?;
             self.bus.publish(LiveEvent::MessageAdded(assistant.clone()));
             history.push(assistant);
@@ -806,6 +834,12 @@ impl AgentLoop {
 
             if tool_calls.is_empty() {
                 break;
+            }
+            if let Some(state) = provider_state {
+                provider_states_this_turn.push((
+                    tool_calls.iter().map(|(id, _, _)| id.clone()).collect(),
+                    state,
+                ));
             }
 
             let mut allowed = Vec::new();
@@ -1060,6 +1094,23 @@ fn programmatic_tool_calling_enabled() -> bool {
     )
 }
 
+fn reattach_provider_state(
+    history: &mut [Message],
+    call_ids: &[String],
+    state: crate::message::ProviderState,
+) -> bool {
+    let Some(message) = history.iter_mut().rev().find(|message| {
+        message.role == Role::Assistant
+            && call_ids
+                .iter()
+                .all(|call_id| message.tool_calls().iter().any(|(id, _, _)| id == call_id))
+    }) else {
+        return false;
+    };
+    message.provider_state = Some(state);
+    true
+}
+
 /// Resumen del tramo antiguo del historial, aún sin activar. `covers` es el corte: los mensajes
 /// anteriores a él quedan cubiertos por `text`. `usage` es el consumo de la llamada de resumen.
 #[derive(Debug, Clone)]
@@ -1176,6 +1227,48 @@ mod tests {
     use std::sync::Mutex;
     use std::time::Duration;
     use tokio::sync::{broadcast, mpsc, Semaphore};
+
+    #[test]
+    fn provider_state_is_reattached_only_to_the_matching_tool_call_message() {
+        let mut history = vec![Message::assistant(vec![ContentPart::ToolCall {
+            id: "call-1".into(),
+            name: "view".into(),
+            input: serde_json::json!({}),
+        }])];
+        let state = crate::message::ProviderState {
+            provider: "openai_responses".into(),
+            data: serde_json::json!({"opaque":"transient"}),
+        };
+        history.push(Message::assistant(vec![ContentPart::ToolCall {
+            id: "call-2".into(),
+            name: "grep".into(),
+            input: serde_json::json!({}),
+        }]));
+        assert!(reattach_provider_state(
+            &mut history,
+            &["call-1".into()],
+            state.clone()
+        ));
+        let second_state = crate::message::ProviderState {
+            provider: "anthropic".into(),
+            data: serde_json::json!({"opaque":"second transient"}),
+        };
+        assert!(reattach_provider_state(
+            &mut history,
+            &["call-2".into()],
+            second_state.clone()
+        ));
+        assert_eq!(history[0].provider_state, Some(state));
+        assert_eq!(history[1].provider_state, Some(second_state));
+        assert!(!reattach_provider_state(
+            &mut history,
+            &["different-call".into()],
+            crate::message::ProviderState {
+                provider: "openai_responses".into(),
+                data: serde_json::json!({}),
+            }
+        ));
+    }
 
     /// Proveedor que anota el esfuerzo de cada petición que recibe.
     struct EffortSpy {

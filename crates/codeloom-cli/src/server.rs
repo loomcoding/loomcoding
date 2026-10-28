@@ -535,6 +535,7 @@ struct AgentSetup {
     bus_rx: tokio::sync::broadcast::Receiver<LiveEvent>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn build_agent(
     manager: &Arc<AgentManager>,
     cwd: PathBuf,
@@ -612,7 +613,9 @@ async fn build_agent(
         }
         Err(_) => {
             bus.publish(LiveEvent::RuntimeNotice {
-                message: "MCP configuration rejected; no MCP tools loaded. Check ~/.codeloom/mcp.toml".into(),
+                message:
+                    "MCP configuration rejected; no MCP tools loaded. Check ~/.codeloom/mcp.toml"
+                        .into(),
             });
             Vec::new()
         }
@@ -1243,6 +1246,7 @@ struct AgentManager {
 }
 
 impl AgentManager {
+    #[allow(clippy::too_many_arguments)]
     fn new(
         a2a_cards: Arc<StdRwLock<HashMap<String, codeloom_a2a::serve::card::ServedCard>>>,
         a2a_interface: Option<String>,
@@ -2849,11 +2853,19 @@ mod tests {
     #[test]
     fn runtime_peer_name_uses_project_folder_and_disambiguates_duplicates() {
         assert_eq!(
-            runtime_peer_name(std::path::Path::new("E:/work/My Animation Lab"), false, "0123456789abcdef"),
+            runtime_peer_name(
+                std::path::Path::new("E:/work/My Animation Lab"),
+                false,
+                "0123456789abcdef"
+            ),
             "my-animation-lab"
         );
         assert_eq!(
-            runtime_peer_name(std::path::Path::new("E:/work/Animation"), true, "0123456789abcdef"),
+            runtime_peer_name(
+                std::path::Path::new("E:/work/Animation"),
+                true,
+                "0123456789abcdef"
+            ),
             "animation-01234567"
         );
     }

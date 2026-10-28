@@ -154,6 +154,7 @@ impl GeminiProvider {
         let response = tokio::select! {
             _ = cancel.cancelled() => return Err(CoreError::Cancelled),
             response = self.client.post(format!("{}/interactions", self.base_url))
+                .timeout(std::time::Duration::from_secs(120))
                 .header("x-goog-api-key", &self.api_key)
                 .json(&body)
                 .send() => response.map_err(|error| CoreError::Provider(error.to_string()))?,
@@ -186,6 +187,7 @@ impl GeminiProvider {
                 let response = tokio::select! {
                     _ = cancel.cancelled() => return Err(CoreError::Cancelled),
                     response = self.client.post(format!("{}/interactions", self.base_url))
+                        .timeout(std::time::Duration::from_secs(120))
                         .header("x-goog-api-key", &self.api_key)
                         .json(&direct)
                         .send() => response.map_err(|error| CoreError::Provider(error.to_string()))?,
@@ -324,5 +326,86 @@ impl Provider for GeminiProvider {
             FinishReason::Stop
         }));
         Ok(Box::pin(futures::stream::iter(chunks)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::provider::ToolSpec;
+    use serde_json::json;
+
+    fn request(model: &str, eligible: bool) -> ProviderRequest {
+        ProviderRequest {
+            model: model.into(),
+            system: "system".into(),
+            messages: vec![],
+            tools: vec![ToolSpec {
+                name: "view".into(),
+                description: "read a file".into(),
+                input_schema: json!({"type":"object"}),
+                programmatic_allowed: eligible,
+            }],
+            temperature: 0.0,
+            max_tokens: 128,
+            effort: None,
+            programmatic_tool_calling: true,
+        }
+    }
+
+    #[test]
+    fn adds_native_tool_combination_only_for_supported_model_and_eligible_tool() {
+        let provider = GeminiProvider::new("http://localhost/v1beta", "test-key");
+        let body = provider.build_body(&request("gemini-4-argon", true));
+        assert!(body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["type"] == "code_execution"));
+
+        let old_model = provider.build_body(&request("gemini-2.5-flash", true));
+        assert!(old_model["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] != "code_execution"));
+        let ineligible = provider.build_body(&request("gemini-4-argon", false));
+        assert!(ineligible["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] != "code_execution"));
+    }
+
+    #[test]
+    fn interaction_continuation_returns_client_tool_result_to_previous_interaction() {
+        use crate::message::{ContentPart, Message, ProviderState, Role};
+        let provider = GeminiProvider::new("http://localhost/v1beta", "test-key");
+        let mut assistant = Message::assistant(vec![ContentPart::ToolCall {
+            id: "call-1".into(),
+            name: "view".into(),
+            input: json!({"path":"README.md"}),
+        }]);
+        assistant.provider_state = Some(ProviderState {
+            provider: "gemini_interactions".into(),
+            data: json!({"interaction_id":"interaction-1","model":"gemini-4-argon",
+                "base_url":"http://localhost/v1beta",
+                "tool_names_by_call_id":{"call-1":"view"}}),
+        });
+        let result = Message::new(
+            Role::Tool,
+            vec![ContentPart::ToolResult {
+                call_id: "call-1".into(),
+                content: "file contents".into(),
+                is_error: false,
+            }],
+        );
+        let mut req = request("gemini-4-argon", true);
+        req.messages = vec![assistant, result];
+        let body = provider.build_body(&req);
+        assert_eq!(body["previous_interaction_id"], "interaction-1");
+        assert_eq!(body["input"][0]["type"], "function_result");
+        assert_eq!(body["input"][0]["name"], "view");
+        assert_eq!(body["input"][0]["call_id"], "call-1");
     }
 }

@@ -294,17 +294,19 @@ fn habilidades_a2a(mapa: &Mapping) -> Result<Vec<AgentSkill>, ProfileProblem> {
         return Ok(Vec::new());
     };
     let skills: Vec<AgentSkill> = serde_yaml_bw::from_value(skills.clone()).map_err(|_| {
-        ProfileProblem::BadFrontmatter(
-            "`a2a.card.skills` debe ser una lista de skills A2A".into(),
-        )
+        ProfileProblem::BadFrontmatter("`a2a.card.skills` debe ser una lista de skills A2A".into())
     })?;
     if skills.len() > MAX_CARD_SKILLS
         || skills.iter().any(|skill| {
             skill.id.trim().is_empty()
                 || skill.name.trim().is_empty()
-                || [skill.id.as_str(), skill.name.as_str(), skill.description.as_str()]
-                    .iter()
-                    .any(|value| value.len() > MAX_CARD_TEXT)
+                || [
+                    skill.id.as_str(),
+                    skill.name.as_str(),
+                    skill.description.as_str(),
+                ]
+                .iter()
+                .any(|value| value.len() > MAX_CARD_TEXT)
                 || skill.tags.iter().any(|tag| tag.len() > 128)
         })
     {
@@ -337,9 +339,11 @@ pub fn save_profile_edit(
         )
         .into());
     }
-    if edit.version.as_ref().is_some_and(|version| {
-        version.trim().is_empty() || version.len() > 128
-    }) {
+    if edit
+        .version
+        .as_ref()
+        .is_some_and(|version| version.trim().is_empty() || version.len() > 128)
+    {
         return Err(ProfileProblem::BadFrontmatter("la versión no es válida".into()).into());
     }
 
@@ -350,8 +354,16 @@ pub fn save_profile_edit(
     let map = root
         .as_mapping_mut()
         .ok_or_else(|| ProfileProblem::BadFrontmatter("el frontmatter debe ser un mapa".into()))?;
-    map.insert(Value::from("description"), Value::from(edit.description.trim()));
-    match edit.version.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    map.insert(
+        Value::from("description"),
+        Value::from(edit.description.trim()),
+    );
+    match edit
+        .version
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         Some(version) => {
             map.insert(Value::from("version"), Value::from(version));
         }
@@ -363,8 +375,11 @@ pub fn save_profile_edit(
     if edit.scope == AgentScope::default() {
         map.remove(Value::from("scope"));
     } else {
-        map.insert(Value::from("scope"), serde_yaml_bw::to_value(&edit.scope)
-            .map_err(|error| ProfileProblem::BadFrontmatter(error.to_string()))?);
+        map.insert(
+            Value::from("scope"),
+            serde_yaml_bw::to_value(&edit.scope)
+                .map_err(|error| ProfileProblem::BadFrontmatter(error.to_string()))?,
+        );
     }
     let a2a = mapping_entry(map, "a2a")?;
     let card = mapping_entry(a2a, "card")?;
@@ -385,7 +400,10 @@ pub fn save_profile_edit(
         .unwrap_or("agent.md");
     let temporary = path.with_file_name(format!(".{filename}.{}.tmp", std::process::id()));
     let result = (|| -> Result<(), std::io::Error> {
-        let mut file = OpenOptions::new().write(true).create_new(true).open(&temporary)?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)?;
         file.write_all(updated.as_bytes())?;
         file.sync_all()?;
         file.set_permissions(fs::metadata(path)?.permissions())?;

@@ -61,8 +61,8 @@ pub struct Message {
     pub parts: Vec<ContentPart>,
     #[serde(default)]
     pub usage: Option<Usage>,
-    /// Opaque provider continuation data. Local to this runtime and never part of A2A.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Opaque provider continuation data kept only in memory for the active turn.
+    #[serde(skip)]
     pub provider_state: Option<ProviderState>,
     pub created_at_ms: i64,
 }
@@ -154,5 +154,20 @@ mod tests {
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].0, "c1");
         assert_eq!(calls[0].1, "view");
+    }
+
+    #[test]
+    fn provider_continuation_state_is_not_serialized() {
+        let mut message = Message::assistant(vec![]);
+        message.provider_state = Some(ProviderState {
+            provider: "openai_responses".into(),
+            data: json!({ "program": "private generated source" }),
+        });
+        let encoded = serde_json::to_string(&message).unwrap();
+        assert!(!encoded.contains("private generated source"));
+        assert!(serde_json::from_str::<Message>(&encoded)
+            .unwrap()
+            .provider_state
+            .is_none());
     }
 }

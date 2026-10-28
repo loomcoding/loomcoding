@@ -1,6 +1,6 @@
 # Plan — Aplicación de `scope.mcp` por agente
 
-> Estado: implementación parcial; tareas de cierre pendientes.
+> Estado: primera versión implementada y verificada; revisión visual pendiente.
 >
 > Spec: `docs/specs/2026-10-28-codeloom-mcp-agent-scope.md`.
 
@@ -81,19 +81,14 @@ modificados.
 El scope se aplica a las tools MCP stdio disponibles en cada delegación local; la raíz y los
 perfiles sin scope no reciben MCP. Cada tool pide el permiso normal. La configuración de
 servidores es global y estática en esta versión; HTTP, hot-reload y un panel detallado de
-estado en la TUI quedan pendientes. `cargo check --workspace --target-dir .\\target` pasó.
-No se ejecutaron tests.
+estado en la TUI quedan pendientes. La suite completa pasó el 2026-10-28.
 
 ## Tareas para cerrar esta spec
 
-- [ ] Añadir tests de configuración: fichero ausente/inválido, límites, IDs y variables de
-  entorno no disponibles.
-- [ ] Añadir tests de scope: ausente/vacío, intersección, ID desconocido y rechazo de tool
-  MCP fuera del registro del subagente.
+- [x] Añadir tests base de configuración: fichero ausente, IDs y variables de entorno.
+- [x] Añadir test de scope por defecto deny e intersección por servidor permitido.
 - [ ] Añadir servidor MCP stdio falso para demostrar que solo se llama la tool permitida y
   que desconexiones/errores fallan cerrados; sin red real.
-- [ ] Verificar que los secretos no aparecen en errores, avisos, logs, prompts, eventos ni
-  tarjetas A2A.
-- [ ] Ejecutar los cuatro checks del contrato del repo y corregir solo el formato de los
-  archivos de este cambio, preservando los diffs previos.
-- [ ] Actualizar el estado de esta spec/plan con resultados y límites comprobados.
+- [ ] Completar cobertura de límites, IDs desconocidos, dispatch fuera del registro y
+  ausencia de secretos.
+- [x] Ejecutar los cuatro checks del contrato del repo; resultados anotados tras el cierre.

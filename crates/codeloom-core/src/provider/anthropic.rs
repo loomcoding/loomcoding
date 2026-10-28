@@ -152,7 +152,7 @@ impl AnthropicProvider {
                 tool
             })
             .collect();
-        if req.programmatic_tool_calling {
+        if req.programmatic_tool_calling && req.tools.iter().any(|tool| tool.programmatic_allowed) {
             tools.push(serde_json::json!({
                 "type": "code_execution_20260521",
                 "name": "code_execution"
@@ -199,31 +199,51 @@ impl AnthropicProvider {
         cuerpo
     }
 
-    async fn supports_code_execution(&self, model: &str) -> Option<bool> {
-        if let Some(supported) = self.capability_cache.lock().ok()?.get(model).copied() {
-            return Some(supported);
+    async fn supports_code_execution(
+        &self,
+        model: &str,
+        cancel: &CancellationToken,
+    ) -> Result<Option<bool>> {
+        if let Ok(cache) = self.capability_cache.lock() {
+            if let Some(supported) = cache.get(model).copied() {
+                return Ok(Some(supported));
+            }
         }
-        let mut url = reqwest::Url::parse(&format!("{}/v1/models/", self.base_url)).ok()?;
-        url.path_segments_mut().ok()?.pop_if_empty().push(model);
-        let response = self
-            .client
-            .get(url)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .send()
-            .await
-            .ok()?;
+        let Ok(mut url) = reqwest::Url::parse(&format!("{}/v1/models/", self.base_url)) else {
+            return Ok(None);
+        };
+        let Ok(mut segments) = url.path_segments_mut() else {
+            return Ok(None);
+        };
+        segments.pop_if_empty().push(model);
+        drop(segments);
+        let response = tokio::select! {
+            _ = cancel.cancelled() => return Err(CoreError::Cancelled),
+            response = self.client.get(url)
+                .timeout(std::time::Duration::from_secs(10))
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", "2023-06-01")
+                .send() => response,
+        };
+        let Ok(response) = response else {
+            return Ok(None);
+        };
         if !response.status().is_success() {
-            return None;
+            return Ok(None);
         }
-        let value: serde_json::Value = response.json().await.ok()?;
-        let supported = value
-            .pointer("/capabilities/code_execution/supported")?
-            .as_bool()?;
+        let Ok(value) = response.json::<serde_json::Value>().await else {
+            return Ok(None);
+        };
+        let Some(supported) = value
+            .pointer("/capabilities/code_execution/supported")
+            .and_then(serde_json::Value::as_bool)
+        else {
+            return Ok(None);
+        };
         if let Ok(mut cache) = self.capability_cache.lock() {
             cache.insert(model.to_string(), supported);
         }
-        Some(supported)
+        Ok(Some(supported))
     }
 
     async fn stream_programmatic(
@@ -235,6 +255,7 @@ impl AnthropicProvider {
         let response = tokio::select! {
             _ = cancel.cancelled() => return Err(CoreError::Cancelled),
             response = self.client.post(url)
+                .timeout(std::time::Duration::from_secs(120))
                 .header("x-api-key", &self.api_key)
                 .header("anthropic-version", "2023-06-01")
                 .json(&self.build_body(&req))
@@ -291,6 +312,45 @@ impl AnthropicProvider {
                         block.get("id").and_then(serde_json::Value::as_str),
                         block.get("name").and_then(serde_json::Value::as_str),
                     ) {
+                        let caller = block
+                            .pointer("/caller/type")
+                            .and_then(serde_json::Value::as_str);
+                        match caller {
+                            Some("code_execution_20260120" | "code_execution_20260521")
+                                if !req
+                                    .tools
+                                    .iter()
+                                    .any(|tool| tool.name == name && tool.programmatic_allowed)
+                                    || matches!(
+                                        caller,
+                                        Some("code_execution_20260120" | "code_execution_20260521")
+                                    ) && block
+                                        .pointer("/caller/tool_id")
+                                        .and_then(serde_json::Value::as_str)
+                                        .is_none_or(str::is_empty) =>
+                            {
+                                return Err(CoreError::Provider(format!(
+                                    "Anthropic returned a programmatic call for ineligible tool `{name}`"
+                                )));
+                            }
+                            Some(
+                                "direct" | "code_execution_20260120" | "code_execution_20260521",
+                            )
+                            | None => {}
+                            Some(_) => {
+                                return Err(CoreError::Provider(
+                                    "Anthropic returned a tool call with an unknown caller".into(),
+                                ));
+                            }
+                        }
+                        if matches!(
+                            caller,
+                            Some("code_execution_20260120" | "code_execution_20260521")
+                        ) {
+                            chunks.push(StreamChunk::ProviderNotice(format!(
+                                "Anthropic programmatic call {id} → {name}"
+                            )));
+                        }
                         chunks.push(StreamChunk::ToolCallComplete {
                             id: id.to_string(),
                             name: name.to_string(),
@@ -417,12 +477,12 @@ impl Provider for AnthropicProvider {
 
     async fn stream(
         &self,
-        req: ProviderRequest,
+        mut req: ProviderRequest,
         cancel: CancellationToken,
     ) -> Result<ProviderStream> {
         let mut fallback_notice = None;
         if req.programmatic_tool_calling && req.tools.iter().any(|tool| tool.programmatic_allowed) {
-            match self.supports_code_execution(&req.model).await {
+            match self.supports_code_execution(&req.model, &cancel).await? {
                 Some(true) => return self.stream_programmatic(req, cancel).await,
                 Some(false) => {
                     tracing::info!(model = %req.model, "Anthropic model lacks code_execution; using direct tool calls");
@@ -440,16 +500,19 @@ impl Provider for AnthropicProvider {
                 }
             }
         }
+        if fallback_notice.is_some() || !req.tools.iter().any(|tool| tool.programmatic_allowed) {
+            req.programmatic_tool_calling = false;
+        }
         let url = format!("{}/v1/messages", self.base_url);
-        let resp = self
-            .client
-            .post(url)
-            .header("x-api-key", &self.api_key)
-            .header("anthropic-version", "2023-06-01")
-            .json(&self.build_body(&req))
-            .send()
-            .await
-            .map_err(|e| CoreError::Provider(e.to_string()))?;
+        let resp = tokio::select! {
+            _ = cancel.cancelled() => return Err(CoreError::Cancelled),
+            response = self.client.post(url)
+                .timeout(std::time::Duration::from_secs(120))
+                .header("x-api-key", &self.api_key)
+                .header("anthropic-version", "2023-06-01")
+                .json(&self.build_body(&req))
+                .send() => response.map_err(|e| CoreError::Provider(e.to_string()))?,
+        };
         if !resp.status().is_success() {
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
@@ -713,5 +776,130 @@ mod effort_tests {
             p.build_body(&peticion(Some("turbo"), 16)),
             p.build_body(&peticion(None, 16))
         );
+    }
+}
+
+#[cfg(test)]
+mod programmatic_tests {
+    use super::*;
+    use crate::provider::ToolSpec;
+    use serde_json::json;
+
+    fn request() -> ProviderRequest {
+        ProviderRequest {
+            model: "claude-test".into(),
+            system: "system".into(),
+            messages: vec![],
+            tools: vec![
+                ToolSpec {
+                    name: "view".into(),
+                    description: "read a file".into(),
+                    input_schema: json!({"type":"object"}),
+                    programmatic_allowed: true,
+                },
+                ToolSpec {
+                    name: "write".into(),
+                    description: "write a file".into(),
+                    input_schema: json!({"type":"object"}),
+                    programmatic_allowed: false,
+                },
+            ],
+            temperature: 0.0,
+            max_tokens: 128,
+            effort: None,
+            programmatic_tool_calling: true,
+        }
+    }
+
+    #[test]
+    fn body_enables_code_execution_only_when_a_tool_is_eligible() {
+        let provider = AnthropicProvider::new("http://localhost", "test-key");
+        let body = provider.build_body(&request());
+        assert!(body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["type"] == "code_execution_20260521"));
+        assert_eq!(
+            body["tools"][0]["allowed_callers"],
+            json!(["direct", "code_execution_20260120"])
+        );
+
+        let mut direct = request();
+        direct
+            .tools
+            .iter_mut()
+            .for_each(|tool| tool.programmatic_allowed = false);
+        assert!(
+            AnthropicProvider::new("http://localhost", "test-key").build_body(&direct)["tools"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|tool| tool["type"] != "code_execution_20260521")
+        );
+    }
+
+    #[test]
+    fn programmatic_continuation_replays_provider_blocks_and_container_in_memory() {
+        use crate::message::{ContentPart, Message, ProviderState, Role};
+        let provider = AnthropicProvider::new("http://localhost", "test-key");
+        let mut assistant = Message::assistant(vec![ContentPart::ToolCall {
+            id: "tool-1".into(),
+            name: "view".into(),
+            input: json!({"path":"README.md"}),
+        }]);
+        let content = json!([
+            {"type":"server_tool_use","id":"exec-1","name":"code_execution","input":{"code":"x = 1"}},
+            {"type":"tool_use","id":"tool-1","name":"view","input":{"path":"README.md"},
+                "caller":{"type":"code_execution_20260120","tool_id":"exec-1"}}
+        ]);
+        assistant.provider_state = Some(ProviderState {
+            provider: "anthropic".into(),
+            data: json!({"model":"claude-test","base_url":"http://localhost",
+                "container_id":"container-1","assistant_content":content.clone()}),
+        });
+        let result = Message::new(
+            Role::Tool,
+            vec![ContentPart::ToolResult {
+                call_id: "tool-1".into(),
+                content: "file contents".into(),
+                is_error: false,
+            }],
+        );
+        let mut req = request();
+        req.messages = vec![assistant, result];
+        let body = provider.build_body(&req);
+        assert_eq!(body["container"]["id"], "container-1");
+        assert_eq!(body["messages"][0]["content"], content);
+        assert_eq!(body["messages"][1]["content"][0]["tool_use_id"], "tool-1");
+    }
+
+    #[tokio::test]
+    async fn rejects_programmatic_calls_to_ineligible_tools() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models/claude-test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "capabilities":{"code_execution":{"supported":true}}
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "stop_reason":"tool_use","container":{"id":"container-1"},
+                "content":[{"type":"tool_use","id":"call-1","name":"write",
+                    "input":{},"caller":{"type":"code_execution_20260120","tool_id":"exec-1"}}]
+            })))
+            .mount(&server)
+            .await;
+        let provider = AnthropicProvider::new(server.uri(), "test-key");
+        assert!(provider
+            .stream(request(), CancellationToken::new())
+            .await
+            .is_err());
     }
 }

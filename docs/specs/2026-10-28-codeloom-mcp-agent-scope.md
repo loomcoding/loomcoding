@@ -1,6 +1,6 @@
 # Aplicación de `scope.mcp` por agente
 
-> Estado: implementada primera versión (stdio); pendiente de revisión final.
+> Estado: primera versión stdio implementada; revisión visual pendiente.
 >
 > Fecha: 2026-10-28
 >

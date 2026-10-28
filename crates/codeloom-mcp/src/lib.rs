@@ -23,6 +23,7 @@ const MAX_TOOLS: usize = 128;
 const MAX_TOOL_SCHEMA_BYTES: usize = 32_768;
 const MAX_TOOL_DESCRIPTION_BYTES: usize = 4_000;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const CALL_TIMEOUT: Duration = Duration::from_secs(120);
 
 type Client = RunningService<RoleClient, ()>;
 
@@ -288,7 +289,10 @@ impl Tool for McpTool {
         let arguments = input.as_object().cloned().unwrap_or_default();
         let params = CallToolRequestParams::new(self.remote_name.clone()).with_arguments(arguments);
         let result = tokio::select! {
-            result = self.client.call_tool(params) => result,
+            result = timeout(CALL_TIMEOUT, self.client.call_tool(params)) => match result {
+                Ok(result) => result,
+                Err(_) => return Ok(ToolOutput::err("MCP tool call timed out")),
+            },
             _ = cancel.cancelled() => return Ok(ToolOutput::err("cancelled")),
         }
         .map_err(|error| {
@@ -333,4 +337,51 @@ fn valid_env_name(name: &str) -> bool {
         .next()
         .is_some_and(|ch| ch == '_' || ch.is_ascii_alphabetic())
         && chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    fn config_file(contents: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "codeloom-mcp-{}-{}.toml",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::write(&path, contents).unwrap();
+        path
+    }
+
+    #[test]
+    fn missing_config_means_no_servers() {
+        let path = std::env::temp_dir().join(format!(
+            "codeloom-mcp-missing-{}-{}.toml",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        assert!(McpConfig::load(&path).unwrap().mcp.servers.is_empty());
+    }
+
+    #[test]
+    fn config_validates_server_ids_and_environment_names() {
+        let bad_id = config_file("[mcp.servers.Files]\ncommand = 'server'\n");
+        assert!(McpConfig::load(&bad_id).is_err());
+        std::fs::remove_file(bad_id).unwrap();
+
+        let bad_env = config_file(
+            "[mcp.servers.files]\ncommand = 'server'\n[mcp.servers.files.env]\nTOKEN = 'value-that-is-not-an-env-name'\n",
+        );
+        assert!(McpConfig::load(&bad_env).is_err());
+        std::fs::remove_file(bad_env).unwrap();
+
+        let valid = config_file(
+            "[mcp.servers.files]\ncommand = 'server'\n[mcp.servers.files.env]\nTOKEN = 'FILES_TOKEN'\n",
+        );
+        assert_eq!(McpConfig::load(&valid).unwrap().mcp.servers.len(), 1);
+        std::fs::remove_file(valid).unwrap();
+    }
 }

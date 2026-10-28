@@ -14,14 +14,14 @@ impl Tool for DevelopmentWorkflowTool {
         "development_workflow"
     }
     fn description(&self) -> &str {
-        "Coordinate the approved planner, implementation, and independent review workflow. Actions: start (task, planner, implementer, reviewer), advance (bounded result and optional spec/plan paths), cancel, status."
+        "Coordinate the approved planner, implementation, and independent review workflow. Actions: start, advance, accept (final user decision), cancel, status."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({"type":"object","properties":{
             "action":{"type":"string","enum":["start","advance","accept","cancel","status"]},
             "task":{"type":"string","maxLength":8000},"planner":{"type":"string","maxLength":64},
             "implementer":{"type":"string","maxLength":64},"reviewer":{"type":"string","maxLength":64},
-            "report":{"type":"string","maxLength":8000},"spec_path":{"type":"string","maxLength":512},"plan_path":{"type":"string","maxLength":512}
+            "spec_path":{"type":"string","maxLength":512},"plan_path":{"type":"string","maxLength":512}
         },"required":["action"]})
     }
     fn execution_mode(&self, _: &serde_json::Value) -> ExecutionMode {
@@ -56,6 +56,11 @@ impl Tool for DevelopmentWorkflowTool {
             let planner = bounded(&input, "planner", 64)?;
             let implementer = bounded(&input, "implementer", 64)?;
             let reviewer = bounded(&input, "reviewer", 64)?;
+            if planner == implementer || planner == reviewer || implementer == reviewer {
+                return Err(CoreError::Tool(
+                    "planner, implementer, and reviewer must be distinct local agents".into(),
+                ));
+            }
             let now = crate::message::now_ms();
             let mut workflow = store
                 .create_development_workflow(
@@ -102,15 +107,23 @@ impl Tool for DevelopmentWorkflowTool {
                 "Started workflow {} in specifying phase.",
                 workflow.id.0
             )))
+        } else if action == "status" {
+            let workflow = match store.active_development_workflow(ctx.session).await? {
+                Some(workflow) => workflow,
+                None => store
+                    .latest_development_workflow(ctx.session)
+                    .await?
+                    .ok_or_else(|| CoreError::Tool("no development workflow exists".into()))?,
+            };
+            Ok(ToolOutput::ok(
+                serde_json::to_string(&workflow.summary()).unwrap_or_default(),
+            ))
         } else {
             let mut workflow = store
                 .active_development_workflow(ctx.session)
                 .await?
                 .ok_or_else(|| CoreError::Tool("no active development workflow".into()))?;
             match action {
-                "status" => Ok(ToolOutput::ok(
-                    serde_json::to_string(&workflow.summary()).unwrap_or_default(),
-                )),
                 "cancel" => {
                     workflow.phase = WorkflowPhase::Cancelled;
                     let updated = store
@@ -299,11 +312,33 @@ impl Tool for DevelopmentWorkflowTool {
                     if !descriptor.status.state.is_terminal() {
                         return Ok(ToolOutput::err("workflow child is still running"));
                     }
-                    let report = input["report"]
-                        .as_str()
-                        .map(str::to_owned)
-                        .or_else(|| descriptor.result_text())
-                        .unwrap_or_default();
+                    if descriptor.status.state != crate::task::TaskState::Completed {
+                        workflow.phase = if matches!(
+                            descriptor.status.state,
+                            crate::task::TaskState::Canceled | crate::task::TaskState::Rejected
+                        ) {
+                            WorkflowPhase::Cancelled
+                        } else {
+                            WorkflowPhase::Failed
+                        };
+                        let updated = store
+                            .update_development_workflow(
+                                workflow,
+                                "coordinator",
+                                "workflow child did not complete successfully",
+                            )
+                            .await?;
+                        ctx.bus
+                            .publish(crate::event::LiveEvent::DevelopmentWorkflowChanged(
+                                updated.summary(),
+                            ));
+                        return Ok(ToolOutput::err(
+                            "workflow child did not complete successfully; no phase was advanced",
+                        ));
+                    }
+                    let report = descriptor.result_text().ok_or_else(|| {
+                        CoreError::Tool("workflow child completed without a result".into())
+                    })?;
                     if report.len() > 8_000 {
                         return Err(CoreError::Tool("report exceeds 8000 bytes".into()));
                     }
@@ -314,6 +349,11 @@ impl Tool for DevelopmentWorkflowTool {
                             workflow.phase = WorkflowPhase::AwaitingPlanApproval;
                             let spec_path = bounded(&input, "spec_path", 512)?;
                             let plan_path = bounded(&input, "plan_path", 512)?;
+                            if !report.contains(&spec_path) || !report.contains(&plan_path) {
+                                return Err(CoreError::Tool(
+                                    "spec and plan paths must come from the planner result".into(),
+                                ));
+                            }
                             let spec = artifact(&ctx.cwd, &spec_path)?;
                             let plan = artifact(&ctx.cwd, &plan_path)?;
                             let exact_artifacts = format!(

@@ -520,7 +520,10 @@ impl AgentRow {
             },
             profile_path: match &entrada.origin {
                 codeloom_core::registry::AgentOrigin::File { path, .. }
-                    if matches!(&entrada.execution, codeloom_core::registry::Execution::Local(_)) =>
+                    if matches!(
+                        &entrada.execution,
+                        codeloom_core::registry::Execution::Local(_)
+                    ) =>
                 {
                     Some(path.clone())
                 }
@@ -1248,18 +1251,15 @@ impl App {
     }
 
     pub fn start_agent_edit_value(&mut self) {
-        if self
-            .agent_edit
-            .as_ref()
-            .is_some_and(|edit| edit.field == 6)
-        {
+        if self.agent_edit.as_ref().is_some_and(|edit| edit.field == 6) {
             self.save_agent_edit();
             return;
         }
         let Some(edit) = &mut self.agent_edit else {
             return;
         };
-        self.agent_editor.set_text(&agent_edit_value(edit, edit.field));
+        self.agent_editor
+            .set_text(&agent_edit_value(edit, edit.field));
         edit.editing_value = true;
     }
 
@@ -1317,7 +1317,10 @@ impl App {
             Ok(_) => {
                 registry.reload();
                 self.refresh_agent_rows();
-                self.agents_status = Some(format!("Saved `{}`; project trust may need approval", row.name));
+                self.agents_status = Some(format!(
+                    "Saved `{}`; project trust may need approval",
+                    row.name
+                ));
                 self.agent_edit = None;
             }
             Err(error) => self.agents_status = Some(format!("Not saved: {error}")),
@@ -1338,9 +1341,14 @@ impl App {
                         card: entry.card.clone(),
                         origin: match &entry.origin {
                             codeloom_core::registry::AgentOrigin::BuiltIn => "built-in".into(),
-                            codeloom_core::registry::AgentOrigin::File { level, .. } => match level {
-                                codeloom_core::registry::ProfileLevel::Global => "global profile".into(),
-                                codeloom_core::registry::ProfileLevel::Project => "project profile".into(),
+                            codeloom_core::registry::AgentOrigin::File { level, .. } => match level
+                            {
+                                codeloom_core::registry::ProfileLevel::Global => {
+                                    "global profile".into()
+                                }
+                                codeloom_core::registry::ProfileLevel::Project => {
+                                    "project profile".into()
+                                }
                             },
                             codeloom_core::registry::AgentOrigin::Remote { .. } => "remote".into(),
                         },
@@ -1348,7 +1356,10 @@ impl App {
                         internal: false,
                         enabled: matches!(
                             snapshot.approval(&entry.name),
-                            Some(codeloom_core::registry::Approval::NotRequired | codeloom_core::registry::Approval::Approved)
+                            Some(
+                                codeloom_core::registry::Approval::NotRequired
+                                    | codeloom_core::registry::Approval::Approved
+                            )
                         ),
                         execution: Some(entry.execution.clone()),
                     })
@@ -1595,7 +1606,7 @@ impl App {
     /// Abre el selector del campo indicado. Sin catálogo, o sin proveedor del catálogo
     /// que coincida con la URL actual, no lo abre y deja el aviso en `settings_feedback`.
     pub fn open_picker(&mut self, picker: SettingsPicker) {
-        if self.catalog.is_empty() {
+        if self.catalog.is_empty() && picker != SettingsPicker::Provider {
             self.settings_feedback = Some("Catalog not loaded yet; type it by hand".into());
             return;
         }
@@ -1622,16 +1633,31 @@ impl App {
         let query = self.picker_query.trim().to_lowercase();
         let all: Vec<PickerItem> = match self.settings_picker {
             None => return Vec::new(),
-            Some(SettingsPicker::Provider) => self
-                .catalog
-                .providers
-                .iter()
-                .map(|provider| PickerItem {
-                    id: provider.id.clone(),
-                    label: provider.name.clone(),
-                    detail: provider.base_url.clone(),
-                })
-                .collect(),
+            Some(SettingsPicker::Provider) => {
+                let mut providers: Vec<PickerItem> = self
+                    .catalog
+                    .providers
+                    .iter()
+                    .map(|provider| PickerItem {
+                        id: provider.id.clone(),
+                        label: provider.name.clone(),
+                        detail: provider.base_url.clone(),
+                    })
+                    .collect();
+                providers.extend([
+                    PickerItem {
+                        id: "openai-responses".into(),
+                        label: "OpenAI Responses".into(),
+                        detail: "https://api.openai.com/v1".into(),
+                    },
+                    PickerItem {
+                        id: "gemini-interactions".into(),
+                        label: "Gemini Interactions".into(),
+                        detail: "https://generativelanguage.googleapis.com/v1beta".into(),
+                    },
+                ]);
+                providers
+            }
             Some(SettingsPicker::Model) => self
                 .model_catalog_provider()
                 .map(|provider| {
@@ -1697,11 +1723,27 @@ impl App {
         ) {
             match picker {
                 SettingsPicker::Provider => {
+                    self.settings_api_key.clear();
                     if let Some(provider) = self.catalog.provider(&item.id) {
                         settings.kind = provider.kind;
                         settings.base_url = provider.base_url.clone();
                         if !provider.api_key_env.is_empty() {
                             settings.api_key_env = provider.api_key_env.clone();
+                        }
+                    } else {
+                        match item.id.as_str() {
+                            "openai-responses" => {
+                                settings.kind = ProviderKind::OpenAiResponses;
+                                settings.base_url = "https://api.openai.com/v1".into();
+                                settings.api_key_env = "OPENAI_API_KEY".into();
+                            }
+                            "gemini-interactions" => {
+                                settings.kind = ProviderKind::Gemini;
+                                settings.base_url =
+                                    "https://generativelanguage.googleapis.com/v1beta".into();
+                                settings.api_key_env = "GEMINI_API_KEY".into();
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -1714,7 +1756,12 @@ impl App {
         // Tras elegir proveedor se pasa directamente a sus modelos.
         if picker == SettingsPicker::Provider {
             self.settings_field = 1;
-            self.open_picker(SettingsPicker::Model);
+            if self.model_catalog_provider().is_some() {
+                self.open_picker(SettingsPicker::Model);
+            } else {
+                self.settings_feedback =
+                    Some("Enter this provider's model ID in the Model field".into());
+            }
         }
     }
 
@@ -4115,13 +4162,16 @@ fn card_skills_from_text(text: &str) -> Result<Vec<codeloom_core::card::AgentSki
         if fields.len() != 7 || fields[0].is_empty() || fields[1].is_empty() {
             return Err(format!("A2A skill, línea {}: usa id | nombre | descripción | tags | ejemplos | input modes | output modes", index + 1));
         }
-        let list = |value: &str| value.split(',').map(str::trim).filter(|item| !item.is_empty()).map(str::to_string).collect();
-        let mut skill = codeloom_core::card::AgentSkill::new(
-            fields[0],
-            fields[1],
-            fields[2],
-            list(fields[3]),
-        );
+        let list = |value: &str| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|item| !item.is_empty())
+                .map(str::to_string)
+                .collect()
+        };
+        let mut skill =
+            codeloom_core::card::AgentSkill::new(fields[0], fields[1], fields[2], list(fields[3]));
         skill.examples = list(fields[4]);
         skill.input_modes = list(fields[5]);
         skill.output_modes = list(fields[6]);
@@ -8302,7 +8352,7 @@ línea dos {}",
         let mut app = app_with_settings_open();
         app.set_catalog(picker_sample_catalog());
         app.open_picker(SettingsPicker::Provider);
-        assert_eq!(app.picker_items().len(), 2);
+        assert_eq!(app.picker_items().len(), 4);
         app.picker_query = "ANTH".into();
         let items = app.picker_items();
         assert_eq!(items.len(), 1);
@@ -8385,13 +8435,21 @@ línea dos {}",
     }
 
     #[test]
-    fn picker_with_empty_catalog_sets_feedback() {
+    fn provider_picker_includes_native_apis_without_a_catalog() {
         let mut app = app_with_settings_open();
         app.open_picker(SettingsPicker::Provider);
-        assert!(app.settings_picker.is_none());
+        assert_eq!(app.picker_items().len(), 2);
+        assert_eq!(app.picker_items()[0].id, "openai-responses");
+        assert_eq!(app.picker_items()[1].id, "gemini-interactions");
+        assert_eq!(app.settings_picker, Some(SettingsPicker::Provider));
+        app.picker_query = "gemini".into();
+        app.picker_choose();
+        let settings = app.provider_settings.as_ref().unwrap();
+        assert_eq!(settings.kind, ProviderKind::Gemini);
+        assert_eq!(settings.api_key_env, "GEMINI_API_KEY");
         assert_eq!(
-            app.settings_feedback.as_deref(),
-            Some("Catalog not loaded yet; type it by hand")
+            settings.base_url,
+            "https://generativelanguage.googleapis.com/v1beta"
         );
     }
 

@@ -227,12 +227,67 @@ mod tests {
         }
     }
 
+    struct DummyMcp {
+        server: &'static str,
+        name: &'static str,
+    }
+    #[async_trait]
+    impl Tool for DummyMcp {
+        fn name(&self) -> &str {
+            self.name
+        }
+        fn description(&self) -> &str {
+            "mcp test"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        fn mcp_server_id(&self) -> Option<&str> {
+            Some(self.server)
+        }
+        async fn run(
+            &self,
+            _c: ToolCtx,
+            _i: serde_json::Value,
+            _x: CancellationToken,
+        ) -> Result<ToolOutput> {
+            Ok(ToolOutput::ok("ok"))
+        }
+    }
+
     #[test]
     fn registers_and_lists_specs() {
         let mut r = ToolRegistry::new();
         r.register(std::sync::Arc::new(Dummy));
         assert!(r.get("dummy").is_some());
         assert_eq!(r.specs()[0].name, "dummy");
+    }
+
+    #[test]
+    fn mcp_scope_is_default_deny_and_keeps_only_allowed_servers() {
+        let mut tools = ToolRegistry::new();
+        tools.register(std::sync::Arc::new(Dummy));
+        tools.register(std::sync::Arc::new(DummyMcp {
+            server: "files",
+            name: "mcp__files__read",
+        }));
+        tools.register(std::sync::Arc::new(DummyMcp {
+            server: "calendar",
+            name: "mcp__calendar__read",
+        }));
+
+        let denied = tools.with_mcp_scope(&[]);
+        assert!(denied.get("dummy").is_some());
+        assert!(denied.get("mcp__files__read").is_none());
+
+        let scoped = tools.with_mcp_scope(&["files".into()]);
+        assert!(scoped.get("mcp__files__read").is_some());
+        assert!(scoped.get("mcp__calendar__read").is_none());
+        assert!(scoped
+            .specs()
+            .iter()
+            .find(|spec| spec.name == "mcp__files__read")
+            .is_some_and(|spec| !spec.programmatic_allowed));
     }
 
     #[test]

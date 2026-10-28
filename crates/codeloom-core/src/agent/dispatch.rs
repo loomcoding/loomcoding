@@ -11,6 +11,9 @@ pub async fn execute_tools(
     cancel: tokio_util::sync::CancellationToken,
     bus: EventBus,
 ) -> Vec<(String, ToolOutput)> {
+    let workflow_start_requested = calls
+        .iter()
+        .any(|(_, name, input)| name == "development_workflow" && input["action"] == "start");
     let mut batches: Vec<Vec<(String, String, serde_json::Value)>> = Vec::new();
     let mut current: Vec<(String, String, serde_json::Value)> = Vec::new();
     for (id, name, input) in calls {
@@ -46,32 +49,9 @@ pub async fn execute_tools(
                 });
                 match tool {
                     Some(t) => {
-                        if let Some(store) = &ctx.store {
-                            match store.active_development_workflow(ctx.session).await {
-                                Ok(Some(_))
-                                    if !matches!(
-                                        name.as_str(),
-                                        "development_workflow"
-                                            | "view"
-                                            | "ls"
-                                            | "glob"
-                                            | "grep"
-                                            | "lsp"
-                                            | "web"
-                                            | "job_list"
-                                            | "job_output"
-                                            | "subagent_list"
-                                    ) =>
-                                {
-                                    let message = format!(
-                                        "{name} is blocked while a development workflow is active"
-                                    );
-                                    bus.publish(LiveEvent::ToolFinished {
-                                        call_id: id.clone(),
-                                        is_error: true,
-                                    });
-                                    return (id, ToolOutput::err(message));
-                                }
+                        let workflow_active = match &ctx.store {
+                            Some(store) => match store.active_development_workflow(ctx.session).await {
+                                Ok(active) => active.is_some(),
                                 Err(error) => {
                                     bus.publish(LiveEvent::ToolFinished {
                                         call_id: id.clone(),
@@ -84,8 +64,32 @@ pub async fn execute_tools(
                                         )),
                                     );
                                 }
-                                _ => {}
-                            }
+                            },
+                            None => false,
+                        };
+                        if (workflow_active || workflow_start_requested)
+                            && !matches!(
+                                name.as_str(),
+                                "development_workflow"
+                                    | "view"
+                                    | "ls"
+                                    | "glob"
+                                    | "grep"
+                                    | "lsp"
+                                    | "web"
+                                    | "job_list"
+                                    | "job_output"
+                                    | "subagent_list"
+                            )
+                        {
+                            let message = format!(
+                                "{name} is blocked while a development workflow is active or starting"
+                            );
+                            bus.publish(LiveEvent::ToolFinished {
+                                call_id: id.clone(),
+                                is_error: true,
+                            });
+                            return (id, ToolOutput::err(message));
                         }
                         let out = t
                             .run(ctx, input, cancel)
@@ -257,5 +261,64 @@ mod tests {
         assert_eq!(res[1].1.content, "b");
         assert_eq!(res[2].1.content, "c");
         assert_eq!(res[3].1.content, "d");
+    }
+
+    struct WriteFlag(Arc<std::sync::atomic::AtomicBool>);
+    #[async_trait]
+    impl Tool for WriteFlag {
+        fn name(&self) -> &str {
+            "bash"
+        }
+        fn description(&self) -> &str {
+            "write marker"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        async fn run(
+            &self,
+            _ctx: ToolCtx,
+            _input: serde_json::Value,
+            _cancel: CancellationToken,
+        ) -> crate::error::Result<ToolOutput> {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(ToolOutput::ok("written"))
+        }
+    }
+
+    #[tokio::test]
+    async fn a_write_is_blocked_even_if_it_precedes_workflow_start_in_one_response() {
+        let executed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(WriteFlag(executed.clone())));
+        let ctx = ToolCtx {
+            cwd: ".".into(),
+            store: None,
+            permission: Arc::new(PermissionService::allow_all()),
+            session: crate::session::SessionId(0),
+            jobs: Arc::new(crate::job::LocalJobRegistry::default()),
+            bus: EventBus::new(8),
+            subagents: None,
+        };
+        let results = execute_tools(
+            &registry,
+            ctx,
+            vec![
+                ("write-1".into(), "bash".into(), serde_json::json!({})),
+                (
+                    "workflow-1".into(),
+                    "development_workflow".into(),
+                    serde_json::json!({"action":"start"}),
+                ),
+            ],
+            CancellationToken::new(),
+            EventBus::new(8),
+        )
+        .await;
+        assert!(!executed.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(results
+            .iter()
+            .find(|(id, _)| id == "write-1")
+            .is_some_and(|(_, result)| result.is_error));
     }
 }

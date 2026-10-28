@@ -1278,10 +1278,7 @@ fn a2a_panel(
     frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), inner);
 }
 
-fn a2a_agent_lines(
-    app: &App,
-    agents: &[crate::app::A2aAgentView],
-) -> Vec<Line<'static>> {
+fn a2a_agent_lines(app: &App, agents: &[crate::app::A2aAgentView]) -> Vec<Line<'static>> {
     agents
         .iter()
         .enumerate()
@@ -1289,10 +1286,7 @@ fn a2a_agent_lines(
             let approval = if agent.internal {
                 "internal · enabled"
             } else {
-                agent
-                    .approval
-                    .map(approval_label)
-                    .unwrap_or("local")
+                agent.approval.map(approval_label).unwrap_or("local")
             };
             let style = if index == app.a2a_agent_selected {
                 app.theme.styles.heading
@@ -1434,8 +1428,16 @@ fn a2a_details(app: &App, agents: &[crate::app::A2aAgentView]) -> Vec<Line<'stat
                 )),
                 Line::from(format!(
                     "{} · {}",
-                    if agent.internal { "internal" } else { "external" },
-                    if agent.enabled { "enabled" } else { "disabled or pending approval" }
+                    if agent.internal {
+                        "internal"
+                    } else {
+                        "external"
+                    },
+                    if agent.enabled {
+                        "enabled"
+                    } else {
+                        "disabled or pending approval"
+                    }
                 )),
                 Line::from(format!(
                     "streaming {} · push {} · extended card {} · extensions {}",
@@ -1494,7 +1496,10 @@ fn a2a_details(app: &App, agents: &[crate::app::A2aAgentView]) -> Vec<Line<'stat
                 }
             }
             if card.skills.len() > 8 {
-                lines.push(Line::from(format!("… {} more skills", card.skills.len() - 8)));
+                lines.push(Line::from(format!(
+                    "… {} more skills",
+                    card.skills.len() - 8
+                )));
             }
             for extension in card.capabilities.extensions.iter().take(16) {
                 lines.push(Line::from(format!(
@@ -1587,7 +1592,10 @@ fn a2a_details(app: &App, agents: &[crate::app::A2aAgentView]) -> Vec<Line<'stat
                 )));
             }
             if task.artifacts.len() > 16 {
-                lines.push(Line::from(format!("… {} more artifacts", task.artifacts.len() - 16)));
+                lines.push(Line::from(format!(
+                    "… {} more artifacts",
+                    task.artifacts.len() - 16
+                )));
             }
             lines
         }
@@ -3252,7 +3260,7 @@ tres",
         app.settings_saving = true;
         let content = buffer_of(&mut app, 120, 40);
         assert!(content.contains("Applying"));
-        assert!(content.contains("API_KEY"));
+        assert!(content.contains("Not configured"));
         app.settings_saved(Err("Cannot write config".into()));
         let content = buffer_of(&mut app, 120, 40);
         assert!(content.contains("Cannot write config"));

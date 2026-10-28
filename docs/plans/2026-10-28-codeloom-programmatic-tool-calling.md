@@ -1,7 +1,6 @@
 # Plan — Orquestación programática de tools por provider
 
-> Estado: implementación parcial en curso; los tres adapters compilan, falta validar contratos
-> con fixtures y cerrar observabilidad/medición.
+> Estado: primera implementación y suite verificada; quedan pruebas de bordes y medición.
 >
 > Spec: `docs/specs/2026-10-28-codeloom-programmatic-tool-calling.md`.
 >
@@ -26,10 +25,9 @@ disponible y el modo empieza apagado.
 4. Las tools de escritura y las que requieren aprobación quedan direct-only salvo que un
    contrato provider permita conservar inequívocamente el gate normal antes de cada efecto.
 5. OpenAI se implementa como Responses API independiente de `OpenAiCompatProvider`.
-6. Gemini recibe primero una prueba de contrato: la documentación actual describe tool
-   context circulation y combinación de code execution con funciones, pero hay que comprobar
-   si permite el mismo patrón de orquestación de llamadas cliente desde código. No se
-   anunciará PTC equivalente si la API solo ofrece combinación/secuenciación de tools.
+6. Gemini recibe primero una prueba de contrato: la documentación actual confirma combinación
+   de code execution y function calling, pero no documenta que el código Python invoque las
+   funciones cliente. Se ofrece como tool combination, sin etiquetarlo como PTC equivalente.
 7. Sin evidencia verificable para modelo/API/tools, el adapter cae al bucle normal y explica
    la razón; nunca amplía permisos como fallback.
 8. `GeminiProvider` ofrece combinación nativa de code execution y function calling para los
@@ -45,76 +43,81 @@ disponible y el modo empieza apagado.
   caller IDs y fallback a function calls directas.
 - Gemini Interactions conserva la continuación y solo añade `code_execution` en modelos Gemini
   3/4; la llamada a funciones cliente sigue el flujo normal de la API.
-- El estado privado del provider tiene un límite de 64 KiB y no forma parte del contenido
-  visible de los mensajes ni del protocolo A2A.
-- Verificación ejecutada: `cargo check --workspace --all-targets --target-dir .\target` pasó.
-  No se han ejecutado tests ni los cuatro checks de cierre.
+- El estado privado del provider tiene un límite de 64 KiB, vive solo en memoria durante el
+  turno activo y no se serializa a SQLite, TUI ni protocolo A2A. Se reatacha tras cada recarga
+  durable y conserva varias pausas dentro del mismo turno.
+- La respuesta del runtime limita a 32 las tool calls y 64 por turno; el estado opaco acumulado
+  no puede superar 256 KiB. Los adapters rechazan
+  una llamada programática a una tool fuera de la allowlist; OpenAI Compat avisa y sigue directo.
+- La suite completa pasó el 2026-10-28: 1698 tests pasaron y 13 quedaron ignorados.
+- Hay pruebas locales de contratos, continuidad, elegibilidad y denegación; no se hacen llamadas
+  de red real en la suite.
 
 ## Tareas
 
 ### T0. Preparar el contrato de ejecución común
 
-- [ ] Auditar `Provider`, `ProviderRequest`, `StreamChunk`, `AgentLoop`, dispatch, historial,
+- [x] Auditar `Provider`, `ProviderRequest`, `StreamChunk`, `AgentLoop`, dispatch, historial,
   permisos y representación de resultados de tools en el árbol vigente.
-- [ ] Definir el mínimo protocolo interno para una invocación hospedada, tools pendientes,
+- [x] Definir el mínimo protocolo interno para una invocación hospedada, tools pendientes,
   resultados, continuación opaca y salida final; no normalizar payloads propios de cada API.
-- [ ] Añadir opt-in de configuración apagado por defecto y selección por request sin alterar
+- [x] Añadir opt-in de configuración apagado por defecto y selección por request sin alterar
   la API normal de tool calling.
-- [ ] Definir límites de tiempo, llamadas totales, concurrencia, bytes, tokens y cancelación.
-- [ ] Mantener en CodeLoom la validación, `PermissionService`, `ExecutionMode`, eventos y
+- [x] Definir límites de tiempo, llamadas totales, concurrencia, bytes, tokens y cancelación.
+- [x] Mantener en CodeLoom la validación, `PermissionService`, `ExecutionMode`, eventos y
   registro de resultados de cada tool del cliente.
 - [ ] Añadir tests con providers simulados para secuencias, reanudación, denegación,
   cancelación, timeout y fallback; ningún test usa red real.
 
 ### T1. Anthropic Messages API
 
-- [ ] Verificar en documentación vigente versiones de `code_execution`, `allowed_callers`,
+- [x] Verificar en documentación vigente versiones de `code_execution`, `allowed_callers`,
   `caller`, `container`, expiración y forma de continuar tool results.
-- [ ] Comprobar soporte para el modelo seleccionado mediante la señal de capacidad oficial;
+- [x] Comprobar soporte para el modelo seleccionado mediante la señal de capacidad oficial;
   no fijar una lista global de modelos en el core.
-- [ ] Extender `AnthropicProvider` para preservar bloques, IDs, caller y container entre
+- [x] Extender `AnthropicProvider` para preservar bloques, IDs, caller y container entre
   pausas; manejar respuestas parciales y expiradas sin repetir efectos.
-- [ ] Calcular allowlist solo para tools compatibles. MCP Connector queda excluido para este
+- [x] Calcular allowlist solo para tools compatibles. MCP Connector queda excluido para este
   adapter; las tools propias de CodeLoom requieren gates por llamada.
 - [ ] Añadir pruebas con eventos/respuestas grabadas y errores simulados, incluyendo modelo
   no compatible, schema no elegible, denegación y expiración.
 
 ### T2. OpenAI Responses API
 
-- [ ] Auditar las structs y configuración actuales; implementar `ResponsesProvider` separado
+- [x] Auditar las structs y configuración actuales; implementar `ResponsesProvider` separado
   del adapter OpenAI Chat Completions compatible.
-- [ ] Verificar en documentación vigente los items `program`, `function_call` con `caller`,
+- [x] Verificar en documentación vigente los items `program`, `function_call` con `caller`,
   `program_output`, continuación, estado y límites por modelo.
-- [ ] Implementar el ciclo de continuación copiando el `caller` requerido y conservando la
+- [x] Implementar el ciclo de continuación copiando el `caller` requerido y conservando la
   secuencia original; ejecutar en CodeLoom solo function calls propiedad del cliente.
-- [ ] No habilitar hosted tools de shell, MCP, browser u otras herramientas provider en este
+- [x] No habilitar hosted tools de shell, MCP, browser u otras herramientas provider en este
   primer alcance; solo las tools de CodeLoom elegibles y con autorización propia.
 - [ ] Añadir pruebas de parsing/stream, respuestas almacenadas y stateless, calls pendientes,
   errores, fallback y permisos con fixtures locales.
 
 ### T3. Gemini API
 
-- [ ] Verificar si la API/SDK vigente permite que el código ejecutado por Gemini invoque
+- [x] Verificar si la API/SDK vigente permite que el código ejecutado por Gemini invoque
   funciones de cliente, o si solo combina tools integradas y function calling por circulación
   de contexto.
-- [ ] Si hay contrato equivalente, añadir `GeminiProvider` separado con preservación exacta de
-  `id`, firmas/contexto cifrado y todos los pasos requeridos por la API.
-- [ ] Si no hay contrato equivalente, cerrar esta tarea como capacidad no soportada para PTC,
-  documentar lo que sí soporta Gemini y dejar el tool calling normal intacto.
-- [ ] Para cualquier adapter, comprobar la lista vigente de modelos y restricciones; la
-  combinación de tools actualmente documentada como preview no se marca estable por defecto.
+- [x] No hay contrato documentado para invocar funciones cliente desde el código Python. Se
+  implementó `GeminiProvider` para la combinación nativa y el function calling normal.
+- [x] Documentar que Gemini no ofrece PTC equivalente en esta integración; el tool calling
+  normal sigue activo.
+- [x] Comprobar la restricción vigente: combinación nativa Preview, documentada para Gemini 3/4.
 - [ ] Añadir pruebas de fixtures para continuación y pérdida/alteración de firma/contexto; sin
   red real.
 
+La combinación nativa de Gemini se mantiene Preview; no se anuncia como estable.
+
 ### T4. Observabilidad y fallback
 
-- [ ] Mostrar provider, modelo y motivo de fallback sin imprimir código generado, credenciales
+- [x] Mostrar provider/modelo y motivo de fallback sin imprimir código generado, credenciales
   ni payloads sensibles.
-- [ ] Diferenciar en eventos y TUI una llamada directa de una llamada originada en ejecución
-  programática, conservando IDs para diagnóstico.
-- [ ] Verificar que error, timeout, denegación y pérdida de continuación no autoaprueban ni
-  reintentan tools con efectos laterales.
-- [ ] Documentar por adapter las capacidades verificadas y sus límites.
+- [x] Diferenciar llamadas programáticas de tool calls directas con avisos locales e IDs.
+- [x] Mantener las tools programáticas en allowlist de solo lectura y no reintentar efectos
+  laterales al fallar una continuación.
+- [x] Documentar por adapter las capacidades verificadas y sus límites.
 
 ### T5. Evaluación de ahorro y calidad
 
@@ -142,6 +145,10 @@ cargo clippy -- -D warnings
 ```
 
 ## Archivos de entrada
+
+## Verificación 2026-10-28
+
+Los cuatro checks pasaron usando `C:\\Users\\negrero\\AppData\\Local\\Temp\\codeloom-final-target`, ya que el target compartido de `E:\\workspace\\personal\\jevalon\\target` agotó el espacio. `cargo build` dejó solo el aviso de `main.rs` compartido por los binarios `loom` y `codeloom`. La medición T5 sigue pendiente; la combinación Gemini permanece Preview.
 
 - Spec: `docs/specs/2026-10-28-codeloom-programmatic-tool-calling.md`.
 - Evidencia inicial: `docs/references/2026-10-28-programmatic-tool-calling-providers.md`.

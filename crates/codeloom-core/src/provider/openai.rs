@@ -294,7 +294,19 @@ impl Provider for OpenAiCompatProvider {
             }
         });
 
-        Ok(Box::pin(s))
+        let stream: ProviderStream = Box::pin(s);
+        if req.programmatic_tool_calling && req.tools.iter().any(|tool| tool.programmatic_allowed) {
+            let notice = format!(
+                "OpenAI-compatible model `{}` uses direct calls; programmatic calling is available only through Responses",
+                req.model
+            );
+            Ok(Box::pin(
+                futures::stream::once(async move { StreamChunk::ProviderNotice(notice) })
+                    .chain(stream),
+            ))
+        } else {
+            Ok(stream)
+        }
     }
 }
 
@@ -446,13 +458,13 @@ impl OpenAiResponsesProvider {
         cancel: &CancellationToken,
     ) -> Result<serde_json::Value> {
         let mut body = self.build_body(req);
-        let tools = body["tools"].clone();
         let mut replay_items = body["input"].as_array().cloned().unwrap_or_default();
         let mut accumulated_output = Vec::new();
         for continuation in 0..4 {
             let response = tokio::select! {
                 _ = cancel.cancelled() => return Err(CoreError::Cancelled),
                 response = self.client.post(format!("{}/responses", self.base_url))
+                    .timeout(std::time::Duration::from_secs(120))
                     .bearer_auth(&self.api_key)
                     .json(&body)
                     .send() => response.map_err(|error| CoreError::Provider(error.to_string()))?,
@@ -488,6 +500,7 @@ impl OpenAiResponsesProvider {
                     let result = tokio::select! {
                         _ = cancel.cancelled() => return Err(CoreError::Cancelled),
                         result = self.client.post(format!("{}/responses", self.base_url))
+                            .timeout(std::time::Duration::from_secs(120))
                             .bearer_auth(&self.api_key)
                             .json(&response)
                             .send() => result.map_err(|error| CoreError::Provider(error.to_string()))?,
@@ -506,7 +519,7 @@ impl OpenAiResponsesProvider {
                     let output = value["output"].as_array().cloned().unwrap_or_default();
                     replay.extend(output.iter().cloned());
                     accumulated_output.extend(output);
-                    let mut value = with_notice(value, "OpenAI Responses model does not support programmatic tools; using direct calls".into());
+                    let mut value = with_notice(value, format!("OpenAI Responses model `{}` does not support programmatic tools; using direct calls", req.model));
                     value["output"] = serde_json::Value::Array(accumulated_output);
                     return Ok(with_replay(value, replay));
                 }
@@ -525,19 +538,16 @@ impl OpenAiResponsesProvider {
             let output_items = output.cloned().unwrap_or_default();
             replay_items.extend(output_items.iter().cloned());
             accumulated_output.extend(output_items);
-            if has_function_call || has_message || continuation == 3 {
+            if has_function_call
+                || has_message
+                || value["status"] == "incomplete"
+                || continuation == 3
+            {
                 let mut value = value;
                 value["output"] = serde_json::Value::Array(accumulated_output);
                 return Ok(with_replay(value, replay_items));
             }
-            body = serde_json::json!({
-                "model": req.model,
-                "instructions": req.system,
-                "input": replay_items,
-                "tools": tools.clone(),
-                "store": false,
-                "max_output_tokens": req.max_tokens
-            });
+            body["input"] = serde_json::Value::Array(replay_items.clone());
         }
         unreachable!()
     }
@@ -605,6 +615,34 @@ impl Provider for OpenAiResponsesProvider {
                 Some("function_call") => {
                     let id = item["call_id"].as_str().unwrap_or_default();
                     let name = item["name"].as_str().unwrap_or_default();
+                    let caller_type = item
+                        .pointer("/caller/type")
+                        .and_then(serde_json::Value::as_str);
+                    match caller_type {
+                        Some("program") => {
+                            if item
+                                .pointer("/caller/caller_id")
+                                .and_then(serde_json::Value::as_str)
+                                .is_none_or(str::is_empty)
+                                || !req
+                                    .tools
+                                    .iter()
+                                    .any(|tool| tool.name == name && tool.programmatic_allowed)
+                            {
+                                return Err(CoreError::Provider(format!(
+                                    "OpenAI returned a programmatic call for ineligible tool `{name}`"
+                                )));
+                            }
+                        }
+                        Some("direct") => {}
+                        Some(_) => {
+                            return Err(CoreError::Provider(
+                                "OpenAI Responses returned a function call with an unknown caller"
+                                    .into(),
+                            ));
+                        }
+                        None => {}
+                    }
                     let arguments = item["arguments"].as_str().unwrap_or("{}");
                     let input = serde_json::from_str(arguments).map_err(|_| {
                         CoreError::Provider(
@@ -613,6 +651,11 @@ impl Provider for OpenAiResponsesProvider {
                     })?;
                     if let Some(caller) = item.get("caller") {
                         caller_by_call_id.insert(id.to_string(), caller.clone());
+                    }
+                    if caller_type == Some("program") {
+                        chunks.push(StreamChunk::ProviderNotice(format!(
+                            "OpenAI Responses programmatic call {id} → {name}"
+                        )));
                     }
                     chunks.push(StreamChunk::ToolCallComplete {
                         id: id.to_string(),
@@ -899,5 +942,121 @@ mod effort_tests {
         assert!(sent.len() < big.len());
         // ADAPTADO: el resultado se recorta ahora con cabeza y cola y el marcador «bytes omitted».
         assert!(sent.contains("bytes omitted ...]"));
+    }
+}
+
+#[cfg(test)]
+mod responses_tests {
+    use super::*;
+    use crate::provider::ToolSpec;
+    use serde_json::json;
+
+    fn request() -> ProviderRequest {
+        ProviderRequest {
+            model: "model-with-ptc".into(),
+            system: "system".into(),
+            messages: vec![],
+            tools: vec![
+                ToolSpec {
+                    name: "view".into(),
+                    description: "read a file".into(),
+                    input_schema: json!({"type":"object"}),
+                    programmatic_allowed: true,
+                },
+                ToolSpec {
+                    name: "write".into(),
+                    description: "write a file".into(),
+                    input_schema: json!({"type":"object"}),
+                    programmatic_allowed: false,
+                },
+            ],
+            temperature: 0.0,
+            max_tokens: 128,
+            effort: None,
+            programmatic_tool_calling: true,
+        }
+    }
+
+    #[test]
+    fn responses_request_opts_in_only_read_tools_and_keeps_stateless_mode() {
+        let provider = OpenAiResponsesProvider::new("http://localhost/v1", "test-key");
+        let body = provider.build_body(&request());
+        assert_eq!(body["store"], false);
+        assert!(body.get("previous_response_id").is_none());
+        assert!(body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["type"] == "programmatic_tool_calling"));
+        assert_eq!(
+            body["tools"][0]["allowed_callers"],
+            json!(["direct", "programmatic"])
+        );
+        assert!(body["tools"][1].get("allowed_callers").is_none());
+    }
+
+    #[test]
+    fn responses_replay_preserves_program_items_and_caller_on_tool_results() {
+        use crate::message::{ContentPart, Message, ProviderState, Role};
+        let provider = OpenAiResponsesProvider::new("http://localhost/v1", "test-key");
+        let mut assistant = Message::assistant(vec![ContentPart::ToolCall {
+            id: "call-1".into(),
+            name: "view".into(),
+            input: json!({"path":"README.md"}),
+        }]);
+        assistant.provider_state = Some(ProviderState {
+            provider: "openai_responses".into(),
+            data: json!({
+                "response_id":"resp-1", "model":"model-with-ptc",
+                "base_url":"http://localhost/v1",
+                "replay_items":[{
+                    "type":"program","call_id":"prog-1","code":"const x = 1",
+                    "fingerprint":"opaque"
+                },{
+                    "type":"function_call","call_id":"call-1","name":"view",
+                    "arguments":"{}","caller":{"type":"program","caller_id":"prog-1"}
+                }],
+                "caller_by_call_id":{"call-1":{"type":"program","caller_id":"prog-1"}}
+            }),
+        });
+        let result = Message::new(
+            Role::Tool,
+            vec![ContentPart::ToolResult {
+                call_id: "call-1".into(),
+                content: "file contents".into(),
+                is_error: false,
+            }],
+        );
+        let mut req = request();
+        req.messages = vec![assistant, result];
+        let body = provider.build_body(&req);
+        assert_eq!(body["store"], false);
+        assert_eq!(body["input"][0]["type"], "program");
+        assert_eq!(body["input"][1]["type"], "function_call");
+        assert_eq!(body["input"][2]["type"], "function_call_output");
+        assert_eq!(body["input"][2]["caller"]["caller_id"], "prog-1");
+    }
+
+    #[tokio::test]
+    async fn rejects_programmatic_calls_to_ineligible_tools() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/responses"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id":"resp_1","status":"completed","output":[{
+                    "type":"function_call","call_id":"call_1","name":"write",
+                    "arguments":"{}","caller":{"type":"program","caller_id":"prog_1"}
+                }]
+            })))
+            .mount(&server)
+            .await;
+        let provider = OpenAiResponsesProvider::new(server.uri(), "test-key");
+        assert!(provider
+            .stream(request(), CancellationToken::new())
+            .await
+            .is_err());
     }
 }

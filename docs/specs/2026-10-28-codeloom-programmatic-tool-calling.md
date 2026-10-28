@@ -1,6 +1,6 @@
 # Llamadas programáticas de herramientas por provider
 
-> Estado: propuesta para revisión; no implementar hasta aprobar alcance y decisiones abiertas.
+> Estado: primera implementación completada; verificación automática pasada el 2026-10-28.
 >
 > Fecha: 2026-10-28
 >
@@ -56,15 +56,28 @@ El inventario anterior es evidencia de que hay mecanismos parecidos en más de u
 no prueba de paridad ni de disponibilidad para todos sus modelos, endpoints, regiones o
 planes. CodeLoom no anuncia soporte si el adapter no puede confirmarlo.
 
+Decisiones aprobadas para la primera versión:
+
+- Opt-in global del proceso mediante `CODELOOM_PROGRAMMATIC_TOOL_CALLING=1`; apagado por
+  defecto. No se hereda de tarjetas A2A ni se habilita por petición del modelo.
+- OpenAI usa Responses API nativa en adapter separado. OpenAI Compat conserva llamadas
+  directas y muestra aviso cuando se solicita PTC.
+- Solo `view`, `glob`, `grep` y `ls` pueden aparecer como llamadas desde código. MCP y las
+  tools con efectos laterales permanecen direct-only.
+- Estado de continuación opaco se conserva solo en memoria durante el turno activo; no se
+  serializa a SQLite, TUI ni A2A. Si el proceso se interrumpe, el turno falla/reintenta desde
+  el historial de tools como llamadas directas, sin reejecutar automáticamente una escritura.
+- Gemini 3/4 usa combinación documentada de code execution y function calling; no se declara
+  ejecución de funciones cliente desde el código Python del provider.
+
 ## 4. Contrato de CodeLoom
 
 ### 4.1 Capacidad consultable
 
-La capa de Provider debe poder responder, para el modelo y la petición concretos, si se
-admite orquestación programática, qué protocolo usa, qué tools son elegibles y qué
-restricciones aplica. El contrato actual `Provider::capabilities()` solo declara
-`tool_use`, `reasoning` y `streaming`, sin modelo ni conjunto de tools; no basta para inferir
-esta capacidad.
+La capability se decide en el adapter por petición. Anthropic consulta la señal oficial del
+modelo; OpenAI intenta Responses PTC solo con el opt-in y cae a llamadas directas ante el
+error reconocido de incompatibilidad; Gemini limita la combinación a las familias 3/4. La
+API OpenAI-compatible no hereda PTC.
 
 La respuesta de capacidad debe distinguir al menos:
 
@@ -78,8 +91,8 @@ turno.
 
 ### 4.2 Selección y fallback
 
-- La ejecución programática es opt-in por configuración de CodeLoom o por petición; queda
-  apagada si no hay decisión explícita.
+- La ejecución programática es opt-in mediante `CODELOOM_PROGRAMMATIC_TOOL_CALLING=1`; queda
+  apagada por defecto.
 - CodeLoom resuelve la capacidad antes de construir la solicitud y selecciona solo tools
   compatibles con esa vía.
 - Si el modelo, endpoint o una tool no admite esta vía, CodeLoom mantiene el flujo actual de

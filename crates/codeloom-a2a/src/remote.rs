@@ -388,10 +388,7 @@ mod tests {
         let servidor = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/agents/tenant-1/.well-known/agent-card.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_raw(
-                include_str!("../tests/fixtures/agent-card.sample.json"),
-                "application/json",
-            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(tarjeta_para(&servidor)))
             .expect(1)
             .mount(&servidor)
             .await;

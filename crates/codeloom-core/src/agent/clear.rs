@@ -15,6 +15,11 @@ const CLEAR_MIN_BYTES: usize = 256;
 ///
 /// Se conservan el orden, el número de partes, los `call_id` y el indicador de error.
 pub fn clear_old_tool_results(history: &[Message], keep: usize) -> Vec<Message> {
+    let continuation_calls: std::collections::HashSet<&str> = history
+        .iter()
+        .filter(|message| message.provider_state.is_some())
+        .flat_map(|message| message.tool_calls().into_iter().map(|(id, _, _)| id))
+        .collect();
     let total = history
         .iter()
         .flat_map(|m| m.parts.iter())
@@ -36,7 +41,10 @@ pub fn clear_old_tool_results(history: &[Message], keep: usize) -> Vec<Message> 
                 } => {
                     let index = ordinal;
                     ordinal += 1;
-                    if index < cutoff && content.len() > CLEAR_MIN_BYTES {
+                    if index < cutoff
+                        && content.len() > CLEAR_MIN_BYTES
+                        && !continuation_calls.contains(call_id.as_str())
+                    {
                         parts.push(ContentPart::ToolResult {
                             call_id: call_id.clone(),
                             content: format!(
@@ -228,5 +236,39 @@ mod tests {
             out, history,
             "la copia debe diferir: hay resultados que limpiar"
         );
+    }
+
+    #[test]
+    fn pending_provider_continuation_keeps_its_tool_results_intact() {
+        use crate::message::ProviderState;
+        let mut assistant = Message::assistant(vec![ContentPart::ToolCall {
+            id: "pending-call".into(),
+            name: "view".into(),
+            input: serde_json::json!({}),
+        }]);
+        assistant.provider_state = Some(ProviderState {
+            provider: "openai_responses".into(),
+            data: serde_json::json!({}),
+        });
+        let history = vec![
+            assistant,
+            result_msg("pending-call", 1000),
+            result_msg("unrelated", 1000),
+        ];
+        let cleared = clear_old_tool_results(&history, 0);
+        let result = |id: &str| {
+            cleared
+                .iter()
+                .flat_map(|message| message.parts.iter())
+                .find_map(|part| match part {
+                    ContentPart::ToolResult {
+                        call_id, content, ..
+                    } if call_id == id => Some(content),
+                    _ => None,
+                })
+                .unwrap()
+        };
+        assert_eq!(result("pending-call").len(), 1000);
+        assert!(result("unrelated").starts_with("[tool result cleared:"));
     }
 }

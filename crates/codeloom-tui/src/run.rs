@@ -994,6 +994,27 @@ fn toggle_provider(app: &mut App) {
                 codeloom_core::config::ProviderKind::OpenAiCompat
             }
         };
+        let (base_url, api_key_env) = match settings.kind {
+            codeloom_core::config::ProviderKind::OpenAiCompat => {
+                ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY")
+            }
+            codeloom_core::config::ProviderKind::OpenAiResponses => {
+                ("https://api.openai.com/v1", "OPENAI_API_KEY")
+            }
+            codeloom_core::config::ProviderKind::Anthropic => {
+                ("https://api.anthropic.com", "ANTHROPIC_API_KEY")
+            }
+            codeloom_core::config::ProviderKind::Gemini => (
+                "https://generativelanguage.googleapis.com/v1beta",
+                "GEMINI_API_KEY",
+            ),
+        };
+        settings.base_url = base_url.into();
+        settings.api_key_env = api_key_env.into();
+        app.settings_api_key.clear();
+        app.settings_feedback = Some(
+            "Provider endpoint and key variable updated; review the model before saving".into(),
+        );
     }
 }
 
@@ -2572,6 +2593,7 @@ mod tests {
         });
         handle_key(&mut app, KeyCode::F(2), KeyModifiers::NONE);
         handle_key(&mut app, KeyCode::Right, KeyModifiers::NONE);
+        handle_key(&mut app, KeyCode::Right, KeyModifiers::NONE);
         assert_eq!(
             app.provider_settings.as_ref().unwrap().kind,
             codeloom_core::config::ProviderKind::Anthropic
@@ -3672,14 +3694,49 @@ mod tests {
     fn enter_on_provider_opens_picker_and_arrows_still_toggle_kind() {
         let mut app = anthropic_app_with_catalog();
         app.settings_field = 0;
+        app.settings_api_key = "old-provider-secret".into();
         handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
         assert_eq!(app.settings_picker, Some(SettingsPicker::Provider));
         handle_key(&mut app, KeyCode::Esc, KeyModifiers::NONE);
         handle_key(&mut app, KeyCode::Right, KeyModifiers::NONE);
         assert_eq!(
             app.provider_settings.as_ref().unwrap().kind,
-            codeloom_core::config::ProviderKind::OpenAiCompat
+            codeloom_core::config::ProviderKind::Gemini
         );
+        assert_eq!(
+            app.provider_settings.as_ref().unwrap().base_url,
+            "https://generativelanguage.googleapis.com/v1beta"
+        );
+        assert_eq!(
+            app.provider_settings.as_ref().unwrap().api_key_env,
+            "GEMINI_API_KEY"
+        );
+        assert!(app.settings_api_key.is_empty());
+    }
+
+    #[test]
+    fn provider_picker_exposes_responses_and_gemini_with_their_native_endpoints() {
+        let mut app = anthropic_app_with_catalog();
+        app.settings_field = 0;
+        handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        for character in "gemini-interactions".chars() {
+            handle_key(&mut app, KeyCode::Char(character), KeyModifiers::NONE);
+        }
+        handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+
+        let settings = app.provider_settings.as_ref().unwrap();
+        assert_eq!(settings.kind, codeloom_core::config::ProviderKind::Gemini);
+        assert_eq!(
+            settings.base_url,
+            "https://generativelanguage.googleapis.com/v1beta"
+        );
+        assert_eq!(settings.api_key_env, "GEMINI_API_KEY");
+        assert_eq!(app.settings_field, 1);
+        assert!(app
+            .settings_feedback
+            .as_deref()
+            .unwrap()
+            .contains("model ID"));
     }
 
     #[test]
