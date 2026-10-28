@@ -8,6 +8,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
+const OPENROUTER_HAIKU_55: &str = "anthropic/claude-haiku-5.5";
+const OPENROUTER_PTC_UNSUPPORTED: &str = "OpenRouter rejected Anthropic programmatic tool calling";
+
 #[derive(Default)]
 pub struct AnthropicAcc {
     blocks: Vec<(String, String, String)>, // (id, name, json) por index
@@ -117,6 +120,17 @@ fn anthropic_budget(effort: &str) -> Option<u32> {
     }
 }
 
+fn is_ptc_unsupported(body: &str) -> bool {
+    let body = body.to_ascii_lowercase();
+    body.contains("code_execution")
+        || body.contains("allowed_callers")
+        || body.contains("programmatic tool calling")
+}
+
+fn is_openrouter_ptc_rejection(status: reqwest::StatusCode, body: &str) -> bool {
+    status == reqwest::StatusCode::BAD_REQUEST && is_ptc_unsupported(body)
+}
+
 pub struct AnthropicProvider {
     base_url: String,
     api_key: String,
@@ -132,6 +146,15 @@ impl AnthropicProvider {
             client: reqwest::Client::new(),
             capability_cache: Mutex::new(HashMap::new()),
         }
+    }
+
+    fn is_openrouter(&self) -> bool {
+        reqwest::Url::parse(&self.base_url)
+            .is_ok_and(|url| url.host_str() == Some("openrouter.ai") && url.path() == "/api")
+    }
+
+    fn is_openrouter_haiku_55(&self, model: &str) -> bool {
+        self.is_openrouter() && model == OPENROUTER_HAIKU_55
     }
 
     fn build_body(&self, req: &ProviderRequest) -> serde_json::Value {
@@ -167,8 +190,14 @@ impl AnthropicProvider {
             "stream": !req.programmatic_tool_calling,
             "temperature": req.temperature
         });
+        if self.is_openrouter_haiku_55(&req.model) {
+            cuerpo.as_object_mut().unwrap().remove("temperature");
+            cuerpo["provider"] = serde_json::json!({
+                "order": ["anthropic"],
+                "allow_fallbacks": false
+            });
         // Sin esfuerzo (o con un nivel fuera de la tabla), el cuerpo no cambia.
-        if let Some(presupuesto) = req.effort.as_deref().and_then(anthropic_budget) {
+        } else if let Some(presupuesto) = req.effort.as_deref().and_then(anthropic_budget) {
             cuerpo["thinking"] = serde_json::json!({
                 "type": "enabled",
                 "budget_tokens": presupuesto
@@ -204,6 +233,11 @@ impl AnthropicProvider {
         model: &str,
         cancel: &CancellationToken,
     ) -> Result<Option<bool>> {
+        // OpenRouter's public model record does not expose Anthropic's PTC capability field.
+        // Try only the documented Haiku 5.5 model and pin its upstream to Anthropic.
+        if self.is_openrouter_haiku_55(model) {
+            return Ok(Some(true));
+        }
         if let Ok(cache) = self.capability_cache.lock() {
             if let Some(supported) = cache.get(model).copied() {
                 return Ok(Some(supported));
@@ -262,7 +296,13 @@ impl AnthropicProvider {
                 .send() => response.map_err(|error| CoreError::Provider(error.to_string()))?,
         };
         if !response.status().is_success() {
-            return Err(CoreError::Provider(format!("http {}", response.status())));
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            if self.is_openrouter_haiku_55(&req.model) && is_openrouter_ptc_rejection(status, &body)
+            {
+                return Err(CoreError::Provider(OPENROUTER_PTC_UNSUPPORTED.into()));
+            }
+            return Err(CoreError::Provider(format!("http {status}")));
         }
         let response: serde_json::Value = response
             .json()
@@ -483,7 +523,16 @@ impl Provider for AnthropicProvider {
         let mut fallback_notice = None;
         if req.programmatic_tool_calling && req.tools.iter().any(|tool| tool.programmatic_allowed) {
             match self.supports_code_execution(&req.model, &cancel).await? {
-                Some(true) => return self.stream_programmatic(req, cancel).await,
+                Some(true) => match self.stream_programmatic(req.clone(), cancel.clone()).await {
+                    Ok(stream) => return Ok(stream),
+                    Err(CoreError::Provider(message)) if message == OPENROUTER_PTC_UNSUPPORTED => {
+                        fallback_notice = Some(format!(
+                            "OpenRouter rejected programmatic tools for `{}`; using direct calls",
+                            req.model
+                        ));
+                    }
+                    Err(error) => return Err(error),
+                },
                 Some(false) => {
                     tracing::info!(model = %req.model, "Anthropic model lacks code_execution; using direct tool calls");
                     fallback_notice = Some(format!(
@@ -811,6 +860,95 @@ mod programmatic_tests {
         }
     }
 
+    #[tokio::test]
+    #[ignore = "live OpenRouter calls; incurs provider usage"]
+    async fn openrouter_haiku_live_direct_vs_ptc() {
+        use crate::message::{ContentPart, Message, Role};
+        use futures::StreamExt;
+        use std::time::Instant;
+
+        let key = std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY");
+        let provider = AnthropicProvider::new("https://openrouter.ai/api", key);
+        let mut total_cost = 0.0_f64;
+        for ptc in [false, true] {
+            let started = Instant::now();
+            let mut req = request();
+            req.model = OPENROUTER_HAIKU_55.into();
+            req.system = "Read the fixture with the view tool and return only its VALUE.".into();
+            req.messages = vec![Message::user(
+                "Use view exactly once to read the local fixture.",
+            )];
+            req.max_tokens = 128;
+            req.programmatic_tool_calling = ptc;
+            let mut turns = 0;
+            let mut usage = Usage {
+                input_tokens: 0,
+                output_tokens: 0,
+            };
+            let mut called_programmatically = false;
+            let mut final_text = String::new();
+            let mut provider_rejected = false;
+            for _ in 0..2 {
+                turns += 1;
+                let mut stream = match provider.stream(req.clone(), CancellationToken::new()).await
+                {
+                    Ok(stream) => stream,
+                    Err(_) => {
+                        provider_rejected = true;
+                        break;
+                    }
+                };
+                let mut parts = Vec::new();
+                let mut state = None;
+                let mut tool_call = None;
+                while let Some(chunk) = stream.next().await {
+                    match chunk {
+                        StreamChunk::TextDelta(text) => {
+                            final_text.push_str(&text);
+                            parts.push(ContentPart::Text { text });
+                        }
+                        StreamChunk::ToolCallComplete { id, name, input } => {
+                            tool_call = Some((id.clone(), name.clone(), input.clone()));
+                            parts.push(ContentPart::ToolCall { id, name, input });
+                        }
+                        StreamChunk::Usage(u) => {
+                            usage.input_tokens += u.input_tokens;
+                            usage.output_tokens += u.output_tokens;
+                        }
+                        StreamChunk::ProviderState(s) => state = Some(s),
+                        StreamChunk::ProviderNotice(n) if n.contains("programmatic call") => {
+                            called_programmatically = true
+                        }
+                        _ => {}
+                    }
+                }
+                let Some((id, name, _)) = tool_call else {
+                    break;
+                };
+                assert_eq!(name, "view");
+                let mut assistant = Message::assistant(parts);
+                assistant.provider_state = state;
+                req.messages.push(assistant);
+                req.messages.push(Message::new(
+                    Role::Tool,
+                    vec![ContentPart::ToolResult {
+                        call_id: id,
+                        content: "VALUE=cedar-7".into(),
+                        is_error: false,
+                    }],
+                ));
+            }
+            let cost = usage.input_tokens as f64 * 0.10 / 1_000_000.0
+                + usage.output_tokens as f64 * 0.50 / 1_000_000.0;
+            total_cost += cost;
+            println!("mode={} tokens_in={} tokens_out={} turns={} latency_ms={} tool_ptc={} cost_usd={:.6} exact={} provider_rejected={}",
+                if ptc { "ptc" } else { "direct" }, usage.input_tokens, usage.output_tokens,
+                turns, started.elapsed().as_millis(), called_programmatically, cost,
+                final_text.trim() == "cedar-7", provider_rejected);
+            assert!(total_cost < 1.0, "USD 1 benchmark cap reached");
+        }
+    }
+
     #[test]
     fn body_enables_code_execution_only_when_a_tool_is_eligible() {
         let provider = AnthropicProvider::new("http://localhost", "test-key");
@@ -837,6 +975,47 @@ mod programmatic_tests {
                 .iter()
                 .all(|tool| tool["type"] != "code_execution_20260521")
         );
+    }
+
+    #[test]
+    fn openrouter_haiku_ptc_is_pinned_and_direct_anthropic_body_is_unchanged() {
+        let mut req = request();
+        req.model = OPENROUTER_HAIKU_55.into();
+        let openrouter = AnthropicProvider::new("https://openrouter.ai/api", "key");
+        let body = openrouter.build_body(&req);
+        assert_eq!(body["provider"]["order"], json!(["anthropic"]));
+        assert_eq!(body["provider"]["allow_fallbacks"], false);
+        assert!(body.get("temperature").is_none());
+        assert!(body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["type"] == "code_execution_20260521"));
+
+        let direct = AnthropicProvider::new("https://api.anthropic.com", "key").build_body(&req);
+        assert!(direct.get("provider").is_none());
+    }
+
+    #[test]
+    fn openrouter_falls_back_only_on_explicit_bad_request_about_ptc() {
+        use reqwest::StatusCode;
+
+        assert!(is_openrouter_ptc_rejection(
+            StatusCode::BAD_REQUEST,
+            "code_execution is unsupported"
+        ));
+        assert!(!is_openrouter_ptc_rejection(
+            StatusCode::BAD_REQUEST,
+            "invalid model"
+        ));
+        assert!(!is_openrouter_ptc_rejection(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "code_execution unavailable"
+        ));
+        assert!(!is_openrouter_ptc_rejection(
+            StatusCode::UNAUTHORIZED,
+            "code_execution unsupported"
+        ));
     }
 
     #[test]
