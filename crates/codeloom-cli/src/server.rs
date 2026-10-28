@@ -315,6 +315,7 @@ async fn ejecutar_supervisor(
                             output_tokens: usage.output_tokens.into(),
                             input_price: None,
                             output_price: None,
+                            reported_cost_usd: usage.reported_cost_usd,
                             created_at_ms,
                         },
                     )
@@ -2159,6 +2160,7 @@ mod runtime_tests {
                     StreamChunk::Usage(Usage {
                         input_tokens: 12,
                         output_tokens: 4,
+                        reported_cost_usd: None,
                     }),
                     StreamChunk::Done(FinishReason::Stop),
                 ]))),

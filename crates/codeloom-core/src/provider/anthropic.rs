@@ -79,6 +79,9 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
                 out.push(StreamChunk::Usage(Usage {
                     input_tokens: u["input_tokens"].as_u64().unwrap_or(0) as u32,
                     output_tokens: u["output_tokens"].as_u64().unwrap_or(0) as u32,
+                    reported_cost_usd: u["cost"]
+                        .as_f64()
+                        .filter(|cost| cost.is_finite() && *cost >= 0.0),
                 }));
             }
         }
@@ -87,6 +90,9 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
                 out.push(StreamChunk::Usage(Usage {
                     input_tokens: 0,
                     output_tokens: u["output_tokens"].as_u64().unwrap_or(0) as u32,
+                    reported_cost_usd: u["cost"]
+                        .as_f64()
+                        .filter(|cost| cost.is_finite() && *cost >= 0.0),
                 }));
             }
             out.extend(acc.finish());
@@ -408,6 +414,9 @@ impl AnthropicProvider {
             chunks.push(StreamChunk::Usage(crate::message::Usage {
                 input_tokens: usage["input_tokens"].as_u64().unwrap_or(0) as u32,
                 output_tokens: usage["output_tokens"].as_u64().unwrap_or(0) as u32,
+                reported_cost_usd: usage["cost"]
+                    .as_f64()
+                    .filter(|cost| cost.is_finite() && *cost >= 0.0),
             }));
         }
         chunks.push(StreamChunk::ProviderState(state));
@@ -650,6 +659,17 @@ mod tests {
     }
 
     #[test]
+    fn maps_provider_reported_cost_from_usage() {
+        let chunks = ev(
+            "message_delta",
+            json!({"usage":{"output_tokens":2,"cost":0.002}}),
+        );
+        assert!(
+            matches!(&chunks[0], StreamChunk::Usage(usage) if usage.reported_cost_usd == Some(0.002))
+        );
+    }
+
+    #[test]
     fn assembles_tool_use() {
         let mut acc = AnthropicAcc::default();
         let start = json!({"index":0,"content_block":{"type":"tool_use","id":"t1","name":"view"}});
@@ -884,6 +904,7 @@ mod programmatic_tests {
             let mut usage = Usage {
                 input_tokens: 0,
                 output_tokens: 0,
+                reported_cost_usd: None,
             };
             let mut called_programmatically = false;
             let mut final_text = String::new();

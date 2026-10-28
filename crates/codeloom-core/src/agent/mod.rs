@@ -92,6 +92,9 @@ impl UsageRecorder {
             output_tokens: u64::from(usage.output_tokens),
             input_price: prices.map(|(input, _)| input),
             output_price: prices.map(|(_, output)| output),
+            reported_cost_usd: usage
+                .reported_cost_usd
+                .filter(|cost| cost.is_finite() && *cost >= 0.0),
             created_at_ms: crate::message::now_ms(),
         };
         // Con presupuesto, el acumulado previo se lee antes de guardar el apunte para comparar
@@ -194,6 +197,9 @@ async fn resumir_en_segundo_plano(
                 input_tokens: uso.input_tokens,
                 output_tokens: uso.output_tokens,
             });
+            if let Some(usd) = uso.reported_cost_usd {
+                bus.publish(LiveEvent::ReportedCost { usd });
+            }
             recorder.record(session, uso).await;
         }
         // Un resumen de una tarea cancelada no se anuncia: su slot ya se ha vaciado.
@@ -750,14 +756,13 @@ impl AgentLoop {
                         let total = usage.get_or_insert(Usage {
                             input_tokens: 0,
                             output_tokens: 0,
+                            reported_cost_usd: None,
                         });
                         total.input_tokens = total.input_tokens.saturating_add(chunk.input_tokens);
                         total.output_tokens =
                             total.output_tokens.saturating_add(chunk.output_tokens);
-                        self.bus.publish(LiveEvent::Usage {
-                            input_tokens: chunk.input_tokens,
-                            output_tokens: chunk.output_tokens,
-                        });
+                        total.reported_cost_usd =
+                            chunk.reported_cost_usd.or(total.reported_cost_usd);
                     }
                     StreamChunk::ToolCallComplete { id, name, input } => {
                         tool_calls.push((id, name, input));
@@ -800,6 +805,13 @@ impl AgentLoop {
             // así que se guarda el total acumulado al cerrar el flujo.
             if let Some(total) = &usage {
                 self.record_usage(session, total).await;
+                self.bus.publish(LiveEvent::Usage {
+                    input_tokens: total.input_tokens,
+                    output_tokens: total.output_tokens,
+                });
+                if let Some(usd) = total.reported_cost_usd {
+                    self.bus.publish(LiveEvent::ReportedCost { usd });
+                }
             }
 
             if cancel.is_cancelled() {
@@ -943,6 +955,9 @@ impl AgentLoop {
                 input_tokens: uso.input_tokens,
                 output_tokens: uso.output_tokens,
             });
+            if let Some(usd) = uso.reported_cost_usd {
+                self.bus.publish(LiveEvent::ReportedCost { usd });
+            }
             self.record_usage(session, uso).await;
         }
         let Some(resumen) = resumen else {
@@ -1176,9 +1191,11 @@ pub async fn generate_summary(
                 let total = uso.get_or_insert(Usage {
                     input_tokens: 0,
                     output_tokens: 0,
+                    reported_cost_usd: None,
                 });
                 total.input_tokens = total.input_tokens.saturating_add(parcial.input_tokens);
                 total.output_tokens = total.output_tokens.saturating_add(parcial.output_tokens);
+                total.reported_cost_usd = parcial.reported_cost_usd.or(total.reported_cost_usd);
             }
             Some(StreamChunk::Done(razon)) => {
                 cierre = Some(razon);
@@ -2097,6 +2114,7 @@ mod tests {
         StreamChunk::Usage(crate::message::Usage {
             input_tokens: input,
             output_tokens: output,
+            reported_cost_usd: None,
         })
     }
 
@@ -2710,6 +2728,7 @@ Cuerpo.
             uso: Some(Usage {
                 input_tokens: 700,
                 output_tokens: 90,
+                reported_cost_usd: None,
             }),
             seen: Mutex::new(Vec::new()),
         });
@@ -3679,6 +3698,7 @@ Cuerpo.
             StreamChunk::Usage(Usage {
                 input_tokens: entrada,
                 output_tokens: salida,
+                reported_cost_usd: None,
             }),
             StreamChunk::Done(FinishReason::Stop),
         ]
@@ -3765,6 +3785,7 @@ Cuerpo.
                     output_tokens: 0,
                     input_price: None,
                     output_price: None,
+                    reported_cost_usd: None,
                     created_at_ms: 0,
                 },
             )
@@ -3890,6 +3911,7 @@ Cuerpo.
                     StreamChunk::Usage(Usage {
                         input_tokens: 500,
                         output_tokens: 0,
+                        reported_cost_usd: None,
                     }),
                     StreamChunk::ToolCallComplete {
                         id: "c1".into(),

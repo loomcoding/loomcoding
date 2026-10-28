@@ -292,6 +292,9 @@ impl Provider for GeminiProvider {
             chunks.push(StreamChunk::Usage(Usage {
                 input_tokens: usage["total_input_tokens"].as_u64().unwrap_or(0) as u32,
                 output_tokens: usage["total_output_tokens"].as_u64().unwrap_or(0) as u32,
+                reported_cost_usd: usage["cost"]
+                    .as_f64()
+                    .filter(|cost| cost.is_finite() && *cost >= 0.0),
             }));
         }
         if let Some(notice) = fallback_notice {

@@ -99,8 +99,13 @@ fn rail_lines(app: &App, width: usize) -> Vec<Line<'_>> {
     // Coste de la sesión bajo los tokens: solo con apuntes, y recortado al rail.
     // Si ningún apunte tiene precio, un «$0+» no informa de nada: se omite la línea.
     if let Some((cost, partial)) = app.estimated_cost().filter(|(cost, _)| *cost > 0.0) {
+        let label = if app.cost_is_estimated() {
+            format_cost(cost, partial)
+        } else {
+            format_actual_cost(cost, partial)
+        };
         out.push(Line::from(Span::styled(
-            recortar(&format_cost(cost, partial), width),
+            recortar(&label, width),
             app.theme.styles.muted,
         )));
     }
@@ -245,7 +250,10 @@ fn rail_lines(app: &App, width: usize) -> Vec<Line<'_>> {
             out.push(line);
             // Segunda línea tenue con las métricas, solo si el hijo tiene estadísticas.
             if let Some(stats) = app.agent_stats.get(&subagent.child.0) {
-                let coste = child_cost_label(app.child_cost(subagent.child));
+                let coste = child_cost_label(
+                    app.child_cost(subagent.child),
+                    app.child_cost_is_estimated(subagent.child),
+                );
                 let ficheros = app.child_file_count(subagent.child);
                 let metricas = metrics_line(stats, coste, ficheros, ahora, width.saturating_sub(2));
                 if !metricas.is_empty() {
@@ -376,6 +384,10 @@ pub fn format_cost(dollars: f64, partial: bool) -> String {
     }
 }
 
+fn format_actual_cost(dollars: f64, partial: bool) -> String {
+    format_cost(dollars, partial).replacen("≈ ", "", 1)
+}
+
 /// Cifra de `format_cost` sin el marcador de parcial.
 fn format_dollars(dollars: f64) -> String {
     if dollars <= 0.0 {
@@ -423,9 +435,15 @@ pub fn format_elapsed(d: Duration) -> String {
 
 /// Grupo de coste de un hijo para su línea de métricas: `format_cost` sin el espacio tras `≈`
 /// (`≈$0.004`, `≈$0.004+`). `None` sin precio o si el coste es nulo, para no mostrar `≈$0`.
-fn child_cost_label(cost: Option<(f64, bool)>) -> Option<String> {
+fn child_cost_label(cost: Option<(f64, bool)>, estimated: bool) -> Option<String> {
     cost.filter(|(dollars, _)| *dollars > 0.0)
-        .map(|(dollars, partial)| format_cost(dollars, partial).replacen("≈ ", "≈", 1))
+        .map(|(dollars, partial)| {
+            if estimated {
+                format_cost(dollars, partial).replacen("≈ ", "≈", 1)
+            } else {
+                format_actual_cost(dollars, partial)
+            }
+        })
 }
 
 /// Línea de métricas de un subagente, p. ej. `2/5 read_file · 1.2k/300 · ≈$0.004 · 7s`.
@@ -1110,6 +1128,11 @@ mod tests {
     }
 
     #[test]
+    fn reported_cost_is_displayed_without_estimate_marker() {
+        assert_eq!(format_actual_cost(0.0123, false), "$0.0123");
+    }
+
+    #[test]
     fn format_cost_rounding_edges_and_zero() {
         // El redondeo no debe producir «1.0000» ni «100.00».
         assert_eq!(format_cost(0.99996, false), "≈ $1.00");
@@ -1121,6 +1144,18 @@ mod tests {
     fn format_cost_partial_adds_plus() {
         assert_eq!(format_cost(0.0123, true), "≈ $0.0123+");
         assert_eq!(format_cost(0.0, true), "≈ $0+");
+    }
+
+    #[test]
+    fn child_cost_label_marks_estimates_but_not_reported_costs() {
+        assert_eq!(
+            child_cost_label(Some((0.01, false)), true).as_deref(),
+            Some("≈$0.0100")
+        );
+        assert_eq!(
+            child_cost_label(Some((0.01, false)), false).as_deref(),
+            Some("$0.0100")
+        );
     }
 
     #[test]
@@ -1139,6 +1174,7 @@ mod tests {
             output_tokens: output,
             input_price: prices.map(|(price_in, _)| price_in),
             output_price: prices.map(|(_, price_out)| price_out),
+            reported_cost_usd: None,
             created_at_ms: 1,
         }
     }
@@ -1188,6 +1224,7 @@ mod tests {
             output_tokens: 5,
             input_price: None,
             output_price: None,
+            reported_cost_usd: None,
             created_at_ms: 0,
         });
         let rows = rows_of(&app, 40, 24);

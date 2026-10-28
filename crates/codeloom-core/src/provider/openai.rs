@@ -60,6 +60,9 @@ pub fn map_openai_event(data: &str, acc: &mut ToolCallAcc) -> Vec<StreamChunk> {
         out.push(StreamChunk::Usage(Usage {
             input_tokens: u["prompt_tokens"].as_u64().unwrap_or(0) as u32,
             output_tokens: u["completion_tokens"].as_u64().unwrap_or(0) as u32,
+            reported_cost_usd: u["cost"]
+                .as_f64()
+                .filter(|cost| cost.is_finite() && *cost >= 0.0),
         }));
     }
     let Some(choices) = v.get("choices").and_then(|c| c.as_array()) else {
@@ -671,6 +674,9 @@ impl Provider for OpenAiResponsesProvider {
             chunks.push(StreamChunk::Usage(Usage {
                 input_tokens: usage["input_tokens"].as_u64().unwrap_or(0) as u32,
                 output_tokens: usage["output_tokens"].as_u64().unwrap_or(0) as u32,
+                reported_cost_usd: usage["cost"]
+                    .as_f64()
+                    .filter(|cost| cost.is_finite() && *cost >= 0.0),
             }));
         }
         if response["_codeloom_notice"].is_string() {
@@ -719,6 +725,22 @@ mod tests {
         let data = json!({"choices":[{"delta":{"content":"hi"}}]}).to_string();
         let chunks = map_openai_event(&data, &mut acc);
         assert!(matches!(chunks.as_slice(), [StreamChunk::TextDelta(t)] if t == "hi"));
+    }
+
+    #[test]
+    fn maps_reported_usage_cost_and_rejects_invalid_cost() {
+        let mut acc = ToolCallAcc::default();
+        let chunks = map_openai_event(
+            r#"{"usage":{"prompt_tokens":4,"completion_tokens":2,"cost":0.0012}}"#,
+            &mut acc,
+        );
+        assert!(
+            matches!(&chunks[0], StreamChunk::Usage(usage) if usage.reported_cost_usd == Some(0.0012))
+        );
+        let chunks = map_openai_event(r#"{"usage":{"cost":-1}}"#, &mut acc);
+        assert!(
+            matches!(&chunks[0], StreamChunk::Usage(usage) if usage.reported_cost_usd.is_none())
+        );
     }
 
     #[test]

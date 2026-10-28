@@ -69,12 +69,17 @@ pub struct UsageRecord {
     pub output_tokens: u64,
     pub input_price: Option<f64>,
     pub output_price: Option<f64>,
+    #[serde(default)]
+    pub reported_cost_usd: Option<f64>,
     pub created_at_ms: i64,
 }
 
 impl UsageRecord {
     /// Coste en dólares del apunte, o `None` si falta alguno de los dos precios.
     pub fn cost(&self) -> Option<f64> {
+        if let Some(cost) = self.reported_cost_usd {
+            return Some(cost);
+        }
         let input = self.input_price? * self.input_tokens as f64 / 1_000_000.0;
         let output = self.output_price? * self.output_tokens as f64 / 1_000_000.0;
         Some(input + output)
@@ -187,6 +192,7 @@ mod tests {
             output_tokens: 500_000,
             input_price: Some(3.0),
             output_price: Some(15.0),
+            reported_cost_usd: None,
             created_at_ms: 0,
         };
         let cost = priced.cost().expect("con ambos precios hay coste");
@@ -211,6 +217,21 @@ mod tests {
             None,
             "sin precio de salida no hay coste"
         );
+    }
+
+    #[test]
+    fn usage_record_prefers_reported_cost_to_catalog_estimate() {
+        let record = UsageRecord {
+            session: SessionId(1),
+            model: "m".into(),
+            input_tokens: 1_000_000,
+            output_tokens: 500_000,
+            input_price: Some(3.0),
+            output_price: Some(15.0),
+            reported_cost_usd: Some(0.0042),
+            created_at_ms: 0,
+        };
+        assert_eq!(record.cost(), Some(0.0042));
     }
 
     fn descriptor_sin_artefactos() -> SubagentDescriptor {

@@ -178,6 +178,7 @@ mod tests {
             output_tokens: output,
             input_price: precios.map(|p| p.0),
             output_price: precios.map(|p| p.1),
+            reported_cost_usd: None,
             created_at_ms: 0,
         }
     }

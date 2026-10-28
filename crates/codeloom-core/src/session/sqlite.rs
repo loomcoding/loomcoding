@@ -110,6 +110,20 @@ impl SqliteStore {
         .execute(&pool)
         .await
         .map_err(|e| CoreError::Store(e.to_string()))?;
+        let usage_columns: Vec<String> =
+            sqlx::query_scalar("SELECT name FROM pragma_table_info('usage')")
+                .fetch_all(&pool)
+                .await
+                .map_err(|e| CoreError::Store(e.to_string()))?;
+        if !usage_columns
+            .iter()
+            .any(|column| column == "reported_cost_usd")
+        {
+            sqlx::query("ALTER TABLE usage ADD COLUMN reported_cost_usd REAL")
+                .execute(&pool)
+                .await
+                .map_err(|e| CoreError::Store(e.to_string()))?;
+        }
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS development_workflows (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -464,8 +478,8 @@ impl SessionStore for SqliteStore {
 
     async fn record_usage(&self, session: SessionId, record: &UsageRecord) -> Result<()> {
         sqlx::query(
-            "INSERT INTO usage (session_id, model, input_tokens, output_tokens, input_price, output_price, created_at_ms)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO usage (session_id, model, input_tokens, output_tokens, input_price, output_price, reported_cost_usd, created_at_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(session.0)
         .bind(&record.model)
@@ -473,6 +487,7 @@ impl SessionStore for SqliteStore {
         .bind(to_sql_int(record.output_tokens)?)
         .bind(record.input_price)
         .bind(record.output_price)
+        .bind(record.reported_cost_usd)
         .bind(record.created_at_ms)
         .execute(&self.pool)
         .await
@@ -482,7 +497,7 @@ impl SessionStore for SqliteStore {
 
     async fn session_usage(&self, session: SessionId) -> Result<Vec<UsageRecord>> {
         let rows = sqlx::query(
-            "SELECT session_id, model, input_tokens, output_tokens, input_price, output_price, created_at_ms
+            "SELECT session_id, model, input_tokens, output_tokens, input_price, output_price, reported_cost_usd, created_at_ms
              FROM usage
              WHERE session_id = ? OR session_id IN (SELECT child_session_id FROM subagents WHERE parent_session_id = ?)
              ORDER BY id",
@@ -501,6 +516,7 @@ impl SessionStore for SqliteStore {
                     output_tokens: from_sql_int(row.get("output_tokens"))?,
                     input_price: row.get("input_price"),
                     output_price: row.get("output_price"),
+                    reported_cost_usd: row.get("reported_cost_usd"),
                     created_at_ms: row.get("created_at_ms"),
                 })
             })
@@ -1286,6 +1302,7 @@ mod tests {
             output_tokens: output,
             input_price: prices.map(|(input, _)| input),
             output_price: prices.map(|(_, output)| output),
+            reported_cost_usd: None,
             created_at_ms: crate::message::now_ms(),
         }
     }
@@ -1304,6 +1321,7 @@ mod tests {
             output_tokens: 300,
             input_price: Some(0.02),
             output_price: Some(0.04),
+            reported_cost_usd: Some(0.0001),
             created_at_ms: 1_000,
         };
         let unpriced = UsageRecord {
@@ -1313,6 +1331,7 @@ mod tests {
             output_tokens: 7,
             input_price: None,
             output_price: None,
+            reported_cost_usd: None,
             created_at_ms: 2_000,
         };
         store.record_usage(sid, &priced).await.unwrap();

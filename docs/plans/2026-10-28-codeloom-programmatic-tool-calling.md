@@ -139,6 +139,29 @@ T5 no es una prueba de software: requiere elegir modelos/API, preparar un conjun
 y autorizar presupuesto para llamadas facturables. No se han ejecutado llamadas reales ni se
 afirma ahorro medido.
 
+### Retomar: prueba de tool interna normal con OpenRouter (2026-10-28)
+
+Esta prueba buscaba verificar el tool calling normal de CodeLoom con `view`; **no era una prueba
+de PTC ni cuenta como evaluación T5**.
+
+- Configuración: `nvidia/nemotron-3.5-super-vl:free` por `OpenAiCompatProvider` y OpenRouter.
+- `loom --print` llegó al modelo, pero CodeLoom rechazó `view` con `permission denied`: el modo
+  no interactivo usa `DenyAll` cuando no se solicita `--yolo`.
+- En TUI, tanto el selector como `/new` devolvieron `session is outside this agent`. Se
+  reemplazó el daemon `target/release/loom.exe` por el daemon debug actual tras comprobar que
+  no tenía subagentes activos ni procesos hijos; el error de sesión persistió.
+- No se confirmó ninguna ejecución de tool. Las pruebas locales `runs_tool_then_finishes` y
+  `view_prints_line_numbers` pasaron, pero usan un provider simulado y no demuestran integración
+  con OpenRouter.
+- Las dos últimas filas visibles del libro de consumo para este modelo registran 4.549/497 y
+  4.548/290 tokens de entrada/salida, con coste reportado `$0.00` cada una. Son llamadas del
+  modelo `:free`; no son una medición de coste para otros modelos.
+
+**Siguiente paso:** resolver primero el ownership/selección de sesión de la TUI; después abrir
+una sesión nueva y repetir con una petición acotada que invoque solo `view` sobre un archivo
+público del repo. Comprobar el evento/resultado de la tool y el apunte de consumo. Mantener
+`--yolo` desactivado. No contabilizar esta prueba como PTC ni como ahorro medido.
+
 ## Orden y criterio de cierre
 
 Orden: T0 → T1; T2 y T3 pueden empezar cuando T0 estabilice el límite de integración. T4

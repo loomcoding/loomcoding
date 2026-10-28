@@ -3058,6 +3058,7 @@ mod tests {
                 StreamChunk::Usage(crate::message::Usage {
                     input_tokens: self.entrada,
                     output_tokens: 0,
+                    reported_cost_usd: None,
                 }),
                 StreamChunk::Done(FinishReason::Stop),
             ])))

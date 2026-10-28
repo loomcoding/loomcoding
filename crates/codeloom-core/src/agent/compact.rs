@@ -408,6 +408,7 @@ mod tests {
         antes.usage = Some(Usage {
             input_tokens: 90_000,
             output_tokens: 10,
+            reported_cost_usd: None,
         });
         let resumen = summary_message(2, "r");
         let esperado = estimate_message_tokens(&resumen);
@@ -421,6 +422,7 @@ mod tests {
         despues.usage = Some(Usage {
             input_tokens: 3000,
             output_tokens: 200,
+            reported_cost_usd: None,
         });
         let history = vec![
             Message::user("a".repeat(400)),

@@ -2129,10 +2129,16 @@ impl App {
             .turn_output_tokens
             .saturating_add(u64::from(output_tokens));
         let session = self.session_id.unwrap_or(SessionId(0));
-        self.record_live_usage(session, input_tokens, output_tokens);
+        self.record_live_usage(session, input_tokens, output_tokens, None);
     }
 
-    fn record_live_usage(&mut self, session: SessionId, input_tokens: u32, output_tokens: u32) {
+    fn record_live_usage(
+        &mut self,
+        session: SessionId,
+        input_tokens: u32,
+        output_tokens: u32,
+        reported_cost_usd: Option<f64>,
+    ) {
         let (input_price, output_price) = self.model_prices().unzip();
         let created_at_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -2145,8 +2151,22 @@ impl App {
             output_tokens: u64::from(output_tokens),
             input_price,
             output_price,
+            reported_cost_usd: reported_cost_usd.filter(|cost| cost.is_finite() && *cost >= 0.0),
             created_at_ms,
         });
+    }
+
+    fn set_reported_cost(&mut self, session: SessionId, usd: f64) {
+        if usd.is_finite() && usd >= 0.0 {
+            if let Some(record) = self
+                .usage_records
+                .iter_mut()
+                .rev()
+                .find(|record| record.session == session)
+            {
+                record.reported_cost_usd = Some(usd);
+            }
+        }
     }
 
     pub fn load_subagents(
@@ -2751,6 +2771,12 @@ impl App {
         Some((total, partial))
     }
 
+    pub fn cost_is_estimated(&self) -> bool {
+        self.usage_records
+            .iter()
+            .any(|record| record.reported_cost_usd.is_none() && record.cost().is_some())
+    }
+
     /// Coste de un hijo: suma los apuntes que llevan su sesión, con el mismo criterio que
     /// `estimated_cost` (devuelve `(total, parcial)`). `None` si no tiene apuntes o si ninguno
     /// lleva precio, para no mostrar un `≈$0` que no informa de nada.
@@ -2768,6 +2794,12 @@ impl App {
             }
         }
         priced.then_some((total, partial))
+    }
+
+    pub fn child_cost_is_estimated(&self, child: SessionId) -> bool {
+        self.usage_records.iter().any(|record| {
+            record.session == child && record.reported_cost_usd.is_none() && record.cost().is_some()
+        })
     }
 
     /// Recuento de subagentes de la sesión abierta por estado A2A exacto, en el orden de
@@ -2934,6 +2966,7 @@ impl App {
             LiveEvent::Usage {
                 input_tokens,
                 output_tokens,
+                ..
             }
             | LiveEvent::CompactionUsage {
                 input_tokens,
@@ -3098,6 +3131,9 @@ impl App {
                 input_tokens,
                 output_tokens,
             } => self.add_usage_counters(input_tokens, output_tokens),
+            LiveEvent::ReportedCost { usd } => {
+                self.set_reported_cost(self.session_id.unwrap_or(SessionId(0)), usd);
+            }
             // El resumen ya llega como mensaje (`MessageAdded`), que `parse_notice` reconoce y
             // pinta como aviso propio. Aquí no se añade una segunda línea. Lo que sí cambia es la
             // memoria del medidor: el resumen vigente pasa a contar como memoria.
@@ -3372,13 +3408,17 @@ impl App {
                     if let LiveEvent::Usage {
                         input_tokens,
                         output_tokens,
+                        ..
                     }
                     | LiveEvent::CompactionUsage {
                         input_tokens,
                         output_tokens,
                     } = event.as_ref()
                     {
-                        self.record_live_usage(child, *input_tokens, *output_tokens);
+                        self.record_live_usage(child, *input_tokens, *output_tokens, None);
+                    }
+                    if let LiveEvent::ReportedCost { usd } = event.as_ref() {
+                        self.set_reported_cost(child, *usd);
                     }
                     // Un evento que cambia el registro o las métricas del hijo redibuja su nodo.
                     let relevante = event.is_child_relevant();
@@ -7450,6 +7490,7 @@ línea dos {}",
         antes.usage = Some(codeloom_core::message::Usage {
             input_tokens: 80_000,
             output_tokens: 5,
+            reported_cost_usd: None,
         });
         let mut ultimo = Message::assistant(vec![ContentPart::Text {
             text: "ahora".into(),
@@ -7457,6 +7498,7 @@ línea dos {}",
         ultimo.usage = Some(codeloom_core::message::Usage {
             input_tokens: 120_000,
             output_tokens: 9,
+            reported_cost_usd: None,
         });
         let resumen = codeloom_core::agent::compact::summary_message(3, &"x".repeat(400));
         app.restore_messages(vec![resumen, Message::user("hola"), antes, ultimo]);
@@ -7567,6 +7609,7 @@ línea dos {}",
             output_tokens: output,
             input_price: Some(3.0),
             output_price: Some(15.0),
+            reported_cost_usd: None,
             created_at_ms: 1,
         }
     }
@@ -7694,6 +7737,7 @@ línea dos {}",
             output_tokens: output,
             input_price: prices.map(|(price_in, _)| price_in),
             output_price: prices.map(|(_, price_out)| price_out),
+            reported_cost_usd: None,
             created_at_ms: 1,
         }
     }
