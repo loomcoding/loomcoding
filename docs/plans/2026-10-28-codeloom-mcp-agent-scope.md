@@ -1,6 +1,6 @@
 # Plan — Aplicación de `scope.mcp` por agente
 
-> Estado: primera versión implementada y verificada; revisión visual pendiente.
+> Estado: implementado; pruebas de protocolo local y checks completos pasados. Revisión visual pendiente.
 >
 > Spec: `docs/specs/2026-10-28-codeloom-mcp-agent-scope.md`.
 
@@ -79,16 +79,25 @@ modificados.
 ## Resultado y límites
 
 El scope se aplica a las tools MCP stdio disponibles en cada delegación local; la raíz y los
-perfiles sin scope no reciben MCP. Cada tool pide el permiso normal. La configuración de
-servidores es global y estática en esta versión; HTTP, hot-reload y un panel detallado de
-estado en la TUI quedan pendientes. La suite completa pasó el 2026-10-28.
+perfiles sin scope no reciben MCP. Cada tool pide el permiso normal. La integración local usa
+un servidor RMCP falso sobre transporte en memoria para probar listado, invocación, scope,
+permisos, desconexión y límites de salida; no lanza un proceso hijo MCP durante el test. La
+configuración de servidores es global y estática en esta versión; HTTP, hot-reload y un panel
+detallado de estado en la TUI quedan pendientes.
 
 ## Tareas para cerrar esta spec
 
 - [x] Añadir tests base de configuración: fichero ausente, IDs y variables de entorno.
 - [x] Añadir test de scope por defecto deny e intersección por servidor permitido.
-- [ ] Añadir servidor MCP stdio falso para demostrar que solo se llama la tool permitida y
-  que desconexiones/errores fallan cerrados; sin red real.
-- [ ] Completar cobertura de límites, IDs desconocidos, dispatch fuera del registro y
-  ausencia de secretos.
+- [x] Añadir servidor RMCP falso local para demostrar que solo se llama la tool permitida y
+  que desconexiones/errores fallan cerrados; sin red real ni proceso hijo.
+- [x] Probar límites de configuración y salida, default deny, gate de permisos y error de
+  transporte sanitizado. El dispatch de tools no registradas conserva su test común en core.
 - [x] Ejecutar los cuatro checks del contrato del repo; resultados anotados tras el cierre.
+
+## Verificación 2026-10-28
+
+`cargo build` correcto (aviso existente: `main.rs` comparte los bins `loom` y `codeloom`);
+`cargo test`: 1.712 pasaron y 13 ignorados; `cargo fmt --check` y
+`cargo clippy -- -D warnings` correctos. Se usó el target temporal
+`C:\Users\negrero\AppData\Local\Temp\codeloom-final-target`.

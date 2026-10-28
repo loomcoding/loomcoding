@@ -228,10 +228,26 @@ validado los criterios de integración que requieren la suite completa.
 
 - [ ] Releer los diffs actuales de la herramienta, el dispatch, la persistencia y la TUI;
   verificar cada criterio de aceptación contra el código actual.
-- [ ] Ejecutar `cargo build`, `cargo test`, `cargo fmt --check` y
-  `cargo clippy -- -D warnings` sobre el árbol actual; corregir fallos propios del workflow
-  sin reformatear ni revertir cambios ajenos.
-- [ ] Completar las pruebas de integración pendientes para aprobación exacta, hash cambiado,
-  reanudación tras reconexión, límites de rondas y bloqueo de escritura/delegación del padre.
-- [ ] Registrar resultado real de cada check y marcar la spec cerrada solo si pasan los
-  criterios funcionales y los cuatro checks.
+- [x] Probar aprobación exacta, rechazo de una opción no exacta, hash cambiado y flujo durable
+  reabierto con launcher simulado; comprobar que reviewer se lanza en modo solo lectura y que
+  el cierre limpio aún exige aceptación final.
+- [x] Probar el límite de dos rondas de corrección, el bloqueo de escrituras en dispatch y
+  el arranque del reviewer a través de la interfaz de solo lectura.
+- [ ] Probar intentos explícitos de escritura desde el agente reviewer y delegación iniciada
+  por el padre durante un workflow activo.
+- [x] Ejecutar `cargo build`, `cargo test`, `cargo fmt --check` y
+  `cargo clippy -- -D warnings` sobre el árbol actual.
+- [x] Registrar los resultados actuales; la suite completa no sustituye la revisión visual.
+
+## Verificación adicional 2026-10-28
+
+Las pruebas de integración nuevas recorren specifying → aprobación → implementación → revisión
+solo lectura → aceptación final, reabren SQLite entre planner y coordinador, invalidan una
+aprobación si cambia el contenido, cancelan sin lanzar implementer ante una selección inexacta,
+limitan las correcciones a dos rondas y bloquean escritura antes de iniciar el workflow. El
+launcher simulado reconstruye el descriptor del hijo después de abrir de nuevo el store; esto no
+simula la recuperación de un proceso externo real.
+
+Los checks globales pasaron: `cargo build` (aviso existente por `main.rs` compartido entre
+`loom` y `codeloom`), `cargo test` (1.712 pasaron, 13 ignorados), `cargo fmt --check` y
+`cargo clippy -- -D warnings`. Target: `C:\Users\negrero\AppData\Local\Temp\codeloom-final-target`.

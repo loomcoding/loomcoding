@@ -72,7 +72,7 @@ impl Tool for DevelopmentWorkflowTool {
                         implementer,
                         reviewer,
                         phase: WorkflowPhase::Specifying,
-                        version: 1,
+                        version: 0,
                         active_child: None,
                         planner_child: None,
                         implementation_children: vec![],
@@ -600,6 +600,203 @@ async fn launch(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::a2a::{Artifact, Part};
+    use crate::job::JobId;
+    use crate::permission::{Decision, PermissionRequest, PermissionResponder};
+    use crate::question::Answer;
+    use crate::session::sqlite::SqliteStore;
+    use crate::session::{SessionId, SessionStore, SubagentDescriptor};
+    use crate::subagent::SubagentLauncher;
+    use crate::task::{TaskState, TaskStatus};
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicI64, Ordering};
+    use std::sync::{Arc, Mutex};
+    use tokio_util::sync::CancellationToken;
+
+    struct TestLauncher {
+        next: AtomicI64,
+        children: Mutex<Vec<SubagentDescriptor>>,
+        read_only_reviews: Mutex<Vec<String>>,
+    }
+
+    impl TestLauncher {
+        fn new() -> Self {
+            Self {
+                next: AtomicI64::new(100),
+                children: Mutex::new(Vec::new()),
+                read_only_reviews: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn add_child(
+            &self,
+            parent: SessionId,
+            label: String,
+            agent: String,
+            read_only: bool,
+        ) -> (SessionId, JobId) {
+            let child = SessionId(self.next.fetch_add(1, Ordering::SeqCst));
+            if read_only {
+                self.read_only_reviews.lock().unwrap().push(agent.clone());
+            }
+            self.children.lock().unwrap().push(SubagentDescriptor {
+                parent,
+                child,
+                job_id: format!("job-{}", child.0),
+                label,
+                status: TaskStatus::new(TaskState::Working),
+                artifacts: Vec::new(),
+                notice_delivered: false,
+                agent: Some(agent),
+                agent_origin: Some("project:test".into()),
+                reference_task_ids: Vec::new(),
+            });
+            (child, JobId(format!("job-{}", child.0)))
+        }
+
+        fn complete(&self, child: SessionId, report: &str) {
+            let mut children = self.children.lock().unwrap();
+            let descriptor = children
+                .iter_mut()
+                .find(|item| item.child == child)
+                .unwrap();
+            descriptor.status = TaskStatus::new(TaskState::Completed);
+            descriptor.artifacts = vec![Artifact {
+                artifact_id: format!("artifact-{}", child.0),
+                name: Some("report".into()),
+                description: None,
+                parts: vec![Part::text(report)],
+                metadata: None,
+                extensions: Vec::new(),
+            }];
+        }
+    }
+
+    #[async_trait]
+    impl SubagentLauncher for TestLauncher {
+        async fn start(
+            &self,
+            _parent: SessionId,
+            _label: String,
+            _prompt: String,
+            _agent: Option<String>,
+            _cancel: CancellationToken,
+        ) -> Result<(SessionId, JobId)> {
+            Err(CoreError::Tool("unexpected generic launch".into()))
+        }
+
+        async fn start_read_only_review(
+            &self,
+            parent: SessionId,
+            label: String,
+            _prompt: String,
+            agent: String,
+            _cancel: CancellationToken,
+        ) -> Result<(SessionId, JobId)> {
+            Ok(self.add_child(parent, label, agent, true))
+        }
+
+        async fn start_local_workflow_agent(
+            &self,
+            parent: SessionId,
+            label: String,
+            _prompt: String,
+            agent: String,
+            _cancel: CancellationToken,
+        ) -> Result<(SessionId, JobId)> {
+            Ok(self.add_child(parent, label, agent, false))
+        }
+
+        async fn control(
+            &self,
+            _parent: SessionId,
+            _child: SessionId,
+            _action: &str,
+            _message: Option<String>,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn list(&self, parent: SessionId) -> Result<Vec<SubagentDescriptor>> {
+            Ok(self
+                .children
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|child| child.parent == parent)
+                .cloned()
+                .collect())
+        }
+
+        async fn deliver_notices(
+            &self,
+            _parent: SessionId,
+        ) -> Result<Vec<crate::message::Message>> {
+            Ok(Vec::new())
+        }
+    }
+
+    struct TestResponder {
+        approve_plan: bool,
+    }
+
+    #[async_trait]
+    impl PermissionResponder for TestResponder {
+        async fn decide(&self, _request: &PermissionRequest) -> Decision {
+            Decision::Allow
+        }
+
+        async fn ask(&self, questions: &[crate::question::Question]) -> Option<Vec<Answer>> {
+            questions.first().map(|question| {
+                let choice = match question.header.as_str() {
+                    "Plan approval" if self.approve_plan => "Approve and start implementation",
+                    "Plan approval" => "Approve",
+                    "Final acceptance" => "Accept and complete",
+                    _ => "Cancel",
+                };
+                vec![Answer {
+                    question: question.question.clone(),
+                    selected: vec![choice.into()],
+                }]
+            })
+        }
+    }
+
+    fn context(
+        cwd: &std::path::Path,
+        session: SessionId,
+        store: Arc<dyn crate::session::SessionStore>,
+        launcher: Arc<dyn SubagentLauncher>,
+        approve_plan: bool,
+    ) -> ToolCtx {
+        ToolCtx {
+            cwd: cwd.to_path_buf(),
+            store: Some(store),
+            permission: Arc::new(crate::permission::PermissionService::with_responder(
+                Box::new(TestResponder { approve_plan }),
+            )),
+            session,
+            jobs: Arc::new(crate::job::LocalJobRegistry::default()),
+            bus: crate::event::EventBus::new(32),
+            subagents: Some(launcher),
+        }
+    }
+
+    async fn store_and_session(path: &std::path::Path) -> (Arc<SqliteStore>, SessionId) {
+        let store = Arc::new(SqliteStore::open(path.to_str().unwrap()).await.unwrap());
+        let session = store.create_session("workflow-test").await.unwrap();
+        (store, session)
+    }
+
+    fn write_artifacts(project: &std::path::Path) {
+        std::fs::create_dir_all(project.join("docs")).unwrap();
+        std::fs::write(project.join("docs/spec.md"), "approved specification").unwrap();
+        std::fs::write(project.join("docs/plan.md"), "approved plan").unwrap();
+    }
+
+    fn planner_report() -> &'static str {
+        "Spec: docs/spec.md\nPlan: docs/plan.md"
+    }
 
     #[test]
     fn artifacts_are_bounded_and_cannot_escape_the_project() {
@@ -608,5 +805,389 @@ mod tests {
         assert_eq!(artifact(dir.path(), "spec.md").unwrap(), "approved spec");
         assert!(artifact(dir.path(), "../outside.md").is_err());
         assert_ne!(hash(b"approved spec"), hash(b"changed spec"));
+    }
+
+    #[test]
+    fn changing_an_approved_artifact_invalidates_its_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("spec.md"), "approved spec").unwrap();
+        std::fs::write(dir.path().join("plan.md"), "approved plan").unwrap();
+        let workflow = DevelopmentWorkflow {
+            id: WorkflowId(1),
+            parent: SessionId(1),
+            task: "task".into(),
+            planner: "planner".into(),
+            implementer: "builder".into(),
+            reviewer: "reviewer".into(),
+            phase: WorkflowPhase::Implementing,
+            version: 1,
+            active_child: None,
+            planner_child: None,
+            implementation_children: Vec::new(),
+            reviewer_children: Vec::new(),
+            correction_round: 0,
+            spec_path: Some("spec.md".into()),
+            plan_path: Some("plan.md".into()),
+            spec_sha256: Some(hash(b"approved spec")),
+            plan_sha256: Some(hash(b"approved plan")),
+            last_report: None,
+            created_at_ms: 0,
+            updated_at_ms: 0,
+        };
+        verify_artifacts(dir.path(), &workflow).unwrap();
+        std::fs::write(dir.path().join("spec.md"), "changed after approval").unwrap();
+        assert!(verify_artifacts(dir.path(), &workflow).is_err());
+    }
+
+    #[tokio::test]
+    async fn completed_workflow_resumes_from_store_and_requires_read_only_review() {
+        let project = tempfile::tempdir().unwrap();
+        write_artifacts(project.path());
+        let directory = tempfile::tempdir().unwrap();
+        let db = directory.path().join("workflow.db");
+        let (store, session) = store_and_session(&db).await;
+        let planner = Arc::new(TestLauncher::new());
+        let tool = DevelopmentWorkflowTool;
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                planner.clone(),
+                true,
+            ),
+            serde_json::json!({
+                "action":"start", "task":"test workflow",
+                "planner":"planner", "implementer":"builder", "reviewer":"reviewer"
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let active = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        let planner_child = active.active_child.unwrap();
+        planner.complete(planner_child, planner_report());
+
+        // Reopen durable state and reconstruct the terminal child descriptor as after reconnect.
+        drop(store);
+        let store = Arc::new(SqliteStore::open(db.to_str().unwrap()).await.unwrap());
+        let launcher = Arc::new(TestLauncher::new());
+        launcher.children.lock().unwrap().push(SubagentDescriptor {
+            parent: session,
+            child: planner_child,
+            job_id: format!("job-{}", planner_child.0),
+            label: "development workflow".into(),
+            status: TaskStatus::new(TaskState::Completed),
+            artifacts: vec![Artifact {
+                artifact_id: "planner-report".into(),
+                name: Some("report".into()),
+                description: None,
+                parts: vec![Part::text(planner_report())],
+                metadata: None,
+                extensions: Vec::new(),
+            }],
+            notice_delivered: false,
+            agent: Some("planner".into()),
+            agent_origin: Some("project:test".into()),
+            reference_task_ids: Vec::new(),
+        });
+
+        tool.run(
+            context(project.path(), session, store.clone(), launcher.clone(), true),
+            serde_json::json!({"action":"advance", "spec_path":"docs/spec.md", "plan_path":"docs/plan.md"}),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let implementing = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(implementing.phase, WorkflowPhase::Implementing);
+        let implementer_child = implementing.active_child.unwrap();
+        assert_eq!(
+            launcher
+                .list(session)
+                .await
+                .unwrap()
+                .last()
+                .unwrap()
+                .agent
+                .as_deref(),
+            Some("builder")
+        );
+
+        launcher.complete(implementer_child, "implementation complete");
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                true,
+            ),
+            serde_json::json!({"action":"advance"}),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let reviewing = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(reviewing.phase, WorkflowPhase::Reviewing);
+        assert_eq!(
+            launcher.read_only_reviews.lock().unwrap().as_slice(),
+            ["reviewer"]
+        );
+        let reviewer_child = reviewing.active_child.unwrap();
+
+        launcher.complete(reviewer_child, "CLEAN");
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                true,
+            ),
+            serde_json::json!({"action":"advance"}),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let waiting = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(waiting.phase, WorkflowPhase::AwaitingFinalAcceptance);
+
+        tool.run(
+            context(project.path(), session, store.clone(), launcher, true),
+            serde_json::json!({"action":"accept"}),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let completed = store
+            .latest_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(completed.phase, WorkflowPhase::Completed);
+    }
+
+    #[tokio::test]
+    async fn non_exact_plan_approval_cancels_without_launching_implementer() {
+        let project = tempfile::tempdir().unwrap();
+        write_artifacts(project.path());
+        let directory = tempfile::tempdir().unwrap();
+        let (store, session) = store_and_session(&directory.path().join("workflow.db")).await;
+        let launcher = Arc::new(TestLauncher::new());
+        let tool = DevelopmentWorkflowTool;
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                false,
+            ),
+            serde_json::json!({
+                "action":"start", "task":"test workflow",
+                "planner":"planner", "implementer":"builder", "reviewer":"reviewer"
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let planner_child = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap()
+            .active_child
+            .unwrap();
+        launcher.complete(planner_child, planner_report());
+        let output = tool
+            .run(
+                context(project.path(), session, store.clone(), launcher.clone(), false),
+                serde_json::json!({"action":"advance", "spec_path":"docs/spec.md", "plan_path":"docs/plan.md"}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(output.is_error);
+        let workflow = store
+            .latest_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(workflow.phase, WorkflowPhase::Cancelled);
+        assert_eq!(launcher.children.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn correction_rounds_stop_at_two_and_return_control_to_user() {
+        let project = tempfile::tempdir().unwrap();
+        write_artifacts(project.path());
+        let directory = tempfile::tempdir().unwrap();
+        let (store, session) = store_and_session(&directory.path().join("workflow.db")).await;
+        let launcher = Arc::new(TestLauncher::new());
+        let tool = DevelopmentWorkflowTool;
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                true,
+            ),
+            serde_json::json!({
+                "action":"start", "task":"test workflow",
+                "planner":"planner", "implementer":"builder", "reviewer":"reviewer"
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+        let planner = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap()
+            .active_child
+            .unwrap();
+        launcher.complete(planner, planner_report());
+        tool.run(
+            context(project.path(), session, store.clone(), launcher.clone(), true),
+            serde_json::json!({"action":"advance", "spec_path":"docs/spec.md", "plan_path":"docs/plan.md"}),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+        let initial_implementer = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap()
+            .active_child
+            .unwrap();
+        launcher.complete(initial_implementer, "initial implementation");
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                true,
+            ),
+            serde_json::json!({"action":"advance"}),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+        for round in 0..=2 {
+            let reviewer = store
+                .active_development_workflow(session)
+                .await
+                .unwrap()
+                .unwrap()
+                .active_child
+                .unwrap();
+            launcher.complete(reviewer, "one remaining finding");
+            tool.run(
+                context(
+                    project.path(),
+                    session,
+                    store.clone(),
+                    launcher.clone(),
+                    true,
+                ),
+                serde_json::json!({"action":"advance"}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+            let reviewed = store
+                .latest_development_workflow(session)
+                .await
+                .unwrap()
+                .unwrap();
+            if round < 2 {
+                assert_eq!(reviewed.correction_round, round);
+                assert_eq!(reviewed.phase, WorkflowPhase::ChangesRequested);
+                tool.run(
+                    context(
+                        project.path(),
+                        session,
+                        store.clone(),
+                        launcher.clone(),
+                        true,
+                    ),
+                    serde_json::json!({"action":"advance"}),
+                    CancellationToken::new(),
+                )
+                .await
+                .unwrap();
+                let workflow = store
+                    .active_development_workflow(session)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(workflow.correction_round, round + 1);
+                assert_eq!(workflow.phase, WorkflowPhase::Implementing);
+                let correction = workflow.active_child.unwrap();
+                launcher.complete(correction, "correction implemented");
+                tool.run(
+                    context(
+                        project.path(),
+                        session,
+                        store.clone(),
+                        launcher.clone(),
+                        true,
+                    ),
+                    serde_json::json!({"action":"advance"}),
+                    CancellationToken::new(),
+                )
+                .await
+                .unwrap();
+            } else {
+                assert_eq!(reviewed.correction_round, 2);
+                assert_eq!(reviewed.phase, WorkflowPhase::ChangesRequested);
+                tool.run(
+                    context(
+                        project.path(),
+                        session,
+                        store.clone(),
+                        launcher.clone(),
+                        true,
+                    ),
+                    serde_json::json!({"action":"advance"}),
+                    CancellationToken::new(),
+                )
+                .await
+                .unwrap();
+                let workflow = store
+                    .latest_development_workflow(session)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(workflow.correction_round, 2);
+                assert_eq!(workflow.phase, WorkflowPhase::Cancelled);
+                assert_eq!(launcher.children.lock().unwrap().len(), 7);
+            }
+        }
     }
 }

@@ -1,6 +1,6 @@
 # Plan — Orquestación programática de tools por provider
 
-> Estado: primera implementación y suite verificada; quedan pruebas de bordes y medición.
+> Estado: adapters y pruebas locales implementados; checks completos pasados. Queda la evaluación comparativa con modelos reales.
 >
 > Spec: `docs/specs/2026-10-28-codeloom-programmatic-tool-calling.md`.
 >
@@ -50,8 +50,8 @@ disponible y el modo empieza apagado.
   no puede superar 256 KiB. Los adapters rechazan
   una llamada programática a una tool fuera de la allowlist; OpenAI Compat avisa y sigue directo.
 - La suite completa pasó el 2026-10-28: 1698 tests pasaron y 13 quedaron ignorados.
-- Hay pruebas locales de contratos, continuidad, elegibilidad y denegación; no se hacen llamadas
-  de red real en la suite.
+- Hay pruebas locales de contratos, continuidad, elegibilidad, denegación y fallback (Anthropic
+  y Gemini); no se hacen llamadas a providers reales en la suite.
 
 ## Tareas
 
@@ -66,8 +66,10 @@ disponible y el modo empieza apagado.
 - [x] Definir límites de tiempo, llamadas totales, concurrencia, bytes, tokens y cancelación.
 - [x] Mantener en CodeLoom la validación, `PermissionService`, `ExecutionMode`, eventos y
   registro de resultados de cada tool del cliente.
-- [ ] Añadir tests con providers simulados para secuencias, reanudación, denegación,
-  cancelación, timeout y fallback; ningún test usa red real.
+- [x] Añadir tests locales para contratos, reanudación, denegación, elegibilidad y fallback;
+  no se hacen llamadas a providers reales.
+- [x] Cubrir fallback de OpenAI Responses con fixture local.
+- [ ] Añadir casos específicos de cancelación/timeout.
 
 ### T1. Anthropic Messages API
 
@@ -79,8 +81,10 @@ disponible y el modo empieza apagado.
   pausas; manejar respuestas parciales y expiradas sin repetir efectos.
 - [x] Calcular allowlist solo para tools compatibles. MCP Connector queda excluido para este
   adapter; las tools propias de CodeLoom requieren gates por llamada.
-- [ ] Añadir pruebas con eventos/respuestas grabadas y errores simulados, incluyendo modelo
-  no compatible, schema no elegible, denegación y expiración.
+- [x] Añadir pruebas con respuestas simuladas para modelo no compatible, schema no elegible y
+  fallback a llamadas directas.
+- [x] Probar expiración de container sin reintentar la petición como llamada directa.
+- [ ] Añadir pruebas de cancelación y denegación de permiso en el loop completo.
 
 ### T2. OpenAI Responses API
 
@@ -92,8 +96,10 @@ disponible y el modo empieza apagado.
   secuencia original; ejecutar en CodeLoom solo function calls propiedad del cliente.
 - [x] No habilitar hosted tools de shell, MCP, browser u otras herramientas provider en este
   primer alcance; solo las tools de CodeLoom elegibles y con autorización propia.
-- [ ] Añadir pruebas de parsing/stream, respuestas almacenadas y stateless, calls pendientes,
-  errores, fallback y permisos con fixtures locales.
+- [x] Añadir pruebas de parsing, estado stateless, continuación/caller y rechazo de calls a
+  tools no elegibles.
+- [x] Añadir prueba de fallback si la API rechaza el modo programático.
+- [ ] Añadir pruebas de cancelación/timeout y permisos del loop con fixtures locales.
 
 ### T3. Gemini API
 
@@ -105,8 +111,9 @@ disponible y el modo empieza apagado.
 - [x] Documentar que Gemini no ofrece PTC equivalente en esta integración; el tool calling
   normal sigue activo.
 - [x] Comprobar la restricción vigente: combinación nativa Preview, documentada para Gemini 3/4.
-- [ ] Añadir pruebas de fixtures para continuación y pérdida/alteración de firma/contexto; sin
-  red real.
+- [x] Añadir pruebas de continuación y fallback a llamadas directas para modelos fuera de las
+  familias conocidas y tras un rechazo del API; sin red real.
+- [ ] Añadir fixtures de pérdida/alteración de firma/contexto en la continuación.
 
 La combinación nativa de Gemini se mantiene Preview; no se anuncia como estable.
 
@@ -128,6 +135,10 @@ La combinación nativa de Gemini se mantiene Preview; no se anuncia como estable
 - [ ] Definir antes de ejecutar el conjunto de tareas y el criterio de calidad; no afirmar
   mejora de calidad por menor coste o latencia.
 
+T5 no es una prueba de software: requiere elegir modelos/API, preparar un conjunto equivalente
+y autorizar presupuesto para llamadas facturables. No se han ejecutado llamadas reales ni se
+afirma ahorro medido.
+
 ## Orden y criterio de cierre
 
 Orden: T0 → T1; T2 y T3 pueden empezar cuando T0 estabilice el límite de integración. T4
@@ -148,7 +159,11 @@ cargo clippy -- -D warnings
 
 ## Verificación 2026-10-28
 
-Los cuatro checks pasaron usando `C:\\Users\\negrero\\AppData\\Local\\Temp\\codeloom-final-target`, ya que el target compartido de `E:\\workspace\\personal\\jevalon\\target` agotó el espacio. `cargo build` dejó solo el aviso de `main.rs` compartido por los binarios `loom` y `codeloom`. La medición T5 sigue pendiente; la combinación Gemini permanece Preview.
+Los cuatro checks volvieron a pasar tras completar los casos locales: `cargo build` (aviso
+existente de `main.rs` compartido entre los bins `loom` y `codeloom`), `cargo test` (1.712
+pasaron, 13 ignorados), `cargo fmt --check` y `cargo clippy -- -D warnings`. Se usó el target
+temporal `C:\\Users\\negrero\\AppData\\Local\\Temp\\codeloom-final-target`. La evaluación T5
+sigue pendiente; la combinación Gemini permanece Preview.
 
 - Spec: `docs/specs/2026-10-28-codeloom-programmatic-tool-calling.md`.
 - Evidencia inicial: `docs/references/2026-10-28-programmatic-tool-calling-providers.md`.

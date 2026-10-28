@@ -408,4 +408,93 @@ mod tests {
         assert_eq!(body["input"][0]["name"], "view");
         assert_eq!(body["input"][0]["call_id"], "call-1");
     }
+
+    #[tokio::test]
+    async fn unknown_model_falls_back_to_direct_tools() {
+        use futures::StreamExt;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/interactions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id":"interaction-1","steps":[]
+            })))
+            .mount(&server)
+            .await;
+        let provider = GeminiProvider::new(server.uri(), "test-key");
+        let mut stream = provider
+            .stream(request("gemini-2.5-flash", true), CancellationToken::new())
+            .await
+            .unwrap();
+        let mut notice = false;
+        while let Some(chunk) = stream.next().await {
+            if matches!(chunk, StreamChunk::ProviderNotice(ref text) if text.contains("using direct tool calls"))
+            {
+                notice = true;
+            }
+        }
+        assert!(notice);
+        let sent = server.received_requests().await.unwrap();
+        assert_eq!(sent.len(), 1);
+        let body: serde_json::Value = serde_json::from_slice(&sent[0].body).unwrap();
+        assert!(body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] != "code_execution"));
+    }
+
+    #[tokio::test]
+    async fn unsupported_combination_response_retries_with_direct_tools() {
+        use futures::StreamExt;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/interactions"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error":{"message":"code_execution tool combination unsupported"}
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/interactions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id":"interaction-direct","steps":[]
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = GeminiProvider::new(server.uri(), "test-key");
+        let mut stream = provider
+            .stream(request("gemini-4-argon", true), CancellationToken::new())
+            .await
+            .unwrap();
+        let mut notice = false;
+        while let Some(chunk) = stream.next().await {
+            if matches!(chunk, StreamChunk::ProviderNotice(ref text) if text.contains("using direct tool calls"))
+            {
+                notice = true;
+            }
+        }
+        assert!(notice);
+        let sent = server.received_requests().await.unwrap();
+        assert_eq!(sent.len(), 2);
+        let attempted: serde_json::Value = serde_json::from_slice(&sent[0].body).unwrap();
+        let fallback: serde_json::Value = serde_json::from_slice(&sent[1].body).unwrap();
+        assert!(attempted["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["type"] == "code_execution"));
+        assert!(fallback["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] != "code_execution"));
+    }
 }

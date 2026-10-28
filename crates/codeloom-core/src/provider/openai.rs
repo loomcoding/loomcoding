@@ -1059,4 +1059,50 @@ mod responses_tests {
             .await
             .is_err());
     }
+
+    #[tokio::test]
+    async fn unsupported_programmatic_mode_retries_once_with_direct_tools() {
+        use futures::StreamExt;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/responses"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error":{"message":"programmatic_tool_calling is not supported"}
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/responses"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id":"resp_direct","status":"completed","output":[]
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = OpenAiResponsesProvider::new(server.uri(), "test-key");
+        let mut stream = provider
+            .stream(request(), CancellationToken::new())
+            .await
+            .unwrap();
+        let mut notice = false;
+        while let Some(chunk) = stream.next().await {
+            if matches!(chunk, StreamChunk::ProviderNotice(ref text) if text.contains("using direct calls"))
+            {
+                notice = true;
+            }
+        }
+        assert!(notice);
+        let sent = server.received_requests().await.unwrap();
+        assert_eq!(sent.len(), 2);
+        let fallback: serde_json::Value = serde_json::from_slice(&sent[1].body).unwrap();
+        assert!(fallback["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] != "programmatic_tool_calling"));
+    }
 }

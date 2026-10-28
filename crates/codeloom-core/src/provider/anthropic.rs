@@ -902,4 +902,84 @@ mod programmatic_tests {
             .await
             .is_err());
     }
+
+    #[tokio::test]
+    async fn unverified_model_uses_direct_calls_and_reports_fallback() {
+        use futures::StreamExt;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models/claude-test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "capabilities":{"code_execution":{"supported":false}}
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(
+                "data: {\"type\":\"message_start\",\"message\":{\"usage\":{}}}\n\n",
+                "text/event-stream",
+            ))
+            .mount(&server)
+            .await;
+        let provider = AnthropicProvider::new(server.uri(), "test-key");
+        let mut stream = provider
+            .stream(request(), CancellationToken::new())
+            .await
+            .unwrap();
+        let mut notice = false;
+        while let Some(chunk) = stream.next().await {
+            if matches!(chunk, StreamChunk::ProviderNotice(ref text) if text.contains("using direct tool calls"))
+            {
+                notice = true;
+            }
+        }
+        assert!(notice);
+        let sent = server.received_requests().await.unwrap();
+        let body: serde_json::Value = serde_json::from_slice(&sent[1].body).unwrap();
+        assert!(body["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|tool| tool["type"] != "code_execution_20260521"));
+    }
+
+    #[tokio::test]
+    async fn expired_programmatic_container_is_not_replayed_as_direct_calls() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models/claude-test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "capabilities":{"code_execution":{"supported":true}}
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/messages"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error":{"message":"container expired"}
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = AnthropicProvider::new(server.uri(), "test-key");
+        assert!(provider
+            .stream(request(), CancellationToken::new())
+            .await
+            .is_err());
+        let sent = server.received_requests().await.unwrap();
+        assert_eq!(sent.len(), 2);
+        assert_eq!(
+            sent.iter()
+                .filter(|request| request.method == "POST")
+                .count(),
+            1
+        );
+    }
 }

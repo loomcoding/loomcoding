@@ -195,6 +195,15 @@ async fn connect_server(
         .map_err(|_| (id.clone(), "connection timed out".into()))?
         .map_err(|error| (id.clone(), error))?;
     let client = Arc::new(client);
+    let tools = tools_from_server(&id, client.clone(), advertised);
+    Ok((id, client, tools))
+}
+
+fn tools_from_server(
+    id: &str,
+    client: Arc<Client>,
+    advertised: Vec<rmcp::model::Tool>,
+) -> Vec<Arc<dyn Tool>> {
     let mut tools = Vec::new();
     let mut seen_names = HashSet::new();
     for advertised_tool in advertised.into_iter().take(MAX_TOOLS) {
@@ -217,7 +226,7 @@ async fn connect_server(
         }
         tools.push(Arc::new(McpTool {
             client: client.clone(),
-            server_id: id.clone(),
+            server_id: id.to_owned(),
             remote_name: name,
             public_name,
             description: codeloom_core::tools::limit_bytes(
@@ -228,7 +237,7 @@ async fn connect_server(
             input_schema,
         }) as Arc<dyn Tool>);
     }
-    Ok((id, client, tools))
+    tools
 }
 
 struct McpTool {
@@ -295,17 +304,48 @@ impl Tool for McpTool {
             },
             _ = cancel.cancelled() => return Ok(ToolOutput::err("cancelled")),
         }
-        .map_err(|error| {
-            codeloom_core::error::CoreError::Tool(format!("MCP call failed: {error}"))
-        })?;
-        let content = serde_json::to_string(&result)
-            .unwrap_or_else(|_| "MCP returned an unrenderable result".into());
-        let content = codeloom_core::tools::limit_output(&content).into_owned();
+        .map_err(|_| codeloom_core::error::CoreError::Tool("MCP tool call failed".into()))?;
+        let content = match LimitedJson::serialize(&result) {
+            Ok(content) => content,
+            Err(true) => "MCP result exceeded the 20000 byte output limit".into(),
+            Err(false) => "MCP returned an unrenderable result".into(),
+        };
         Ok(if result.is_error.unwrap_or(false) {
             ToolOutput::err(content)
         } else {
             ToolOutput::ok(content)
         })
+    }
+}
+
+struct LimitedJson(Vec<u8>);
+
+impl LimitedJson {
+    fn serialize(value: &impl serde::Serialize) -> Result<String, bool> {
+        let mut output = Self(Vec::with_capacity(
+            codeloom_core::tools::MAX_TOOL_OUTPUT_BYTES,
+        ));
+        match serde_json::to_writer(&mut output, value) {
+            Ok(()) => String::from_utf8(output.0).map_err(|_| false),
+            Err(_) => Err(output.0.len() == codeloom_core::tools::MAX_TOOL_OUTPUT_BYTES),
+        }
+    }
+}
+
+impl std::io::Write for LimitedJson {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let remaining = codeloom_core::tools::MAX_TOOL_OUTPUT_BYTES.saturating_sub(self.0.len());
+        let written = bytes.len().min(remaining);
+        self.0.extend_from_slice(&bytes[..written]);
+        if written < bytes.len() {
+            Err(std::io::Error::other("MCP output limit exceeded"))
+        } else {
+            Ok(written)
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
@@ -342,7 +382,17 @@ fn valid_env_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codeloom_core::permission::DenyAll;
+    use codeloom_core::tools::ToolRegistry;
+    use rmcp::{
+        handler::server::router::{
+            tool::{SyncTool, ToolBase},
+            Router,
+        },
+        ServiceExt,
+    };
     use std::sync::atomic::{AtomicU64, Ordering};
+    use tokio::task::JoinHandle;
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -383,5 +433,205 @@ mod tests {
         );
         assert_eq!(McpConfig::load(&valid).unwrap().mcp.servers.len(), 1);
         std::fs::remove_file(valid).unwrap();
+    }
+
+    #[test]
+    fn invalid_toml_and_excess_server_count_are_rejected() {
+        let invalid = config_file("[mcp.servers.files\ncommand = 'server'\n");
+        assert!(McpConfig::load(&invalid).is_err());
+        std::fs::remove_file(invalid).unwrap();
+
+        let mut config = String::new();
+        for index in 0..=MAX_SERVERS {
+            config.push_str(&format!("[mcp.servers.s{index}]\ncommand = 'server'\n"));
+        }
+        let too_many = config_file(&config);
+        assert!(McpConfig::load(&too_many).is_err());
+        std::fs::remove_file(too_many).unwrap();
+    }
+
+    #[tokio::test]
+    async fn missing_transport_environment_fails_before_starting_command() {
+        let missing = format!(
+            "CODELOOM_TEST_MISSING_{}",
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        );
+        let config = McpServerConfig {
+            command: "this-command-must-not-run".into(),
+            args: Vec::new(),
+            env: BTreeMap::from([("TOKEN".into(), missing.clone())]),
+        };
+        let error = connect_server("files".into(), config, std::env::temp_dir())
+            .await
+            .err()
+            .unwrap();
+        assert!(error.1.contains(&missing));
+    }
+
+    struct FakeMcpServer {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl rmcp::handler::server::ServerHandler for FakeMcpServer {}
+
+    #[derive(Default, serde::Deserialize, schemars::JsonSchema)]
+    struct FakeInput {
+        #[serde(default)]
+        large: bool,
+    }
+
+    struct FakeReadTool;
+
+    impl ToolBase for FakeReadTool {
+        type Parameter = FakeInput;
+        type Output = String;
+        type Error = rmcp::ErrorData;
+
+        fn name() -> std::borrow::Cow<'static, str> {
+            "read".into()
+        }
+
+        fn description() -> Option<std::borrow::Cow<'static, str>> {
+            Some("Fake read-only MCP tool".into())
+        }
+    }
+
+    impl SyncTool<FakeMcpServer> for FakeReadTool {
+        fn invoke(service: &FakeMcpServer, input: FakeInput) -> Result<String, Self::Error> {
+            service.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(if input.large {
+                "x".repeat(40_000)
+            } else {
+                "fake result".into()
+            })
+        }
+    }
+
+    async fn fake_server(
+        id: &str,
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    ) -> (Arc<Client>, Vec<Arc<dyn Tool>>, JoinHandle<()>) {
+        let (server_transport, client_transport) = tokio::io::duplex(64 * 1024);
+        let server = tokio::spawn(async move {
+            let mut service = Router::new(FakeMcpServer { calls });
+            service.tool_router =
+                rmcp::handler::server::tool::ToolRouter::new().with_sync_tool::<FakeReadTool>();
+            if let Ok(service) = service.serve(server_transport).await {
+                let _ = service.waiting().await;
+            }
+        });
+        let client = Arc::new(().serve(client_transport).await.unwrap());
+        let advertised = client.peer().list_tools(None).await.unwrap().tools;
+        let tools = tools_from_server(id, client.clone(), advertised);
+        (client, tools, server)
+    }
+
+    fn tool_context(permission: Arc<codeloom_core::permission::PermissionService>) -> ToolCtx {
+        ToolCtx {
+            cwd: std::env::temp_dir(),
+            store: None,
+            permission,
+            session: codeloom_core::session::SessionId(1),
+            jobs: Arc::new(codeloom_core::job::LocalJobRegistry::default()),
+            bus: codeloom_core::event::EventBus::new(8),
+            subagents: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn scoped_fake_mcp_tools_gate_calls_and_never_expose_denied_servers() {
+        let allowed_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let denied_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (allowed_client, allowed_tools, allowed_server) =
+            fake_server("files", allowed_calls.clone()).await;
+        let (denied_client, denied_tools, denied_server) =
+            fake_server("other", denied_calls.clone()).await;
+        let mut registry = ToolRegistry::new();
+        for tool in allowed_tools.into_iter().chain(denied_tools) {
+            registry.register(tool);
+        }
+        let scoped = registry.with_mcp_scope(&["files".into()]);
+        let allowed = scoped.get("mcp__files__read").unwrap();
+
+        let denied = allowed
+            .run(
+                tool_context(Arc::new(
+                    codeloom_core::permission::PermissionService::with_responder(Box::new(DenyAll)),
+                )),
+                serde_json::json!({}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(denied.is_error);
+        assert_eq!(allowed_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(denied_calls.load(Ordering::SeqCst), 0);
+        assert!(scoped.get("mcp__other__read").is_none());
+
+        let output = allowed
+            .run(
+                tool_context(Arc::new(
+                    codeloom_core::permission::PermissionService::allow_all(),
+                )),
+                serde_json::json!({}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(!output.is_error);
+        assert_eq!(allowed_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(denied_calls.load(Ordering::SeqCst), 0);
+
+        drop(scoped);
+        drop(registry);
+        drop(allowed_client);
+        drop(denied_client);
+        allowed_server.abort();
+        denied_server.abort();
+    }
+
+    #[tokio::test]
+    async fn oversized_mcp_result_is_bounded_before_serialization_grows_output() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (client, tools, server) = fake_server("files", calls).await;
+        let tool = tools.into_iter().next().unwrap();
+        let output = tool
+            .run(
+                tool_context(Arc::new(
+                    codeloom_core::permission::PermissionService::allow_all(),
+                )),
+                serde_json::json!({"large":true}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(output.content.len() < codeloom_core::tools::MAX_TOOL_OUTPUT_BYTES);
+        assert!(output
+            .content
+            .contains("exceeded the 20000 byte output limit"));
+        drop(client);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn disconnected_fake_server_returns_a_sanitized_error() {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let (client, tools, server) = fake_server("files", calls).await;
+        let tool = tools.into_iter().next().unwrap();
+        server.abort();
+        let error = tool
+            .run(
+                tool_context(Arc::new(
+                    codeloom_core::permission::PermissionService::allow_all(),
+                )),
+                serde_json::json!({}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("MCP tool call failed"));
+        assert!(!error.contains("CODELOOM_TEST_MISSING"));
+        drop(client);
     }
 }
