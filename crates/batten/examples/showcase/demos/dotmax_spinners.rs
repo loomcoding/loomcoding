@@ -92,10 +92,11 @@ impl Demo for DotmaxSpinnersDemo {
         let heading = Line::from(vec![
             Span::styled(theme_name, theme.styles.accent),
             Span::raw(format!(
-                "  ·  {}/{}  ·  {}",
+                "  ·  {}/{}  ·  {} · {} estilos total",
                 self.style_index + 1,
                 self.styles.len(),
-                format!("{} · {} estilos total", style.name(), self.total_styles)
+                style.name(),
+                self.total_styles
             )),
         ]);
         frame.render_widget(Paragraph::new(heading), rows[0]);

@@ -395,8 +395,9 @@ mod tests {
 
         assert!(LiveEvent::Delta { text: "x".into() }.is_child_relevant());
         let reasoning = LiveEvent::ReasoningDelta { text: "x".into() };
-        for delta in [&reasoning] {
-            assert!(!delta.is_child_relevant(), "debería filtrarse: {delta:?}");
-        }
+        assert!(
+            !reasoning.is_child_relevant(),
+            "debería filtrarse: {reasoning:?}"
+        );
     }
 }

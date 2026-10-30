@@ -5,7 +5,6 @@ use batten::state::Tone;
 use batten::widgets::{button, Theme};
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use ratatui::text::Line;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
@@ -35,11 +34,7 @@ impl Demo for ButtonDemo {
             ("Denegar", Tone::Error),
         ];
         frame.render_widget(
-            Paragraph::new(Line::from(button::button_row(
-                &buttons,
-                self.selected,
-                theme,
-            ))),
+            Paragraph::new(button::button_row(&buttons, self.selected, theme)),
             area,
         );
     }

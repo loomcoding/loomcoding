@@ -3245,10 +3245,13 @@ mod tests {
         assert!(runtime.pending_inputs(parent).is_empty());
     }
 
+    /// Petición grabada: modelo, sistema y esfuerzo.
+    type PeticionGrabada = (String, String, Option<String>);
+
     /// Proveedor que graba cada petición (modelo, sistema y esfuerzo). Si tiene puerta, la
     /// respuesta espera a que se abra, para poder cambiar el registro con el hijo en curso.
     struct ProveedorGrabador {
-        peticiones: Arc<std::sync::Mutex<Vec<(String, String, Option<String>)>>>,
+        peticiones: Arc<std::sync::Mutex<Vec<PeticionGrabada>>>,
         puerta: Option<Arc<tokio::sync::Notify>>,
     }
 

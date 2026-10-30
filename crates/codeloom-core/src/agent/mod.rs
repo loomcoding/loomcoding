@@ -3321,8 +3321,10 @@ Cuerpo.
                 .collect()
         };
 
-        let seen = provider.seen.lock().unwrap();
-        let sent = contents_of(&seen[0]);
+        let sent = {
+            let seen = provider.seen.lock().unwrap();
+            contents_of(&seen[0])
+        };
         assert_eq!(sent.len(), 10);
         for content in &sent[..4] {
             assert_eq!(
@@ -4193,27 +4195,29 @@ Cuerpo.
             "el turno termina aunque falle el resumen"
         );
 
-        let vistas = e.proveedor.seen.lock().unwrap();
-        assert_eq!(
-            vistas.iter().filter(|r| es_peticion_de_resumen(r)).count(),
-            1,
-            "una sola petición de resumen, sin reintento"
-        );
-        let normales: Vec<&ProviderRequest> = vistas
-            .iter()
-            .filter(|r| !es_peticion_de_resumen(r))
-            .collect();
-        assert_eq!(
-            normales.len(),
-            3,
-            "los tres pasos del turno llegan al proveedor"
-        );
-        let normal = normales[0];
-        assert_eq!(
-            normal.messages.len(),
-            antes.len() + 1,
-            "sin resumen, la petición lleva el historial completo"
-        );
+        {
+            let vistas = e.proveedor.seen.lock().unwrap();
+            assert_eq!(
+                vistas.iter().filter(|r| es_peticion_de_resumen(r)).count(),
+                1,
+                "una sola petición de resumen, sin reintento"
+            );
+            let normales: Vec<&ProviderRequest> = vistas
+                .iter()
+                .filter(|r| !es_peticion_de_resumen(r))
+                .collect();
+            assert_eq!(
+                normales.len(),
+                3,
+                "los tres pasos del turno llegan al proveedor"
+            );
+            let normal = normales[0];
+            assert_eq!(
+                normal.messages.len(),
+                antes.len() + 1,
+                "sin resumen, la petición lleva el historial completo"
+            );
+        }
         let despues = e.store.messages(e.sid).await.unwrap();
         assert!(
             despues.iter().all(|m| compact::parse_summary(m).is_none()),
@@ -4891,7 +4895,7 @@ Cuerpo.
     /// Un resumen listo se activa al cruzar el 80 %, sin ninguna llamada al modelo para resumir.
     #[tokio::test]
     async fn a_ready_summary_is_activated_without_a_model_call_at_the_compact_ratio() {
-        let mut e = entorno_en_segundo_plano(
+        let e = entorno_en_segundo_plano(
             ResumenRetenido::nuevo("resumen", vec![], None),
             &historial_grande(31),
             true,
@@ -5036,7 +5040,7 @@ Cuerpo.
     /// y la compactación usa la vía síncrona.
     #[tokio::test]
     async fn a_stale_summary_is_discarded_when_another_was_persisted() {
-        let mut e = entorno_en_segundo_plano(
+        let e = entorno_en_segundo_plano(
             ResumenRetenido::nuevo("resumen", vec![], None),
             &historial_grande(31),
             true,
@@ -5093,7 +5097,7 @@ Cuerpo.
     /// publica el descarte: sin él, la interfaz seguiría mostrando «resumiendo…».
     #[tokio::test]
     async fn a_background_summary_that_fails_publishes_the_discard() {
-        let mut e = entorno_en_segundo_plano(
+        let e = entorno_en_segundo_plano(
             ResumenRetenido::nuevo("", vec![], None),
             &historial_grande(31),
             true,
@@ -5128,7 +5132,7 @@ Cuerpo.
     /// Con `background = false` no hay ninguna petición de resumen antes del 80 %.
     #[tokio::test]
     async fn background_off_behaves_exactly_as_before() {
-        let mut e = entorno_en_segundo_plano(
+        let e = entorno_en_segundo_plano(
             ResumenRetenido::nuevo("resumen", vec![], None),
             &historial_grande(31),
             false,
@@ -5201,7 +5205,7 @@ Cuerpo.
     /// presupuesto: 790 tokens sobre un límite de 500 generan avisos.
     #[tokio::test]
     async fn the_background_call_usage_is_recorded_and_counts_for_the_budget() {
-        let mut e = entorno_en_segundo_plano(
+        let e = entorno_en_segundo_plano(
             ResumenRetenido::nuevo("resumen", vec![], None),
             &historial_grande(31),
             true,

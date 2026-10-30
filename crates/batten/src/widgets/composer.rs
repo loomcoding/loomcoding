@@ -61,7 +61,6 @@ fn line_window(line: &str, cursor: Option<usize>, width: usize) -> (usize, usize
 /// Texto visible de una línea según `line_window`. Solo lo usan las pruebas:
 /// el render trabaja con rangos de bytes sobre el texto completo.
 #[cfg(test)]
-#[cfg(test)]
 fn line_view(line: &str, cursor: Option<usize>, width: usize) -> (String, usize) {
     let graphemes = line.graphemes(true).collect::<Vec<_>>();
     let (start, end, col) = line_window(line, cursor, width);

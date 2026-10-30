@@ -73,10 +73,6 @@ impl Showcase {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.demos.len()
-    }
-
     pub fn query(&self) -> &str {
         &self.query
     }

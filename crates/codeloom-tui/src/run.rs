@@ -3025,7 +3025,8 @@ mod tests {
 
     #[test]
     fn slash_compact_is_refused_without_session_or_during_a_turn_and_keeps_the_text() {
-        let casos: [(&str, fn(&mut App)); 3] = [
+        type Preparacion = fn(&mut App);
+        let casos: [(&str, Preparacion); 3] = [
             ("No session", |app| app.session_id = None),
             ("active turn", |app| app.turn_in_flight = true),
             ("Already compacting", |app| app.compact_in_flight = true),

@@ -764,7 +764,7 @@ mod tests {
             !texto.contains("PRIVATE") && !texto.contains("BEGIN"),
             "{texto}"
         );
-        assert!(plan.is_open() == false);
+        assert!(!plan.is_open());
     }
 
     #[test]

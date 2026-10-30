@@ -8977,7 +8977,7 @@ línea dos {}",
         assert!(app
             .child_logs
             .get(&9)
-            .map_or(true, |log| log.items.is_empty()));
+            .is_none_or(|log| log.items.is_empty()));
     }
 
     #[test]

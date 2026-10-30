@@ -18,7 +18,8 @@ const VIEWS: [&str; 4] = [
     "color schemes",
     "capability map",
 ];
-const DENSITIES: [(&str, fn() -> DensitySet); 4] = [
+type DensityBuilder = fn() -> DensitySet;
+const DENSITIES: [(&str, DensityBuilder); 4] = [
     ("ASCII", DensitySet::ascii),
     ("Simple", DensitySet::simple),
     ("Blocks", DensitySet::blocks),
