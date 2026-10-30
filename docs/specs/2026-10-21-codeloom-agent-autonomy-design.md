@@ -1,6 +1,6 @@
 # Autonomía entre agentes: contexto, tareas enlazadas y artefactos
 
-Estado: **propuesta**, pendiente de aprobación. No implementar todavía.
+Estado: **parcial**. Implementadas la Fase A (`run_woken`, plan `parent-wakeup`) y la Fase O1; pendientes las fases B (artefactos), C (tareas enlazadas y contexto) y D.
 Relacionado: `2026-10-15-loom-agent-profile-a2a.md` (§5, §8 y hallazgos de la
 lectura de la especificación oficial), `2026-10-21-codeloom-subagent-input-required-design.md`,
 `2026-10-13-loom-design.md` (§6, subagentes y jobs).

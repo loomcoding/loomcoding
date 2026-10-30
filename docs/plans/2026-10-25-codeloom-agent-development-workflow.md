@@ -1,6 +1,6 @@
 # Plan — Flujo de desarrollo coordinado por agentes
 
-> Estado: implementación realizada; suite completa verificada el 2026-10-28; revisión visual pendiente.
+> Estado: implementación y verificaciones automáticas cerradas el 2026-10-29; revisión visual pendiente.
 >
 > Spec: `docs/specs/2026-10-25-codeloom-agent-development-workflow.md`.
 >
@@ -226,14 +226,14 @@ validado los criterios de integración que requieren la suite completa.
 
 ## Tareas para cerrar esta spec
 
-- [ ] Releer los diffs actuales de la herramienta, el dispatch, la persistencia y la TUI;
+- [x] Releer los diffs actuales de la herramienta, el dispatch, la persistencia y la TUI;
   verificar cada criterio de aceptación contra el código actual.
 - [x] Probar aprobación exacta, rechazo de una opción no exacta, hash cambiado y flujo durable
   reabierto con launcher simulado; comprobar que reviewer se lanza en modo solo lectura y que
   el cierre limpio aún exige aceptación final.
 - [x] Probar el límite de dos rondas de corrección, el bloqueo de escrituras en dispatch y
   el arranque del reviewer a través de la interfaz de solo lectura.
-- [ ] Probar intentos explícitos de escritura desde el agente reviewer y delegación iniciada
+- [x] Probar intentos explícitos de escritura desde el agente reviewer y delegación iniciada
   por el padre durante un workflow activo.
 - [x] Ejecutar `cargo build`, `cargo test`, `cargo fmt --check` y
   `cargo clippy -- -D warnings` sobre el árbol actual.
@@ -251,3 +251,40 @@ simula la recuperación de un proceso externo real.
 Los checks globales pasaron: `cargo build` (aviso existente por `main.rs` compartido entre
 `loom` y `codeloom`), `cargo test` (1.712 pasaron, 13 ignorados), `cargo fmt --check` y
 `cargo clippy -- -D warnings`. Target: `C:\Users\negrero\AppData\Local\Temp\codeloom-final-target`.
+
+## Cierre de verificaciones 2026-10-28
+
+La revisión del dispatch, coordinador, persistencia y puente TUI confirmó el gate del padre,
+la allowlist del reviewer y la recuperación del resumen al reanudar una sesión. Se añadieron
+dos regresiones: el reviewer intenta llamar `bash` y no ejecuta la tool de escritura; el padre
+intenta delegar con un workflow activo y el dispatch rechaza la llamada antes de ejecutarla.
+
+La TUI traduce las fases a etiquetas breves en español. Una prueba de render a 120×30 detectó
+que el aviso anterior partía el rol en dos líneas; se acortó y la prueba confirma que fase,
+decisión, agente y ronda caben en una sola línea. En el árbol actual pasaron
+`cargo fmt --all --check`, `cargo build`, `cargo test` (1.728 pasaron, 14 ignorados),
+`cargo clippy -- -D warnings` y `git diff --check`. Build y Clippy solo muestran el warning
+existente de `main.rs` compartido por ambos binarios. Target aislado:
+`C:\Users\negrero\AppData\Local\Temp\codeloom-final-target`. Queda pendiente observar el
+workflow en una terminal interactiva real; la prueba de render no sustituye esa revisión.
+
+## Correcciones tras prueba interactiva 2026-10-29
+
+La prueba con el planner `frontend` terminó sin spec/plan legibles. Se detectó que `advance`
+dependía de que el padre reconstruyera los paths y que durante un workflow se permitía sondear
+`job_list`. El contrato del coordinador ahora pide esperar el evento, pasar ambos paths exactos
+del informe y no fabricar artefactos como padre. `job_list`, `job_output` y `subagent_list` se
+bloquean durante el workflow.
+
+Si faltan paths en `advance`, se devuelve un error accionable sin cambiar de fase y se permite
+reintentar con los paths correctos. Si el planner no reportó los paths o no creó archivos
+legibles, la instancia pasa a `failed`; el implementador no se inicia. Las regresiones cubren
+la recuperación por paths omitidos, fallo por archivos ausentes y el bloqueo de `bash`,
+delegación y polling del padre mientras la instancia está activa.
+
+Verificación en `C:\Users\negrero\AppData\Local\Temp\codeloom-workflow-fix-target`:
+`cargo fmt --all --check`, `cargo build`, `cargo test` (1.730 pasaron, 14 ignorados),
+`cargo clippy -- -D warnings` y `git diff --check` correctos. Se conservan únicamente los
+warnings existentes: `main.rs` compartido por los dos binarios en build y warnings de Cargo en
+Clippy. No repetí llamadas reales a OpenRouter; la revisión interactiva queda preparada para
+que pruebes de nuevo con el mismo proyecto temporal.

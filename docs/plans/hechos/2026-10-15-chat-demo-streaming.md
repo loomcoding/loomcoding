@@ -1,5 +1,7 @@
 # Demo `chat` con guion y streaming — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: la demo `chat` del showcase usa `VecDeque<Step>` con guion y streaming.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que la demo `chat` del showcase reproduzca un turno con tool y respuesta por deltas, y un turno con permiso, con pausa/paso/reinicio.

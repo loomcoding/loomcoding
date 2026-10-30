@@ -1,7 +1,7 @@
 # Looks de TUI: presets que cambian la presentación, empezando por Crush
 
 Estado: **implementado** (verificado el 2026-10-30 contra el código; plan `docs/plans/hechos/2026-10-20-codeloom-look-presets.md`). Estado anterior: borrador pendiente de aprobación. Fecha: 2026-10-20.
-Revisión previa: `docs/plans/2026-10-20-codeloom-conversation-composer-review.md`.
+Revisión previa: `docs/plans/hechos/2026-10-20-codeloom-conversation-composer-review.md`.
 
 ## Intención
 

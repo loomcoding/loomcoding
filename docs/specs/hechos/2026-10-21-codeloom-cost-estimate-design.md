@@ -1,8 +1,8 @@
 # Coste estimado de la sesión en el rail
 
-Estado: propuesta del 2026-10-21 (derivada del catálogo de models.dev, que trae
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: el rail pinta el coste estimado con prefijo `≈`.
 el precio por millón de tokens de cada modelo). Plan:
-`docs/plans/2026-10-21-codeloom-cost-estimate.md`.
+`docs/plans/hechos/2026-10-21-codeloom-cost-estimate.md`.
 Relacionado: `2026-10-21-codeloom-models-catalog-design.md`,
 `2026-10-21-codeloom-agent-observability-design.md`.
 

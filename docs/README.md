@@ -23,11 +23,16 @@ ejecutarlo).
 
 ## Carpetas
 
-- [`specs/`](specs/): intención, contratos y propuestas de diseño. Una spec no
+- [`specs/`](specs/): intención, contratos y propuestas de diseño que siguen
+  vivos: pendientes, en exploración o parcialmente implementados. Una spec no
   demuestra por sí sola que la funcionalidad esté implementada; consulta su
   estado y el plan relacionado.
-- [`plans/`](plans/): alcance, fases y seguimiento de tareas. Los planes
-  completados son historial; no forman una cola única de trabajo pendiente.
+- [`plans/`](plans/): alcance, fases y seguimiento de tareas aún abiertas o
+  con algún cabo suelto.
+- [`specs/hechos/`](specs/hechos/) y [`plans/hechos/`](plans/hechos/): lo ya
+  desarrollado y verificado. Es historial, no una cola de trabajo.
+- [`inventario.md`](inventario.md): estado cotejado con el código de todos los
+  specs y planes.
 - [`references/`](references/): investigación y observaciones externas,
   incluidas las comparativas de UI y contexto.
 - [`reference/`](reference/analisis-herdr-crush-dsh.md): análisis histórico de
@@ -37,6 +42,23 @@ ejecutarlo).
 
 ## Temas actuales
 
+- [Dashboard de capacidades runtime](specs/2026-10-29-codeloom-runtime-capabilities-dashboard.md)
+  y [su plan](plans/2026-10-29-codeloom-runtime-capabilities-dashboard.md): mostrar
+  estado real de MCP, LSP y skills junto al uso de tokens.
+- [Widgets desplazables de capacidades](specs/2026-10-30-codeloom-scrollable-capability-widgets.md)
+  y [su plan](plans/2026-10-30-codeloom-scrollable-capability-widgets.md): mostrar
+  cada servidor MCP, el estado LSP y las skills bajo Activity con scroll independiente.
+- [Coste informativo MCP por agente](specs/2026-10-30-codeloom-coste-informativo-mcp-por-agente.md)
+  y [su plan](plans/2026-10-30-codeloom-coste-informativo-mcp-por-agente.md): estimar
+  el coste repetido de las definiciones MCP en las peticiones, separado del total
+  informado por el provider; la carga de skills queda pendiente.
+- [Runtime local acotado de skills](specs/2026-10-30-codeloom-runtime-local-skills.md)
+  y [su plan](plans/2026-10-30-codeloom-runtime-local-skills.md): cargar solo los
+  `SKILL.md` permitidos por scope local, con límites y coste informativo.
+- [Adjuntar imágenes desde el chat](specs/2026-10-29-codeloom-image-attachments.md)
+  y [su plan](plans/2026-10-29-codeloom-image-attachments.md): pegar imágenes con Ctrl+V
+  y envío multimodal de imágenes locales.
+
 - [Roadmap A2A](plans/2026-10-22-codeloom-a2a-roadmap.md): índice de tareas y
   decisiones del protocolo.
 - [Servidor local CodeLoom y clientes TUI](specs/2026-10-26-codeloom-local-server-client-runtime.md)
@@ -45,6 +67,28 @@ ejecutarlo).
 - [Flujo de desarrollo coordinado por agentes](specs/2026-10-25-codeloom-agent-development-workflow.md)
   y [su plan](plans/2026-10-25-codeloom-agent-development-workflow.md):
   implementación realizada; quedan tareas de cierre y verificación.
+- [Fiabilidad interactiva del workflow de desarrollo](specs/2026-10-29-codeloom-development-workflow-interactive-reliability.md)
+  y [su plan](plans/2026-10-29-codeloom-development-workflow-interactive-reliability.md):
+  correcciones al turno del coordinador y al uso de herramientas del planner en Windows.
+- [Uso de tokens preciso y supervisión en vivo de subagentes](specs/2026-10-29-codeloom-precision-usage-live-subagent-supervision.md)
+  y [su plan](plans/2026-10-29-codeloom-precision-usage-live-subagent-supervision.md):
+  propuesta para conteo confirmado/provisional durante streams, visibilidad del chat
+  de los hijos y parada directa desde la TUI.
+- [Error HTTP de Anthropic y resultado duplicado de subagente](specs/2026-10-29-codeloom-anthropic-400-subagent-result-duplication.md)
+  y [su plan](plans/2026-10-29-codeloom-anthropic-400-subagent-result-duplication.md):
+  diagnóstico de errores de API y presentación del resultado del hijo sin duplicarlo.
+- [Respuesta final vacía de un subagente](specs/2026-10-29-codeloom-subagent-empty-final-response.md)
+  y [su plan](plans/2026-10-29-codeloom-subagent-empty-final-response.md):
+  evitar que un hijo sin respuesta final figure como completado.
+- [Atribución de mensajes internos](specs/2026-10-29-codeloom-user-attribution-internal-messages.md)
+  y [su plan](plans/2026-10-29-codeloom-user-attribution-internal-messages.md):
+  evitar que tareas y avisos del sistema aparezcan como `You`.
+- [Composer multilínea del chat](specs/2026-10-29-codeloom-multiline-chat-composer.md)
+  y [su plan](plans/2026-10-29-codeloom-multiline-chat-composer.md): crecer hasta
+  tres líneas y conservar el pegado multilínea dentro del prompt.
+- [Marcador para pegados largos](specs/2026-10-29-codeloom-large-paste-placeholder.md)
+  y [su plan](plans/2026-10-29-codeloom-large-paste-placeholder.md): colapsar a
+  `[Pasted Content N chars]` en el composer y expandir el payload íntegro al enviar.
 - [Aplicación de `scope.mcp` por agente](specs/2026-10-28-codeloom-mcp-agent-scope.md)
   y [su plan](plans/2026-10-28-codeloom-mcp-agent-scope.md): implementación stdio
   parcial; quedan pruebas y cierre de seguridad.

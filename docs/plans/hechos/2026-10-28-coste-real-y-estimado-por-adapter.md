@@ -1,5 +1,7 @@
 # Plan: coste real y estimado por adapter
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: `reported_cost_usd` en el contrato de uso (commit `b4c7767`).
+
 1. Añadir campo opcional de coste reportado al contrato Usage, con compatibilidad serde.
 2. Extraerlo en parsers OpenAI compatible y Anthropic desde `usage.cost`; validar valores.
 3. Acumularlo por respuesta y guardarlo en UsageRecord; hacer migración SQLite nullable y compatibilidad de lecturas.

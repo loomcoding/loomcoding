@@ -162,6 +162,25 @@ una sesión nueva y repetir con una petición acotada que invoque solo `view` so
 público del repo. Comprobar el evento/resultado de la tool y el apunte de consumo. Mantener
 `--yolo` desactivado. No contabilizar esta prueba como PTC ni como ahorro medido.
 
+### Reintento tras corregir ownership de sesión (2026-10-28)
+
+- El runtime actualizado abre la sesión actual vacía y el listado de sesiones sigue mostrando solo
+  sesiones con mensajes. La regresión local cubre sesión propia vacía y sesión ajena.
+- Con el binario recién compilado y el daemon correcto se envió una petición de solo lectura con
+  `nvidia/nemotron-3.5-super-vl:free` para que usara `view`. El provider no respondió tras más de
+  tres minutos; no hubo diálogo de permiso ni evento de tool. Se canceló la petición.
+- La sesión de la prueba no tiene apuntes de consumo en SQLite; esto no demuestra coste cero ni
+  confirma que OpenRouter recibiera la petición.
+- El test live del adapter sí repitió el par directo/PTC (detalle abajo), pero no hubo resultado
+  útil de tool ni comparación de calidad. La prueba de tool interna en TUI quedó pendiente; no
+  tratar el test del adapter como integración completa del runtime.
+- Repetición directa/PTC con el adapter Anthropic: directa 402/135 tokens, 1.260 ms, sin tool y
+  exactitud falsa; PTC rechazada en 52 ms, sin tokens de respuesta ni tool. Estimación de la directa:
+  USD 0,000108. El test no captura el código HTTP de este rechazo ni el coste facturado real.
+- Una prueba adicional en TUI usó Haiku 5.5 y un README temporal como fixture para invocar la tool
+  interna `view`; se quedó esperando al provider, no mostró permiso ni tool y se canceló. La sesión
+  de esa prueba no tiene apunte de consumo en SQLite. No se cuenta como ejecución de tool.
+
 ## Orden y criterio de cierre
 
 Orden: T0 → T1; T2 y T3 pueden empezar cuando T0 estabilice el límite de integración. T4

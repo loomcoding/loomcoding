@@ -19,7 +19,7 @@ Definir e implementar el runtime local propiedad de CodeLoom: una instancia serv
 
 1. **Caracterizar el runtime actual**: `main`, `AgentLoop`, canales TUI, `SqliteStore`, provider/config por proyecto, permisos y apagado. Separar el A2A server de la tarea local.
 2. **Cerrar transporte y ciclo de vida**: comprobar dependencias existentes, endpoint por SO, ACL/permisos, bloqueo singleton, handshake de versión, startup concurrente, reconexión y apagado sin clientes.
-3. **Fijar el IPC de UI**: socket privado o named pipe con DACL, negociación de versión, JSON length-prefixed, límite de 64 KiB, comandos, eventos y respuestas acotadas. Mantenerlo separado de A2A.
+3. **Fijar el IPC de UI**: socket privado o named pipe con DACL, negociación de versión, JSON length-prefixed y comandos/eventos acotados. El límite vigente es 12 MiB para transportar prompts con adjuntos de imagen locales (versión 5); se mantiene separado de A2A.
 4. **Levantar servidor único**: startup race-safe, hijo oculto, 5 minutos idle shutdown; persistir sesiones en el único SQLite owner. `--print` se procesa como petición sin TUI.
 5. **Crear el agente supervisor**: mantener el registro/observación sin llamadas al LLM; para razonamiento, usar provider/modelo opcionales configurados para el perfil de usuario, con sesión y coste propios. No heredar `.env` ni configuración de ningún proyecto. Si el LLM no está configurado o falla, seguir el flujo clásico determinista sin bloquear servidor ni agentes; no relajar permisos ni aprobaciones.
 6. **Extraer el runtime**: mover `AgentLoop`, provider, tools, permisos, sesiones, A2A y jobs al servidor. Resolver `.env` en un mapa por proyecto, nunca mutar el entorno global.

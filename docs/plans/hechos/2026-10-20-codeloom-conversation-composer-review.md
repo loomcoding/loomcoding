@@ -1,5 +1,7 @@
 # Revisión pendiente: transcript, composer y actividad del agente
 
+> Estado: **superado**. Sus hallazgos (historial de tools fuera del transcript) los resolvió `2026-10-20-codeloom-transcript-activity`, ya hecho. Se conserva como análisis de partida.
+
 ## Objetivo
 
 Revisar y cerrar una representación coherente de la conversación de CodeLoom,

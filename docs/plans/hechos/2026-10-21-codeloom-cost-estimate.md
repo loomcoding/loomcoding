@@ -1,12 +1,14 @@
 # Coste estimado en el rail — Plan de implementación
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: el rail pinta el coste estimado con prefijo `≈`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` o `superpowers:executing-plans`. Al terminar y verificar se commitea (regla del usuario).
 
 **Meta:** mostrar en el rail una estimación en dólares de la sesión, a partir de los precios de models.dev.
 
 **Arquitectura:** `App` calcula el coste con el catálogo ya cargado (`App.catalog`) y los contadores de tokens existentes; `rail.rs` pinta una línea.
 
-**Spec:** `docs/specs/2026-10-21-codeloom-cost-estimate-design.md` (leerla antes).
+**Spec:** `docs/specs/hechos/2026-10-21-codeloom-cost-estimate-design.md` (leerla antes).
 
 ## Restricciones globales
 

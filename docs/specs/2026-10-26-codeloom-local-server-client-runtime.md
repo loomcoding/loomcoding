@@ -41,7 +41,7 @@ loom.exe (proyecto C) ─┘                 │  agentes, sesiones, tools y eve
 4. Si la conexión existente es incompatible, el cliente muestra una instrucción clara; no inicia un segundo servidor sobre el mismo almacén.
 5. La primera TUI se conecta al mismo runtime que las posteriores; el servidor no depende del proceso TUI que lo arrancó para conservar a los demás clientes.
 
-El IPC solo escucha localmente. Unix usa un socket en el directorio de datos del perfil, directorio con permisos `0700` y socket `0600`. Windows usa named pipe con `PIPE_REJECT_REMOTE_CLIENTS` y DACL explícita para el SID del usuario y `LocalSystem`; no se acepta la DACL por defecto. El protocolo usa versión y longitud-prefijo JSON con máximo de 64 KiB por marco. No abre puertos de red.
+El IPC solo escucha localmente. Unix usa un socket en el directorio de datos del perfil, directorio con permisos `0700` y socket `0600`. Windows usa named pipe con `PIPE_REJECT_REMOTE_CLIENTS` y DACL explícita para el SID del usuario y `LocalSystem`; no se acepta la DACL por defecto. El protocolo usa versión y longitud-prefijo JSON con máximo de 12 MiB por marco para transportar prompts con hasta cuatro imágenes locales (2 MiB cada una, Base64). Los clientes validan las partes de imagen antes de aceptarlas. No abre puertos de red.
 
 La CLI inicia un proceso oculto `loom --server` si no logra conectar. La creación del socket/primera instancia del pipe arbitra la carrera; el perdedor conecta al servidor que ganó. El servidor sigue vivo si hay clientes, turnos o jobs activos, o si sirve A2A; sale tras cinco minutos sin clientes ni trabajo activo. `--print` se ejecuta como solicitud del servidor y devuelve el resultado sin abrir TUI ni mantener un agente interactivo.
 

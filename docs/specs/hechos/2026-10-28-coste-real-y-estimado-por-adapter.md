@@ -1,5 +1,7 @@
 # Coste real y estimado en todos los adapters
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: `reported_cost_usd` en el contrato de uso (commit `b4c7767`).
+
 ## Objetivo
 
 Conservar y mostrar el coste de cada respuesta de modelo desde cualquier adapter. Si la respuesta del proveedor incluye un coste facturado, CodeLoom lo guarda como real; si no, usa los precios congelados del catálogo para estimarlo. Nunca se presenta una estimación como coste real.

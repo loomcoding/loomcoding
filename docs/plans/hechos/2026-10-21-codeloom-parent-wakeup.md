@@ -1,5 +1,7 @@
 # Despertar al padre ocioso (Fase A de autonomía) — Plan de implementación
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: `AgentLoop::run_woken` y sus pruebas. Fase A del spec de autonomía.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`. Una tarea cada vez, en orden (comparten árbol y `target`). Al terminar cada tarea y verificarla, se commitea (regla del usuario).
 
 **Meta:** que cuando un subagente pregunta (`input-required`) o termina y el padre está ocioso, la aplicación arranque sola un turno del padre para que lea el aviso, con un tope de turnos automáticos por cada mensaje del usuario.

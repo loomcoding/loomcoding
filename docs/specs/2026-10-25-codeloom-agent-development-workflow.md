@@ -48,7 +48,11 @@ la tarea como terminada antes de la decisión final del usuario.
 
 - Mantiene el objetivo original, el estado de fase y las aprobaciones.
 - Delega cada fase y recibe el resultado estructurado del hijo.
+- Tras iniciar un hijo, termina el turno y espera el evento de finalización; no
+  sondea jobs ni usa pausas de shell.
 - Presenta spec/plan antes de implementación y solicita aprobación.
+- Si el planner no entrega paths y archivos legibles, registra un fallo y lo
+  comunica al usuario. El padre no fabrica ni repara esos artefactos.
 - Si hay hallazgos, devuelve al implementador solo los cambios requeridos y
   conserva la referencia a la revisión que los originó.
 - Tras revisión limpia, resume diff y evidencia y deja el cierre al usuario.
@@ -92,6 +96,9 @@ Estados mínimos: `specifying`, `awaiting_plan_approval`, `implementing`,
   cancelación o respuesta ambigua no aprueban.
 - `reviewing` con hallazgos lleva a `changes_requested`; el padre puede delegar
   la corrección al implementador original.
+- Paths ausentes pueden pedirse de nuevo a partir del informe del planner; paths
+  que este no reportó o archivos inexistentes llevan a `failed`. Nunca se lanza
+  el implementador sin los dos artefactos legibles y aprobados.
 - Se permiten como máximo dos rondas automáticas de corrección. Cada corrección
   produce una nueva revisión; la anterior no se sobrescribe. Si persisten los
   hallazgos, el padre presenta el bloqueo y pregunta al usuario si corrige el

@@ -1,5 +1,7 @@
 # Plan: PTC de Anthropic Haiku vía OpenRouter
 
+> Estado: **parcial**. La compatibilidad PTC real vía OpenRouter está sin confirmar (HTTP 400 en la prueba autorizada del 2026-10-28); queda como intento opt-in con upstream Anthropic fijado.
+
 > Spec: `docs/specs/2026-10-28-codeloom-openrouter-anthropic-ptc.md`.
 
 ## Decisiones
@@ -35,5 +37,18 @@ cargo fmt --check
 cargo clippy -- -D warnings
 ```
 
-La única llamada directa estimó USD 0,000106 con el precio publicado. OpenRouter no devolvió el
-detalle de facturación en los chunks usados. No se hicieron reintentos tras el rechazo HTTP 400.
+La primera llamada directa estimó USD 0,000106 con el precio publicado. OpenRouter no devolvió el
+detalle de facturación en los chunks usados.
+
+## Repetición autorizada (2026-10-28)
+
+Se volvió a ejecutar el test live directo/PTC, con un solo par y el límite de USD 1:
+
+```text
+mode=direct tokens_in=402 tokens_out=135 turns=1 latency_ms=1260 tool_ptc=false cost_usd=0.000108 exact=false provider_rejected=false
+mode=ptc tokens_in=0 tokens_out=0 turns=1 latency_ms=52 tool_ptc=false cost_usd=0.000000 exact=false provider_rejected=true
+```
+
+La ruta directa volvió a responder sin invocar `view`; PTC fue rechazado por el provider. El test
+no expone el cuerpo de error y no confirma el código HTTP de esta repetición, ni permite afirmar
+que OpenRouter no cobrara el rechazo. PTC sigue sin confirmar y no se afirma ahorro.

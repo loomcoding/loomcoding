@@ -1,5 +1,7 @@
 # Spec: PTC de Anthropic Haiku vía OpenRouter
 
+> Estado: **parcial**. La compatibilidad PTC real vía OpenRouter está sin confirmar (HTTP 400 en la prueba autorizada del 2026-10-28); queda como intento opt-in con upstream Anthropic fijado.
+
 ## Objetivo
 
 Probar y, si la ruta lo admite, habilitar la orquestación programática de tools (PTC) de
