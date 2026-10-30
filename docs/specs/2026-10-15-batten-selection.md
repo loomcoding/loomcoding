@@ -4,7 +4,7 @@
 >
 > Fecha: 2026-10-15
 >
-> Relacionado: `docs/specs/2026-10-14-batten-design.md` (§3 `selection`, §6
+> Relacionado: `docs/specs/hechos/2026-10-14-batten-design.md` (§3 `selection`, §6
 > roadmap v1: `selection`/copiar). Referencia de UX: la selección por bloques
 > de Crush.
 

@@ -4,7 +4,7 @@
 >
 > Fecha: 2026-10-14
 >
-> Relacionado: `docs/plans/2026-10-13-loom-mvp.md` (m0+m1),
+> Relacionado: `docs/plans/hechos/2026-10-13-loom-mvp.md` (m0+m1),
 > `2026-10-14-loom-architecture-overview.md`.
 
 ## 0. La pregunta
@@ -59,7 +59,7 @@ Para que CodeLoom pueda trabajar en su propio repo debe poder:
   artefacto que falta para el "prompt".
 - **Las tools**: las 5 del MVP (view/edit/bash/glob/grep). Idealmente, además, la
   tool `todos` y el gate `tool.risk` de jevalan desde el principio.
-- **El trabajo lo guía el plan**: `docs/plans/2026-10-13-loom-mvp.md` ya está
+- **El trabajo lo guía el plan**: `docs/plans/hechos/2026-10-13-loom-mvp.md` ya está
   escrito task-by-task con pasos y verificación (`cargo build`, `cargo test`).
 
 ## 5. Plan de bootstrap (pasos concretos)

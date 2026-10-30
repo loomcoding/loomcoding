@@ -97,11 +97,11 @@ El diseño base sitúa subagentes/jobs en m2 y la integración con herdr en m3. 
 
 ## Referencias de seguimiento
 
-- [Plan de implementación MVP (m0 + m1)](../plans/2026-10-13-loom-mvp.md)
+- [Plan de implementación MVP (m0 + m1)](../plans/hechos/2026-10-13-loom-mvp.md)
 - [Diseño base de CodeLoom](../specs/2026-10-13-loom-design.md)
 - [Mapa de arquitectura y specs](../specs/2026-10-14-loom-architecture-overview.md)
 - [Spec de estado del turno](../specs/2026-10-15-loom-turn-status-line.md)
-- [Spec de archivos modificados](../specs/2026-10-15-loom-modified-files-design.md)
-- [Spec del diálogo de permisos](../specs/2026-10-15-loom-permission-dialog-design.md)
+- [Spec de archivos modificados](../specs/hechos/2026-10-15-loom-modified-files-design.md)
+- [Spec del diálogo de permisos](../specs/hechos/2026-10-15-loom-permission-dialog-design.md)
 
 **Actualización del documento:** revisar esta tabla cuando se integre o cambie un flujo de motor/UI, y actualizar fecha, estado y criterio de cierre. La compilación por sí sola no demuestra que una interacción TUI se vea o funcione correctamente en un terminal real.

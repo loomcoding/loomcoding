@@ -22,7 +22,7 @@ OAuth2/OIDC, mTLS and card-signature checks; remote `input-required`; live cards
 every A2A task is in `docs/plans/2026-10-22-codeloom-a2a-roadmap.md`.
 
 Every task needs its spec (`docs/specs/`) and plan (`docs/plans/`) before code.
-`docs/plans/2026-10-13-loom-mvp.md` is the original m0+m1 plan (history).
+`docs/plans/hechos/2026-10-13-loom-mvp.md` is the original m0+m1 plan (history).
 
 ## Where the truth is
 

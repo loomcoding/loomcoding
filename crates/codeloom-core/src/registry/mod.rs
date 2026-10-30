@@ -5,7 +5,7 @@
 //! recarga produce otra, y quien ya tiene una (p. ej. una tarea en curso) la conserva.
 //!
 //! La recarga en caliente, la vigilancia y la aprobación de los agentes de proyecto llegan
-//! en tareas siguientes de `docs/plans/2026-10-22-codeloom-a2a-agent-registry.md`.
+//! en tareas siguientes de `docs/plans/hechos/2026-10-22-codeloom-a2a-agent-registry.md`.
 
 pub mod profile;
 pub mod router;

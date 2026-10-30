@@ -15,12 +15,12 @@ red, herramientas reales ni motor de agentes.
 
 Esta spec complementa, sin sustituir sus decisiones aprobadas:
 
-- [Diseño de batten](2026-10-14-batten-design.md).
-- [Showcase navegable](2026-10-15-batten-showcase-design.md).
-- [Primitivas](2026-10-15-batten-primitives-design.md).
-- [Composer editable](2026-10-15-batten-composer-editing-design.md).
+- [Diseño de batten](hechos/2026-10-14-batten-design.md).
+- [Showcase navegable](hechos/2026-10-15-batten-showcase-design.md).
+- [Primitivas](hechos/2026-10-15-batten-primitives-design.md).
+- [Composer editable](hechos/2026-10-15-batten-composer-editing-design.md).
 - [Selección](2026-10-15-batten-selection.md).
-- [Archivos modificados](2026-10-15-loom-modified-files-design.md).
+- [Archivos modificados](hechos/2026-10-15-loom-modified-files-design.md).
 - [Estado del turno](2026-10-15-loom-turn-status-line.md).
 
 Las recomendaciones siguientes son propuestas. En particular, introducir wrap

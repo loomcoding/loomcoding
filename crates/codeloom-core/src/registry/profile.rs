@@ -1,7 +1,7 @@
 //! Perfil de un agente: el fichero `<nombre>.md`, con frontmatter YAML y cuerpo markdown.
 //!
 //! Formato de la sección 2 de `docs/specs/2026-10-15-loom-agent-profile-a2a.md`, con las
-//! decisiones de `docs/specs/2026-10-22-codeloom-a2a-agent-registry-design.md`. Hoy se
+//! decisiones de `docs/specs/hechos/2026-10-22-codeloom-a2a-agent-registry-design.md`. Hoy se
 //! interpretan `name`, `description`, `version`, `persona`, `model`, `provider`, `effort`,
 //! `max_turns` y `max_depth`. `transport: a2a-remote` con `a2a.endpoint` declara un agente remoto (A8a) y se
 //! aplica. `scope`, `delegation` y cualquier otro `transport` o `a2a` se leen, se declaran como no

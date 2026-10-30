@@ -158,7 +158,7 @@ Reglas:
 > (límite de pasos de la sesión hija). Se leen y se conservan, pero **no se aplican** todavía:
 > `scope`, `delegation`, `transport` y `a2a` (un perfil que los declara recibe el aviso
 > «declarado y no aplicado»), y `max_depth`, que se lee sin aviso. Los detalles y las
-> limitaciones están en `docs/specs/2026-10-22-codeloom-a2a-agent-registry-design.md`,
+> limitaciones están en `docs/specs/hechos/2026-10-22-codeloom-a2a-agent-registry-design.md`,
 > sección «Estado (2026-10-22)». Esta nota no reescribe lo anterior: la tabla y las reglas de
 > arriba siguen siendo la intención del formato.
 
@@ -207,7 +207,7 @@ La card es la **vista externa**; el `AgentProfile` es la **vista interna**.
 `crates/codeloom-core/src/card.rs` (commit `77b8de1`). El cargador de `AgentProfile`
 desde fichero **no** existe aún: queda pendiente y es prerrequisito de A12. El formato
 del perfil es el de la sección 2 de este documento. Estado y limitaciones de la tarjeta:
-`docs/specs/2026-10-22-codeloom-a2a-agent-card-design.md`, sección «Estado».
+`docs/specs/hechos/2026-10-22-codeloom-a2a-agent-card-design.md`, sección «Estado».
 
 ## 5. A2A como transporte
 
@@ -253,12 +253,12 @@ Nota (historial): hasta el 2026-10-22 el subagente tenía un enum propio
 Nota (2026-10-22, tras A5): esta sección no tenía una nota de divergencias temporales
 explícita; la equivalente es la de la spec de la tarea A5. El mensaje de estado y el
 resultado de un subagente ya no son texto: `TaskStatus.message` es un `Message` y el
-resultado son `Artifact`s (`docs/specs/2026-10-22-codeloom-a2a-protocol-types-design.md`,
+resultado son `Artifact`s (`docs/specs/hechos/2026-10-22-codeloom-a2a-protocol-types-design.md`,
 sección «Estado»). Quedan abiertos el `contextId` compartido entre tareas y
 `reference_task_ids` (A11). El resto de esta sección no cambia.
 
 Nota (2026-10-23, tras A11): `reference_task_ids` ya se escribe, en el descriptor del subagente
-(`docs/specs/2026-10-23-codeloom-a2a-follow-up-design.md`).
+(`docs/specs/hechos/2026-10-23-codeloom-a2a-follow-up-design.md`).
 
 ### Fuente normativa de los estados (2026-10-22)
 

@@ -6,9 +6,9 @@
 >
 > Fecha: 2026-10-18.
 >
-> Relacionado: `docs/specs/2026-10-15-batten-composer-editing-design.md`,
+> Relacionado: `docs/specs/hechos/2026-10-15-batten-composer-editing-design.md`,
 > `docs/specs/2026-10-15-batten-reference-findings-showcase.md` y
-> `docs/plans/2026-10-17-loom-composer-visual.md`.
+> `docs/plans/hechos/2026-10-17-loom-composer-visual.md`.
 
 ## 1. Objetivo
 

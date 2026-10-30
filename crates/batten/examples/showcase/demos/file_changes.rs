@@ -19,7 +19,7 @@ impl FileChangesDemo {
             ("src/main.rs", 12, 3),
             ("crates/batten/src/widgets/sidebar.rs", 40, 8),
             (
-                "docs/specs/2026-10-15-loom-modified-files-design.md",
+                "docs/specs/hechos/2026-10-15-loom-modified-files-design.md",
                 191,
                 0,
             ),

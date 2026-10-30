@@ -260,7 +260,7 @@ añadido ya la produce; en tal caso el `match` solo debe ignorarlo.
 
 **Ficheros:** `docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md` (regla 5: pasa a
 «hecho salvo `/compact` manual y reintento reactivo»), esta spec (sección «Estado» con commits y
-lo que queda fuera), `docs/specs/2026-10-22-codeloom-context-compaction-design.md` (puntero).
+lo que queda fuera), `docs/specs/hechos/2026-10-22-codeloom-context-compaction-design.md` (puntero).
 Prosa en español formal.
 
 **Commit:** `docs: estado real de la compactación con resumen`.

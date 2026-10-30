@@ -23,10 +23,10 @@ dice que no consta.
 | Estados de tarea: definiciones literales del proto y decisiones nuestras | misma spec, secciones «Estado de tarea» y «Fuente normativa de los estados» |
 | Proyección interna → `TaskState` (código) | `crates/codeloom-core/src/task.rs` |
 | Estados en pantalla: `AgentState`, glifos, colores | `crates/batten/src/state/agent_state.rs`, `crates/batten/src/widgets/theme.rs`; rail en `crates/codeloom-tui/src/rail.rs`; demo «Agent state» del showcase |
-| `input-required`: pregunta del hijo al padre | `docs/specs/2026-10-21-codeloom-subagent-input-required-design.md` |
+| `input-required`: pregunta del hijo al padre | `docs/specs/hechos/2026-10-21-codeloom-subagent-input-required-design.md` |
 | Autonomía: despertar del padre (Fase A), artefactos (B), tareas enlazadas (C) | `docs/specs/2026-10-21-codeloom-agent-autonomy-design.md` |
-| Observabilidad: métricas por agente, navegación, causalidad y ficheros (O1 a O3) | `docs/specs/2026-10-21-codeloom-agent-observability-design.md`, `...-o2-design.md`, `2026-10-22-codeloom-agent-observability-o3-design.md` |
-| Herramientas de tarea y preguntas | `docs/specs/2026-10-20-codeloom-todos-and-questions-design.md`, `docs/specs/2026-10-21-codeloom-tool-atoms-design.md` |
+| Observabilidad: métricas por agente, navegación, causalidad y ficheros (O1 a O3) | `docs/specs/hechos/2026-10-21-codeloom-agent-observability-design.md`, `...-o2-design.md`, `2026-10-22-codeloom-agent-observability-o3-design.md` |
+| Herramientas de tarea y preguntas | `docs/specs/hechos/2026-10-20-codeloom-todos-and-questions-design.md`, `docs/specs/2026-10-21-codeloom-tool-atoms-design.md` |
 | Mapa general | `docs/specs/2026-10-14-loom-architecture-overview.md` |
 
 ## Qué es de A2A y qué es nuestro
@@ -48,8 +48,8 @@ la tabla de transiciones, que `submitted` signifique «aún no iniciada», ni qu
 
 Por petición del usuario, el estado de un subagente pasa a ser **directamente** el
 `TaskState` de A2A, sin enum propio ni proyección (la capa visual sí puede mostrarlo de
-forma distinta). Spec: `docs/specs/2026-10-22-codeloom-a2a-task-model-design.md`; plan:
-`docs/plans/2026-10-22-codeloom-a2a-task-model.md`. **A1 y A2 quedan absorbidas por ese
+forma distinta). Spec: `docs/specs/hechos/2026-10-22-codeloom-a2a-task-model-design.md`; plan:
+`docs/plans/hechos/2026-10-22-codeloom-a2a-task-model.md`. **A1 y A2 quedan absorbidas por ese
 plan**: el renombrado a `Unfinished` ya hecho desaparece con la variante, y los
 productores se implementan sobre el modelo nuevo.
 
@@ -68,7 +68,7 @@ después el transporte (A7, A8).
 - [x] **A2. Productores de los estados que faltan.** Hecho el 2026-10-22, absorbido por el
   plan `2026-10-22-codeloom-a2a-task-model.md` (commit `6365c58`). El runtime produce los
   ocho estados de tarea. Lo implementado y las decisiones tomadas (que A2A no fija) figuran
-  en `docs/specs/2026-10-22-codeloom-a2a-states-producers-design.md`, sección «Estado».
+  en `docs/specs/hechos/2026-10-22-codeloom-a2a-states-producers-design.md`, sección «Estado».
   Cuidado de siempre: «Agents MUST NOT treat the `TASK_STATE_AUTH_REQUIRED` state transition,
   by itself, as authorization».
   - **Resuelto en A5 (2026-10-22):** `result` y el mensaje de estado ya son `Artifact` y
@@ -92,8 +92,8 @@ después el transporte (A7, A8).
   (artefactos) en lugar de inventar un tipo propio.
   - **Hecho el 2026-10-22** en los commits `ad2952a` (tipos `a2a`: `Role`, `Part`, `Message`,
     `Artifact`) y `3ea5ee2` (`TaskStatus.message` y `SubagentDescriptor.artifacts`, con la
-    migración de lectura en SQLite). Spec: `docs/specs/2026-10-22-codeloom-a2a-protocol-types-design.md`,
-    sección «Estado». Plan: `docs/plans/2026-10-22-codeloom-a2a-protocol-types.md`.
+    migración de lectura en SQLite). Spec: `docs/specs/hechos/2026-10-22-codeloom-a2a-protocol-types-design.md`,
+    sección «Estado». Plan: `docs/plans/hechos/2026-10-22-codeloom-a2a-protocol-types.md`.
   - **Abierto:** no existe un tipo `Task` en el núcleo, así que `history` y `metadata` no se
     modelan. `contextId` solo se deriva en lectura (id de la sesión del padre), sin
     `contextId` compartido entre tareas. `reference_task_ids` lo escribe el descriptor del
@@ -102,8 +102,8 @@ después el transporte (A7, A8).
 - [x] **A6. Tarjeta del agente (`AgentCard`)** y capacidades declaradas.
   - **Hecho el 2026-10-22** en el commit `77b8de1` (`feat(core): los tipos de la tarjeta de agente de A2A`),
     módulo `crates/codeloom-core/src/card.rs`. Spec y plan en `cf82838`. Spec:
-    `docs/specs/2026-10-22-codeloom-a2a-agent-card-design.md`, sección «Estado». Plan:
-    `docs/plans/2026-10-22-codeloom-a2a-agent-card.md`.
+    `docs/specs/hechos/2026-10-22-codeloom-a2a-agent-card-design.md`, sección «Estado». Plan:
+    `docs/plans/hechos/2026-10-22-codeloom-a2a-agent-card.md`.
   - **Fuera de A6:** seguridad, firmas e icono de la tarjeta, que quedan para A8.
 - [x] **A7. Transporte `InProcess`** detrás de `AgentTransport`: mensajes en memoria,
   sin socket, para los tests. **Hecho el 2026-10-23** (`3101452`, `1106c3c`): contrato
@@ -145,8 +145,8 @@ después el transporte (A7, A8).
   `a20e07a`, `9fdf358`): eventos derivados del bus, `subscribe_task` y tipos del cable. Spec y plan
   `2026-10-23-codeloom-a2a-task-events-*`.
 - [x] **A10. Cancelar y reanudar.** **Hecho el 2026-10-23** (decisiones nuestras, rotuladas):
-  spec `docs/specs/2026-10-23-codeloom-a2a-cancel-design.md`, plan
-  `docs/plans/2026-10-23-codeloom-a2a-cancel.md`. `SubagentLauncher::cancel` devuelve la tarea
+  spec `docs/specs/hechos/2026-10-23-codeloom-a2a-cancel-design.md`, plan
+  `docs/plans/hechos/2026-10-23-codeloom-a2a-cancel.md`. `SubagentLauncher::cancel` devuelve la tarea
   actualizada y falla con `TaskNotFound` / `TaskNotCancelable`. Sin mando en la interfaz ni cable.
   Texto original de la tarea: `CancelTask` lo solicita el cliente y devuelve la
   `Task` actualizada; no consta a qué estado pasa (la inferencia `canceled` ha de
@@ -178,7 +178,7 @@ después el transporte (A7, A8).
       `[agents] confirm_delegation` (`doubt` por defecto, `always`, `never`), pregunta con
       `ask_user` cuando duda entre varios; la interfaz muestra siempre el agente de cada
       hijo. Commits `871576e` (spec), `9631385` (plan), `7cd4aab`, `1c12360` y `c71f53e`.
-      Spec: `docs/specs/2026-10-22-codeloom-a2a-delegation-choice-design.md`, sección «Estado».
+      Spec: `docs/specs/hechos/2026-10-22-codeloom-a2a-delegation-choice-design.md`, sección «Estado».
     - **A12b hecha el 2026-10-24: regla (2026-10-23) y clasificador** (idea del usuario). Con
       `[agents] routing = "rule"` (apagado por defecto) la herramienta `subagent` elige agente por
       etiquetas, nombre y ejemplos de las tarjetas aprobadas cuando no se nombra ninguno, y lo anuncia en
@@ -188,7 +188,7 @@ después el transporte (A7, A8).
 - [x] **Árbol de subagentes (2026-10-22).** El subagente es un nodo plegable de la conversación,
   con el icono del estado A2A y su nombre exacto; desplegado, muestra su texto y sus herramientas
   y las consultas del padre sobre él. Commits `a059b49`, `1bf6ec6`, `3d4ee31`, `7cdce9b`,
-  `865539e`, `193e141`. Spec: `docs/specs/2026-10-22-codeloom-subagent-tree-design.md`.
+  `865539e`, `193e141`. Spec: `docs/specs/hechos/2026-10-22-codeloom-subagent-tree-design.md`.
 - [x] **A13. Registro de agentes con fuentes intercambiables (prerrequisito de A12).**
   Replanteada el 2026-10-22 por el usuario: la fuente de agentes **no debe ser solo un
   fichero**. El denominador común es la **tarjeta** (`AgentCard`, A6): quien delega
@@ -227,8 +227,8 @@ después el transporte (A7, A8).
        aviso.
   - **Hecho el 2026-10-22** en los commits `1f4787a`, `73a4e41`, `a492f73`, `128cfcd`,
     `89329b7`, `f3f0240`, `27dd8e4` y `05dc0ac`. Módulo `crates/codeloom-core/src/registry/`.
-    Spec: `docs/specs/2026-10-22-codeloom-a2a-agent-registry-design.md`, sección «Estado
-    (2026-10-22)». Plan: `docs/plans/2026-10-22-codeloom-a2a-agent-registry.md`.
+    Spec: `docs/specs/hechos/2026-10-22-codeloom-a2a-agent-registry-design.md`, sección «Estado
+    (2026-10-22)». Plan: `docs/plans/hechos/2026-10-22-codeloom-a2a-agent-registry.md`.
   - **Abierto:**
     - La elección del agente la resuelve A12: el padre pregunta cuando duda (regla del prompt).
       La elección automática, sin preguntar, queda para A12b.
