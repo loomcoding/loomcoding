@@ -165,3 +165,46 @@ async fn no_orphan_daemon_after_session() {
     drop(s);
     assert_eq!(kill_daemons_of(&home), 0, "quedó un daemon huérfano");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ctrl_j_and_paste_add_lines_and_only_enter_sends() {
+    let mut s = Session::start("respuesta del bloque", 40, 120).await;
+    s.expect(READY, BOOT);
+    s.term.send_text("uno").unwrap();
+    s.term.press(Key::CtrlJ).unwrap();
+    s.term.send_text("dos").unwrap();
+    s.term
+        .paste(
+            "tres
+cuatro
+",
+        )
+        .unwrap();
+    // El composer enseña como mucho tres filas: `uno` queda desplazado hacia arriba.
+    let before = s.expect("cuatro", TURN);
+    s.shot("multiline");
+    assert!(
+        before.text.lines().any(|l| l.contains("dostres")),
+        "el pegado debía continuar la línea de `dos`:
+{}",
+        before.text
+    );
+    assert!(
+        !before.text.contains("respuesta del bloque"),
+        "un salto de línea envió el prompt:
+{}",
+        before.text
+    );
+    s.term.press(Key::Enter).unwrap();
+    let after = s.expect("respuesta del bloque", TURN);
+    // Ctrl+J separó `uno` de `dos`: son líneas distintas del prompt enviado.
+    assert!(
+        after
+            .text
+            .lines()
+            .any(|l| l.contains("uno") && !l.contains("dos")),
+        "falta `uno` en su propia línea:
+{}",
+        after.text
+    );
+}
