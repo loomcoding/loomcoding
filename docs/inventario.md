@@ -5,6 +5,12 @@ y cotejándola con el repositorio: existencia de los ficheros que cada plan crea
 presencia de los símbolos que describe y existencia en `master` de los commits que
 cita (117 de 118; el restante es una revisión de Crossterm, ajena a este repositorio).
 
+Ubicación: lo hecho y sin cabos sueltos vive en `docs/specs/hechos/` y
+`docs/plans/hechos/`. En `docs/specs/` y `docs/plans/` quedan solo lo pendiente,
+lo parcialmente implementado y los documentos de referencia vivos (decálogo,
+roadmaps, listas de pendientes). En «Hecho» (abajo) aparece todo lo que ya consta
+como implementado; lo que sigue en la raíz es la sección «cabo suelto».
+
 Las casillas `- [x]` de los planes anteriores al 2026-10-21 nunca se marcaron; no
 son fiables. Manda la línea `Estado:` de la cabecera.
 
@@ -44,8 +50,8 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 - **Propuestas con plan:** capacidades-tools-provider-modelo, provider-timeouts,
   sesion-vacia-runtime, coste-real-y-estimado-por-adapter, agent-autonomy, cost-estimate.
-- **Sin línea de estado:** a2a-observatory, default-ui, development-agents,
-  readme-branding, peer-delegation, agent-e2e, expanded-tools.
+- **Sin línea de estado y sin verificar:** chat-demo-streaming, conversation-composer-review,
+  parent-wakeup, coste-real-y-estimado-por-adapter.
 - **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,
   kpis-prompt-compression, memory, skills-ponytail-superpowers, static-decision-signals,
   tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
