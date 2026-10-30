@@ -19,3 +19,9 @@ futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rmcp = { version = "=3.5.1", default-features = false, features = ["client", "transport-child-process"] }
+
+# Cabe señalar que sin esto el directorio target/debug crecía sin medida: la información de
+# depuración completa (.pdb) y la compilación incremental ocupaban decenas de gigabytes.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
