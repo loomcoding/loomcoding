@@ -13,3 +13,9 @@ vt100 = "0.15"
 portable-pty = "0.9"
 anyhow = { workspace = true }
 thiserror = { workspace = true }
+wiremock = "0.6"
+tempfile = "3"
+tokio = { workspace = true }
+
+[dev-dependencies]
+codeloom-core = { path = "../codeloom-core" }
