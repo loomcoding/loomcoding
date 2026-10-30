@@ -35,6 +35,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 mod credentials;
+mod home;
 mod ipc;
 mod server;
 

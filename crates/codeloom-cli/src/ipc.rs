@@ -125,7 +125,7 @@ pub async fn connect() -> io::Result<Stream> {
 }
 
 pub fn runtime_dir() -> PathBuf {
-    dirs::home_dir()
+    crate::home::user_home()
         .unwrap_or_else(std::env::temp_dir)
         .join(".codeloom")
         .join("runtime")
@@ -234,7 +234,7 @@ fn hex(bytes: &[u8]) -> String {
 #[cfg(windows)]
 fn pipe_name() -> String {
     use std::hash::{Hash, Hasher};
-    let profile = dirs::home_dir().unwrap_or_default();
+    let profile = crate::home::user_home().unwrap_or_default();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     profile
         .to_string_lossy()

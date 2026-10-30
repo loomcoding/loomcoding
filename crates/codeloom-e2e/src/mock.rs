@@ -53,7 +53,8 @@ impl Workspace {
         let home = self.home.path().to_string_lossy().to_string();
         vec![
             ("USERPROFILE".into(), home.clone()),
-            ("HOME".into(), home),
+            ("HOME".into(), home.clone()),
+            ("CODELOOM_HOME".into(), home),
             (KEY_ENV.into(), "sk-test".into()),
         ]
     }
@@ -86,7 +87,8 @@ mod tests {
         let env = ws.env();
         let home = ws.home.path().to_string_lossy().to_string();
         assert!(env.contains(&("USERPROFILE".to_string(), home.clone())));
-        assert!(env.contains(&("HOME".to_string(), home)));
+        assert!(env.contains(&("HOME".to_string(), home.clone())));
+        assert!(env.contains(&("CODELOOM_HOME".to_string(), home)));
         assert!(env.contains(&("CODELOOM_E2E_KEY".to_string(), "sk-test".to_string())));
     }
 

@@ -1,5 +1,5 @@
 //! Limpieza de daemons huérfanos: el cliente de CodeLoom lanza `<exe> --server` suelto,
-//! que sobrevive al test. Se identifica por la línea de órdenes y por el perfil de usuario.
+//! que sobrevive al test. Se identifica por la línea de órdenes y por `CODELOOM_HOME`.
 
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -26,7 +26,7 @@ fn daemons_of(home: &Path) -> Vec<sysinfo::Pid> {
                 entry
                     .to_string_lossy()
                     .to_ascii_lowercase()
-                    .strip_prefix("userprofile=")
+                    .strip_prefix("codeloom_home=")
                     .is_some_and(|value| value == wanted)
             })
         })
@@ -34,7 +34,7 @@ fn daemons_of(home: &Path) -> Vec<sysinfo::Pid> {
         .collect()
 }
 
-/// Termina los procesos `--server` cuyo `USERPROFILE` es `home`, espera a que
+/// Termina los procesos `--server` cuyo `CODELOOM_HOME` es `home`, espera a que
 /// desaparezcan y devuelve cuántos mató.
 pub fn kill_daemons_of(home: &Path) -> usize {
     let pids = daemons_of(home);
@@ -74,7 +74,7 @@ mod tests {
         let spawn = |home: &std::path::Path| {
             std::process::Command::new("cmd.exe")
                 .args(["/c", "pause", "--server"])
-                .env("USERPROFILE", home)
+                .env("CODELOOM_HOME", home)
                 .stdin(std::process::Stdio::piped())
                 .stdout(std::process::Stdio::null())
                 .spawn()

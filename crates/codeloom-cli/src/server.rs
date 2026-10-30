@@ -562,7 +562,7 @@ async fn build_agent(
     let project = format!("{}#codeloom-agent:{id}", cwd.display());
     let bus = codeloom_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
-    let home = dirs::home_dir();
+    let home = crate::home::user_home();
     let runtime_peers = a2a
         .consumes()
         .then(|| super::runtime_peer_dir(data_dir, &manager.runtime_generation, &cwd));
@@ -1704,7 +1704,7 @@ fn start_server_process() -> anyhow::Result<()> {
 pub async fn run_server() -> anyhow::Result<()> {
     let _token = ipc::load_or_create_token()?;
     let mut listener = ipc::Listener::bind()?;
-    let data_dir = dirs::home_dir()
+    let data_dir = crate::home::user_home()
         .unwrap_or_else(std::env::temp_dir)
         .join(".codeloom");
     std::fs::create_dir_all(&data_dir)?;
@@ -2768,14 +2768,14 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let config_path = cwd_path.join("codeloom.toml");
     let agents_config = codeloom_core::config::AgentsConfig::load(&config_path)?;
     let a2a_config = codeloom_a2a::config::A2aConfig::load(&config_path)?;
-    let data_dir = dirs::home_dir()
+    let data_dir = crate::home::user_home()
         .unwrap_or_else(std::env::temp_dir)
         .join(".codeloom");
     let runtime_peers = a2a_config
         .consumes()
         .then(|| super::runtime_peer_dir(&data_dir, &runtime_generation, &cwd_path));
     let startup = super::arrancar_agentes_con_runtime(
-        dirs::home_dir().as_deref(),
+        crate::home::user_home().as_deref(),
         &cwd_path,
         &agents_config,
         runtime_peers,

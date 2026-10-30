@@ -41,3 +41,4 @@ libc = "0.2"
 [dev-dependencies]
 wiremock = "0.6"
 tempfile = "3"
+codeloom-e2e = { path = "../codeloom-e2e" }
