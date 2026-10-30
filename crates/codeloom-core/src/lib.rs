@@ -3,6 +3,7 @@
 pub mod a2a;
 pub mod agent;
 pub mod budget;
+pub mod capability;
 pub mod card;
 pub mod catalog;
 pub mod config;
