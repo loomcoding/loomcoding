@@ -10,3 +10,6 @@ description = "Apoyo para pruebas E2E visuales: PTY, emulador de terminal y volc
 serde = { workspace = true }
 serde_json = { workspace = true }
 vt100 = "0.15"
+portable-pty = "0.9"
+anyhow = { workspace = true }
+thiserror = { workspace = true }

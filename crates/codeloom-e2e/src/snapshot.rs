@@ -72,10 +72,7 @@ impl Snapshot {
             .iter()
             .map(|row| row_to_text(row))
             .collect::<Vec<_>>()
-            .join(
-                "
-",
-            );
+            .join("\n");
         Snapshot {
             rows,
             cols,
