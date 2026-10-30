@@ -1,5 +1,7 @@
 # Geometría del transcript y anclaje del scroll — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que el transcript cuente filas visuales (no líneas lógicas) para pintar, hacer scroll y dibujar la scrollbar; que la lectura no se mueva al llegar contenido; y que loom use ese transcript con scroll.

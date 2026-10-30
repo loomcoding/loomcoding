@@ -1,5 +1,7 @@
 # Compactación anticipada en segundo plano: plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-codeloom-background-compaction-design.md`.
+
 > Para quien ejecute: una tarea cada vez, con verificación y commit al terminar cada una.
 
 **Meta:** que el resumen del historial se prepare en segundo plano y se active al instante, sin

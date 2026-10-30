@@ -1,5 +1,7 @@
 # Piezas atómicas por herramienta — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-21-codeloom-tool-atoms-design.md`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`. Una tarea cada vez, en orden. Al terminar y verificar cada tarea se commitea (lo hace quien orquesta).
 
 **Meta:** que cada herramienta real de CodeLoom tenga una pieza de render atómica en `batten`, usada por la app y por un catálogo en el showcase, con estilos afinables por preset.

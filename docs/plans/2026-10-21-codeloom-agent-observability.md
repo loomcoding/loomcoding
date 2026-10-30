@@ -1,5 +1,7 @@
 # Observabilidad de agentes (Fase O1) — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-21-codeloom-agent-observability-design.md`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`. Una tarea cada vez, en orden. Al terminar y verificar cada tarea se commitea (regla del usuario).
 
 **Meta:** que la TUI vea el interior de cada subagente (paso, herramienta en curso, tokens, tiempo, estado) y lo muestre en el rail, con totales de la jerarquía.

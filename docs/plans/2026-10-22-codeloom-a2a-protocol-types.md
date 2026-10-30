@@ -1,5 +1,7 @@
 # Tipos de A2A en el núcleo (`Message`, `Part`, `Artifact`) — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-22-codeloom-a2a-protocol-types-design.md`.
+
 > **Para agentes:** una tarea cada vez, en orden. Quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que el mensaje de estado de una tarea sea un `Message` de A2A y el resultado de un subagente sean `Artifact`s, retirando las cadenas.

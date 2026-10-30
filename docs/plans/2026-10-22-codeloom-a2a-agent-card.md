@@ -1,5 +1,7 @@
 # La tarjeta del agente — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-22-codeloom-a2a-agent-card-design.md`.
+
 > **Para agentes:** una tarea cada vez, en orden. Quien supervisa commitea, así que **no commitees**.
 
 **Meta:** tipos de `AgentCard` del proto en `codeloom-core`, con un constructor para agentes locales.

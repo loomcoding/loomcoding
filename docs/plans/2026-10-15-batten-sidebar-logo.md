@@ -1,5 +1,7 @@
 # batten sidebar + logo de bloques — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Añadir a batten un logo paramétrico (fuente de bloques) y un sidebar genérico, y hacer que `codeloom-tui` consuma el sidebar de batten en vez de su versión local.

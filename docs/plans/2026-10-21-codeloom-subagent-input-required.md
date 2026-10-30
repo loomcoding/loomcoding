@@ -1,5 +1,7 @@
 # `ask_user` en subagentes (`input-required`) — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-21-codeloom-subagent-input-required-design.md`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`. Una tarea cada vez, en orden (comparten árbol y `target`).
 
 **Meta:** que un subagente pueda llamar a `ask_user`, que la pregunta llegue al LLM del padre como aviso, y que este responda con `subagent_control` (acción `answer`) o escale al usuario con su propio `ask_user`.

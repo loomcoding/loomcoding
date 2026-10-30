@@ -1,5 +1,7 @@
 # Bucle de entrada de loom — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Entrada sin lag ni bloqueos: bucle por eventos (`EventStream` + `select!`), ráfagas agrupadas en un frame, pegado entre corchetes que nunca envía, frames sincronizados, sin redibujar sin cambios y sin perder prompts.

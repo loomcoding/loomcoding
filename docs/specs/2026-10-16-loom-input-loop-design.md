@@ -1,6 +1,6 @@
 # Bucle de entrada de loom: sin bloqueos, sin lag, sin parpadeos
 
-> Estado: **diseño propuesto**, pendiente de revisión.
+> Estado: **implementado** (verificado el 2026-10-30 contra el código; plan `docs/plans/2026-10-16-loom-input-loop.md`). Estado anterior: **diseño propuesto**, pendiente de revisión.
 >
 > Fecha: 2026-10-16
 >

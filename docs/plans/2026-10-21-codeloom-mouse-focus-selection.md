@@ -1,5 +1,7 @@
 # Foco por clic y selección en el composer — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-21-codeloom-mouse-focus-selection-design.md`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`. Una tarea cada vez, en orden. Al terminar y verificar cada tarea se commitea (regla del usuario).
 
 **Meta:** que un clic dirija el foco a la ventana pulsada y que arrastrar en el composer seleccione solo su texto, con copia al soltar.

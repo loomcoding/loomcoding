@@ -1,5 +1,7 @@
 # Elección del especialista al delegar (A12) — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-22-codeloom-a2a-delegation-choice-design.md`.
+
 > **Para agentes:** una tarea cada vez, en orden. Quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que el padre pregunte a la persona usuaria cuando duda entre varios agentes (regla en su prompt, configurable) y que la interfaz muestre siempre qué agente lleva cada hijo.

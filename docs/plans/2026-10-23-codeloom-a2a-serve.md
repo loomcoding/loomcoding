@@ -1,5 +1,7 @@
 # A8b: servir CodeLoom como agente A2A. Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-codeloom-a2a-serve-design.md`.
+
 > **Para agentes:** ejecutar tarea a tarea; cada tarea acaba con sus pruebas, `clippy -D warnings`,
 > `rustfmt --check` sobre los ficheros tocados y un commit. Sin red real: el enrutador se prueba en memoria.
 

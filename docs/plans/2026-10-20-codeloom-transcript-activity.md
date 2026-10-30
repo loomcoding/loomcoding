@@ -1,5 +1,7 @@
 # Actividad de jobs y subagentes en el transcript Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** En el look Crush, jobs y subagentes aparecen en el transcript como elementos de actividad con estado, progreso y resultado, y sus avisos de texto dejan de pintarse como mensajes "You".

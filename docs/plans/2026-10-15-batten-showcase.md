@@ -1,5 +1,7 @@
 # batten showcase — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Un ejemplo multi-archivo `showcase` de batten: un storybook navegable en la TUI que muestra y permite probar los 7 widgets más una pantalla `chat`, sin back.

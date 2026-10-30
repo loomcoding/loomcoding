@@ -1,5 +1,7 @@
 # Renombrar `SubagentStatus::Interrupted` — Plan de implementación (tarea A1)
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` o `superpowers:executing-plans`. Tarea única. En esta ejecución quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que el nombre interno de «hijo que quedó sin terminar al cerrarse la aplicación» deje de coincidir con el «interrupted state» de A2A (que significa `input-required` y `auth-required`). El nuevo nombre es `Unfinished` (decisión mía, marcada para revisión; coherente con la spec A2A, que dice que la tarea «quedó sin terminar»).

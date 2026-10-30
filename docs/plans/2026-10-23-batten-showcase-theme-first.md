@@ -1,5 +1,7 @@
 # Showcase de Batten con el tema primero: plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-batten-showcase-theme-first-design.md`.
+
 > Para quien ejecute: una tarea cada vez, con verificación y commit al terminar cada una.
 
 **Meta:** selector de tema en la cabecera, barra lateral de componentes del tema elegido y ratón

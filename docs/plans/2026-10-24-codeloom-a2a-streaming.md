@@ -1,5 +1,7 @@
 # A8c: streaming SSE: plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-24-codeloom-a2a-streaming-design.md`.
+
 > **Para quien ejecute:** una tarea cada vez; tras cada una, `cargo test -p codeloom-a2a -p codeloom-core`,
 > `cargo clippy -p codeloom-a2a -p codeloom-core -p codeloom-cli -- -D warnings`,
 > `rustfmt --edition 2021 --check` de los ficheros tocados, y un commit. Nada de `cargo fmt --all`.

@@ -1,5 +1,7 @@
 # Observabilidad O3 (causalidad y ficheros por hijo) — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-22-codeloom-agent-observability-o3-design.md`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` o `superpowers:executing-plans`. Una tarea cada vez, en orden. En esta ejecución quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que el transcript diga quién despertó al padre y que el rail y el panel de cambios muestren los ficheros editados por cada hijo.

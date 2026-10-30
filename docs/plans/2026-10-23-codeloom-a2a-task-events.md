@@ -1,5 +1,7 @@
 # Flujo de eventos de tarea (A9): plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-codeloom-a2a-task-events-design.md`.
+
 > **Para quien ejecute:** una tarea cada vez; tras cada una, `cargo test -p codeloom-core -p
 > codeloom-a2a`, `cargo clippy -p codeloom-core -p codeloom-a2a -p codeloom-tui -p codeloom-cli --
 > -D warnings`, `rustfmt --edition 2021 --check` y un commit. Nada de `cargo fmt --all`.

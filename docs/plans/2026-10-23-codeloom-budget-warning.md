@@ -1,5 +1,7 @@
 # Aviso de presupuesto: plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-codeloom-budget-warning-design.md`.
+
 > Para quien ejecute: una tarea cada vez, con verificación y commit al terminar cada una.
 
 **Meta:** avisar a la persona usuaria cuando el gasto acumulado de la sesión cruza el 80 % y el

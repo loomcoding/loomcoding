@@ -1,5 +1,7 @@
 # El estado del subagente es `TaskState` de A2A — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-22-codeloom-a2a-task-model-design.md`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` o `superpowers:executing-plans`. Una tarea cada vez, en orden. En esta ejecución quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que el estado persistido y en memoria de un subagente sea exactamente el `TaskState` de A2A (con su `TaskStatus`), que el runtime produzca los ocho estados y que la interfaz derive su aspecto del modelo sin alterarlo.

@@ -1,6 +1,6 @@
 # `batten` — sidebar, logo de bloques y su integración en CodeLoom
 
-> Estado: **diseño aprobado** (secciones A-H revisadas en sesión).
+> Estado: **implementado** (verificado el 2026-10-30 contra el código; plan `docs/plans/2026-10-15-batten-sidebar-logo.md`). Estado anterior: **diseño aprobado** (secciones A-H revisadas en sesión).
 >
 > Fecha: 2026-10-15
 >

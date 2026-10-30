@@ -1,5 +1,7 @@
 # Estilos de spinner y barra suave — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Añadir a batten seis spinners de una celda, una barra de progreso con precisión de octavos y una demo que los muestre.

@@ -1,5 +1,7 @@
 # Cancelar un subagente según A2A (A10): plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-codeloom-a2a-cancel-design.md`.
+
 > **Para quien ejecute:** una tarea cada vez; tras cada una, `cargo test -p codeloom-core`,
 > `cargo clippy -p codeloom-core -- -D warnings` y `rustfmt --edition 2021 --check` sobre los
 > ficheros tocados, y un commit. Nada de `cargo fmt --all`.

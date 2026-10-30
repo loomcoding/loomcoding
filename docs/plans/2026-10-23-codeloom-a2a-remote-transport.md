@@ -1,5 +1,7 @@
 # Transporte `A2aRemote` (A8): plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-codeloom-a2a-remote-transport-design.md`.
+
 > **Para quien ejecute:** este plan es un **mapa de fases**. Cada fase (A8a…A8d) lleva, al
 > empezar, su propio plan detallado tarea a tarea, escrito con la fuente normativa ya leída. Tras
 > cada tarea: `cargo test -p codeloom-core -p codeloom-a2a`, clippy con `-D warnings`,

@@ -1,6 +1,6 @@
 # batten — Primitivas visuales (familia 1)
 
-> Estado: **diseño aprobado**. Siguiente paso: plan de implementación.
+> Estado: **implementado** (verificado el 2026-10-30 contra el código; plan `docs/plans/2026-10-15-batten-primitives.md`). Estado anterior: **diseño aprobado**. Siguiente paso: plan de implementación.
 >
 > Fecha: 2026-10-15
 >

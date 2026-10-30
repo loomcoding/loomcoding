@@ -1,6 +1,6 @@
 # `batten` — Widget kit para chats de agentes en el terminal
 
-> Estado: **diseño aprobado** (secciones 1-5 revisadas en sesión).
+> Estado: **implementado** (verificado el 2026-10-30 contra el código; plan `docs/plans/2026-10-14-batten-v0.md`). Estado anterior: **diseño aprobado** (secciones 1-5 revisadas en sesión).
 >
 > Fecha: 2026-10-14
 >

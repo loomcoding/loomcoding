@@ -1,5 +1,7 @@
 # Selección en el transcript y bloques — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-21-codeloom-transcript-selection-blocks-design.md`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`. Una tarea cada vez, en orden. Al terminar y verificar cada tarea se commitea (regla del usuario; lo hace quien orquesta).
 
 **Meta:** arrastrar con el ratón sobre el transcript selecciona y copia texto por caracteres, y se navega y copia por bloques con un bloque activo visible.

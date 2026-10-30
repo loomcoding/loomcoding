@@ -1,5 +1,7 @@
 # Primitivas visuales de batten — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Añadir a batten siete primitivas visuales (`chip`, `rule`, `key_help`, `status`, `progress`, `panel`, `toast`) con un tipo compartido `Tone`, un token de tema `border` y una demo por pieza en el showcase.

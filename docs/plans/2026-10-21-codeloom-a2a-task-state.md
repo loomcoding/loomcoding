@@ -1,5 +1,7 @@
 # Estados de tarea alineados con A2A — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`.
 
 **Meta:** que los estados de jobs y subagentes tengan una proyección única y tipada hacia los estados de tarea de A2A v1.0, de modo que el futuro crate `codeloom-a2a` sea un adaptador y no una reescritura.

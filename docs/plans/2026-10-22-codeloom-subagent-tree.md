@@ -1,5 +1,7 @@
 # El subagente como nodo de un árbol — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-22-codeloom-subagent-tree-design.md`.
+
 > **Para agentes:** una tarea cada vez, en orden. Quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que cada subagente sea un nodo plegable de la conversación del padre, con iconos de estado A2A, su conversación y sus herramientas colgando de él, y las llamadas del padre sobre él anidadas bajo su nodo.

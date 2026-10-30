@@ -1,5 +1,7 @@
 # Estados A2A de un agente en rail y showcase — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` o `superpowers:executing-plans`. Una tarea cada vez, en orden. En esta ejecución quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que el rail de loom y el showcase de `batten` pinten los ocho estados de tarea de A2A (`submitted`, `working`, `input-required`, `auth-required`, `completed`, `failed`, `canceled`, `rejected`), cada uno con glifo, etiqueta y color propios.

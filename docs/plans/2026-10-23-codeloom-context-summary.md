@@ -1,5 +1,7 @@
 # Resumen del historial con el modelo: plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-codeloom-context-summary-design.md`.
+
 > Para quien ejecute: una tarea cada vez, con verificación y commit al terminar cada una.
 
 **Meta:** cuando el contexto estimado alcanza el 80 % de la ventana del modelo, resumir lo antiguo

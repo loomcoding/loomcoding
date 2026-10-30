@@ -1,6 +1,6 @@
 # Ficheros modificados en el sidebar (batten + core)
 
-> Estado: **diseño aprobado** (secciones 1-7 revisadas en sesión).
+> Estado: **implementado** (verificado el 2026-10-30 contra el código; plan `docs/plans/2026-10-15-loom-modified-files.md`). Estado anterior: **diseño aprobado** (secciones 1-7 revisadas en sesión).
 >
 > Fecha: 2026-10-15
 >

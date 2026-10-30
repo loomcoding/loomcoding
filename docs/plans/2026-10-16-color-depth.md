@@ -1,5 +1,7 @@
 # Profundidad de color del tema — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que los colores generados al pintar (degradados de logo, progress, panel y spinner; fondos de chip y botón) respeten el perfil del terminal: RGB → 256 → 16 → sin color.

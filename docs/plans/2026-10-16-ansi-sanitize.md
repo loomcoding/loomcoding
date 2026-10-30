@@ -1,5 +1,7 @@
 # Saneado de la salida ANSI — Implementation Plan
 
+> Estado: **hecho**. Verificado el 2026-10-30: los ficheros y símbolos del plan existen en el código y los commits citados están en `master`; las casillas históricas no se marcaron.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Que la salida de herramientas (bash, cargo…) se vea limpia: solo texto y colores. Fuera secuencias de cursor, borrado y OSC (títulos, enlaces), caracteres de control y sobrescrituras con `\r` (barras de progreso).

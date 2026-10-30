@@ -1,5 +1,7 @@
 # Coste por subagente en el rail — Plan de implementación
 
+> Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`.
+
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` o `superpowers:executing-plans`. Tarea única. En esta ejecución quien supervisa commitea, así que **no commitees**.
 
 **Meta:** que cada subagente del rail muestre su coste estimado como un grupo más de su línea de métricas (`2/5 read_file · 1.2k/300 · ≈$0.004 · 7s`).
