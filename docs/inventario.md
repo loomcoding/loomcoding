@@ -43,7 +43,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | programmatic-tool-calling | evaluación con modelos reales |
 | precision-usage-live-subagent-supervision | prueba interactiva con provider |
 | anthropic-400-subagent-result-duplication | repetir la llamada real |
-| subagent-empty-final-response | probarlo en real |
+| subagent-empty-final-response | cubierto por `tui_pty::subagent_without_final_text_fails_instead_of_completing_empty` (proveedor simulado con guion, límite 3/3); queda la revisión de aspecto |
 | image-attachments | revisión visual en la TUI (el build y los tests del workspace ya pasan) |
 | large-paste-placeholder | revisión de aspecto por una persona (el marcador y la edición posterior los cubre `tui_pty`) |
 | multiline-chat-composer | cubierto por `tui_pty::ctrl_j_and_paste_add_lines_and_only_enter_sends` (Ctrl+J, pegado y envío con Enter en ConPTY); queda la revisión de aspecto |
@@ -71,7 +71,6 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 Con `crates/codeloom-cli/tests/tui_pty.rs` (véase `docs/visual-e2e.md`) se pueden añadir escenarios
 automáticos para: multiline-chat-composer, image-attachments, atribución `You`
 (user-attribution-internal-messages) y subagent-empty-final-response. Cada cabo suelto se cierra
-al añadir su escenario; hoy hay cuatro cubiertos: arranque, turno con `You`, pegado grande y composer
-multilínea. Pendientes: image-attachments (Ctrl+V lee el portapapeles real de la persona usuaria, así que
-no se automatiza sin aislarlo) y subagent-empty-final-response (exige un proveedor simulado con guion
-que distinga al padre del hijo).
+al añadir su escenario; hoy hay cinco cubiertos: arranque, turno con `You`, pegado grande, composer
+multilínea y subagente sin respuesta final. Pendiente: image-attachments (Ctrl+V lee el portapapeles
+real de la persona usuaria, así que no se automatiza sin aislarlo).

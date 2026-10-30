@@ -3,7 +3,10 @@
 //! lee la pantalla interpretada. El proveedor es un `wiremock` y el perfil de usuario es
 //! temporal, así que no se toca ni la sesión ni el daemon de la persona usuaria.
 
-use codeloom_e2e::{kill_daemons_of, mock_provider, Key, Snapshot, Term, TermConfig, Workspace};
+use codeloom_e2e::{
+    kill_daemons_of, mock_provider, mock_provider_empty_subagent, Key, Snapshot, Term, TermConfig,
+    Workspace,
+};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use wiremock::MockServer;
@@ -21,7 +24,10 @@ struct Session {
 
 impl Session {
     async fn start(reply: &str, rows: u16, cols: u16) -> Session {
-        let provider = mock_provider(reply).await;
+        Session::with_provider(mock_provider(reply).await, rows, cols)
+    }
+
+    fn with_provider(provider: MockServer, rows: u16, cols: u16) -> Session {
         let ws = Workspace::new(&provider.uri()).unwrap();
         let term = Term::spawn(TermConfig {
             program: PathBuf::from(env!("CARGO_BIN_EXE_codeloom")),
@@ -206,5 +212,55 @@ cuatro
         "falta `uno` en su propia línea:
 {}",
         after.text
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn subagent_without_final_text_fails_instead_of_completing_empty() {
+    let provider = mock_provider_empty_subagent("delegado, espero al hijo").await;
+    let mut s = Session::with_provider(provider, 40, 120);
+    s.expect(READY, BOOT);
+    s.term.send_text("delega la inspeccion").unwrap();
+    s.term.press(Key::Enter).unwrap();
+    // Tanto `subagent` como el `ls` del hijo piden permiso; `s` es «Permitir en la sesión».
+    let started = Instant::now();
+    let snap = loop {
+        let snap = s.term.snapshot();
+        if snap.text.contains("step limit") {
+            break snap;
+        }
+        if snap.text.contains("Permitir") {
+            s.term.send_text("s").unwrap();
+        }
+        if started.elapsed() > TURN {
+            panic!(
+                "no apareció el fallo del hijo; pantalla:
+{}",
+                snap.text
+            );
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    s.shot("subagent-empty");
+    // El texto se parte en dos filas, de ahí que se compruebe solo el principio del motivo.
+    assert!(
+        snap.text.contains("(3/3) without a final"),
+        "falta el motivo del fallo con el límite:
+{}",
+        snap.text
+    );
+    assert!(
+        snap.text
+            .lines()
+            .any(|l| l.contains("inspector") && l.contains("(failed)")),
+        "el hijo debía figurar como failed:
+{}",
+        snap.text
+    );
+    assert!(
+        !snap.text.contains("(completed)"),
+        "un hijo sin respuesta no puede figurar como completado:
+{}",
+        snap.text
     );
 }

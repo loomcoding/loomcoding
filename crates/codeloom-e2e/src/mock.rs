@@ -3,7 +3,7 @@
 use std::io;
 use tempfile::TempDir;
 use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
+use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
 /// Variable de entorno de la que CodeLoom lee la clave en los E2E.
 pub const KEY_ENV: &str = "CODELOOM_E2E_KEY";
@@ -19,6 +19,83 @@ pub async fn mock_provider(reply: &str) -> MockServer {
     Mock::given(method("POST"))
         .and(path("/chat/completions"))
         .respond_with(ResponseTemplate::new(200).set_body_raw(body, "text/event-stream"))
+        .mount(&server)
+        .await;
+    server
+}
+
+/// Contesta como un padre que delega en un `subagent` y como un hijo que jamás da texto final.
+///
+/// Cabe señalar que el padre se reconoce porque su petición ofrece la herramienta `subagent`
+/// (el hijo no la recibe): en su primer turno delega; en los siguientes, responde con `parent_reply`.
+/// El hijo pide `ls` sin descanso, de modo que agota `max_steps` sin producir respuesta.
+struct SubagentScript {
+    parent_reply: String,
+}
+
+fn sse(chunks: &[serde_json::Value]) -> ResponseTemplate {
+    let body: String = chunks
+        .iter()
+        .map(|chunk| {
+            format!(
+                "data: {chunk}
+
+"
+            )
+        })
+        .collect();
+    ResponseTemplate::new(200).set_body_raw(body, "text/event-stream")
+}
+
+fn tool_call(name: &str, arguments: serde_json::Value) -> ResponseTemplate {
+    sse(&[
+        serde_json::json!({"choices":[{"delta":{"tool_calls":[
+            {"index":0,"id":"call-1","function":{"name":name,"arguments":arguments.to_string()}}]}}]}),
+        serde_json::json!({"choices":[{"finish_reason":"tool_calls"}]}),
+    ])
+}
+
+impl Respond for SubagentScript {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let body: serde_json::Value = request.body_json().unwrap_or_default();
+        let offers = |tool: &str| {
+            body["tools"].as_array().is_some_and(|tools| {
+                tools
+                    .iter()
+                    .any(|entry| entry.pointer("/function/name") == Some(&tool.into()))
+            })
+        };
+        let already_delegated = body["messages"]
+            .as_array()
+            .is_some_and(|messages| messages.iter().any(|m| m["role"] == "tool"));
+        if !offers("subagent") {
+            // Cada paso varía el argumento para no parecer un bucle repetido.
+            let step = body["messages"].as_array().map_or(0, |messages| {
+                messages.iter().filter(|m| m["role"] == "tool").count()
+            });
+            return tool_call("ls", serde_json::json!({"path": ".", "paso": step}));
+        }
+        if already_delegated {
+            return sse(&[
+                serde_json::json!({"choices":[{"delta":{"content":self.parent_reply}}]}),
+                serde_json::json!({"choices":[{"finish_reason":"stop"}]}),
+            ]);
+        }
+        tool_call(
+            "subagent",
+            serde_json::json!({"prompt":"inspecciona el proyecto","label":"inspector"}),
+        )
+    }
+}
+
+/// Servidor OpenAI-compatible con el guion de un padre que delega en un hijo sin respuesta final.
+pub async fn mock_provider_empty_subagent(parent_reply: &str) -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(SubagentScript {
+            parent_reply: parent_reply.to_string(),
+        })
         .mount(&server)
         .await;
     server
