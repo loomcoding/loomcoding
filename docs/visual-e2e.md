@@ -75,3 +75,19 @@ Para otras herramientas (el showcase de `batten`, `herdr`, etc.) basta con cambi
 - El 2026-10-30 `Page.captureScreenshot` agotó el tiempo (30 s) en la pestaña de Chrome incluso
   con una página estática; la página y el WebSocket de `ttyd` sí cargaban. Si ocurre, comprobar
   que la ventana de Chrome no esté minimizada ni tapada y reintentar; si persiste, usar B y el PNG.
+
+### ¿Y un backend wasm de ratatui?
+
+Existen backends de ratatui para el navegador (por ejemplo `ratzilla` y `webatui`, que compilan
+a wasm y pintan en un lienzo o en el DOM). Cabe señalar que obligan a recompilar la aplicación
+contra ese backend, de modo que no ejercitan el binario real, ni ConPTY, ni el bucle de entrada
+de la terminal, ni a `herdr`. Su utilidad queda reservada a widgets aislados de `batten`; para
+cualquier herramienta de terminal tal cual es se mantiene `ttyd` con xterm.js, que sirve el
+ejecutable sin modificar. Esta valoración procede de conocimiento general y no se ha probado aquí.
+
+### Qué hace falta para ampliar estas pruebas
+
+- Una captura de píxeles estable con Chrome (véase la limitación anterior); mientras tanto, B
+  más el PNG de `render_screen.py` cubren la revisión visual.
+- Nuevos escenarios en `crates/codeloom-cli/tests/tui_pty.rs` para composer multilínea, imágenes
+  adjuntas y respuesta final vacía de subagente.
