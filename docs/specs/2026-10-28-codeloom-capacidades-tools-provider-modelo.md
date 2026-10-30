@@ -1,6 +1,6 @@
 # Capacidades de tools por provider, modelo y endpoint
 
-> Estado: **pendiente**. Sin implementar: en el código solo existe una caché puntual de capacidad en el adapter de Anthropic (`capability_cache`), no el tipo de estado/evidencia por provider y modelo que propone.
+> Estado: **parcial** (2026-10-31). Implementados el registro por destino, el clasificador de rechazos y el parseo de metadata de OpenRouter; el adapter de Anthropic ya lo consulta. Faltan el enrutado en los demás adapters y la obtención de metadata real. Véase el «Avance» del plan.
 >
 > Fecha: 2026-10-28
 >
