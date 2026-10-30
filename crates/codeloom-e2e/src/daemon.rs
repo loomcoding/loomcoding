@@ -66,6 +66,7 @@ mod tests {
         assert_eq!(kill_daemons_of(home.path()), 0);
     }
 
+    #[cfg(windows)]
     #[test]
     fn kills_only_the_daemon_of_the_given_profile() {
         let mine = tempfile::tempdir().unwrap();

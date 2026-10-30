@@ -241,8 +241,10 @@ impl Drop for Term {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(windows)]
     use std::time::{Duration, Instant};
 
+    #[cfg(windows)]
     fn cmd(args: &[&str]) -> TermConfig {
         TermConfig {
             program: std::env::var_os("COMSPEC")
@@ -279,6 +281,7 @@ mod tests {
         assert_eq!(paste_bytes("a\nb"), b"\x1b[200~a\nb\x1b[201~".to_vec());
     }
 
+    #[cfg(windows)]
     #[test]
     fn spawn_echo_and_wait() {
         let term = Term::spawn(cmd(&["/c", "echo hola"])).unwrap();
@@ -286,6 +289,7 @@ mod tests {
         assert!(snap.text.contains("hola"));
     }
 
+    #[cfg(windows)]
     #[test]
     fn child_exit_before_text_fails_fast() {
         let term = Term::spawn(cmd(&["/c", "exit 3"])).unwrap();

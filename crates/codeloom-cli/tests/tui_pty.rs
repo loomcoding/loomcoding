@@ -1,3 +1,4 @@
+#![cfg(windows)]
 //! E2E de la TUI real en un pseudo-terminal: se lanza el binario, se le envían teclas y se
 //! lee la pantalla interpretada. El proveedor es un `wiremock` y el perfil de usuario es
 //! temporal, así que no se toca ni la sesión ni el daemon de la persona usuaria.
