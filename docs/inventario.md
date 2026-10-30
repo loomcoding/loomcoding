@@ -29,6 +29,11 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 - **Contexto y coste:** context-compaction, background-compaction, budget-warning,
   context-meter, context-summary; el decálogo está vigente.
 - **Runtime R1 a R6** y sus anexos del 10-27.
+- **Verificados el 2026-10-30 contra el código:** provider-timeouts, coste-real-y-estimado-por-adapter,
+  parent-wakeup, chat-demo-streaming, cost-estimate; conversation-composer-review queda superado
+  por transcript-activity.
+- **Suite del workspace del 2026-10-30:** coste-informativo-mcp-por-agente y runtime-local-skills
+  (cerrados con `fmt`, `clippy`, `build` y `test` completos en verde).
 
 ## Hecho con un cabo suelto
 
@@ -39,22 +44,31 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | precision-usage-live-subagent-supervision | prueba interactiva con provider |
 | anthropic-400-subagent-result-duplication | repetir la llamada real |
 | subagent-empty-final-response | probarlo en real |
-| image-attachments, large-paste-placeholder | build del workspace y TUI real |
+| image-attachments | revisión visual en la TUI (el build y los tests del workspace ya pasan) |
+| large-paste-placeholder | revisión de aspecto por una persona (el marcador y la edición posterior los cubre `tui_pty`) |
 | multiline-chat-composer | pegado en terminal Windows |
 | agent-card-editor, mcp-agent-scope | revisión visual |
 | tool-atoms, context-meter, budget-warning, context-summary | verlos en terminal real |
-| coste-informativo-mcp-por-agente, runtime-local-skills, scrollable-capability-widgets | suite del workspace |
+| scrollable-capability-widgets | revisión visual en terminal real (la suite del workspace ya pasa) |
+| e2e-visual (PTY y ttyd) | captura de píxeles con Chrome: `Page.captureScreenshot` agotó el tiempo |
 | codeloom-m3 (herdr) | validar el pane en una sesión herdr no elevada |
 
 ## Sin hacer o sin cierre claro
 
-- **Propuestas con plan:** capacidades-tools-provider-modelo, provider-timeouts,
-  sesion-vacia-runtime, coste-real-y-estimado-por-adapter, agent-autonomy, cost-estimate.
-- **Sin línea de estado y sin verificar:** chat-demo-streaming, conversation-composer-review,
-  parent-wakeup, coste-real-y-estimado-por-adapter.
+- **Pendiente:** capacidades-tools-provider-modelo.
+- **Parciales:** agent-autonomy (hechas la Fase A y la O1; faltan B, C y D),
+  sesion-vacia-runtime (falta la prueba de tool en la TUI con OpenRouter) y
+  openrouter-anthropic-ptc (compatibilidad PTC sin confirmar).
 - **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,
   kpis-prompt-compression, memory, skills-ponytail-superpowers, static-decision-signals,
   tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
   agent-profile-a2a, agentic-fetch, turn-status-line.
 - **Referencia, no ejecutables:** a2a-roadmap, jevalan-roadmap, pendientes,
   agent-first-development-skills.
+
+## Qué puede verificar ya el E2E en PTY
+
+Con `crates/codeloom-cli/tests/tui_pty.rs` (véase `docs/visual-e2e.md`) se pueden añadir escenarios
+automáticos para: multiline-chat-composer, image-attachments, atribución `You`
+(user-attribution-internal-messages) y subagent-empty-final-response. Cada cabo suelto se cierra
+al añadir su escenario; hoy hay tres cubiertos: arranque, turno con `You` y pegado grande.

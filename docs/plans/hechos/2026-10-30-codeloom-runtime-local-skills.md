@@ -1,6 +1,8 @@
 # Plan: runtime local acotado de skills
 
-Spec: [`docs/specs/2026-10-30-codeloom-runtime-local-skills.md`](../specs/2026-10-30-codeloom-runtime-local-skills.md)
+> Estado: **hecho**. Verificado el 2026-10-30: `cargo fmt --check`, `clippy -D warnings`, `build` y `test` completos en verde con `CARGO_TARGET_DIR=target/e2e`.
+
+Spec: [`docs/specs/hechos/2026-10-30-codeloom-runtime-local-skills.md`](../../specs/hechos/2026-10-30-codeloom-runtime-local-skills.md)
 
 ## Fases
 
@@ -37,5 +39,4 @@ Spec: [`docs/specs/2026-10-30-codeloom-runtime-local-skills.md`](../specs/2026-1
 - [x] Pruebas del loader, SQLite y estado de skills en el widget.
 - [x] `cargo build`, `cargo fmt --all -- --check` y
   `cargo clippy -- -D warnings`.
-- [ ] `cargo test --workspace`: 2 fallos ajenos a estos planes del composer/slash menu
-  en `codeloom-tui`; 557 tests de `codeloom-core` pasan.
+- [x] `cargo test --workspace`. Resuelto el 2026-10-30: `cargo fmt --check`, `clippy -D warnings`, `build` y `test` completos en verde (0 fallos, `codeloom-cli` incluido) con `CARGO_TARGET_DIR=target/e2e`; los dos fallos del composer y del slash menu ya no se reproducen.

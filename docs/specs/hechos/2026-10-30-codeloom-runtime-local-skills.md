@@ -1,7 +1,6 @@
 # Especificación: runtime local acotado de skills
 
-Estado: implementada; build, formato y clippy pasan. La suite del workspace
-conserva dos fallos fuera de este alcance en el composer y el menú slash.
+Estado: **hecho**. Verificado el 2026-10-30: `cargo fmt --check`, `clippy -D warnings`, `build` y `test` completos en verde con `CARGO_TARGET_DIR=target/e2e`.
 
 ## Objetivo
 

@@ -18,7 +18,7 @@ Spec: [`docs/specs/2026-10-29-codeloom-image-attachments.md`](../specs/2026-10-2
 - [x] Modelo multiparte, adaptadores OpenAI/Anthropic y ejecución de turno humano.
 - [x] Ctrl+V desde el portapapeles, validación, insignia, cola e IPC local.
 - [x] Suites de `batten`, `codeloom-core`, `codeloom-tui` y CLI; `fmt --check` y clippy.
-- [ ] `cargo build` y `cargo test` del workspace tras cerrar el ejecutable en Windows.
+- [x] `cargo build` y `cargo test` del workspace tras cerrar el ejecutable en Windows. Hecho el 2026-10-30 con un `CARGO_TARGET_DIR` aparte, que evita el bloqueo del `.exe`.
 - [ ] Prueba visual en la TUI.
 
 ## Límites

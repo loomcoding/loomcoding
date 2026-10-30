@@ -25,5 +25,5 @@ correspondientes; ambos se etiquetan como estimaciones y no cambian el total.
 - [x] `cargo fmt --all --check`, `cargo clippy -p codeloom-cli -- -D warnings` y build del binario `codeloom`.
 - [x] Test de geometría del dashboard y scroll independiente de widgets MCP/LSP/Skills.
 - [x] Build workspace, `cargo fmt --all -- --check` y `cargo clippy -- -D warnings`.
-- [ ] `cargo test --workspace`: dos tests del composer/slash menu fallan en `codeloom-tui`.
+- [x] `cargo test --workspace`: dos tests del composer/slash menu fallan en `codeloom-tui`. Resuelto el 2026-10-30: `cargo fmt --check`, `clippy -D warnings`, `build` y `test` completos en verde (0 fallos, `codeloom-cli` incluido) con `CARGO_TARGET_DIR=target/e2e`; los dos fallos ya no se reproducen.
 - [ ] Revisión visual en terminal real.

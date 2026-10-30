@@ -1,6 +1,8 @@
 # E2E visual de la TUI (PTY) y captura web — Plan de implementación
 
-> Estado: **pendiente**. Aprobado el 2026-10-30; sin tareas iniciadas.
+> Estado: **parcial**. Las tareas 1 a 7 están hechas y verificadas el 2026-10-30 (`cargo fmt`, `clippy`, `build` y `test` completos en verde). Falta una captura de píxeles con Chrome: `Page.captureScreenshot` agotó el tiempo en cuatro intentos, incluso con una página estática, por lo que parece un fallo del navegador o de su extensión y no de `ttyd` ni de CodeLoom (véase `docs/visual-e2e.md`). Las casillas de los pasos no se marcaron una a una: manda esta cabecera.
+>
+> Desviaciones respecto al plan: el target de los E2E es `E:\workspace\personal\loom\target\e2e` (no `C:`, que estaba al 100 %); el aislamiento del perfil usa `CODELOOM_HOME` (contingencia de la tarea 4, porque `dirs::home_dir()` ignora `USERPROFILE` en Windows); `sysinfo` queda en 0.37 (la 0.40 exige un rustc más nuevo); el fixture de PNG es sintético y pequeño (`crates/codeloom-e2e/tests/fixtures/small.json`); `serve-tui.ps1` recibe `-Run '<línea de órdenes>'` en lugar de `-- <comando>` (PowerShell interpreta `--` como un parámetro vacío).
 
 > **Para agentes:** sub-skill requerida: `superpowers:subagent-driven-development` (recomendada) o `superpowers:executing-plans`. Los pasos usan casillas `- [ ]`. Una tarea cada vez; commit al verificarla.
 
@@ -20,7 +22,7 @@
 - Los tests nunca tocan `~/.codeloom` del usuario ni su daemon.
 - Entorno (Git Bash en Windows), en el mismo comando de cada `cargo`:
   `export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER='C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.35.32215\bin\Hostx64\x64\link.exe'` y
-  `export CARGO_TARGET_DIR='C:\Users\negrero\AppData\Local\Temp\codeloom-e2e-target'` (el disco `E:` está al 98 %; un `codeloom.exe` abierto en `target/` bloquea el enlazado).
+  `export CARGO_TARGET_DIR='E:\workspace\personal\loom\target\e2e' CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0` (un `codeloom.exe` abierto en `target/debug` bloquea el enlazado, por eso el directorio aparte; `C:` quedó al 100 % durante la ejecución).
 - No hacer `git push`. Los ficheros `crates/codeloom-cli/src/{ipc,server}.rs` tienen cambios del usuario sin commitear: **no editarlos** salvo que la tarea 4 lo exija, y entonces con `git add -p` solo de las líneas propias.
 - Comentarios en español siguiendo el fichero; identificadores en inglés como el resto del workspace.
 

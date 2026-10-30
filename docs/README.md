@@ -31,6 +31,8 @@ ejecutarlo).
   con algún cabo suelto.
 - [`specs/hechos/`](specs/hechos/) y [`plans/hechos/`](plans/hechos/): lo ya
   desarrollado y verificado. Es historial, no una cola de trabajo.
+- [`visual-e2e.md`](visual-e2e.md): cómo ver y probar la TUI con un PTY en `cargo test` o
+  con `ttyd` y Chrome.
 - [`inventario.md`](inventario.md): estado cotejado con el código de todos los
   specs y planes.
 - [`references/`](references/): investigación y observaciones externas,
@@ -48,12 +50,12 @@ ejecutarlo).
 - [Widgets desplazables de capacidades](specs/2026-10-30-codeloom-scrollable-capability-widgets.md)
   y [su plan](plans/2026-10-30-codeloom-scrollable-capability-widgets.md): mostrar
   cada servidor MCP, el estado LSP y las skills bajo Activity con scroll independiente.
-- [Coste informativo MCP por agente](specs/2026-10-30-codeloom-coste-informativo-mcp-por-agente.md)
-  y [su plan](plans/2026-10-30-codeloom-coste-informativo-mcp-por-agente.md): estimar
+- [Coste informativo MCP por agente](specs/hechos/2026-10-30-codeloom-coste-informativo-mcp-por-agente.md)
+  y [su plan](plans/hechos/2026-10-30-codeloom-coste-informativo-mcp-por-agente.md): estimar
   el coste repetido de las definiciones MCP en las peticiones, separado del total
   informado por el provider; la carga de skills queda pendiente.
-- [Runtime local acotado de skills](specs/2026-10-30-codeloom-runtime-local-skills.md)
-  y [su plan](plans/2026-10-30-codeloom-runtime-local-skills.md): cargar solo los
+- [Runtime local acotado de skills](specs/hechos/2026-10-30-codeloom-runtime-local-skills.md)
+  y [su plan](plans/hechos/2026-10-30-codeloom-runtime-local-skills.md): cargar solo los
   `SKILL.md` permitidos por scope local, con límites y coste informativo.
 - [Adjuntar imágenes desde el chat](specs/2026-10-29-codeloom-image-attachments.md)
   y [su plan](plans/2026-10-29-codeloom-image-attachments.md): pegar imágenes con Ctrl+V

@@ -29,7 +29,7 @@ marcador.
 - [x] Adaptar movimiento, selección, copia, borrado y envío.
 - [x] Añadir pruebas de umbral, Unicode, orden, texto literal y borrado atómico.
 - [x] Ejecutar la suite de `batten`, la prueba de integración de `App`, formato y clippy.
-- [ ] Repetir `cargo build` y `cargo test` del workspace cuando Windows permita reemplazar `target/debug/codeloom.exe`; verificar la presentación en la TUI real.
+- [x] `cargo build` y `cargo test` del workspace cuando Windows permita reemplazar `target/debug/codeloom.exe`; verificar la presentación en la TUI real. Build y tests hechos el 2026-10-30 con `CARGO_TARGET_DIR` aparte; el marcador y la edición posterior los cubre `tui_pty::large_multiline_paste_keeps_composer_alive`. Queda solo la revisión de aspecto por una persona.
 
 ## Riesgos y límites
 

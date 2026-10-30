@@ -1,7 +1,24 @@
 # E2E visual de la TUI (PTY) y captura web de otras herramientas
 
-> Estado: **aprobada el 2026-10-30** (el usuario eligió B+C del análisis de opciones).
+> Estado: **parcial**. Aprobada el 2026-10-30 (B+C) e implementada ese mismo día; falta la
+> captura de píxeles con Chrome (véase «Hallazgos»).
 > Plan: `docs/plans/2026-10-30-codeloom-e2e-visual.md`.
+
+## Hallazgos de la implementación
+
+- **Aislamiento.** `dirs::home_dir()` ignora `USERPROFILE` en Windows: la primera ejecución de los
+  E2E se conectó al daemon real de la persona usuaria y dejó siete sesiones de prueba (188 a 194)
+  en su `sessions.db`. Se corrigió con `CODELOOM_HOME`, leído por `crates/codeloom-cli/src/home.rs`
+  y entregado por `Workspace::env`; el primer escenario comprueba que existe
+  `<perfil>/.codeloom/sessions.db`.
+- **ConPTY.** Con `portable-pty` 0.9 y `vt100` 0.15 los arranques funcionan; el lector responde a
+  `ESC[6n` y no se ha visto ninguna otra consulta que bloquee.
+- **Daemon.** El cliente lanza `<exe> --server` suelto; `kill_daemons_of` lo identifica por su línea
+  de órdenes y por `CODELOOM_HOME` (con `sysinfo` 0.37, la 0.40 exige un rustc más nuevo).
+- **Aspecto por defecto.** Un perfil nuevo arranca con la cabecera `CODEL∞M` y la pista
+  «Describe what you want to build», no con el preset guardado de la persona usuaria.
+- **C.** `ttyd` 1.7.7 sirve bien (HTTP 200 y WebSocket), pero `Page.captureScreenshot` de Chrome
+  agotó el tiempo en cuatro intentos, también con una página estática.
 
 ## Problema
 

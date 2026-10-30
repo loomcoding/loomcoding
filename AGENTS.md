@@ -79,6 +79,9 @@ Toolchain is pinned by `rust-toolchain.toml` (edition 2021).
 
 ## Gotchas
 
+- **Never run the real binary without `CODELOOM_HOME`** pointing at a temporary directory: on
+  Windows `dirs::home_dir()` ignores `USERPROFILE`, and the client attaches to the user's real
+  daemon. E2E tests and screenshots must use an isolated profile (`docs/visual-e2e.md`).
 - Don't invent build/test commands beyond the four above; they are the plan's
   contract.
 - The specs are **design, not implementation**: they describe intent and open
