@@ -7,6 +7,7 @@
 
 use codeloom_core::message::{ContentPart, Message, Role};
 use codeloom_core::provider::anthropic::AnthropicProvider;
+use codeloom_core::provider::openai::OpenAiCompatProvider;
 use codeloom_core::provider::{Provider, ProviderRequest, StreamChunk, ToolSpec};
 use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
@@ -15,6 +16,18 @@ use tokio_util::sync::CancellationToken;
 /// Haiku 5.5 vía OpenRouter el adaptador no activa `thinking`, así que no ejercita el caso.
 fn model() -> String {
     std::env::var("CODELOOM_LIVE_MODEL").unwrap_or_else(|_| "anthropic/claude-haiku-5.5".into())
+}
+
+/// `CODELOOM_LIVE_KIND=openai_compat` prueba la ruta que usa un `codeloom.toml` con
+/// `kind = "openai_compat"` contra OpenRouter; por defecto, el adaptador de Anthropic.
+fn provider(key: String) -> Box<dyn Provider> {
+    match std::env::var("CODELOOM_LIVE_KIND").as_deref() {
+        Ok("openai_compat") => Box::new(OpenAiCompatProvider::new(
+            "https://openrouter.ai/api/v1",
+            key,
+        )),
+        _ => Box::new(AnthropicProvider::new("https://openrouter.ai/api", key)),
+    }
 }
 
 fn request(messages: Vec<Message>) -> ProviderRequest {
@@ -53,7 +66,7 @@ fn failed(error: String) -> Turn {
     }
 }
 
-async fn run(provider: &AnthropicProvider, messages: Vec<Message>) -> Turn {
+async fn run(provider: &dyn Provider, messages: Vec<Message>) -> Turn {
     let mut parts = Vec::new();
     let mut state = None;
     let mut call_id = None;
@@ -103,11 +116,11 @@ fn tool_result(call_id: &str) -> Message {
 #[ignore = "llamada real: exige OPENROUTER_API_KEY y gasta tokens"]
 async fn tool_use_turn_can_be_replayed_with_thinking_enabled() {
     let key = std::env::var("OPENROUTER_API_KEY").expect("falta OPENROUTER_API_KEY");
-    let provider = AnthropicProvider::new("https://openrouter.ai/api", key);
+    let provider = provider(key);
     let ask =
         Message::user("Lee el fichero Cargo.toml con la herramienta view y dime su contenido.");
 
-    let first = run(&provider, vec![ask.clone()]).await;
+    let first = run(&*provider, vec![ask.clone()]).await;
     assert_eq!(first.error, None, "falló ya el primer turno");
     let call_id = first
         .call_id
@@ -120,7 +133,7 @@ async fn tool_use_turn_can_be_replayed_with_thinking_enabled() {
 
     // Con el estado (lo que hace ahora el adaptador).
     let with_state = run(
-        &provider,
+        &*provider,
         vec![ask.clone(), first.assistant.clone(), tool_result(&call_id)],
     )
     .await;
@@ -129,7 +142,7 @@ async fn tool_use_turn_can_be_replayed_with_thinking_enabled() {
     // Sin el estado (lo que ocurría antes del arreglo).
     let mut bare = first.assistant.clone();
     bare.provider_state = None;
-    let without_state = run(&provider, vec![ask, bare, tool_result(&call_id)]).await;
+    let without_state = run(&*provider, vec![ask, bare, tool_result(&call_id)]).await;
     println!("SIN estado -> {:?}", without_state.error);
 
     assert_eq!(
