@@ -72,9 +72,18 @@ Para otras herramientas (el showcase de `batten`, `herdr`, etc.) basta con cambi
 ### Limitaciones conocidas
 
 - xterm.js no es Windows Terminal: el pegado y algunas teclas pueden diferir. Eso se valida con B.
-- El 2026-10-30 `Page.captureScreenshot` agotó el tiempo (30 s) en la pestaña de Chrome incluso
-  con una página estática; la página y el WebSocket de `ttyd` sí cargaban. Si ocurre, comprobar
-  que la ventana de Chrome no esté minimizada ni tapada y reintentar; si persiste, usar B y el PNG.
+- El 2026-10-30 `Page.captureScreenshot` agotó el tiempo (30 s) con la extensión de Chrome, incluso
+  con una página estática. Ciertamente, hay una vía sin extensión que sí funciona (véase abajo).
+
+### Captura sin extensión (Chrome sin cabeza por CDP)
+
+```bash
+node scripts/visual/capture-web.mjs http://127.0.0.1:7681 salida.png 4000 1000 500
+```
+
+Cabe señalar que `chrome --headless --screenshot` fotografía antes de que `ttyd` pinte (sale el
+fondo vacío); el script espera `espera_ms` tras navegar y captura por CDP. Probado con `cmd /k`
+servido por `ttyd`: el texto de xterm.js sale pintado. Variable `CHROME_PATH` pa otra ruta.
 
 ### ¿Y un backend wasm de ratatui?
 
