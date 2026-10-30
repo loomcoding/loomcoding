@@ -1,5 +1,7 @@
 # Plan: expansión inicial de herramientas internas
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 **Spec:** `docs/specs/2026-10-27-codeloom-expanded-tools.md`
 
 ## Cambios

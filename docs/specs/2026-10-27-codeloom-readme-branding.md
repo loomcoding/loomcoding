@@ -1,5 +1,7 @@
 # CodeLoom README branding
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 ## Goal
 
 Present CodeLoom with a consistent visual identity in the terminal UI, root

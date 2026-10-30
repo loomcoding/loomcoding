@@ -1,5 +1,7 @@
 # Plan: observatorio A2A
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 ## Sección
 
 Tarjetas, tareas y actividad A2A visible desde la TUI.

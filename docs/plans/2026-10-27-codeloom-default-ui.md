@@ -1,5 +1,7 @@
 # Plan: vista predeterminada de CodeLoom
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 ## Sección
 
 Vista principal: conversación, composer, actividad y rail de contexto.

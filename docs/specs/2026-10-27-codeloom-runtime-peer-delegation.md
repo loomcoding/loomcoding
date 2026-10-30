@@ -1,5 +1,7 @@
 # Delegación A2A entre proyectos del runtime local
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 ## Objetivo
 
 Permitir que agentes de proyectos abiertos en el runtime local se descubran y deleguen tareas

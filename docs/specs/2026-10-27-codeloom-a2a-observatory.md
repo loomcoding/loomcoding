@@ -1,5 +1,7 @@
 # Observatorio A2A en la TUI
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 ## Objetivo
 
 Dar una vista de lectura para inspeccionar las piezas reales de A2A que CodeLoom

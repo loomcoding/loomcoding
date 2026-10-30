@@ -1,5 +1,7 @@
 # Vista predeterminada de CodeLoom
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 ## Objetivo
 
 Que una instalación nueva abra directamente la vista de conversación más

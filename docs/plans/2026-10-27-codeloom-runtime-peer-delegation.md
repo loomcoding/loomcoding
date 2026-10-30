@@ -1,5 +1,7 @@
 # Plan — Delegación A2A entre proyectos del runtime
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 > Spec: `docs/specs/2026-10-27-codeloom-runtime-peer-delegation.md`.
 
 1. Añadir endpoint de tarjeta remota directa a `fetch_card`, manteniendo intacta la resolución

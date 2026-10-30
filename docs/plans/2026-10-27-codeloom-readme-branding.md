@@ -1,5 +1,7 @@
 # Plan: CodeLoom README branding
 
+> Estado: **hecho**. Verificado el 2026-10-30 contra el código: los ficheros, comandos y herramientas que describe existen en el repositorio.
+
 1. Preserve the current working tree and translate the current root README to
    English, updating its opening, visual section, and final acknowledgments.
 2. Add local visual assets and a copy of the standalone Canvas animation; capture
