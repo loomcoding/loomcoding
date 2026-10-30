@@ -11,11 +11,15 @@ use codeloom_core::provider::{Provider, ProviderRequest, StreamChunk, ToolSpec};
 use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 
-const MODEL: &str = "anthropic/claude-haiku-5.5";
+/// Modelo por defecto; `CODELOOM_LIVE_MODEL` permite probar otro. Cabe señalar que con
+/// Haiku 5.5 vía OpenRouter el adaptador no activa `thinking`, así que no ejercita el caso.
+fn model() -> String {
+    std::env::var("CODELOOM_LIVE_MODEL").unwrap_or_else(|_| "anthropic/claude-haiku-5.5".into())
+}
 
 fn request(messages: Vec<Message>) -> ProviderRequest {
     ProviderRequest {
-        model: MODEL.into(),
+        model: model(),
         system: "Eres conciso. Usa la herramienta `view` cuando se te pida leer un fichero.".into(),
         messages,
         tools: vec![ToolSpec {
