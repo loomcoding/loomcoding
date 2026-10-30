@@ -16,6 +16,7 @@ thiserror = { workspace = true }
 wiremock = "0.6"
 tempfile = "3"
 tokio = { workspace = true }
+sysinfo = "0.37"
 
 [dev-dependencies]
 codeloom-core = { path = "../codeloom-core" }
