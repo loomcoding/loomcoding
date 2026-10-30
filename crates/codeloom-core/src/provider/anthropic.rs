@@ -11,17 +11,43 @@ use tokio_util::sync::CancellationToken;
 const OPENROUTER_HAIKU_55: &str = "anthropic/claude-haiku-5.5";
 const OPENROUTER_PTC_UNSUPPORTED: &str = "OpenRouter rejected Anthropic programmatic tool calling";
 
+/// Tope del estado de continuación; el agente rechaza los que superen 64 KiB, así que
+/// uno mayor se descarta aquí en lugar de abortar el turno.
+const MAX_CONTINUATION_STATE_BYTES: usize = 60 * 1024;
+
 #[derive(Default)]
 pub struct AnthropicAcc {
     blocks: Vec<(String, String, String)>, // (id, name, json) por index
+    /// Bloques de contenido tal como los emitió el modelo, por índice.
+    content: Vec<serde_json::Value>,
+    has_thinking: bool,
+    /// Modelo y `base_url` con los que se firma el estado de continuación.
+    identity: Option<(String, String)>,
 }
 
 impl AnthropicAcc {
+    /// Acumulador que, si la respuesta trae razonamiento, emite su estado de continuación.
+    pub fn for_provider(model: &str, base_url: &str) -> Self {
+        Self {
+            identity: Some((model.to_string(), base_url.to_string())),
+            ..Self::default()
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.blocks.is_empty()
     }
+
+    fn content_slot(&mut self, idx: usize) -> &mut serde_json::Value {
+        while self.content.len() <= idx {
+            self.content.push(serde_json::Value::Null);
+        }
+        &mut self.content[idx]
+    }
+
     pub fn finish(&mut self) -> Vec<StreamChunk> {
-        std::mem::take(&mut self.blocks)
+        let state = self.continuation_state();
+        let mut out: Vec<StreamChunk> = std::mem::take(&mut self.blocks)
             .into_iter()
             .filter(|(_, name, _)| !name.is_empty())
             .map(|(id, name, json)| StreamChunk::ToolCallComplete {
@@ -29,7 +55,47 @@ impl AnthropicAcc {
                 name,
                 input: serde_json::from_str(&json).unwrap_or(serde_json::Value::Null),
             })
-            .collect()
+            .collect();
+        out.extend(state.map(StreamChunk::ProviderState));
+        out
+    }
+
+    /// Cabe señalar que con `thinking` activo la API exige reenviar, junto a cada `tool_use`,
+    /// el bloque de razonamiento con su firma; sin él responde 400. Se conserva solo si lo hubo.
+    fn continuation_state(&mut self) -> Option<crate::message::ProviderState> {
+        let (model, base_url) = self.identity.clone().filter(|_| self.has_thinking)?;
+        let mut content = Vec::new();
+        for (idx, block) in std::mem::take(&mut self.content).into_iter().enumerate() {
+            let mut block = block;
+            if block["type"] == "tool_use" {
+                let json = self
+                    .blocks
+                    .get(idx)
+                    .map_or("", |(_, _, json)| json.as_str());
+                block["input"] =
+                    serde_json::from_str(json).unwrap_or_else(|_| serde_json::json!({}));
+            }
+            if !block.is_null() {
+                content.push(block);
+            }
+        }
+        let state = crate::message::ProviderState {
+            provider: "anthropic".into(),
+            data: serde_json::json!({
+                "model": model,
+                "base_url": base_url,
+                "assistant_content": content,
+            }),
+        };
+        let size = serde_json::to_vec(&state).map_or(usize::MAX, |bytes| bytes.len());
+        (size <= MAX_CONTINUATION_STATE_BYTES).then_some(state)
+    }
+}
+
+/// Añade `extra` al campo de texto `key` de un bloque, si el bloque ya existe.
+fn append_str(block: &mut serde_json::Value, key: &str, extra: &str) {
+    if let Some(serde_json::Value::String(current)) = block.get_mut(key) {
+        current.push_str(extra);
     }
 }
 
@@ -47,6 +113,24 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
                     .push((String::new(), String::new(), String::new()));
             }
             let cb = &v["content_block"];
+            match cb["type"].as_str().unwrap_or("") {
+                "text" => *acc.content_slot(idx) = serde_json::json!({"type":"text","text":""}),
+                "thinking" => {
+                    acc.has_thinking = true;
+                    *acc.content_slot(idx) =
+                        serde_json::json!({"type":"thinking","thinking":"","signature":""});
+                }
+                "redacted_thinking" => {
+                    acc.has_thinking = true;
+                    *acc.content_slot(idx) = cb.clone();
+                }
+                "tool_use" => {
+                    *acc.content_slot(idx) = serde_json::json!({
+                        "type":"tool_use","id":cb["id"],"name":cb["name"],"input":{}
+                    });
+                }
+                _ => {}
+            }
             if cb["type"] == "tool_use" {
                 acc.blocks[idx].0 = cb["id"].as_str().unwrap_or_default().to_string();
                 acc.blocks[idx].1 = cb["name"].as_str().unwrap_or_default().to_string();
@@ -56,12 +140,21 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
             let idx = v["index"].as_u64().unwrap_or(0) as usize;
             let d = &v["delta"];
             match d["type"].as_str().unwrap_or("") {
-                "text_delta" => out.push(StreamChunk::TextDelta(
-                    d["text"].as_str().unwrap_or_default().to_string(),
-                )),
-                "thinking_delta" => out.push(StreamChunk::ReasoningDelta(
-                    d["thinking"].as_str().unwrap_or_default().to_string(),
-                )),
+                "text_delta" => {
+                    let text = d["text"].as_str().unwrap_or_default();
+                    append_str(acc.content_slot(idx), "text", text);
+                    out.push(StreamChunk::TextDelta(text.to_string()));
+                }
+                "thinking_delta" => {
+                    let thinking = d["thinking"].as_str().unwrap_or_default();
+                    append_str(acc.content_slot(idx), "thinking", thinking);
+                    out.push(StreamChunk::ReasoningDelta(thinking.to_string()));
+                }
+                "signature_delta" => append_str(
+                    acc.content_slot(idx),
+                    "signature",
+                    d["signature"].as_str().unwrap_or_default(),
+                ),
                 "input_json_delta" => {
                     while acc.blocks.len() <= idx {
                         acc.blocks
@@ -589,7 +682,7 @@ impl Provider for AnthropicProvider {
         let init = State {
             stream: resp.bytes_stream(),
             sse: SseBuffer::default(),
-            acc: AnthropicAcc::default(),
+            acc: AnthropicAcc::for_provider(&req.model, &self.base_url),
             queue: std::collections::VecDeque::new(),
             cancel,
             done: false,
@@ -1181,5 +1274,116 @@ mod programmatic_tests {
                 .count(),
             1
         );
+    }
+}
+
+#[cfg(test)]
+mod thinking_replay_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn feed(acc: &mut AnthropicAcc, events: &[(&str, serde_json::Value)]) -> Vec<StreamChunk> {
+        events
+            .iter()
+            .flat_map(|(name, data)| map_anthropic_event(name, &data.to_string(), acc))
+            .collect()
+    }
+
+    /// Respuesta en streaming con razonamiento y una llamada a herramienta.
+    fn thinking_then_tool_use() -> Vec<(&'static str, serde_json::Value)> {
+        vec![
+            (
+                "content_block_start",
+                json!({"index":0,"content_block":{"type":"thinking","thinking":""}}),
+            ),
+            (
+                "content_block_delta",
+                json!({"index":0,"delta":{"type":"thinking_delta","thinking":"Voy a "}}),
+            ),
+            (
+                "content_block_delta",
+                json!({"index":0,"delta":{"type":"thinking_delta","thinking":"mirar."}}),
+            ),
+            (
+                "content_block_delta",
+                json!({"index":0,"delta":{"type":"signature_delta","signature":"firma-abc"}}),
+            ),
+            (
+                "content_block_start",
+                json!({"index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"view"}}),
+            ),
+            (
+                "content_block_delta",
+                json!({"index":1,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"a.rs\"}"}}),
+            ),
+            (
+                "message_delta",
+                json!({"delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":5}}),
+            ),
+        ]
+    }
+
+    #[test]
+    fn streamed_thinking_is_kept_so_the_next_request_can_replay_it() {
+        // Con `thinking` activo, Messages exige que el turno del asistente con `tool_use`
+        // reenvíe su bloque de razonamiento con la firma; de lo contrario responde 400.
+        let mut acc = AnthropicAcc::for_provider("claude-test", "https://api.anthropic.com");
+        let chunks = feed(&mut acc, &thinking_then_tool_use());
+        let state = chunks
+            .into_iter()
+            .find_map(|chunk| match chunk {
+                StreamChunk::ProviderState(state) => Some(state),
+                _ => None,
+            })
+            .expect("falta el estado con el razonamiento firmado");
+        assert_eq!(state.provider, "anthropic");
+        assert_eq!(state.data["model"], "claude-test");
+        assert_eq!(state.data["base_url"], "https://api.anthropic.com");
+        assert_eq!(
+            state.data["assistant_content"],
+            json!([
+                {"type":"thinking","thinking":"Voy a mirar.","signature":"firma-abc"},
+                {"type":"tool_use","id":"toolu_1","name":"view","input":{"path":"a.rs"}}
+            ])
+        );
+    }
+
+    #[test]
+    fn replayed_assistant_turn_starts_with_the_thinking_block() {
+        let mut acc = AnthropicAcc::for_provider("claude-test", "https://api.anthropic.com");
+        let state = feed(&mut acc, &thinking_then_tool_use())
+            .into_iter()
+            .find_map(|chunk| match chunk {
+                StreamChunk::ProviderState(state) => Some(state),
+                _ => None,
+            })
+            .unwrap();
+        let mut assistant = crate::message::Message::assistant(vec![]);
+        assistant.provider_state = Some(state);
+        let wire = wire_messages(&[assistant], "claude-test", "https://api.anthropic.com");
+        assert_eq!(wire[0]["content"][0]["type"], "thinking");
+        assert_eq!(wire[0]["content"][0]["signature"], "firma-abc");
+    }
+
+    #[test]
+    fn without_thinking_no_state_is_emitted() {
+        let mut acc = AnthropicAcc::for_provider("claude-test", "https://api.anthropic.com");
+        let chunks = feed(
+            &mut acc,
+            &[
+                (
+                    "content_block_start",
+                    json!({"index":0,"content_block":{"type":"tool_use","id":"t","name":"view"}}),
+                ),
+                (
+                    "content_block_delta",
+                    json!({"index":0,"delta":{"type":"input_json_delta","partial_json":"{}"}}),
+                ),
+                ("message_delta", json!({"delta":{"stop_reason":"tool_use"}})),
+            ],
+        );
+        assert!(!chunks
+            .iter()
+            .any(|chunk| matches!(chunk, StreamChunk::ProviderState(_))));
     }
 }
