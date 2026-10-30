@@ -1,11 +1,12 @@
 use super::sse::SseBuffer;
 use super::{Capabilities, Provider, ProviderRequest, ProviderStream, StreamChunk};
+use crate::capability::{
+    classify_rejection, Capability, CapabilityRegistry, Protocol, Source, State, Target,
+};
 use crate::error::{CoreError, Result};
 use crate::message::FinishReason;
 use async_trait::async_trait;
 use futures::StreamExt;
-use std::collections::HashMap;
-use std::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 
 const OPENROUTER_HAIKU_55: &str = "anthropic/claude-haiku-5.5";
@@ -221,15 +222,11 @@ fn anthropic_budget(effort: &str) -> Option<u32> {
     }
 }
 
-fn is_ptc_unsupported(body: &str) -> bool {
-    let body = body.to_ascii_lowercase();
-    body.contains("code_execution")
-        || body.contains("allowed_callers")
-        || body.contains("programmatic tool calling")
-}
-
+/// Cabe señalar que solo un `400` con una marca inequívoca de PTC autoriza el fallback.
 fn is_openrouter_ptc_rejection(status: reqwest::StatusCode, body: &str) -> bool {
-    status == reqwest::StatusCode::BAD_REQUEST && is_ptc_unsupported(body)
+    status == reqwest::StatusCode::BAD_REQUEST
+        && classify_rejection(status.as_u16(), body, Capability::ProgrammaticToolCalling)
+            .allows_fallback()
 }
 
 fn http_error(status: reqwest::StatusCode, body: &str) -> String {
@@ -250,7 +247,7 @@ pub struct AnthropicProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
-    capability_cache: Mutex<HashMap<String, bool>>,
+    capabilities: CapabilityRegistry,
 }
 
 impl AnthropicProvider {
@@ -259,8 +256,52 @@ impl AnthropicProvider {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             api_key: api_key.into(),
             client: reqwest::Client::new(),
-            capability_cache: Mutex::new(HashMap::new()),
+            capabilities: CapabilityRegistry::default(),
         }
+    }
+
+    /// Destino exacto de una petición: el mismo modelo en otra URL es otro destino.
+    fn target(&self, model: &str) -> Target {
+        Target::new(Protocol::AnthropicMessages, &self.base_url, model)
+    }
+
+    fn cached_code_execution(&self, model: &str) -> Option<bool> {
+        match self
+            .capabilities
+            .query(&self.target(model), Capability::CodeExecution)
+            .state
+        {
+            State::Supported => Some(true),
+            State::Unsupported => Some(false),
+            State::Unknown | State::Rejected { .. } => None,
+        }
+    }
+
+    fn note_code_execution(&self, model: &str, supported: bool) {
+        self.capabilities.record(
+            &self.target(model),
+            Capability::CodeExecution,
+            supported,
+            Source::OfficialMetadata,
+        );
+    }
+
+    /// Un rechazo real de PTC se recuerda hasta que caduque, para no repetirlo en cada turno.
+    fn note_ptc_rejection(&self, model: &str, status: u16) {
+        self.capabilities.record_rejection(
+            &self.target(model),
+            Capability::ProgrammaticToolCalling,
+            status,
+        );
+    }
+
+    fn ptc_rejected(&self, model: &str) -> bool {
+        matches!(
+            self.capabilities
+                .query(&self.target(model), Capability::ProgrammaticToolCalling)
+                .state,
+            State::Rejected { .. }
+        )
     }
 
     fn is_openrouter(&self) -> bool {
@@ -362,10 +403,8 @@ impl AnthropicProvider {
         if self.is_openrouter_haiku_55(model) {
             return Ok(Some(true));
         }
-        if let Ok(cache) = self.capability_cache.lock() {
-            if let Some(supported) = cache.get(model).copied() {
-                return Ok(Some(supported));
-            }
+        if let Some(supported) = self.cached_code_execution(model) {
+            return Ok(Some(supported));
         }
         let Ok(mut url) = reqwest::Url::parse(&format!("{}/v1/models/", self.base_url)) else {
             return Ok(None);
@@ -398,9 +437,7 @@ impl AnthropicProvider {
         else {
             return Ok(None);
         };
-        if let Ok(mut cache) = self.capability_cache.lock() {
-            cache.insert(model.to_string(), supported);
-        }
+        self.note_code_execution(model, supported);
         Ok(Some(supported))
     }
 
@@ -432,6 +469,7 @@ impl AnthropicProvider {
             let body = response.text().await.unwrap_or_default();
             if self.is_openrouter_haiku_55(&req.model) && is_openrouter_ptc_rejection(status, &body)
             {
+                self.note_ptc_rejection(&req.model, status.as_u16());
                 return Err(CoreError::Provider(OPENROUTER_PTC_UNSUPPORTED.into()));
             }
             return Err(CoreError::Provider(http_error(status, &body)));
@@ -695,6 +733,12 @@ impl Provider for AnthropicProvider {
         let mut fallback_notice = None;
         if req.programmatic_tool_calling && req.tools.iter().any(|tool| tool.programmatic_allowed) {
             match self.supports_code_execution(&req.model, &cancel).await? {
+                Some(true) if self.ptc_rejected(&req.model) => {
+                    fallback_notice = Some(format!(
+                        "Programmatic tools were rejected earlier for `{}`; using direct calls",
+                        req.model
+                    ));
+                }
                 Some(true) => match self.stream_programmatic(req.clone(), cancel.clone()).await {
                     Ok(stream) => return Ok(stream),
                     Err(CoreError::Provider(message)) if message == OPENROUTER_PTC_UNSUPPORTED => {
@@ -1572,5 +1616,42 @@ mod thinking_replay_tests {
         assert!(!chunks
             .iter()
             .any(|chunk| matches!(chunk, StreamChunk::ProviderState(_))));
+    }
+}
+
+#[cfg(test)]
+mod capability_wiring_tests {
+    use super::*;
+
+    #[test]
+    fn a_ptc_rejection_is_remembered_per_model_and_not_retried_every_turn() {
+        let provider = AnthropicProvider::new("https://openrouter.ai/api", "key");
+        assert!(!provider.ptc_rejected(OPENROUTER_HAIKU_55));
+        provider.note_ptc_rejection(OPENROUTER_HAIKU_55, 400);
+        assert!(provider.ptc_rejected(OPENROUTER_HAIKU_55));
+        assert!(!provider.ptc_rejected("anthropic/claude-other"));
+    }
+
+    #[test]
+    fn code_execution_metadata_is_cached_per_target() {
+        let provider = AnthropicProvider::new("https://api.anthropic.com/", "key");
+        let target = provider.target("claude-x");
+        assert_eq!(target.base_url, "https://api.anthropic.com");
+        provider.note_code_execution("claude-x", true);
+        assert_eq!(provider.cached_code_execution("claude-x"), Some(true));
+        assert_eq!(provider.cached_code_execution("claude-y"), None);
+    }
+
+    #[test]
+    fn ptc_incompatibility_is_recognised_through_the_shared_classifier() {
+        use reqwest::StatusCode;
+        assert!(is_openrouter_ptc_rejection(
+            StatusCode::BAD_REQUEST,
+            "Unknown field allowed_callers"
+        ));
+        assert!(!is_openrouter_ptc_rejection(
+            StatusCode::BAD_REQUEST,
+            "messages.2: unexpected role"
+        ));
     }
 }
