@@ -1,8 +1,8 @@
 # Libro de consumo por sesión (tokens y precio por modelo)
 
-Estado: propuesta del 2026-10-21 (petición del usuario: «deberíamos de guardar el
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-21 (petición del usuario: «deberíamos de guardar el
 precio por modelo para calcular el total de la sesión»). Plan:
-`docs/plans/2026-10-21-codeloom-usage-ledger.md`.
+`docs/plans/hechos/2026-10-21-codeloom-usage-ledger.md`.
 Relacionado: `2026-10-21-codeloom-cost-estimate-design.md` (la estimación en vivo
 que esto sustituye), `2026-10-21-codeloom-models-catalog-design.md`.
 

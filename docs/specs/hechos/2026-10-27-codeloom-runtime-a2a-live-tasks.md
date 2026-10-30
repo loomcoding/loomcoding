@@ -1,6 +1,6 @@
 # Tareas A2A sobre agentes vivos
 
-> Estado: aprobada para implementación como R3.
+> Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobada para implementación como R3.
 
 ## Objetivo
 

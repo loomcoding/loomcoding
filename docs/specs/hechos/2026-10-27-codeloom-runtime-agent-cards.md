@@ -1,6 +1,6 @@
 # Tarjetas A2A de los agentes del runtime
 
-> Estado: aprobada como primera tarea de implementación del runtime compartido.
+> Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobada como primera tarea de implementación del runtime compartido.
 >
 > Spec general: `docs/specs/2026-10-26-codeloom-local-server-client-runtime.md`.
 

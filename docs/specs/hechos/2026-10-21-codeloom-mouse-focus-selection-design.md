@@ -1,7 +1,7 @@
 # Foco por clic y selección de texto acotada al composer
 
-Estado: aprobada en conversación el 2026-10-21 (petición del usuario). Plan:
-`docs/plans/2026-10-21-codeloom-mouse-focus-selection.md`.
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobada en conversación el 2026-10-21 (petición del usuario). Plan:
+`docs/plans/hechos/2026-10-21-codeloom-mouse-focus-selection.md`.
 Relacionado: `/mouse` (captura de ratón conmutable, commit `a257bca`).
 
 ## Intención

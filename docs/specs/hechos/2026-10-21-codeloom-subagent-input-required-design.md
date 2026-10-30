@@ -1,7 +1,7 @@
 # `ask_user` en subagentes como `input-required` (A2A)
 
-Estado: aprobada en conversación el 2026-10-21 (entrega por tareas). Plan:
-`docs/plans/2026-10-21-codeloom-subagent-input-required.md`.
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobada en conversación el 2026-10-21 (entrega por tareas). Plan:
+`docs/plans/hechos/2026-10-21-codeloom-subagent-input-required.md`.
 Relacionado: `2026-10-15-loom-agent-profile-a2a.md` (§5, §8 y hallazgos de la
 lectura de la especificación oficial),
 `2026-10-20-codeloom-todos-and-questions-design.md`.

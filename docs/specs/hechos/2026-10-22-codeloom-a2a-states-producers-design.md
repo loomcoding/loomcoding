@@ -1,10 +1,10 @@
 # Productores de los estados A2A que faltan (`submitted`, `rejected`, `auth-required`)
 
-Estado: propuesta del 2026-10-22, revisada el mismo día bajo la regla «no inventar nada
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-22, revisada el mismo día bajo la regla «no inventar nada
 que no esté contemplado en A2A» (tarea A2 de
 `docs/plans/2026-10-22-codeloom-a2a-roadmap.md`). **Se implementa sobre el modelo de
 `2026-10-22-codeloom-a2a-task-model-design.md`** (el estado del subagente ES el
-`TaskState` de A2A), cuyo plan es `docs/plans/2026-10-22-codeloom-a2a-task-model.md`
+`TaskState` de A2A), cuyo plan es `docs/plans/hechos/2026-10-22-codeloom-a2a-task-model.md`
 (tarea 2); aquí se conservan las citas y la justificación de cada productor. Donde este
 documento habla de «variantes nuevas de `SubagentStatus`», léase «estados de
 `TaskState`»: esa enumeración desaparece.
@@ -132,7 +132,7 @@ con cada uno. Validación visual en terminal real: pendiente.
 ## Estado (2026-10-22)
 
 Cabe señalar que los productores descritos en esta spec están implementados (commit
-`6365c58`, tarea 2 del plan `docs/plans/2026-10-22-codeloom-a2a-task-model.md`). El
+`6365c58`, tarea 2 del plan `docs/plans/hechos/2026-10-22-codeloom-a2a-task-model.md`). El
 runtime produce los ocho estados de tarea de A2A.
 
 ### Lo implementado

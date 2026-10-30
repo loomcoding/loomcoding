@@ -1,6 +1,6 @@
 # A8b: servir CodeLoom como agente A2A
 
-Estado: propuesta del 2026-10-23. La persona usuaria ordenó abordarla («haz la 1, 2 y 3»); las
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-23. La persona usuaria ordenó abordarla («haz la 1, 2 y 3»); las
 decisiones de seguridad de abajo son recomendaciones nuestras y quedan rotuladas para su revisión.
 Continúa `2026-10-23-codeloom-a2a-remote-transport-design.md` (D1, D7, D9) y `…-remote-auth-design.md`.
 

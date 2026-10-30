@@ -1,6 +1,6 @@
 # Preparación de CodeLoom para abrir el repositorio
 
-Fecha: 2026-10-25. Estado: preparación publicada; remoto público y CI verde. La primera release y
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: preparación publicada; remoto público y CI verde. La primera release y
 crates.io siguen pendientes.
 
 ## Objetivo

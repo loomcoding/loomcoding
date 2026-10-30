@@ -1,7 +1,7 @@
 # Observabilidad de agentes — Fase O3: causalidad y ficheros tocados
 
-Estado: propuesta del 2026-10-22 (petición del usuario: seguir con la Fase O3). Plan:
-`docs/plans/2026-10-22-codeloom-agent-observability-o3.md`.
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-22 (petición del usuario: seguir con la Fase O3). Plan:
+`docs/plans/hechos/2026-10-22-codeloom-agent-observability-o3.md`.
 Relacionado: `2026-10-21-codeloom-agent-observability-design.md` (Fase O3 allí
 prevista), `2026-10-21-codeloom-agent-observability-o2-design.md`,
 `2026-10-21-codeloom-agent-autonomy-design.md` (Fase A: el despertar del padre).

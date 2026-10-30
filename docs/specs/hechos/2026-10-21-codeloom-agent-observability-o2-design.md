@@ -1,8 +1,8 @@
 # Observabilidad de agentes, Fase O2: entrar en la sesión de un subagente
 
-Estado: propuesta del 2026-10-21 (continuación de la línea de
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-21 (continuación de la línea de
 `2026-10-21-codeloom-agent-observability-design.md`; la fase O1 está hecha).
-Plan: `docs/plans/2026-10-21-codeloom-agent-observability-o2.md`.
+Plan: `docs/plans/hechos/2026-10-21-codeloom-agent-observability-o2.md`.
 
 ## Intención
 

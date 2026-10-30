@@ -1,6 +1,6 @@
 # A8d: autenticación hacia agentes remotos A2A (lado cliente)
 
-Estado: propuesta del 2026-10-23. La persona usuaria ordenó abordarla («haz la 1, 2 y 3») sin
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-23. La persona usuaria ordenó abordarla («haz la 1, 2 y 3») sin
 responder a las preguntas abiertas; se adoptan sus opciones recomendadas, rotuladas como tales abajo.
 Continúa `2026-10-23-codeloom-a2a-remote-transport-design.md` (A8a, ya hecha) y es
 prerrequisito de A8b (servir), cuya autenticación del lado servidor se especifica allí.

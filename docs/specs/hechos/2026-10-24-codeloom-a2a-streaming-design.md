@@ -1,6 +1,6 @@
 # A8c: streaming SSE, al servir y al consumir
 
-Estado: la persona usuaria ordenó abordarla el 2026-10-24 («si a8c y después a12b»). Las decisiones
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: la persona usuaria ordenó abordarla el 2026-10-24 («si a8c y después a12b»). Las decisiones
 marcadas como nuestras quedan rotuladas para su revisión. Continúa
 `2026-10-23-codeloom-a2a-remote-transport-design.md` (fase A8c), `…-task-events-design.md` (A9, de donde
 sale el flujo) y `…-serve-design.md` (A8b, que hoy responde −32004 a los métodos de flujo).

@@ -1,8 +1,8 @@
 # Selección por caracteres en el transcript y navegación por bloques
 
-Estado: aprobada en conversación el 2026-10-21 (petición del usuario: «poder
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobada en conversación el 2026-10-21 (petición del usuario: «poder
 movernos por bloque igual que hace Crush» y «arrastrar con el ratón sobre el
-texto no selecciona»). Plan: `docs/plans/2026-10-21-codeloom-transcript-selection-blocks.md`.
+texto no selecciona»). Plan: `docs/plans/hechos/2026-10-21-codeloom-transcript-selection-blocks.md`.
 Relacionado: `2026-10-21-codeloom-mouse-focus-selection-design.md` (selección del
 composer; allí el transcript quedó fuera de alcance).
 

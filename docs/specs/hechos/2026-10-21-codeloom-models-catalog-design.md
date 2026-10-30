@@ -1,9 +1,9 @@
 # Catálogo de proveedores y modelos desde models.dev
 
-Estado: propuesta del 2026-10-21 (petición del usuario: «para los provider
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-21 (petición del usuario: «para los provider
 podríamos usar models.dev para hacer un listado de provider y modelos, y tenemos
 todos los datos habidos y por haber, y así no tenemos que hacerlo a mano»).
-Plan: `docs/plans/2026-10-21-codeloom-models-catalog.md`.
+Plan: `docs/plans/hechos/2026-10-21-codeloom-models-catalog.md`.
 
 ## Intención
 

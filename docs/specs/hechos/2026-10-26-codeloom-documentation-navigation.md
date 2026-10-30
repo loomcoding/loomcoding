@@ -1,8 +1,8 @@
 # CodeLoom — Navegación de la documentación
 
-> Estado: aprobado por la petición del usuario del 2026-10-26.
+> Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobado por la petición del usuario del 2026-10-26.
 >
-> Plan: `docs/plans/2026-10-26-codeloom-documentation-navigation.md`.
+> Plan: `docs/plans/hechos/2026-10-26-codeloom-documentation-navigation.md`.
 
 ## Objetivo
 

@@ -1,7 +1,7 @@
 # Lista de tareas y preguntas al usuario (`todo_write`, `ask_user`)
 
-Estado: aprobada por el usuario en conversación el 2026-10-20. Plan:
-`docs/plans/2026-10-20-codeloom-todos-and-questions.md`.
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobada por el usuario en conversación el 2026-10-20. Plan:
+`docs/plans/hechos/2026-10-20-codeloom-todos-and-questions.md`.
 
 ## Intención
 

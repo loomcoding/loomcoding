@@ -1,8 +1,8 @@
 # Esfuerzo de razonamiento por modelo (effort)
 
-Estado: propuesta del 2026-10-21 (petición del usuario: «seguimos poniendo también
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-21 (petición del usuario: «seguimos poniendo también
 el effort de un modelo, ya que tenemos acceso a ese dato por models.dev»).
-Plan: `docs/plans/2026-10-21-codeloom-reasoning-effort.md`.
+Plan: `docs/plans/hechos/2026-10-21-codeloom-reasoning-effort.md`.
 Relacionado: `2026-10-21-codeloom-models-catalog-design.md`.
 
 ## Intención

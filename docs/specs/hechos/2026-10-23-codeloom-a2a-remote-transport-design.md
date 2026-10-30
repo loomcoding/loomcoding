@@ -1,6 +1,6 @@
 # Transporte `A2aRemote` de A2A: consumir y servir agentes por HTTP (A8)
 
-Estado: propuesta del 2026-10-23 con las decisiones de la persona usuaria incorporadas (tarea A8 de
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-23 con las decisiones de la persona usuaria incorporadas (tarea A8 de
 `docs/plans/2026-10-22-codeloom-a2a-roadmap.md`). No implementar todavía. Depende de A4, A7 y A9.
 
 ## Propósito

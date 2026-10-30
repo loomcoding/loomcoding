@@ -1,9 +1,9 @@
 # El estado de un subagente ES el estado de tarea de A2A
 
-Estado: propuesta del 2026-10-22, por petición del usuario: «acoplarnos al estándar A2A
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: propuesta del 2026-10-22, por petición del usuario: «acoplarnos al estándar A2A
 para tener menos fricciones al implementar o modificar algo; en la capa visual sí
 podemos mostrar los modelos algo diferente». Plan:
-`docs/plans/2026-10-22-codeloom-a2a-task-model.md`.
+`docs/plans/hechos/2026-10-22-codeloom-a2a-task-model.md`.
 Sustituye el enfoque de «proyección en el borde» de `2026-10-21-codeloom-a2a-task-state.md`
 y absorbe las tareas A1 (renombrado de `Interrupted`) y A2 (productores de estados) de
 `docs/plans/2026-10-22-codeloom-a2a-roadmap.md`. Los productores se justifican en
@@ -138,7 +138,7 @@ en terminal real: pendiente.
 ## Estado (2026-10-22)
 
 Cabe señalar que la tarea 1 (modelo) y la tarea 2 (productores) del plan
-`docs/plans/2026-10-22-codeloom-a2a-task-model.md` están implementadas, con los commits
+`docs/plans/hechos/2026-10-22-codeloom-a2a-task-model.md` están implementadas, con los commits
 `45807b2` y `6365c58`. La tarea 3 (presentación y documentación) cierra el plan.
 
 ### Lo implementado

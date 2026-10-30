@@ -1,6 +1,6 @@
 # Elección automática de agente: regla y clasificador (A12b)
 
-Estado: la persona usuaria ordenó continuar con A12b el 2026-10-23 («continua con a8c y a12b»); la
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: la persona usuaria ordenó continuar con A12b el 2026-10-23 («continua con a8c y a12b»); la
 regla (D1–D3, D6–D8) está implementada y el clasificador (D4–D5) sigue pendiente; véase «Estado» al
 final. Tarea A12b de `docs/plans/2026-10-22-codeloom-a2a-roadmap.md`. Independiente de A7–A9.
 

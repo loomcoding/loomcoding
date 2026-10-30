@@ -1,6 +1,6 @@
 # Verificación del runtime compartido
 
-> Estado: ejecutada el 2026-10-27; aceptación satisfecha.
+> Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: ejecutada el 2026-10-27; aceptación satisfecha.
 
 ## Alcance
 

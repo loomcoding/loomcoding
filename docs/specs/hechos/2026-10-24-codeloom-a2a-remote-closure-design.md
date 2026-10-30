@@ -1,6 +1,6 @@
 # Cierre de los agentes remotos: `input-required`, tarjetas vivas y seguridad A8d-2
 
-Fecha: 2026-10-24. Estado: ver el final. Completa `2026-10-23-codeloom-a2a-remote-transport-design.md`
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: ver el final. Completa `2026-10-23-codeloom-a2a-remote-transport-design.md`
 (A8a), `…-remote-auth-design.md` (A8d, primera entrega) y `2026-10-24-codeloom-a2a-streaming-design.md`
 (A8c). Cabe señalar que todo lo que sigue es decisión propia de CodeLoom salvo donde se cite la
 especificación A2A, y que lo no verificado se declara como tal («no consta»).

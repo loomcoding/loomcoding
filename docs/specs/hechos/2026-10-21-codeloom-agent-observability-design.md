@@ -1,8 +1,8 @@
 # Observabilidad de agentes y subagentes
 
-Estado: aprobada en conversación el 2026-10-21 (el orden: observabilidad antes
+Estado: **implementado** (verificado el 2026-10-30; véase el apartado «Estado» del final y el plan gemelo). Estado original: aprobada en conversación el 2026-10-21 (el orden: observabilidad antes
 que las fases B y C de autonomía). Plan:
-`docs/plans/2026-10-21-codeloom-agent-observability.md`.
+`docs/plans/hechos/2026-10-21-codeloom-agent-observability.md`.
 Relacionado: `2026-10-21-codeloom-agent-autonomy-design.md`,
 `2026-10-15-loom-agent-profile-a2a.md`, `2026-10-14-loom-architecture-overview.md`.
 
