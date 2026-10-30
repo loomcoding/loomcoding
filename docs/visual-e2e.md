@@ -83,7 +83,7 @@ node scripts/visual/capture-web.mjs http://127.0.0.1:7681 salida.png 4000 1000 5
 
 Cabe señalar que `chrome --headless --screenshot` fotografía antes de que `ttyd` pinte (sale el
 fondo vacío); el script espera `espera_ms` tras navegar y captura por CDP. Probado con `cmd /k`
-servido por `ttyd`: el texto de xterm.js sale pintado. Variable `CHROME_PATH` pa otra ruta.
+servido por `ttyd`: el texto de xterm.js sale pintado. La variable `CHROME_PATH` permite indicar otra ruta de Chrome.
 
 ### ¿Y un backend wasm de ratatui?
 
