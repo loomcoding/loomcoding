@@ -1,0 +1,77 @@
+# E2E visual de la TUI
+
+Dos formas de ver y probar la TUI sin una persona delante. Diseño en
+`docs/specs/2026-10-30-codeloom-e2e-visual.md`.
+
+| | B — PTY en `cargo test` | C — `ttyd` + Chrome |
+|---|---|---|
+| Qué es | el binario real en un pseudo-terminal (ConPTY) leído con un emulador | la TUI servida por web (xterm.js) |
+| Valida | entrada de teclas, pegado, ciclo de vida, texto y estilos de la pantalla | solo el aspecto (no es Windows Terminal) |
+| Cuándo | en cada cambio de comportamiento; entra en `cargo test` | revisión visual puntual y de otras herramientas |
+
+## Regla de oro: nunca arrancar `codeloom` sin `CODELOOM_HOME`
+
+El cliente se conecta al daemon local de la persona usuaria si comparte perfil. En
+Windows `dirs::home_dir()` ignora `USERPROFILE`, así que **solo** `CODELOOM_HOME` aísla
+el perfil (sesiones, token, tubería del daemon). Un E2E sin él escribe sesiones en
+`~/.codeloom/sessions.db` real (ocurrió el 2026-10-30; véase el plan).
+
+## B — E2E con PTY
+
+```bash
+export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER='C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.35.32215\bin\Hostx64\x64\link.exe'
+export CARGO_TARGET_DIR='E:\workspace\personal\loom\target\e2e' CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0
+cargo test -p codeloom-cli --test tui_pty
+```
+
+- Un `codeloom.exe` abierto en `target/debug` bloquea el enlazado: por eso el
+  `CARGO_TARGET_DIR` propio. `DEBUG=0` y sin incremental ahorran gigas en disco.
+- Cada test crea un perfil y un proyecto temporales (`Workspace`), un proveedor
+  `wiremock` (`mock_provider`) y mata sus daemons al terminar (`kill_daemons_of`).
+- Los volcados de pantalla quedan en `target/e2e/tmp/e2e-shots/<nombre>.{txt,json}`.
+  Para verlos como imagen:
+
+  ```bash
+  python scripts/visual/render_screen.py target/e2e/tmp/e2e-shots/turn.json turn.png
+  ```
+
+- Para añadir un escenario: `Session::start(respuesta, filas, columnas)`, `s.expect(READY, BOOT)`,
+  `s.term.send_text / press / paste`, y `s.expect(texto, TURN)` o `s.expect_line(...)`.
+
+## C — `ttyd` + Chrome
+
+Sirve cualquier comando de terminal solo en `127.0.0.1` (instalar: `winget install tsl0922.ttyd`).
+
+```powershell
+# Perfil aislado: define estas variables ANTES de lanzar el script (ttyd y su hijo las heredan).
+$env:CODELOOM_HOME = $env:USERPROFILE = $env:HOME = "$env:TEMP\codeloom-live-home"
+$env:CODELOOM_E2E_KEY = "sk-test"
+pwsh -NoProfile -File scripts/visual/serve-tui.ps1 -Port 7691 -Cwd <proyecto-temporal> `
+  -Run 'E:\workspace\personal\loom\target\e2e\debug\codeloom.exe'
+# → http://127.0.0.1:7691
+pwsh -NoProfile -File scripts/visual/serve-tui.ps1 -Port 7691 -Stop
+```
+
+El proyecto temporal necesita un `codeloom.toml` (véase `Workspace::new` en
+`crates/codeloom-e2e/src/mock.rs`) y el perfil un `.codeloom/models-dev.json` con `{}`
+para que no intente descargar el catálogo.
+
+Con las herramientas de Chrome: `tabs_context_mcp` → `tabs_create_mcp` → `navigate` a la URL
+→ `resize_window` para fijar el ancho (las columnas salen del tamaño de la ventana)
+→ `computer` (`screenshot`, `type`, `key`). Al acabar, `-Stop` y cierra la pestaña.
+
+Limpieza del daemon aislado, sin tocar el del usuario (se filtra por la ruta del ejecutable):
+
+```powershell
+$exe = 'E:\workspace\personal\loom\target\e2e\debug\codeloom.exe'
+Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $exe } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+Para otras herramientas (el showcase de `batten`, `herdr`, etc.) basta con cambiar `-Run`.
+
+### Limitaciones conocidas
+
+- xterm.js no es Windows Terminal: el pegado y algunas teclas pueden diferir. Eso se valida con B.
+- El 2026-10-30 `Page.captureScreenshot` agotó el tiempo (30 s) en la pestaña de Chrome incluso
+  con una página estática; la página y el WebSocket de `ttyd` sí cargaban. Si ocurre, comprobar
+  que la ventana de Chrome no esté minimizada ni tapada y reintentar; si persiste, usar B y el PNG.
