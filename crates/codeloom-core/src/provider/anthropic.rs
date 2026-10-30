@@ -1,7 +1,7 @@
 use super::sse::SseBuffer;
 use super::{Capabilities, Provider, ProviderRequest, ProviderStream, StreamChunk};
 use crate::error::{CoreError, Result};
-use crate::message::{FinishReason, Usage};
+use crate::message::FinishReason;
 use async_trait::async_trait;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -169,23 +169,25 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
         }
         "message_start" => {
             if let Some(u) = v.pointer("/message/usage") {
-                out.push(StreamChunk::Usage(Usage {
-                    input_tokens: u["input_tokens"].as_u64().unwrap_or(0) as u32,
-                    output_tokens: u["output_tokens"].as_u64().unwrap_or(0) as u32,
+                out.push(StreamChunk::UsageUpdate(super::UsageUpdate {
+                    input_tokens: u["input_tokens"].as_u64().map(|value| value as u32),
+                    output_tokens: u["output_tokens"].as_u64().map(|value| value as u32),
                     reported_cost_usd: u["cost"]
                         .as_f64()
                         .filter(|cost| cost.is_finite() && *cost >= 0.0),
+                    final_update: false,
                 }));
             }
         }
         "message_delta" => {
             if let Some(u) = v.get("usage").filter(|u| !u.is_null()) {
-                out.push(StreamChunk::Usage(Usage {
-                    input_tokens: 0,
-                    output_tokens: u["output_tokens"].as_u64().unwrap_or(0) as u32,
+                out.push(StreamChunk::UsageUpdate(super::UsageUpdate {
+                    input_tokens: None,
+                    output_tokens: u["output_tokens"].as_u64().map(|value| value as u32),
                     reported_cost_usd: u["cost"]
                         .as_f64()
                         .filter(|cost| cost.is_finite() && *cost >= 0.0),
+                    final_update: true,
                 }));
             }
             out.extend(acc.finish());
@@ -230,6 +232,20 @@ fn is_openrouter_ptc_rejection(status: reqwest::StatusCode, body: &str) -> bool 
     status == reqwest::StatusCode::BAD_REQUEST && is_ptc_unsupported(body)
 }
 
+fn http_error(status: reqwest::StatusCode, body: &str) -> String {
+    let message = serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|value| value.pointer("/error/message")?.as_str().map(str::to_owned));
+    match message.filter(|message| !message.trim().is_empty()) {
+        Some(message) => format!(
+            "Anthropic API returned HTTP {}: {}",
+            status.as_u16(),
+            message.chars().take(512).collect::<String>()
+        ),
+        None => format!("Anthropic API returned HTTP {}", status.as_u16()),
+    }
+}
+
 pub struct AnthropicProvider {
     base_url: String,
     api_key: String,
@@ -258,6 +274,15 @@ impl AnthropicProvider {
 
     fn build_body(&self, req: &ProviderRequest) -> serde_json::Value {
         let messages = wire_messages(&req.messages, &req.model, &self.base_url);
+        let mut system = req.system.clone();
+        for message in req.messages.iter().filter(|message| {
+            message.role == crate::message::Role::System && !message.text().is_empty()
+        }) {
+            if !system.is_empty() {
+                system.push_str("\n\n");
+            }
+            system.push_str(&message.text());
+        }
         let mut tools: Vec<serde_json::Value> = req
             .tools
             .iter()
@@ -283,7 +308,7 @@ impl AnthropicProvider {
         let mut cuerpo = serde_json::json!({
             "model": req.model,
             "max_tokens": req.max_tokens,
-            "system": req.system,
+            "system": system,
             "messages": messages,
             "tools": tools,
             "stream": !req.programmatic_tool_calling,
@@ -392,7 +417,15 @@ impl AnthropicProvider {
                 .header("x-api-key", &self.api_key)
                 .header("anthropic-version", "2023-06-01")
                 .json(&self.build_body(&req))
-                .send() => response.map_err(|error| CoreError::Provider(error.to_string()))?,
+                .send() => response.map_err(|error| {
+                    CoreError::Provider(if error.is_timeout() {
+                        "Anthropic request timed out before response headers".into()
+                    } else if error.is_connect() {
+                        "Anthropic could not connect before response headers".into()
+                    } else {
+                        "Anthropic request failed before response headers".into()
+                    })
+                })?,
         };
         if !response.status().is_success() {
             let status = response.status();
@@ -401,7 +434,7 @@ impl AnthropicProvider {
             {
                 return Err(CoreError::Provider(OPENROUTER_PTC_UNSUPPORTED.into()));
             }
-            return Err(CoreError::Provider(format!("http {status}")));
+            return Err(CoreError::Provider(http_error(status, &body)));
         }
         let response: serde_json::Value = response
             .json()
@@ -544,6 +577,7 @@ fn wire_messages(
     let mut out = Vec::new();
     for m in messages {
         match m.role {
+            Role::System => {}
             Role::Assistant => {
                 if let Some(content) = m
                     .provider_state
@@ -600,7 +634,43 @@ fn wire_messages(
                 }
             }
             other => {
-                out.push(serde_json::json!({ "role": role_str(other), "content": m.text() }));
+                let has_image = m.parts.iter().any(|part| {
+                    matches!(
+                        part,
+                        ContentPart::Image { .. } | ContentPart::ImageUrl { .. }
+                    )
+                });
+                let content = if has_image {
+                    serde_json::Value::Array(
+                        m.parts
+                            .iter()
+                            .filter_map(|part| match part {
+                                ContentPart::Text { text } => Some(serde_json::json!({
+                                    "type": "text",
+                                    "text": text
+                                })),
+                                ContentPart::Image {
+                                    mime_type, data, ..
+                                } => Some(serde_json::json!({
+                                    "type": "image",
+                                    "source": {
+                                        "type": "base64",
+                                        "media_type": mime_type,
+                                        "data": data
+                                    }
+                                })),
+                                ContentPart::ImageUrl { url } => Some(serde_json::json!({
+                                    "type": "image",
+                                    "source": { "type": "url", "url": url }
+                                })),
+                                _ => None,
+                            })
+                            .collect(),
+                    )
+                } else {
+                    serde_json::Value::String(m.text())
+                };
+                out.push(serde_json::json!({ "role": role_str(other), "content": content }));
             }
         }
     }
@@ -662,12 +732,20 @@ impl Provider for AnthropicProvider {
                 .header("x-api-key", &self.api_key)
                 .header("anthropic-version", "2023-06-01")
                 .json(&self.build_body(&req))
-                .send() => response.map_err(|e| CoreError::Provider(e.to_string()))?,
+                .send() => response.map_err(|error| {
+                    CoreError::Provider(if error.is_timeout() {
+                        "Anthropic request timed out before response headers".into()
+                    } else if error.is_connect() {
+                        "Anthropic could not connect before response headers".into()
+                    } else {
+                        "Anthropic request failed before response headers".into()
+                    })
+                })?,
         };
         if !resp.status().is_success() {
             let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            return Err(CoreError::Provider(format!("http {status}: {text}")));
+            let body = resp.text().await.unwrap_or_default();
+            return Err(CoreError::Provider(http_error(status, &body)));
         }
 
         struct State<S> {
@@ -710,7 +788,16 @@ impl Provider for AnthropicProvider {
                                 .extend(map_anthropic_event(&name, &data, &mut st.acc));
                         }
                     }
-                    _ => {
+                    Some(Err(error)) => {
+                        st.done = true;
+                        st.queue
+                            .push_back(StreamChunk::Error(if error.is_timeout() {
+                                "Anthropic response stream timed out".into()
+                            } else {
+                                "Anthropic response stream failed".into()
+                            }));
+                    }
+                    None => {
                         st.queue.extend(st.acc.finish());
                         if !st.queue.iter().any(|c| matches!(c, StreamChunk::Done(_))) {
                             st.queue.push_back(StreamChunk::Done(FinishReason::Stop));
@@ -752,13 +839,29 @@ mod tests {
     }
 
     #[test]
+    fn encodes_local_image_parts_as_anthropic_base64_blocks() {
+        use crate::message::{ContentPart, Message};
+        let mut message = Message::human("What is this?");
+        message.parts.push(ContentPart::Image {
+            mime_type: "image/png".into(),
+            data: "cG5n".into(),
+            filename: "sample.png".into(),
+        });
+        let wire = super::wire_messages(&[message], "model", "https://api.example");
+        assert_eq!(wire[0]["content"][0]["text"], "What is this?");
+        assert_eq!(wire[0]["content"][1]["source"]["type"], "base64");
+        assert_eq!(wire[0]["content"][1]["source"]["media_type"], "image/png");
+        assert_eq!(wire[0]["content"][1]["source"]["data"], "cG5n");
+    }
+
+    #[test]
     fn maps_provider_reported_cost_from_usage() {
         let chunks = ev(
             "message_delta",
             json!({"usage":{"output_tokens":2,"cost":0.002}}),
         );
         assert!(
-            matches!(&chunks[0], StreamChunk::Usage(usage) if usage.reported_cost_usd == Some(0.002))
+            matches!(&chunks[0], StreamChunk::UsageUpdate(usage) if usage.reported_cost_usd == Some(0.002) && usage.final_update)
         );
     }
 
@@ -789,7 +892,9 @@ mod tests {
             "message_start",
             json!({"message":{"usage":{"input_tokens":12,"output_tokens":0}}}),
         );
-        assert!(matches!(chunks.as_slice(), [StreamChunk::Usage(u)] if u.input_tokens == 12));
+        assert!(
+            matches!(chunks.as_slice(), [StreamChunk::UsageUpdate(u)] if u.input_tokens == Some(12) && !u.final_update)
+        );
     }
 }
 
@@ -851,6 +956,56 @@ mod wire_tests {
             .unwrap();
         assert_eq!(result["tool_use_id"], "t1");
         assert_eq!(result["content"], "ok");
+    }
+
+    #[test]
+    fn moves_system_history_into_the_top_level_system_field() {
+        let p = AnthropicProvider::new("http://x", "k");
+        let mut req = ProviderRequest {
+            model: "m".into(),
+            system: "base instructions".into(),
+            messages: vec![
+                Message::new(
+                    Role::System,
+                    vec![ContentPart::Text {
+                        text: "later instruction".into(),
+                    }],
+                ),
+                Message::user("hello"),
+            ],
+            tools: vec![],
+            temperature: 0.0,
+            max_tokens: 16,
+            effort: None,
+            programmatic_tool_calling: false,
+        };
+        let body = p.build_body(&req);
+        assert_eq!(body["system"], "base instructions\n\nlater instruction");
+        assert_eq!(
+            body["messages"],
+            json!([{ "role": "user", "content": "hello" }])
+        );
+        req.system.clear();
+        assert_eq!(p.build_body(&req)["system"], "later instruction");
+    }
+
+    #[test]
+    fn anthropic_http_error_includes_a_bounded_provider_message() {
+        let message = http_error(
+            reqwest::StatusCode::BAD_REQUEST,
+            &json!({"error":{"message":"invalid messages[0].role"}}).to_string(),
+        );
+        assert!(message.contains("HTTP 400: invalid messages[0].role"));
+        let long = "x".repeat(600);
+        assert!(
+            http_error(
+                reqwest::StatusCode::BAD_REQUEST,
+                &json!({"error":{"message":long}}).to_string()
+            )
+            .chars()
+            .count()
+                < 560
+        );
     }
 }
 
@@ -944,6 +1099,7 @@ mod effort_tests {
 #[cfg(test)]
 mod programmatic_tests {
     use super::*;
+    use crate::message::Usage;
     use crate::provider::ToolSpec;
     use serde_json::json;
 
@@ -971,6 +1127,29 @@ mod programmatic_tests {
             effort: None,
             programmatic_tool_calling: true,
         }
+    }
+
+    #[tokio::test]
+    async fn stream_error_preserves_anthropic_400_message() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1/messages"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error":{"message":"messages.0.content: invalid"}
+            })))
+            .mount(&server)
+            .await;
+        let provider = AnthropicProvider::new(server.uri(), "test-key");
+        let mut request = request();
+        request.programmatic_tool_calling = false;
+        let error = match provider.stream(request, CancellationToken::new()).await {
+            Err(error) => error.to_string(),
+            Ok(_) => panic!("400 response must be an error"),
+        };
+        assert!(error.contains("HTTP 400: messages.0.content: invalid"));
     }
 
     #[tokio::test]
@@ -1026,8 +1205,16 @@ mod programmatic_tests {
                             parts.push(ContentPart::ToolCall { id, name, input });
                         }
                         StreamChunk::Usage(u) => {
-                            usage.input_tokens += u.input_tokens;
-                            usage.output_tokens += u.output_tokens;
+                            usage.input_tokens = usage.input_tokens.max(u.input_tokens);
+                            usage.output_tokens = usage.output_tokens.max(u.output_tokens);
+                        }
+                        StreamChunk::UsageUpdate(u) => {
+                            if let Some(input) = u.input_tokens {
+                                usage.input_tokens = usage.input_tokens.max(input);
+                            }
+                            if let Some(output) = u.output_tokens {
+                                usage.output_tokens = usage.output_tokens.max(output);
+                            }
                         }
                         StreamChunk::ProviderState(s) => state = Some(s),
                         StreamChunk::ProviderNotice(n) if n.contains("programmatic call") => {

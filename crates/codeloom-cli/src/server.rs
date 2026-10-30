@@ -46,7 +46,7 @@ pub enum ClientFrame {
 
 #[derive(Serialize, Deserialize)]
 pub enum ClientCommand {
-    Prompt(String),
+    Prompt(codeloom_tui::app::PendingPrompt),
     Wake,
     Compact,
     CancelTurn,
@@ -91,6 +91,7 @@ pub enum ServerEvent {
         settings: codeloom_tui::app::ProviderSettings,
         api_key_configured: bool,
     },
+    Capabilities(codeloom_tui::app::RuntimeCapabilities),
     Live(codeloom_core::event::LiveEvent),
     Session(codeloom_tui::run::SessionUpdate),
     SessionListPage {
@@ -126,7 +127,7 @@ pub enum ServerEvent {
 }
 
 enum AgentCommand {
-    Prompt(String),
+    Prompt(codeloom_tui::app::PendingPrompt),
     Wake,
     Compact,
     Session(codeloom_tui::run::SessionCommand),
@@ -316,6 +317,9 @@ async fn ejecutar_supervisor(
                             input_price: None,
                             output_price: None,
                             reported_cost_usd: usage.reported_cost_usd,
+                            source: codeloom_core::message::UsageSource::Provider,
+                            is_final: true,
+                            components: Vec::new(),
                             created_at_ms,
                         },
                     )
@@ -513,6 +517,8 @@ struct AgentEntry {
     a2a_consumes: bool,
     refresher: Option<mpsc::UnboundedSender<()>>,
     _watcher: StdMutex<Option<codeloom_core::registry::watch::WatcherHandle>>,
+    registry: Arc<codeloom_core::registry::AgentRegistry>,
+    runtime_capabilities: StdRwLock<codeloom_tui::app::RuntimeCapabilities>,
     current_session: AtomicI64,
     connected: AtomicBool,
     working: AtomicBool,
@@ -533,7 +539,99 @@ struct AgentSetup {
     a2a_consumes: bool,
     refresher: Option<mpsc::UnboundedSender<()>>,
     watcher: codeloom_core::registry::watch::WatcherHandle,
+    registry: Arc<codeloom_core::registry::AgentRegistry>,
+    runtime_capabilities: codeloom_tui::app::RuntimeCapabilities,
     bus_rx: tokio::sync::broadcast::Receiver<LiveEvent>,
+}
+
+fn executable_on_path(name: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    let candidates = if cfg!(windows) {
+        vec![
+            format!("{name}.exe"),
+            format!("{name}.cmd"),
+            name.to_owned(),
+        ]
+    } else {
+        vec![name.to_owned()]
+    };
+    std::env::split_paths(&path).any(|directory| {
+        candidates
+            .iter()
+            .any(|candidate| directory.join(candidate).is_file())
+    })
+}
+
+fn runtime_capabilities(
+    registry: &codeloom_core::registry::RegistrySnapshot,
+    mcp_config: codeloom_tui::app::McpConfigState,
+    mcp_servers: Vec<codeloom_tui::app::McpServerCapability>,
+    rust_analyzer_available: bool,
+) -> codeloom_tui::app::RuntimeCapabilities {
+    use codeloom_core::registry::{Approval, Execution};
+    let mut announced_skills = Vec::new();
+    let mut declared_skill_scopes = Vec::new();
+    for agent in registry.entries().into_iter().take(128) {
+        let available = matches!(
+            registry.approval(&agent.name),
+            Some(Approval::NotRequired | Approval::Approved)
+        );
+        for skill in &agent.card.skills {
+            if announced_skills.len() < 64 {
+                announced_skills.push(codeloom_tui::app::SkillCapability {
+                    agent: agent.name.clone(),
+                    id: skill.id.clone(),
+                    name: skill.name.clone(),
+                    available,
+                });
+            }
+        }
+        if let Execution::Local(spec) = &agent.execution {
+            for skill in &spec.scope.skills {
+                if declared_skill_scopes.len() < 64 {
+                    declared_skill_scopes.push((agent.name.clone(), skill.clone()));
+                }
+            }
+        }
+    }
+    let announced_skill_total = registry
+        .entries()
+        .iter()
+        .map(|agent| agent.card.skills.len())
+        .sum();
+    let available_skill_total = registry
+        .entries()
+        .iter()
+        .filter(|agent| {
+            matches!(
+                registry.approval(&agent.name),
+                Some(Approval::NotRequired | Approval::Approved)
+            )
+        })
+        .map(|agent| agent.card.skills.len())
+        .sum();
+    let declared_skill_scope_total = registry
+        .entries()
+        .iter()
+        .filter_map(|agent| match &agent.execution {
+            Execution::Local(spec) => Some(spec.scope.skills.len()),
+            Execution::Remote(_) => None,
+        })
+        .sum();
+    codeloom_tui::app::RuntimeCapabilities {
+        mcp_config,
+        mcp_servers,
+        lsp_registered: true,
+        rust_analyzer_available,
+        announced_skills,
+        announced_skill_total,
+        available_skill_total,
+        declared_skill_scopes,
+        declared_skill_scope_total,
+        local_skill_loader_available: true,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -597,9 +695,11 @@ async fn build_agent(
     ));
     let (catalog_tx, _catalog_rx) = mpsc::unbounded_channel();
     tokio::spawn(super::load_catalog(catalog_tx, catalog.clone()));
-    let tools = super::build_project_tools(super::shell_env(&project_env));
+    let project_tool_env = super::shell_env(&project_env);
+    let tools = super::build_project_tools(project_tool_env);
     let mcp_config_path = data_dir.join("mcp.toml");
-    let mcp_tools = match codeloom_mcp::McpConfig::load(&mcp_config_path) {
+    let (mcp_config, mcp_servers, mcp_tools) = match codeloom_mcp::McpConfig::load(&mcp_config_path)
+    {
         Ok(config) => {
             let mcp = codeloom_mcp::McpRuntime::start(config, &cwd).await;
             for issue in mcp.issues() {
@@ -610,7 +710,21 @@ async fn build_agent(
                     ),
                 });
             }
-            mcp.tools()
+            let statuses = mcp
+                .server_statuses()
+                .iter()
+                .map(|status| codeloom_tui::app::McpServerCapability {
+                    id: status.server_id.clone(),
+                    initialized: status.initialized,
+                    tool_count: status.tool_count,
+                    issue: status.issue.clone(),
+                })
+                .collect();
+            (
+                codeloom_tui::app::McpConfigState::Loaded,
+                statuses,
+                mcp.tools(),
+            )
         }
         Err(_) => {
             bus.publish(LiveEvent::RuntimeNotice {
@@ -618,9 +732,25 @@ async fn build_agent(
                     "MCP configuration rejected; no MCP tools loaded. Check ~/.codeloom/mcp.toml"
                         .into(),
             });
-            Vec::new()
+            (
+                codeloom_tui::app::McpConfigState::Invalid,
+                Vec::new(),
+                Vec::new(),
+            )
         }
     };
+    let mcp_config =
+        if mcp_config == codeloom_tui::app::McpConfigState::Loaded && !mcp_config_path.exists() {
+            codeloom_tui::app::McpConfigState::NotConfigured
+        } else {
+            mcp_config
+        };
+    let runtime_capabilities = runtime_capabilities(
+        &registry.snapshot(),
+        mcp_config,
+        mcp_servers,
+        executable_on_path("rust-analyzer"),
+    );
     let router = super::enrutador_de(&agents_cfg, provider.clone(), &cfg.model);
     let profile_env = project_env.clone();
     let profile_config = cfg.clone();
@@ -671,6 +801,8 @@ async fn build_agent(
         a2a_consumes: a2a.consumes(),
         refresher,
         watcher,
+        registry,
+        runtime_capabilities,
         bus_rx,
     })
 }
@@ -814,6 +946,8 @@ async fn open_agent(
         a2a_consumes: setup.a2a_consumes,
         refresher: setup.refresher.clone(),
         _watcher: StdMutex::new(Some(setup.watcher)),
+        registry: setup.registry,
+        runtime_capabilities: StdRwLock::new(setup.runtime_capabilities),
         current_session: AtomicI64::new(initial_session.0),
         connected: AtomicBool::new(true),
         working: AtomicBool::new(false),
@@ -883,8 +1017,11 @@ async fn send_session_list(entry: &AgentEntry) {
 }
 
 async fn send_loaded_session(entry: &AgentEntry, id: SessionId) -> anyhow::Result<()> {
-    let sessions = entry.store.list_sessions(&entry.project_key).await?;
-    if !sessions.iter().any(|session| session.id == id) {
+    if !entry
+        .store
+        .session_belongs_to_project(id, &entry.project_key)
+        .await?
+    {
         anyhow::bail!("la sesión no pertenece a este agente");
     }
     let messages = entry.store.messages(id).await?;
@@ -1011,7 +1148,9 @@ async fn run_agent_worker(
     while let Some(command) = commands.recv().await {
         match command {
             AgentCommand::Prompt(prompt) => {
-                if let Err(error) = run_turn(&entry, &agent, session, prompt).await {
+                let mut message = Message::human(prompt.text);
+                message.parts.extend(prompt.images);
+                if let Err(error) = run_turn_with_message(&entry, &agent, session, message).await {
                     entry
                         .ui
                         .send(ServerEvent::Live(LiveEvent::Error {
@@ -1033,15 +1172,46 @@ async fn run_agent_worker(
             }
             AgentCommand::Session(command) => match command {
                 codeloom_tui::run::SessionCommand::Refresh => send_session_list(&entry).await,
+                codeloom_tui::run::SessionCommand::CancelSubagent(child) => {
+                    match agent.cancel_subagent(session, child).await {
+                        Ok(descriptor) if !descriptor.status.state.is_terminal() => {
+                            let _ = entry
+                                .ui
+                                .send(ServerEvent::Live(LiveEvent::RuntimeNotice {
+                                    message: format!(
+                                        "stop requested for subagent {}, current state: {:?}",
+                                        child.0, descriptor.status.state
+                                    ),
+                                }))
+                                .await;
+                        }
+                        Ok(_) => {}
+                        Err(error) => {
+                            let _ = entry
+                                .ui
+                                .send(ServerEvent::Live(LiveEvent::RuntimeNotice {
+                                    message: format!(
+                                        "could not stop subagent {}: {error}",
+                                        child.0
+                                    ),
+                                }))
+                                .await;
+                        }
+                    }
+                }
                 codeloom_tui::run::SessionCommand::Select(choice) => {
                     let selected = match choice {
                         codeloom_tui::app::SessionChoice::New => {
                             entry.store.create_session(&entry.project_key).await
                         }
                         codeloom_tui::app::SessionChoice::Resume(id) => {
-                            match entry.store.list_sessions(&entry.project_key).await {
-                                Ok(sessions) if sessions.iter().any(|item| item.id == id) => Ok(id),
-                                Ok(_) => {
+                            match entry
+                                .store
+                                .session_belongs_to_project(id, &entry.project_key)
+                                .await
+                            {
+                                Ok(true) => Ok(id),
+                                Ok(false) => {
                                     Err(CoreError::Store("session is outside this agent".into()))
                                 }
                                 Err(error) => Err(error),
@@ -1160,16 +1330,6 @@ fn set_active_cancel(entry: &AgentEntry, token: Option<CancellationToken>) {
     *entry.active_cancel.lock().unwrap() = token;
 }
 
-async fn run_turn(
-    entry: &AgentEntry,
-    agent: &codeloom_core::agent::AgentLoop,
-    session: SessionId,
-    prompt: String,
-) -> codeloom_core::error::Result<String> {
-    let cancel = CancellationToken::new();
-    run_turn_with_cancel(entry, agent, session, prompt, cancel).await
-}
-
 async fn run_turn_with_cancel(
     entry: &AgentEntry,
     agent: &codeloom_core::agent::AgentLoop,
@@ -1185,12 +1345,38 @@ async fn run_turn_with_cancel(
     outcome.map(|outcome| outcome.final_text)
 }
 
+async fn run_turn_with_message(
+    entry: &AgentEntry,
+    agent: &codeloom_core::agent::AgentLoop,
+    session: SessionId,
+    message: Message,
+) -> codeloom_core::error::Result<String> {
+    let cancel = CancellationToken::new();
+    set_active_cancel(entry, Some(cancel.clone()));
+    entry.working.store(true, Ordering::Release);
+    let outcome = agent.run_message(session, message, cancel).await;
+    set_active_cancel(entry, None);
+    entry.working.store(false, Ordering::Release);
+    outcome.map(|outcome| outcome.final_text)
+}
+
 async fn forward_agent_events(
     _manager: Arc<AgentManager>,
     entry: Arc<AgentEntry>,
     mut events: tokio::sync::broadcast::Receiver<LiveEvent>,
 ) {
     while let Ok(event) = events.recv().await {
+        if matches!(event, LiveEvent::AgentRegistryChanged { .. }) {
+            let previous = entry.runtime_capabilities.read().unwrap().clone();
+            let updated = runtime_capabilities(
+                &entry.registry.snapshot(),
+                previous.mcp_config,
+                previous.mcp_servers,
+                previous.rust_analyzer_available,
+            );
+            *entry.runtime_capabilities.write().unwrap() = updated.clone();
+            entry.ui.send(ServerEvent::Capabilities(updated)).await;
+        }
         match &event {
             LiveEvent::TurnStarted => {
                 *entry.status.write().unwrap() = "working".into();
@@ -2020,23 +2206,24 @@ where
                 entry.ui.disconnect().await;
                 return Some(entry.id.clone());
             }
+            let capabilities = ServerFrame::event(ServerEvent::Capabilities(
+                entry.runtime_capabilities.read().unwrap().clone(),
+            ));
+            if ipc::send(writer, &capabilities).await.is_err() {
+                entry.connected.store(false, Ordering::Release);
+                entry.ui.disconnect().await;
+                return Some(entry.id.clone());
+            }
             let session = SessionId(entry.current_session.load(Ordering::Acquire));
             if entry
                 .commands
                 .send(AgentCommand::Session(
-                    codeloom_tui::run::SessionCommand::Refresh,
+                    codeloom_tui::run::SessionCommand::Select(
+                        codeloom_tui::app::SessionChoice::Resume(session),
+                    ),
                 ))
                 .await
                 .is_err()
-                || entry
-                    .commands
-                    .send(AgentCommand::Session(
-                        codeloom_tui::run::SessionCommand::Select(
-                            codeloom_tui::app::SessionChoice::Resume(session),
-                        ),
-                    ))
-                    .await
-                    .is_err()
             {
                 return Some(entry.id.clone());
             }
@@ -2120,6 +2307,8 @@ mod runtime_tests {
             a2a_consumes: false,
             refresher: None,
             _watcher: StdMutex::new(Some(watcher)),
+            registry: registry.clone(),
+            runtime_capabilities: StdRwLock::new(codeloom_tui::app::RuntimeCapabilities::default()),
             current_session: AtomicI64::new(session.0),
             connected: AtomicBool::new(true),
             working: AtomicBool::new(false),
@@ -2128,6 +2317,34 @@ mod runtime_tests {
             activity: StdRwLock::new(None),
             jobs: StdMutex::new(HashSet::new()),
         })
+    }
+
+    #[tokio::test]
+    async fn runtime_loads_its_empty_session_and_rejects_another_agents_session() {
+        let directory = tempfile::tempdir().unwrap();
+        let project = directory.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        let store = Arc::new(
+            codeloom_core::session::sqlite::SqliteStore::open(
+                directory.path().join("sessions.db").to_str().unwrap(),
+            )
+            .await
+            .unwrap(),
+        );
+        let entry = test_entry(&project, store.clone()).await;
+        let (events, mut received) = mpsc::channel(4);
+        entry.ui.replace_client(events).await;
+
+        send_loaded_session(
+            &entry,
+            SessionId(entry.current_session.load(Ordering::Acquire)),
+        )
+        .await
+        .unwrap();
+        assert!(received.try_recv().is_ok());
+
+        let foreign = store.create_session("another-agent").await.unwrap();
+        assert!(send_loaded_session(&entry, foreign).await.is_err());
     }
 
     #[derive(Clone, Copy)]
@@ -2454,9 +2671,7 @@ fn validate_cwd(value: String) -> anyhow::Result<PathBuf> {
 async fn handle_client_command(entry: &AgentEntry, command: ClientCommand) -> anyhow::Result<()> {
     match command {
         ClientCommand::Prompt(prompt) => {
-            if prompt.is_empty() || prompt.len() > 32_000 {
-                anyhow::bail!("prompt must be 1 to 32000 bytes");
-            }
+            validate_user_prompt(&prompt)?;
             entry.commands.send(AgentCommand::Prompt(prompt)).await?;
         }
         ClientCommand::Wake => entry.commands.send(AgentCommand::Wake).await?,
@@ -2495,6 +2710,61 @@ async fn handle_client_command(entry: &AgentEntry, command: ClientCommand) -> an
             entry.ui.resolve_questions(id, answers).await
         }
         ClientCommand::Disconnect => anyhow::bail!("client disconnected"),
+    }
+    Ok(())
+}
+
+fn validate_user_prompt(prompt: &codeloom_tui::app::PendingPrompt) -> anyhow::Result<()> {
+    if prompt.text.is_empty() || prompt.text.len() > 32_000 {
+        anyhow::bail!("prompt must be 1 to 32000 bytes");
+    }
+    let images = prompt
+        .images
+        .iter()
+        .filter_map(|part| match part {
+            codeloom_core::message::ContentPart::Image {
+                mime_type,
+                data,
+                filename,
+            } => Some((mime_type.as_str(), data.as_str(), filename.as_str())),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if images.len() != prompt.images.len() || images.len() > codeloom_tui::app::MAX_PROMPT_IMAGES {
+        anyhow::bail!("prompt contains unsupported image parts");
+    }
+    let total_encoded = images.iter().map(|(_, data, _)| data.len()).sum::<usize>();
+    if total_encoded
+        > codeloom_tui::app::MAX_PROMPT_IMAGES * codeloom_tui::app::MAX_IMAGE_BASE64_BYTES
+        || images.iter().any(|(mime, data, name)| {
+            !matches!(
+                *mime,
+                "image/png" | "image/jpeg" | "image/gif" | "image/webp"
+            ) || data.len() > 2_796_204
+                || name.len() > 255
+                || name.contains('/')
+                || name.contains('\\')
+        })
+    {
+        anyhow::bail!("prompt images exceed supported limits");
+    }
+    for (mime, data, _) in &images {
+        use base64::Engine as _;
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(data)
+            .map_err(|_| anyhow::anyhow!("prompt image is not valid Base64"))?;
+        let valid = match *mime {
+            "image/png" => decoded.starts_with(b"\x89PNG\r\n\x1a\n"),
+            "image/jpeg" => decoded.starts_with(b"\xff\xd8\xff"),
+            "image/gif" => decoded.starts_with(b"GIF87a") || decoded.starts_with(b"GIF89a"),
+            "image/webp" => {
+                decoded.len() >= 12 && &decoded[..4] == b"RIFF" && &decoded[8..12] == b"WEBP"
+            }
+            _ => false,
+        };
+        if !valid || decoded.len() > codeloom_tui::app::MAX_IMAGE_BYTES {
+            anyhow::bail!("prompt image does not match its media type or size limit");
+        }
     }
     Ok(())
 }
@@ -2561,7 +2831,7 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
         }
     });
 
-    let (prompt_tx, mut prompt_rx) = mpsc::unbounded_channel::<String>();
+    let (prompt_tx, mut prompt_rx) = mpsc::unbounded_channel::<codeloom_tui::app::PendingPrompt>();
     let (wake_tx, mut wake_rx) = mpsc::unbounded_channel::<()>();
     let (compact_tx, mut compact_rx) = mpsc::unbounded_channel::<()>();
     let (settings_tx, mut settings_rx) = mpsc::unbounded_channel::<ProviderSettingsCommand>();
@@ -2646,6 +2916,9 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
                             api_key_configured,
                         )));
                     }
+                }
+                ServerEvent::Capabilities(capabilities) => {
+                    let _ = session_update_tx.send(SessionUpdate::Capabilities(capabilities));
                 }
                 ServerEvent::Error { message } if ready_tx.is_some() => {
                     if let Some(reply) = ready_tx.take() {
@@ -2843,6 +3116,25 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn validates_image_prompts_before_accepting_them_over_ipc() {
+        use base64::Engine as _;
+        let mut prompt = codeloom_tui::app::PendingPrompt {
+            text: "describe this".into(),
+            images: vec![codeloom_core::message::ContentPart::Image {
+                mime_type: "image/png".into(),
+                data: base64::engine::general_purpose::STANDARD.encode(b"\x89PNG\r\n\x1a\nsmall"),
+                filename: "sample.png".into(),
+            }],
+        };
+        assert!(validate_user_prompt(&prompt).is_ok());
+        let codeloom_core::message::ContentPart::Image { data, .. } = &mut prompt.images[0] else {
+            unreachable!();
+        };
+        *data = "not-base64".into();
+        assert!(validate_user_prompt(&prompt).is_err());
+    }
 
     #[test]
     fn runtime_peer_card_url_uses_a_direct_standard_card_path() {

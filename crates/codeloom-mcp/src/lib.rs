@@ -89,12 +89,17 @@ impl McpConfig {
         }
         Ok(config)
     }
+
+    pub fn server_ids(&self) -> Vec<String> {
+        self.mcp.servers.keys().cloned().collect()
+    }
 }
 
 #[derive(Default)]
 pub struct McpRuntime {
     tools: Vec<Arc<dyn Tool>>,
     issues: Vec<McpIssue>,
+    servers: Vec<McpServerStatus>,
     // Holding each service keeps the configured child process alive for its tools.
     _clients: Vec<Arc<Client>>,
 }
@@ -105,8 +110,17 @@ pub struct McpIssue {
     pub reason: &'static str,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct McpServerStatus {
+    pub server_id: String,
+    pub initialized: bool,
+    pub tool_count: usize,
+    pub issue: Option<String>,
+}
+
 impl McpRuntime {
     pub async fn start(config: McpConfig, cwd: &Path) -> Self {
+        let configured = config.server_ids();
         let mut pending = JoinSet::new();
         for (id, server) in config.mcp.servers {
             let cwd = cwd.to_path_buf();
@@ -118,19 +132,48 @@ impl McpRuntime {
             match result {
                 Ok(Ok((id, client, tools))) => {
                     tracing::info!(server = %id, tools = tools.len(), "MCP server connected");
+                    runtime.servers.push(McpServerStatus {
+                        server_id: id,
+                        initialized: true,
+                        tool_count: tools.len(),
+                        issue: None,
+                    });
                     runtime._clients.push(client);
                     runtime.tools.extend(tools);
                 }
                 Ok(Err((id, _))) => {
                     tracing::warn!(server = %id, "MCP server unavailable");
                     runtime.issues.push(McpIssue {
-                        server_id: id,
+                        server_id: id.clone(),
                         reason: "could not start or list tools",
+                    });
+                    runtime.servers.push(McpServerStatus {
+                        server_id: id,
+                        initialized: false,
+                        tool_count: 0,
+                        issue: Some("could not start or list tools".into()),
                     });
                 }
                 Err(_) => tracing::warn!("MCP connection task failed"),
             }
         }
+        for server_id in configured {
+            if !runtime
+                .servers
+                .iter()
+                .any(|status| status.server_id == server_id)
+            {
+                runtime.servers.push(McpServerStatus {
+                    server_id,
+                    initialized: false,
+                    tool_count: 0,
+                    issue: Some("connection task failed".into()),
+                });
+            }
+        }
+        runtime
+            .servers
+            .sort_by(|a, b| a.server_id.cmp(&b.server_id));
         runtime
     }
 
@@ -140,6 +183,10 @@ impl McpRuntime {
 
     pub fn issues(&self) -> &[McpIssue] {
         &self.issues
+    }
+
+    pub fn server_statuses(&self) -> &[McpServerStatus] {
+        &self.servers
     }
 }
 

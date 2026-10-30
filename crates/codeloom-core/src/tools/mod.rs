@@ -198,6 +198,39 @@ impl ToolRegistry {
             })
             .collect()
     }
+
+    /// Estimación informativa de los esquemas MCP incluidos en una petición concreta.
+    pub fn mcp_usage_components(
+        &self,
+        included: &[crate::provider::ToolSpec],
+    ) -> Vec<crate::session::UsageComponent> {
+        let mut by_server = BTreeMap::<String, usize>::new();
+        for spec in included {
+            let Some(tool) = self.tools.get(&spec.name) else {
+                continue;
+            };
+            let Some(server_id) = tool.mcp_server_id() else {
+                continue;
+            };
+            let tokens = crate::agent::compact::estimate_text_tokens(&spec.name)
+                .saturating_add(crate::agent::compact::estimate_text_tokens(
+                    &spec.description,
+                ))
+                .saturating_add(crate::agent::compact::estimate_text_tokens(
+                    &spec.input_schema.to_string(),
+                ));
+            let entry = by_server.entry(server_id.to_owned()).or_default();
+            *entry = entry.saturating_add(tokens);
+        }
+        by_server
+            .into_iter()
+            .map(|(id, input_tokens)| crate::session::UsageComponent {
+                kind: crate::session::UsageComponentKind::Mcp,
+                id,
+                input_tokens: input_tokens as u64,
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]

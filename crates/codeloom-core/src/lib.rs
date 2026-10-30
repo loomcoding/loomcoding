@@ -16,6 +16,7 @@ pub mod question;
 pub mod registry;
 pub mod remote_task;
 pub mod session;
+pub mod skills;
 pub mod subagent;
 pub mod subagent_input;
 pub mod task;

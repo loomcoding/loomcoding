@@ -14,6 +14,7 @@ use unicode_width::UnicodeWidthStr;
 
 /// Ventana visible de una línea lógica, en índices de grafema `[inicio, fin)`,
 /// junto con la columna del cursor dentro de la ventana.
+#[cfg(test)]
 fn line_window(line: &str, cursor: Option<usize>, width: usize) -> (usize, usize, usize) {
     let graphemes = line.graphemes(true).collect::<Vec<_>>();
     if width == 0 {
@@ -60,47 +61,11 @@ fn line_window(line: &str, cursor: Option<usize>, width: usize) -> (usize, usize
 /// Texto visible de una línea según `line_window`. Solo lo usan las pruebas:
 /// el render trabaja con rangos de bytes sobre el texto completo.
 #[cfg(test)]
+#[cfg(test)]
 fn line_view(line: &str, cursor: Option<usize>, width: usize) -> (String, usize) {
     let graphemes = line.graphemes(true).collect::<Vec<_>>();
     let (start, end, col) = line_window(line, cursor, width);
     (graphemes[start..end].concat(), col)
-}
-
-/// Índice de byte del grafema `grapheme` de `line` (o el final si no existe).
-fn grapheme_byte(line: &str, grapheme: usize) -> usize {
-    line.grapheme_indices(true)
-        .nth(grapheme)
-        .map_or(line.len(), |(i, _)| i)
-}
-
-/// Rangos de byte `[inicio, fin)` de cada línea lógica visible dentro de
-/// `text`, más la columna del cursor. Los rangos apuntan al texto completo del
-/// composer, así que el resaltado de la selección se calcula sobre el mismo
-/// texto que el cursor. El recorte horizontal es el de `line_window`.
-fn horizontal_windows(
-    text: &str,
-    cursor_row: usize,
-    cursor_index: usize,
-    width: usize,
-) -> (Vec<(usize, usize)>, usize) {
-    let mut graphemes_before = 0;
-    let mut line_start = 0;
-    let mut cursor_col = 0;
-    let mut ranges = Vec::new();
-    for (row, line) in text.split('\n').enumerate() {
-        let cursor = (row == cursor_row).then(|| cursor_index.saturating_sub(graphemes_before));
-        let (start, end, col) = line_window(line, cursor, width);
-        if row == cursor_row {
-            cursor_col = col;
-        }
-        ranges.push((
-            line_start + grapheme_byte(line, start),
-            line_start + grapheme_byte(line, end),
-        ));
-        graphemes_before += line.graphemes(true).count() + 1;
-        line_start += line.len() + 1;
-    }
-    (ranges, cursor_col)
 }
 
 /// Divide la fila `[row_start, row_end)` de `text` en (antes, seleccionado,
@@ -222,19 +187,13 @@ fn classic_inner(area: Rect) -> Rect {
     Block::default().borders(Borders::ALL).inner(area)
 }
 
-/// Rangos visibles de cada línea lógica del composer Classic y la columna del
-/// cursor, para un interior de `inner_width` celdas (descontado el prefijo).
-/// El render y la traducción posición→cursor usan esta misma función.
-fn classic_windows(composer: &Composer, inner_width: u16) -> (Vec<(usize, usize)>, usize) {
-    // Se usa el cursor pintado por última vez, no el vivo: así la traducción de
-    // una celda coincide con lo que se ve aunque el cursor se haya movido.
-    let cursor = composer.painted_cursor();
-    horizontal_windows(
-        composer.text(),
-        composer.row_of_grapheme(cursor),
-        cursor,
-        usize::from(inner_width.saturating_sub(CLASSIC_PREFIX)),
-    )
+fn classic_layout(composer: &Composer, width: u16) -> ComposerLayout {
+    classic_layout_at(composer, composer.cursor(), width)
+}
+
+fn classic_layout_at(composer: &Composer, cursor: usize, width: u16) -> ComposerLayout {
+    let content = usize::from(width.saturating_sub(4));
+    crate::state::composer_layout(composer.text(), cursor, content, content)
 }
 
 /// Composer con foco (borde de acento y cursor).
@@ -305,17 +264,17 @@ pub fn render_focused_with_model(
     let inner = classic_inner(area);
     frame.render_widget(block, area);
 
-    let (row, _) = composer.cursor_row_col();
+    let layout = classic_layout(composer, area.width);
+    let (row, col) = layout.cursor;
     let scroll = stable_top(
         composer.view_top(),
         row,
         usize::from(inner.height),
-        line_count,
+        layout.rows.len(),
     );
     composer.set_view_top(scroll);
     composer.mark_painted();
     let source = composer.text();
-    let (ranges, col) = classic_windows(composer, inner.width);
     let input = theme.style(StyleToken::Default);
     let selected = theme.style(StyleToken::Selection);
     let prompt = accent.add_modifier(Modifier::BOLD);
@@ -329,35 +288,44 @@ pub fn render_focused_with_model(
         ])]
     } else {
         let sel = composer.selection_bytes();
-        ranges
+        layout
+            .rows
             .iter()
-            .enumerate()
-            .map(|(line, &(start, end))| {
+            .skip(scroll)
+            .take(usize::from(inner.height))
+            .map(|visual_row| {
                 let mut spans = Vec::with_capacity(4);
-                spans.push(Span::styled(if line == 0 { "❯ " } else { "│ " }, prompt));
+                spans.push(Span::styled(
+                    match (visual_row.line == 0, visual_row.first) {
+                        (true, true) => "❯ ",
+                        (false, true) => "│ ",
+                        (_, false) => "  ",
+                    },
+                    prompt,
+                ));
                 push_parts(
                     &mut spans,
-                    split_selected(source, start, end, sel),
+                    split_selected(source, visual_row.start, visual_row.end, sel),
                     input,
                     selected,
                 );
-                if newline_selected(source, end, sel) {
+                if newline_selected(source, visual_row.end, sel) {
                     spans.push(Span::styled(" ", selected));
                 }
                 Line::from(spans)
             })
             .collect()
     };
-    let text = Paragraph::new(Text::from(lines))
-        .style(theme.style(StyleToken::Default))
-        .scroll((scroll.min(usize::from(u16::MAX)) as u16, 0));
+    let text = Paragraph::new(Text::from(lines)).style(theme.style(StyleToken::Default));
     frame.render_widget(text, inner);
 
     if !focused {
         return;
     }
     let row = row.saturating_sub(scroll);
-    if row < usize::from(inner.height) && col < usize::from(inner.width) {
+    if row < usize::from(inner.height)
+        && col < usize::from(inner.width.saturating_sub(CLASSIC_PREFIX))
+    {
         let x = inner.x + CLASSIC_PREFIX + col as u16;
         if x < inner.right() {
             frame.set_cursor_position((x, inner.y + row as u16));
@@ -421,20 +389,19 @@ pub fn scroll_cursor_by_rows(
             )
         }
         ComposerStyle::Classic => {
-            let current = composer.row_of_grapheme(composer.cursor());
-            let last = composer.lines().saturating_sub(1);
+            let layout = classic_layout(composer, area.width);
+            let current = layout.cursor.0;
+            let last = layout.rows.len().saturating_sub(1);
             let target = if down {
                 current.saturating_add(rows).min(last)
             } else {
                 current.saturating_sub(rows)
             };
-            let byte = composer
-                .text()
-                .split('\n')
-                .take(target)
-                .map(|line| line.len() + 1)
-                .sum();
-            (current, target, Some(byte))
+            (
+                current,
+                target,
+                layout.rows.get(target).map(|row| row.start),
+            )
         }
     };
     if target != current {
@@ -448,11 +415,16 @@ pub fn scroll_cursor_by_rows(
 pub fn height_for_look(theme: &Theme, composer: &Composer, width: u16, max: u16) -> u16 {
     let max = usize::from(max);
     let height = match theme.look.composer {
-        ComposerStyle::Classic => (composer.lines() + 2).min(max),
+        ComposerStyle::Classic => (classic_layout(composer, width.saturating_sub(1))
+            .rows
+            .len()
+            .min(3)
+            + 2)
+        .min(max),
         ComposerStyle::Crush => crush_layout(composer, content_width(width))
             .rows
             .len()
-            .clamp(3, 15)
+            .clamp(1, 3)
             .min(max),
     };
     height as u16
@@ -482,7 +454,7 @@ pub fn render_for_look(
                         scrollbar_area.height.saturating_sub(2),
                     ),
                     composer.view_top(),
-                    composer.lines(),
+                    classic_layout(composer, text_area.width).rows.len(),
                     viewport,
                     theme,
                 );
@@ -820,17 +792,23 @@ fn hit_crush(composer: &Composer, area: Rect, x: u16, y: u16) -> usize {
 /// fijó `classic_windows`, tras un prefijo de `CLASSIC_PREFIX` columnas.
 fn hit_classic(composer: &Composer, inner: Rect, x: u16, y: u16) -> usize {
     let text = composer.text();
-    let line = visible_index(
+    let layout = classic_layout_at(
+        composer,
+        composer.painted_cursor(),
+        inner.width.saturating_add(2),
+    );
+    let row = visible_index(
         composer.view_top(),
         usize::from(inner.height),
-        composer.lines(),
+        layout.rows.len(),
         usize::from(y.saturating_sub(inner.y)),
     );
-    // `classic_windows` tiene una entrada por línea lógica y `line < lines()`.
-    let (ranges, _) = classic_windows(composer, inner.width);
-    let (start, end) = ranges[line];
+    let visual_row = &layout.rows[row];
     let col = usize::from(x.saturating_sub(inner.x)).saturating_sub(usize::from(CLASSIC_PREFIX));
-    grapheme_count(text, boundary_in_span(text, start, end, col))
+    grapheme_count(
+        text,
+        boundary_in_span(text, visual_row.start, visual_row.end, col),
+    )
 }
 
 /// Índice de grafema del composer bajo la celda `(x, y)` del terminal: la misma
@@ -846,11 +824,8 @@ fn hit_classic(composer: &Composer, inner: Rect, x: u16, y: u16) -> usize {
 ///   de la siguiente, que es donde el render pinta el cursor. En una fila que
 ///   cierra un salto de línea lógico, el final queda antes del `\n`.
 /// - **Classic**, marco redondeado de una celda por lado; el interior es
-///   `classic_inner(area)`. Línea lógica `view_top + (y - interior.y)`, sin
-///   ajuste de línea. Cada línea empieza con un prefijo de `CLASSIC_PREFIX`
-///   columnas y muestra solo el tramo de `classic_windows` (recorte horizontal
-///   alrededor del cursor). Las celdas del borde se acotan al interior, y las
-///   posteriores al tramo, a su final.
+///   `classic_inner(area)`. Fila visual `view_top + (y - interior.y)`; las
+///   líneas largas se ajustan al ancho disponible después del prefijo.
 ///
 /// Un clic en la mitad derecha de un carácter ancho deja el cursor después de
 /// él. Devuelve `None` solo si el área es nula o, en Classic, si no queda
@@ -954,14 +929,14 @@ mod tests {
     }
 
     #[test]
-    fn scrolls_horizontally_to_keep_the_cursor_visible() {
+    fn wraps_long_lines_and_keeps_the_cursor_visible() {
         let mut c = Composer::new();
-        c.set_text("abcdefghijklmnop");
+        c.set_text("abcdefghijklmnopq");
         let mut term = Terminal::new(TestBackend::new(8, 3)).unwrap();
         term.draw(|f| render(f, f.area(), &c, &Theme::test()))
             .unwrap();
         let pos = term.backend_mut().get_cursor_position().unwrap();
-        assert_eq!(pos.x, 6);
+        assert_eq!(pos.x, 4);
         let visible = term
             .backend()
             .buffer()
@@ -969,7 +944,7 @@ mod tests {
             .iter()
             .map(|cell| cell.symbol())
             .collect::<String>();
-        assert!(visible.contains("nop"));
+        assert!(visible.contains("q"));
         assert!(!visible.contains("abcdef"));
     }
 
@@ -1033,24 +1008,79 @@ mod tests {
     }
 
     #[test]
-    fn classic_height_is_logical_lines_plus_frame_capped() {
+    fn classic_height_grows_to_three_lines_then_stays_capped() {
         let theme = Theme::test();
         let mut c = Composer::new();
+        c.set_text("a");
+        assert_eq!(height_for_look(&theme, &c, 40, 20), 3);
+        c.set_text("a\nb");
+        assert_eq!(height_for_look(&theme, &c, 40, 20), 4);
         c.set_text("a\nb\nc");
+        assert_eq!(height_for_look(&theme, &c, 40, 20), 5);
+        c.set_text("a\nb\nc\nd");
         assert_eq!(height_for_look(&theme, &c, 40, 20), 5);
         assert_eq!(height_for_look(&theme, &c, 40, 4), 4);
     }
 
     #[test]
-    fn crush_height_follows_wrapped_rows_between_3_and_15() {
+    fn classic_wraps_long_input_and_moves_cursor_to_next_visual_row() {
+        let theme = Theme::test();
+        let mut c = Composer::new();
+        c.set_text("abcdefghijkl");
+        assert_eq!(height_for_look(&theme, &c, 14, 20), 4);
+
+        let mut term = Terminal::new(TestBackend::new(14, 5)).unwrap();
+        term.draw(|f| render_focused(f, f.area(), &c, true, &theme))
+            .unwrap();
+        let screen = term
+            .backend()
+            .buffer()
+            .content
+            .chunks(14)
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(screen.contains("abcdefghij"));
+        assert!(screen.contains("kl"));
+        let cursor = term.backend_mut().get_cursor_position().unwrap();
+        assert_eq!((cursor.x, cursor.y), (5, 2));
+    }
+
+    #[test]
+    fn classic_keeps_the_last_three_lines_visible_after_overflow() {
+        let theme = Theme::test();
+        let mut c = Composer::new();
+        c.set_text("one\ntwo\nthree\nfour\nfive");
+        let mut term = Terminal::new(TestBackend::new(24, 5)).unwrap();
+        term.draw(|f| render_focused(f, f.area(), &c, true, &theme))
+            .unwrap();
+        let screen = term
+            .backend()
+            .buffer()
+            .content
+            .chunks(24)
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(screen.contains("three"));
+        assert!(screen.contains("four"));
+        assert!(screen.contains("five"));
+        assert!(!screen.contains("one"));
+        assert_eq!(term.backend_mut().get_cursor_position().unwrap().y, 3);
+    }
+
+    #[test]
+    fn crush_height_grows_to_three_visual_rows_then_stays_capped() {
         let theme = Theme::preset(crate::widgets::ThemePreset::Crush);
         let mut c = Composer::new();
+        assert_eq!(height_for_look(&theme, &c, 20, 30), 1);
+        c.set_text("a\nb");
+        assert_eq!(height_for_look(&theme, &c, 20, 30), 2);
+        c.set_text(&"x".repeat(100)); // muchas filas visuales por el ajuste de línea
         assert_eq!(height_for_look(&theme, &c, 20, 30), 3);
-        c.set_text(&"x".repeat(100)); // 100 celdas en filas de 18 -> 6 filas
-        assert_eq!(height_for_look(&theme, &c, 20, 30), 6);
         c.set_text(&"x\n".repeat(40));
-        assert_eq!(height_for_look(&theme, &c, 20, 30), 15);
-        assert_eq!(height_for_look(&theme, &c, 20, 8), 8);
+        assert_eq!(height_for_look(&theme, &c, 20, 30), 3);
+        assert_eq!(height_for_look(&theme, &c, 20, 2), 2);
     }
 
     #[test]
@@ -1457,21 +1487,21 @@ mod tests {
     }
 
     #[test]
-    fn classic_hit_follows_the_cursor_painted_last() {
+    fn classic_wrapped_hit_follows_the_cursor_painted_last() {
         let theme = Theme::test();
         let mut c = Composer::new();
-        // Línea más ancha que el interior: el recorte horizontal sigue al cursor.
+        // Línea larga: el clic sigue la fila visual que se pintó.
         c.set_text("abcdefghijklmnopqrstuvwxyz0123456789");
         let area = Rect::new(0, 0, 20, 5);
         let _ = cursor_after_render(&c, area, &theme);
-        // Primera celda visible de la ventana pintada (prefijo de 2 columnas).
-        let first = hit_index(&theme, &c, area, 3, 1).unwrap();
-        assert!(first > 0, "el render recorta la línea alrededor del cursor");
+        // Tercera fila visual (inicia en el grafema 32).
+        let first = hit_index(&theme, &c, area, 3, 3).unwrap();
+        assert_eq!(first, 32);
         // Movemos el cursor sin repintar: la ventana pintada no debe cambiar.
         c.set_cursor(0);
-        for col in 0..15 {
+        for col in 0..5 {
             assert_eq!(
-                hit_index(&theme, &c, area, 3 + col, 1),
+                hit_index(&theme, &c, area, 3 + col, 3),
                 Some(first + usize::from(col)),
                 "la celda {col} debe corresponder a lo último pintado"
             );
@@ -1509,15 +1539,15 @@ mod tests {
     }
 
     #[test]
-    fn hit_classic_horizontal_scroll() {
+    fn hit_classic_wrapped_rows() {
         let theme = Theme::test();
         let mut c = Composer::new();
-        c.set_text("abcdefghijklmnop"); // cursor al final: la vista muestra "lmnop"
-        let area = Rect::new(0, 0, 10, 3); // interior de 8 celdas, 6 para el texto
-        assert_eq!(hit_index(&theme, &c, area, 3, 1), Some(11)); // «l», primera visible
-        assert_eq!(hit_index(&theme, &c, area, 5, 1), Some(13)); // antes de la «n»
-        assert_eq!(hit_index(&theme, &c, area, 7, 1), Some(15)); // antes de la «p»
-        assert_eq!(hit_index(&theme, &c, area, 8, 1), Some(16)); // fin de la línea
+        c.set_text("abcdefghijklmnop");
+        let area = Rect::new(0, 0, 10, 3); // seis caracteres por fila tras el prefijo
+        assert_eq!(hit_index(&theme, &c, area, 3, 1), Some(0)); // «a»
+        assert_eq!(hit_index(&theme, &c, area, 5, 1), Some(2)); // «c»
+        assert_eq!(hit_index(&theme, &c, area, 7, 1), Some(4)); // «e»
+        assert_eq!(hit_index(&theme, &c, area, 8, 1), Some(5)); // fin de fila
     }
 
     #[test]

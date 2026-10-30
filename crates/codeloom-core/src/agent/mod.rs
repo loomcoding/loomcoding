@@ -8,9 +8,9 @@ pub mod stop;
 use crate::budget::{budget_crossings, BudgetConfig};
 use crate::catalog::Catalog;
 use crate::config::{CodeLoomConfig, ConfirmDelegation};
-use crate::error::Result;
+use crate::error::{CoreError, Result};
 use crate::event::{Activation, EventBus, LiveEvent};
-use crate::message::{ContentPart, FinishReason, Message, Role, Usage};
+use crate::message::{ContentPart, FinishReason, Message, MessageOrigin, Role, Usage};
 use crate::permission::PermissionService;
 use crate::provider::{ProfileProviderResolver, Provider, ProviderRequest, StreamChunk};
 use crate::session::{SessionId, SessionStore, UsageRecord};
@@ -18,11 +18,67 @@ use crate::tools::spill::ToolSpill;
 use crate::tools::{limit_bytes, ToolCtx, ToolRegistry, MAX_NOTICE_BYTES, MAX_TOOL_OUTPUT_BYTES};
 use futures::StreamExt;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock};
 use tokio_util::sync::CancellationToken;
 
 const MAX_PROVIDER_STATE_BYTES: usize = 64 * 1024;
 const MAX_TURN_PROVIDER_STATE_BYTES: usize = 256 * 1024;
+static NEXT_USAGE_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
+
+fn estimate_provider_request_tokens(request: &ProviderRequest) -> u32 {
+    let messages = request
+        .messages
+        .iter()
+        .map(compact::estimate_message_tokens)
+        .sum::<usize>();
+    let tools = request
+        .tools
+        .iter()
+        .map(|tool| {
+            compact::estimate_text_tokens(&tool.name)
+                + compact::estimate_text_tokens(&tool.description)
+                + compact::estimate_text_tokens(&tool.input_schema.to_string())
+        })
+        .sum::<usize>();
+    let estimated = compact::estimate_text_tokens(&request.system)
+        .saturating_add(messages)
+        .saturating_add(tools)
+        .saturating_add(request.messages.len().saturating_mul(3));
+    u32::try_from(estimated).unwrap_or(u32::MAX)
+}
+
+fn estimate_stream_output(text: &str, calls: &[(String, String, serde_json::Value)]) -> u32 {
+    let calls = calls
+        .iter()
+        .map(|(_, name, input)| {
+            compact::estimate_text_tokens(name) + compact::estimate_text_tokens(&input.to_string())
+        })
+        .sum::<usize>();
+    u32::try_from(compact::estimate_text_tokens(text).saturating_add(calls)).unwrap_or(u32::MAX)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn publish_usage_progress(
+    bus: &EventBus,
+    request_id: u64,
+    model: &str,
+    provider_usage: Option<Usage>,
+    provider_final: bool,
+    estimated_usage: &Usage,
+    finished: bool,
+    components: &[crate::session::UsageComponent],
+) {
+    bus.publish(LiveEvent::UsageProgress {
+        request_id,
+        model: model.to_owned(),
+        provider_usage,
+        provider_final,
+        estimated_usage: estimated_usage.clone(),
+        finished,
+        components: components.to_vec(),
+    });
+}
 
 /// Tope de la sección «Available agents» del prompt de sistema, que crece con el número de
 /// agentes del registro y viaja en cada petición.
@@ -58,13 +114,11 @@ pub struct TurnOutcome {
     pub steps: usize,
 }
 
-/// Registrador del consumo de una respuesta. Lleva copias compartidas del almacén, la
-/// configuración, el catálogo y el bus, de modo que es `'static` y puede moverse a una tarea
+/// Registrador del consumo de una respuesta. Lleva copias compartidas del almacén, el catálogo y el bus, de modo que es `'static` y puede moverse a una tarea
 /// `tokio::spawn`. Su comportamiento es el del antiguo `AgentLoop::record_usage`.
 #[derive(Clone)]
 struct UsageRecorder {
     store: Arc<dyn SessionStore>,
-    config: Arc<RwLock<CodeLoomConfig>>,
     catalog: Arc<RwLock<Catalog>>,
     budget: BudgetConfig,
     /// Sesión raíz cuya familia (ella y sus hijos) suma al presupuesto; `None` si es la propia.
@@ -73,21 +127,26 @@ struct UsageRecorder {
 }
 
 impl UsageRecorder {
-    /// Guarda el apunte de consumo de una respuesta, con el modelo y la URL de la configuración
-    /// vigente y los precios del catálogo en ese instante. Un fallo se registra y no corta el turno.
-    async fn record(&self, session: SessionId, usage: &crate::message::Usage) {
-        let (model, base_url) = {
-            let config = self.config.read().unwrap();
-            (config.model.clone(), config.provider.base_url.clone())
-        };
+    /// Guarda el consumo con el modelo y la URL capturados al crear la petición. Un fallo de escritura no corta el turno.
+    #[allow(clippy::too_many_arguments)]
+    async fn record(
+        &self,
+        session: SessionId,
+        model: &str,
+        base_url: &str,
+        usage: &crate::message::Usage,
+        source: crate::message::UsageSource,
+        is_final: bool,
+        components: &[crate::session::UsageComponent],
+    ) {
         let prices = self
             .catalog
             .read()
             .ok()
-            .and_then(|catalog| catalog.prices(&base_url, &model));
+            .and_then(|catalog| catalog.prices(base_url, model));
         let record = UsageRecord {
             session,
-            model,
+            model: model.to_owned(),
             input_tokens: u64::from(usage.input_tokens),
             output_tokens: u64::from(usage.output_tokens),
             input_price: prices.map(|(input, _)| input),
@@ -95,6 +154,9 @@ impl UsageRecorder {
             reported_cost_usd: usage
                 .reported_cost_usd
                 .filter(|cost| cost.is_finite() && *cost >= 0.0),
+            source,
+            is_final,
+            components: components.to_vec(),
             created_at_ms: crate::message::now_ms(),
         };
         // Con presupuesto, el acumulado previo se lee antes de guardar el apunte para comparar
@@ -150,6 +212,8 @@ pub struct AgentLoop {
     /// Prompt de sistema propio del agente (perfil). Se añade tras el contexto del proyecto;
     /// `None` o vacío no añade nada.
     system_extra: Option<String>,
+    /// Componentes estimados del prompt propio (por ejemplo, fragmentos de skills).
+    system_usage_components: Vec<crate::session::UsageComponent>,
     /// Registro de agentes compartido con los subagentes; `None` deja solo el agente `default`.
     registry: Option<Arc<crate::registry::AgentRegistry>>,
     /// Modo de confirmación al delegar; viaja a `RegistrySnapshot::prompt_section` en cada turno.
@@ -181,13 +245,15 @@ pub struct AgentLoop {
 async fn resumir_en_segundo_plano(
     finisher: background::Finisher,
     provider: Arc<dyn Provider>,
-    model: String,
+    request: (String, String),
     historial: Vec<Message>,
     recorder: UsageRecorder,
     bus: EventBus,
     session: SessionId,
 ) {
     let token = finisher.cancel_token();
+    let (model, base_url) = request;
+    let record_model = model.clone();
     let resultado = generate_summary(provider, model, &historial, &token).await;
     // Solo un resumen entero y de una tarea no cancelada queda listo; todo lo demás se descarta.
     let utilizable = matches!(&resultado, Ok((Some(_), _))) && !token.is_cancelled();
@@ -200,7 +266,17 @@ async fn resumir_en_segundo_plano(
             if let Some(usd) = uso.reported_cost_usd {
                 bus.publish(LiveEvent::ReportedCost { usd });
             }
-            recorder.record(session, uso).await;
+            recorder
+                .record(
+                    session,
+                    &record_model,
+                    &base_url,
+                    uso,
+                    crate::message::UsageSource::Provider,
+                    true,
+                    &[],
+                )
+                .await;
         }
         // Un resumen de una tarea cancelada no se anuncia: su slot ya se ha vaciado.
         if let (Some(resumen), false) = (resumen, token.is_cancelled()) {
@@ -217,6 +293,18 @@ async fn resumir_en_segundo_plano(
 }
 
 impl AgentLoop {
+    pub async fn cancel_subagent(
+        &self,
+        parent: SessionId,
+        child: SessionId,
+    ) -> crate::error::Result<crate::session::SubagentDescriptor> {
+        self.subagents
+            .as_ref()
+            .ok_or_else(|| crate::error::CoreError::Tool("subagents are unavailable".into()))?
+            .cancel(parent, child)
+            .await
+    }
+
     pub fn new(
         provider: Arc<dyn Provider>,
         store: Arc<dyn SessionStore>,
@@ -244,6 +332,7 @@ impl AgentLoop {
             subagents: None,
             catalog: Arc::new(RwLock::new(Catalog::default())),
             system_extra: None,
+            system_usage_components: Vec::new(),
             registry: None,
             delegation_confirm: ConfirmDelegation::default(),
             router: None,
@@ -282,6 +371,14 @@ impl AgentLoop {
     /// proyecto. `None` deja el sistema tal cual, como antes de existir esta opción.
     pub fn with_system_extra(mut self, texto: Option<String>) -> Self {
         self.system_extra = texto;
+        self
+    }
+
+    pub fn with_system_usage_components(
+        mut self,
+        components: Vec<crate::session::UsageComponent>,
+    ) -> Self {
+        self.system_usage_components = components;
         self
     }
 
@@ -493,7 +590,6 @@ impl AgentLoop {
     fn recorder(&self) -> UsageRecorder {
         UsageRecorder {
             store: self.store.clone(),
-            config: self.config.clone(),
             catalog: self.catalog.clone(),
             budget: self.budget.clone(),
             family: self.budget_family,
@@ -502,8 +598,22 @@ impl AgentLoop {
     }
 
     /// Guarda el apunte de consumo de una respuesta. Véase `UsageRecorder::record`.
-    async fn record_usage(&self, session: SessionId, usage: &crate::message::Usage) {
-        self.recorder().record(session, usage).await;
+    #[allow(clippy::too_many_arguments)]
+    async fn record_usage(
+        &self,
+        session: SessionId,
+        model: &str,
+        base_url: &str,
+        usage: &crate::message::Usage,
+        source: crate::message::UsageSource,
+        is_final: bool,
+        components: &[crate::session::UsageComponent],
+    ) {
+        self.recorder()
+            .record(
+                session, model, base_url, usage, source, is_final, components,
+            )
+            .await;
     }
 
     pub fn jobs(&self) -> Arc<dyn crate::job::JobRegistry> {
@@ -522,9 +632,58 @@ impl AgentLoop {
         user_prompt: String,
         cancel: CancellationToken,
     ) -> Result<TurnOutcome> {
+        self.run_with_origin(session, user_prompt, cancel, MessageOrigin::Human)
+            .await
+    }
+
+    /// Ejecuta un turno iniciado por una persona con texto y contenido adjunto.
+    pub async fn run_message(
+        &self,
+        session: SessionId,
+        mut message: Message,
+        cancel: CancellationToken,
+    ) -> Result<TurnOutcome> {
+        if message.role != crate::message::Role::User {
+            return Err(CoreError::Provider(
+                "prompt message must have user role".into(),
+            ));
+        }
+        message.origin = MessageOrigin::Human;
+        self.run_with_message(session, message, cancel).await
+    }
+
+    /// Ejecuta un turno cuyo prompt fue asignado por CodeLoom (por ejemplo, a un subagente).
+    pub(crate) async fn run_internal(
+        &self,
+        session: SessionId,
+        prompt: String,
+        cancel: CancellationToken,
+    ) -> Result<TurnOutcome> {
+        self.run_with_origin(session, prompt, cancel, MessageOrigin::Internal)
+            .await
+    }
+
+    async fn run_with_origin(
+        &self,
+        session: SessionId,
+        user_prompt: String,
+        cancel: CancellationToken,
+        origin: MessageOrigin,
+    ) -> Result<TurnOutcome> {
+        let mut message = Message::user(user_prompt);
+        message.origin = origin;
+        self.run_with_message(session, message, cancel).await
+    }
+
+    async fn run_with_message(
+        &self,
+        session: SessionId,
+        user_message: Message,
+        cancel: CancellationToken,
+    ) -> Result<TurnOutcome> {
         self.bus.publish(LiveEvent::TurnStarted);
         let result = match self.flush_subagent_notices(session).await {
-            Ok(_) => self.run_turn(session, Some(user_prompt), cancel).await,
+            Ok(_) => self.run_turn(session, Some(user_message), cancel).await,
             Err(error) => Err(error),
         };
         self.publish_turn_result(&result);
@@ -573,14 +732,15 @@ impl AgentLoop {
     async fn run_turn(
         &self,
         session: SessionId,
-        user_prompt: Option<String>,
+        user_prompt: Option<Message>,
         cancel: CancellationToken,
     ) -> Result<TurnOutcome> {
         let provider = self.provider.read().unwrap().clone();
         let config = self.config.read().unwrap().clone();
         let mut history = self.store.messages(session).await?;
-        if let Some(prompt) = user_prompt {
-            let user = Message::user(prompt);
+        if let Some(mut user) = user_prompt {
+            user.id = 0;
+            user.created_at_ms = crate::message::now_ms();
             self.store.append_message(session, &user).await?;
             self.bus.publish(LiveEvent::MessageAdded(user.clone()));
             history.push(user);
@@ -643,7 +803,7 @@ impl AgentLoop {
                         tokio::spawn(resumir_en_segundo_plano(
                             finisher,
                             provider.clone(),
-                            config.model.clone(),
+                            (config.model.clone(), config.provider.base_url.clone()),
                             history.clone(),
                             self.recorder(),
                             self.bus.clone(),
@@ -687,6 +847,19 @@ impl AgentLoop {
                 step: steps,
                 max_steps: config.max_steps,
             });
+            let workflow_active = if self.subagents.is_some() {
+                self.store
+                    .active_development_workflow(session)
+                    .await?
+                    .is_some()
+            } else {
+                false
+            };
+            let tools = if workflow_active {
+                self.tools.only(dispatch::WORKFLOW_PARENT_TOOLS).specs()
+            } else {
+                self.tools.specs()
+            };
             let req = ProviderRequest {
                 model: config.model.clone(),
                 system: system.clone(),
@@ -694,18 +867,76 @@ impl AgentLoop {
                     &compact::effective_history(&history),
                     clear::KEEP_TOOL_RESULTS,
                 ),
-                tools: self.tools.specs(),
+                tools,
                 temperature: 0.0,
                 max_tokens: 4096,
                 effort: config.effort.clone(),
                 programmatic_tool_calling: programmatic_tool_calling_enabled(),
             };
+            let request_id = NEXT_USAGE_REQUEST_ID.fetch_add(1, Ordering::Relaxed);
+            let request_model = req.model.clone();
+            let request_base_url = config.provider.base_url.clone();
+            let mut request_components = self.tools.mcp_usage_components(&req.tools);
+            request_components.extend(self.system_usage_components.iter().cloned());
+            request_components
+                .sort_by(|left, right| (left.kind, &left.id).cmp(&(right.kind, &right.id)));
+            let estimated_input = estimate_provider_request_tokens(&req);
+            self.bus.publish(LiveEvent::RuntimeNotice {
+                message: format!("provider request started for `{}`", config.model),
+            });
             let abierto = tokio::select! {
-                _ = cancel.cancelled() => break,
-                result = provider.stream(req, cancel.clone()) => result,
+                _ = cancel.cancelled() => None,
+                result = provider.stream(req, cancel.clone()) => Some(result),
+            };
+            let Some(abierto) = abierto else {
+                let estimate = Usage {
+                    input_tokens: estimated_input,
+                    output_tokens: 0,
+                    reported_cost_usd: None,
+                };
+                self.record_usage(
+                    session,
+                    &request_model,
+                    &request_base_url,
+                    &estimate,
+                    crate::message::UsageSource::Estimate,
+                    true,
+                    &request_components,
+                )
+                .await;
+                publish_usage_progress(
+                    &self.bus,
+                    request_id,
+                    &request_model,
+                    None,
+                    false,
+                    &estimate,
+                    true,
+                    &request_components,
+                );
+                break;
             };
             let mut stream = match abierto {
-                Ok(stream) => stream,
+                Ok(stream) => {
+                    self.bus.publish(LiveEvent::RuntimeNotice {
+                        message: format!("provider response received for `{}`", config.model),
+                    });
+                    publish_usage_progress(
+                        &self.bus,
+                        request_id,
+                        &request_model,
+                        None,
+                        false,
+                        &Usage {
+                            input_tokens: estimated_input,
+                            output_tokens: 0,
+                            reported_cost_usd: None,
+                        },
+                        false,
+                        &request_components,
+                    );
+                    stream
+                }
                 // Red de seguridad de la compactación: la estimación local pudo quedarse corta y el
                 // proveedor rechaza la petición por exceder la ventana. Se resume por fuerza y se
                 // reintenta, con el mismo tope de compactaciones por turno que la vía normal, de
@@ -732,12 +963,41 @@ impl AgentLoop {
                         Ok(false) | Err(_) => return Err(error),
                     }
                 }
-                Err(error) => return Err(error),
+                Err(error) => {
+                    let estimate = Usage {
+                        input_tokens: estimated_input,
+                        output_tokens: 0,
+                        reported_cost_usd: None,
+                    };
+                    self.record_usage(
+                        session,
+                        &request_model,
+                        &request_base_url,
+                        &estimate,
+                        crate::message::UsageSource::Estimate,
+                        true,
+                        &request_components,
+                    )
+                    .await;
+                    publish_usage_progress(
+                        &self.bus,
+                        request_id,
+                        &request_model,
+                        None,
+                        false,
+                        &estimate,
+                        true,
+                        &request_components,
+                    );
+                    return Err(error);
+                }
             };
             let mut text_buf = String::new();
             let mut tool_calls: Vec<(String, String, serde_json::Value)> = Vec::new();
-            let mut usage: Option<Usage> = None;
+            let mut provider_usage: Option<Usage> = None;
+            let mut provider_usage_final = false;
             let mut provider_state = None;
+            let mut stream_error = None;
             let mut finish = FinishReason::Stop;
 
             while let Some(chunk) = tokio::select! {
@@ -748,24 +1008,88 @@ impl AgentLoop {
                     StreamChunk::TextDelta(t) => {
                         text_buf.push_str(&t);
                         self.bus.publish(LiveEvent::Delta { text: t });
+                        publish_usage_progress(
+                            &self.bus,
+                            request_id,
+                            &request_model,
+                            provider_usage.clone(),
+                            provider_usage_final,
+                            &Usage {
+                                input_tokens: estimated_input,
+                                output_tokens: estimate_stream_output(&text_buf, &tool_calls),
+                                reported_cost_usd: None,
+                            },
+                            false,
+                            &request_components,
+                        );
                     }
                     StreamChunk::ReasoningDelta(r) => {
                         self.bus.publish(LiveEvent::ReasoningDelta { text: r });
                     }
                     StreamChunk::Usage(chunk) => {
-                        let total = usage.get_or_insert(Usage {
+                        provider_usage = Some(chunk);
+                        provider_usage_final = true;
+                        publish_usage_progress(
+                            &self.bus,
+                            request_id,
+                            &request_model,
+                            provider_usage.clone(),
+                            true,
+                            &Usage {
+                                input_tokens: estimated_input,
+                                output_tokens: estimate_stream_output(&text_buf, &tool_calls),
+                                reported_cost_usd: None,
+                            },
+                            false,
+                            &request_components,
+                        );
+                    }
+                    StreamChunk::UsageUpdate(update) => {
+                        let total = provider_usage.get_or_insert(Usage {
                             input_tokens: 0,
                             output_tokens: 0,
                             reported_cost_usd: None,
                         });
-                        total.input_tokens = total.input_tokens.saturating_add(chunk.input_tokens);
-                        total.output_tokens =
-                            total.output_tokens.saturating_add(chunk.output_tokens);
+                        if let Some(input) = update.input_tokens {
+                            total.input_tokens = total.input_tokens.max(input);
+                        }
+                        if let Some(output) = update.output_tokens {
+                            total.output_tokens = total.output_tokens.max(output);
+                        }
                         total.reported_cost_usd =
-                            chunk.reported_cost_usd.or(total.reported_cost_usd);
+                            update.reported_cost_usd.or(total.reported_cost_usd);
+                        provider_usage_final |= update.final_update;
+                        publish_usage_progress(
+                            &self.bus,
+                            request_id,
+                            &request_model,
+                            provider_usage.clone(),
+                            provider_usage_final,
+                            &Usage {
+                                input_tokens: estimated_input,
+                                output_tokens: estimate_stream_output(&text_buf, &tool_calls),
+                                reported_cost_usd: None,
+                            },
+                            false,
+                            &request_components,
+                        );
                     }
                     StreamChunk::ToolCallComplete { id, name, input } => {
                         tool_calls.push((id, name, input));
+                        publish_usage_progress(
+                            &self.bus,
+                            request_id,
+                            &request_model,
+                            provider_usage.clone(),
+                            provider_usage_final,
+                            &Usage {
+                                input_tokens: estimated_input,
+                                output_tokens: estimate_stream_output(&text_buf, &tool_calls),
+                                reported_cost_usd: None,
+                            },
+                            false,
+                            &request_components,
+                        );
                         tool_calls_this_turn = tool_calls_this_turn.saturating_add(1);
                         if tool_calls.len() > 32 || tool_calls_this_turn > 64 {
                             return Err(crate::error::CoreError::Provider(
@@ -796,25 +1120,61 @@ impl AgentLoop {
                     StreamChunk::ProviderNotice(message) => {
                         self.bus.publish(LiveEvent::RuntimeNotice { message });
                     }
+                    StreamChunk::Error(error) => {
+                        stream_error = Some(error);
+                        break;
+                    }
                     StreamChunk::Done(r) => finish = r,
                     _ => {}
                 }
             }
 
-            // Un apunte por respuesta: el proveedor puede repartir su uso en varios fragmentos,
-            // así que se guarda el total acumulado al cerrar el flujo.
-            if let Some(total) = &usage {
-                self.record_usage(session, total).await;
-                self.bus.publish(LiveEvent::Usage {
-                    input_tokens: total.input_tokens,
-                    output_tokens: total.output_tokens,
-                });
-                if let Some(usd) = total.reported_cost_usd {
-                    self.bus.publish(LiveEvent::ReportedCost { usd });
-                }
+            let estimate = Usage {
+                input_tokens: estimated_input,
+                output_tokens: estimate_stream_output(&text_buf, &tool_calls),
+                reported_cost_usd: None,
+            };
+            let usage_source = if provider_usage_final {
+                crate::message::UsageSource::Provider
+            } else {
+                crate::message::UsageSource::Estimate
+            };
+            let stored_usage = if provider_usage_final {
+                provider_usage.as_ref().unwrap_or(&estimate)
+            } else {
+                &estimate
+            };
+            self.record_usage(
+                session,
+                &request_model,
+                &request_base_url,
+                stored_usage,
+                usage_source,
+                true,
+                &request_components,
+            )
+            .await;
+            publish_usage_progress(
+                &self.bus,
+                request_id,
+                &request_model,
+                provider_usage.clone(),
+                provider_usage_final,
+                &estimate,
+                true,
+                &request_components,
+            );
+            if let Some(usd) = provider_usage
+                .as_ref()
+                .and_then(|usage| usage.reported_cost_usd)
+            {
+                self.bus.publish(LiveEvent::ReportedCost { usd });
             }
 
             if cancel.is_cancelled() {
+                finish = FinishReason::Error;
+            }
+            if stream_error.is_some() {
                 finish = FinishReason::Error;
             }
 
@@ -824,16 +1184,18 @@ impl AgentLoop {
                     text: text_buf.clone(),
                 });
             }
-            for (id, name, input) in &tool_calls {
-                parts.push(ContentPart::ToolCall {
-                    id: id.clone(),
-                    name: name.clone(),
-                    input: input.clone(),
-                });
+            if stream_error.is_none() {
+                for (id, name, input) in &tool_calls {
+                    parts.push(ContentPart::ToolCall {
+                        id: id.clone(),
+                        name: name.clone(),
+                        input: input.clone(),
+                    });
+                }
             }
             parts.push(ContentPart::Finish { reason: finish });
             let mut assistant = Message::assistant(parts);
-            assistant.usage = usage;
+            assistant.usage = provider_usage.clone().filter(|_| provider_usage_final);
             assistant.provider_state = provider_state.clone();
             self.store.append_message(session, &assistant).await?;
             self.bus.publish(LiveEvent::MessageAdded(assistant.clone()));
@@ -842,6 +1204,9 @@ impl AgentLoop {
 
             if cancel.is_cancelled() {
                 break;
+            }
+            if let Some(error) = stream_error {
+                return Err(crate::error::CoreError::Provider(error));
             }
 
             if tool_calls.is_empty() {
@@ -893,7 +1258,15 @@ impl AgentLoop {
                 self.bus.clone(),
             )
             .await;
+            let mut wait_for_workflow = false;
             for (id, out) in results {
+                if !out.is_error
+                    && by_id.get(&id).is_some_and(|(name, input)| {
+                        name == "development_workflow" && input["action"] == "start"
+                    })
+                {
+                    wait_for_workflow = true;
+                }
                 if !out.is_error {
                     if let Some((name, input)) = by_id.get(&id) {
                         if name == "edit" {
@@ -922,6 +1295,9 @@ impl AgentLoop {
                 self.bus.publish(LiveEvent::MessageAdded(tr.clone()));
                 history.push(tr);
             }
+            if wait_for_workflow {
+                break;
+            }
         }
 
         Ok(TurnOutcome {
@@ -944,8 +1320,10 @@ impl AgentLoop {
         cancel: &CancellationToken,
     ) -> Result<bool> {
         let provider = self.provider.read().unwrap().clone();
-        let model = self.config.read().unwrap().model.clone();
-        let (resumen, uso) = generate_summary(provider, model, history, cancel).await?;
+        let config = self.config.read().unwrap().clone();
+        let model = config.model;
+        let base_url = config.provider.base_url;
+        let (resumen, uso) = generate_summary(provider, model.clone(), history, cancel).await?;
 
         // La llamada de resumen cuesta lo mismo que cualquier otra, se acepte el resumen o no:
         // el consumo se apunta siempre para que el coste de compactar sea visible. Se publica como
@@ -958,7 +1336,16 @@ impl AgentLoop {
             if let Some(usd) = uso.reported_cost_usd {
                 self.bus.publish(LiveEvent::ReportedCost { usd });
             }
-            self.record_usage(session, uso).await;
+            self.record_usage(
+                session,
+                &model,
+                &base_url,
+                uso,
+                crate::message::UsageSource::Provider,
+                true,
+                &[],
+            )
+            .await;
         }
         let Some(resumen) = resumen else {
             return Ok(false);
@@ -1377,6 +1764,57 @@ mod tests {
         }
     }
 
+    struct ToolNamesProvider {
+        seen: Mutex<Vec<Vec<String>>>,
+    }
+
+    #[async_trait]
+    impl Provider for ToolNamesProvider {
+        fn capabilities(&self) -> Capabilities {
+            Capabilities {
+                tool_use: true,
+                reasoning: false,
+                streaming: true,
+            }
+        }
+        async fn stream(
+            &self,
+            req: ProviderRequest,
+            _cancel: CancellationToken,
+        ) -> Result<ProviderStream> {
+            self.seen
+                .lock()
+                .unwrap()
+                .push(req.tools.into_iter().map(|tool| tool.name).collect());
+            Ok(Box::pin(futures::stream::iter(vec![StreamChunk::Done(
+                FinishReason::Stop,
+            )])))
+        }
+    }
+
+    struct NamedTool(&'static str);
+
+    #[async_trait]
+    impl Tool for NamedTool {
+        fn name(&self) -> &str {
+            self.0
+        }
+        fn description(&self) -> &str {
+            "test tool"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        async fn run(
+            &self,
+            _ctx: ToolCtx,
+            _input: serde_json::Value,
+            _cancel: CancellationToken,
+        ) -> Result<ToolOutput> {
+            Ok(ToolOutput::ok("ok"))
+        }
+    }
+
     struct Noop;
 
     #[async_trait]
@@ -1461,6 +1899,234 @@ mod tests {
         assert_eq!(outcome.final_text, "done");
         let msgs = store.messages(sid).await.unwrap();
         assert!(msgs.iter().any(|m| m.role == Role::Tool));
+    }
+
+    #[tokio::test]
+    async fn successful_workflow_start_ends_the_parent_turn() {
+        let provider = Arc::new(QueueProvider {
+            scripts: Mutex::new(
+                vec![vec![
+                    StreamChunk::TextDelta("started".into()),
+                    StreamChunk::ToolCallComplete {
+                        id: "start".into(),
+                        name: "development_workflow".into(),
+                        input: serde_json::json!({"action":"start"}),
+                    },
+                    StreamChunk::Done(FinishReason::ToolCalls),
+                ]]
+                .into(),
+            ),
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("workflow-start.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let session = store.create_session("/project").await.unwrap();
+        let mut tools = ToolRegistry::new();
+        tools.register(Arc::new(NamedTool("development_workflow")));
+        let agent = AgentLoop::new(
+            provider,
+            store.clone(),
+            Arc::new(tools),
+            EventBus::new(16),
+            Arc::new(PermissionService::allow_all()),
+            CodeLoomConfig {
+                provider: crate::config::ProviderConfig {
+                    kind: crate::config::ProviderKind::OpenAiCompat,
+                    base_url: "http://x".into(),
+                    api_key_env: "K".into(),
+                },
+                model: "m".into(),
+                max_steps: 5,
+                effort: None,
+            },
+            dir.path().to_path_buf(),
+        );
+
+        let outcome = agent
+            .run(session, "start workflow".into(), CancellationToken::new())
+            .await
+            .unwrap();
+
+        assert_eq!(outcome.steps, 1);
+        assert_eq!(outcome.final_text, "started");
+        assert!(store
+            .messages(session)
+            .await
+            .unwrap()
+            .iter()
+            .any(|message| message.role == Role::Tool));
+    }
+
+    #[tokio::test]
+    async fn active_workflow_hides_blocked_tools_from_the_provider() {
+        let provider = Arc::new(ToolNamesProvider {
+            seen: Mutex::new(Vec::new()),
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("workflow-tools.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let session = store.create_session("/project").await.unwrap();
+        store
+            .create_development_workflow(
+                crate::workflow::DevelopmentWorkflow {
+                    id: crate::workflow::WorkflowId(0),
+                    parent: session,
+                    task: "test workflow tool scope".into(),
+                    planner: "planner".into(),
+                    implementer: "builder".into(),
+                    reviewer: "reviewer".into(),
+                    phase: crate::workflow::WorkflowPhase::Specifying,
+                    version: 0,
+                    active_child: None,
+                    planner_child: None,
+                    implementation_children: Vec::new(),
+                    reviewer_children: Vec::new(),
+                    correction_round: 0,
+                    spec_path: None,
+                    plan_path: None,
+                    spec_sha256: None,
+                    plan_sha256: None,
+                    last_report: None,
+                    created_at_ms: 0,
+                    updated_at_ms: 0,
+                },
+                "test workflow tool scope",
+            )
+            .await
+            .unwrap();
+        let mut tools = ToolRegistry::new();
+        for name in [
+            "development_workflow",
+            "view",
+            "job_list",
+            "bash",
+            "subagent",
+        ] {
+            tools.register(Arc::new(NamedTool(name)));
+        }
+        let agent = AgentLoop::new(
+            provider.clone(),
+            store,
+            Arc::new(tools),
+            EventBus::new(16),
+            Arc::new(PermissionService::allow_all()),
+            CodeLoomConfig {
+                provider: crate::config::ProviderConfig {
+                    kind: crate::config::ProviderKind::OpenAiCompat,
+                    base_url: "http://x".into(),
+                    api_key_env: "K".into(),
+                },
+                model: "m".into(),
+                max_steps: 5,
+                effort: None,
+            },
+            dir.path().to_path_buf(),
+        );
+
+        agent
+            .run(
+                session,
+                "continue workflow".into(),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        let seen = provider.seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert!(seen[0].contains(&"development_workflow".into()));
+        assert!(seen[0].contains(&"view".into()));
+        assert!(!seen[0].contains(&"job_list".into()));
+        assert!(!seen[0].contains(&"bash".into()));
+    }
+
+    #[tokio::test]
+    async fn stream_error_preserves_partial_text_and_skips_tool_calls() {
+        let provider = Arc::new(QueueProvider {
+            scripts: Mutex::new(
+                vec![vec![
+                    StreamChunk::TextDelta("partial".into()),
+                    StreamChunk::ToolCallComplete {
+                        id: "c1".into(),
+                        name: "noop".into(),
+                        input: serde_json::json!({}),
+                    },
+                    StreamChunk::Error("response stream timed out".into()),
+                ]]
+                .into(),
+            ),
+        });
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("stream-error.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let sid = store.create_session("/p").await.unwrap();
+        let mut tools = ToolRegistry::new();
+        tools.register(Arc::new(Noop));
+        let bus = EventBus::new(64);
+        let mut events = bus.subscribe();
+        let cfg = CodeLoomConfig {
+            provider: crate::config::ProviderConfig {
+                kind: crate::config::ProviderKind::OpenAiCompat,
+                base_url: "http://x".into(),
+                api_key_env: "K".into(),
+            },
+            model: "m".into(),
+            max_steps: 5,
+            effort: None,
+        };
+        let agent = AgentLoop::new(
+            provider,
+            store.clone(),
+            Arc::new(tools),
+            bus,
+            Arc::new(PermissionService::allow_all()),
+            cfg,
+            dir.path().to_path_buf(),
+        );
+
+        assert!(matches!(
+            agent.run(sid, "hi".into(), CancellationToken::new()).await,
+            Err(crate::error::CoreError::Provider(error)) if error == "response stream timed out"
+        ));
+        let messages = store.messages(sid).await.unwrap();
+        assert_eq!(
+            messages[0].origin,
+            MessageOrigin::Human,
+            "el prompt que inicia el turno externo conserva su procedencia humana"
+        );
+        let partial = messages
+            .iter()
+            .find(|message| message.role == Role::Assistant)
+            .unwrap();
+        assert_eq!(partial.text(), "partial");
+        assert!(partial.parts.iter().any(|part| matches!(
+            part,
+            ContentPart::Finish {
+                reason: FinishReason::Error
+            }
+        )));
+        assert!(!partial
+            .parts
+            .iter()
+            .any(|part| matches!(part, ContentPart::ToolCall { .. })));
+        assert!(!messages.iter().any(|message| message.role == Role::Tool));
+        let notices: Vec<_> = std::iter::from_fn(|| events.try_recv().ok())
+            .filter_map(|event| match event {
+                LiveEvent::RuntimeNotice { message } => Some(message),
+                _ => None,
+            })
+            .collect();
+        assert!(notices.contains(&"provider request started for `m`".into()));
+        assert!(notices.contains(&"provider response received for `m`".into()));
     }
 
     #[tokio::test]
@@ -2132,8 +2798,18 @@ mod tests {
             scripts: Mutex::new(
                 vec![vec![
                     StreamChunk::TextDelta("hola".into()),
-                    usage_chunk(10, 1),
-                    usage_chunk(0, 5),
+                    StreamChunk::UsageUpdate(crate::provider::UsageUpdate {
+                        input_tokens: Some(10),
+                        output_tokens: Some(1),
+                        reported_cost_usd: None,
+                        final_update: false,
+                    }),
+                    StreamChunk::UsageUpdate(crate::provider::UsageUpdate {
+                        input_tokens: None,
+                        output_tokens: Some(6),
+                        reported_cost_usd: None,
+                        final_update: true,
+                    }),
                     StreamChunk::Done(FinishReason::Stop),
                 ]]
                 .into(),
@@ -3625,6 +4301,15 @@ Cuerpo.
         async fn list_sessions(&self, project: &str) -> Result<Vec<crate::session::SessionInfo>> {
             self.dentro.list_sessions(project).await
         }
+        async fn session_belongs_to_project(
+            &self,
+            session: SessionId,
+            project: &str,
+        ) -> Result<bool> {
+            self.dentro
+                .session_belongs_to_project(session, project)
+                .await
+        }
         async fn append_message(&self, sid: SessionId, msg: &Message) -> Result<()> {
             self.dentro.append_message(sid, msg).await
         }
@@ -3786,6 +4471,9 @@ Cuerpo.
                     input_price: None,
                     output_price: None,
                     reported_cost_usd: None,
+                    source: crate::message::UsageSource::Provider,
+                    is_final: true,
+                    components: Vec::new(),
                     created_at_ms: 0,
                 },
             )
@@ -4530,11 +5218,17 @@ Cuerpo.
         let hasta = hasta_listo(&mut rx).await;
 
         let apuntes = e.store.session_usage(e.sid).await.unwrap();
-        assert_eq!(apuntes.len(), 1, "un apunte por la llamada de resumen");
         assert_eq!(
-            (apuntes[0].input_tokens, apuntes[0].output_tokens),
-            (700, 90)
+            apuntes.len(),
+            2,
+            "resumen y respuesta sin uso confirmado dejan un apunte cada uno"
         );
+        assert!(apuntes
+            .iter()
+            .any(|record| (record.input_tokens, record.output_tokens) == (700, 90)));
+        assert!(apuntes
+            .iter()
+            .any(|record| record.source == crate::message::UsageSource::Estimate));
         assert!(
             !avisos_de(&hasta).is_empty(),
             "el consumo del resumen cruza el presupuesto"

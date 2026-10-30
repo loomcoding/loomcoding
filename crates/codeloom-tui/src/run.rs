@@ -24,10 +24,71 @@ use tokio_util::sync::CancellationToken;
 pub type ActiveTurn = Arc<Mutex<Option<CancellationToken>>>;
 const ESC_DOUBLE_PRESS: Duration = Duration::from_millis(350);
 
+fn read_clipboard_image() -> Result<Option<Vec<u8>>, String> {
+    let mut clipboard = arboard::Clipboard::new().map_err(|error| error.to_string())?;
+    let Ok(image) = clipboard.get_image() else {
+        return Ok(None);
+    };
+    let raw_len = image
+        .width
+        .checked_mul(image.height)
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| "Clipboard image dimensions are invalid".to_owned())?;
+    if raw_len > 32 * 1024 * 1024 || image.bytes.len() != raw_len {
+        return Err("Clipboard image is too large".into());
+    }
+    let pixels = image::RgbaImage::from_raw(
+        image.width as u32,
+        image.height as u32,
+        image.bytes.into_owned(),
+    )
+    .ok_or_else(|| "Clipboard image data is invalid".to_owned())?;
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgba8(pixels)
+        .write_to(&mut png, image::ImageFormat::Png)
+        .map_err(|error| error.to_string())?;
+    Ok(Some(png.into_inner()))
+}
+
+/// Retorna true cuando el portapapeles contenía imagen y el pegado quedó atendido.
+fn paste_clipboard_image(app: &mut App) -> bool {
+    match read_clipboard_image() {
+        Ok(Some(bytes)) => match app.attach_image_bytes(&bytes, "clipboard.png") {
+            Ok(()) => {
+                app.slash_feedback = Some("Image pasted from clipboard".into());
+                true
+            }
+            Err(error) => {
+                app.slash_feedback = Some(format!("Clipboard image rejected: {error}"));
+                true
+            }
+        },
+        Ok(None) => false,
+        Err(error) => {
+            app.slash_feedback = Some(format!("Clipboard image read failed: {error}"));
+            true
+        }
+    }
+}
+
+fn paste_from_clipboard(app: &mut App) {
+    if paste_clipboard_image(app) {
+        return;
+    }
+    match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.get_text()) {
+        Ok(text) => {
+            app.paste(&text);
+            app.slash_feedback = Some("Text pasted from clipboard".into());
+        }
+        Err(error) => app.slash_feedback = Some(format!("Clipboard paste failed: {error}")),
+    }
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub enum SessionCommand {
     Refresh,
     Select(SessionChoice),
+    CancelSubagent(codeloom_core::session::SessionId),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -50,6 +111,7 @@ pub enum SessionUpdate {
         codeloom_core::session::SessionId,
         Option<codeloom_core::workflow::WorkflowSummary>,
     ),
+    Capabilities(crate::app::RuntimeCapabilities),
     Error(String),
 }
 
@@ -126,10 +188,9 @@ fn transcript_key(app: &mut App, code: KeyCode, mods: KeyModifiers) {
         app.selection = Some(batten::state::Selection::at(len - 1));
         return;
     }
-    // Con el bloque activo sobre un nodo de subagente, → o Enter lo despliegan y ← lo pliega.
-    // Sin nodo bajo el bloque, la tecla sigue su camino de siempre.
+    // En un nodo de subagente, → despliega, ← pliega y Enter alterna.
     let despliegue = match code {
-        KeyCode::Right | KeyCode::Enter => Some(true),
+        KeyCode::Right => Some(true),
         KeyCode::Left => Some(false),
         _ => None,
     };
@@ -137,6 +198,9 @@ fn transcript_key(app: &mut App, code: KeyCode, mods: KeyModifiers) {
         if app.set_node_expanded(expanded) {
             return;
         }
+    }
+    if code == KeyCode::Enter && app.toggle_node_expanded() {
+        return;
     }
     // Espacio o Enter pliegan y despliegan el bloque activo si es largo; si no, siguen su camino
     // (el espacio pagina).
@@ -179,6 +243,22 @@ fn transcript_key(app: &mut App, code: KeyCode, mods: KeyModifiers) {
         KeyCode::End | KeyCode::Char('G') => vp.follow_bottom(),
         _ => {}
     }
+}
+
+fn scroll_dashboard_widget(app: &mut App, focus: Focus, down: bool, amount: u16) -> bool {
+    let offset = match focus {
+        Focus::Activity => &mut app.activity_scroll,
+        Focus::Mcp => &mut app.capability_scroll[0],
+        Focus::Lsp => &mut app.capability_scroll[1],
+        Focus::Skills => &mut app.capability_scroll[2],
+        _ => return false,
+    };
+    *offset = if down {
+        offset.saturating_add(amount)
+    } else {
+        offset.saturating_sub(amount)
+    };
+    true
 }
 
 /// Traduce una tecla a una accion sobre la app. Devuelve el prompt a enviar
@@ -563,7 +643,7 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
             }
             (KeyCode::Enter, false) if len > 0 => {
                 app.queue_editor
-                    .set_text(&app.pending_prompts[app.queue_selected]);
+                    .set_text(&app.pending_prompts[app.queue_selected].text);
                 app.queue_editing = true;
             }
             (KeyCode::Up, false) => app.queue_selected = app.queue_selected.saturating_sub(1),
@@ -612,6 +692,7 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
     if matches!(code, KeyCode::Char(_))
         && !mods.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
         && app.focus.is_side_pane()
+        && !(app.focus == Focus::Rail && code == KeyCode::Char('x'))
     {
         app.focus = Focus::Composer;
     }
@@ -624,6 +705,15 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
     // abre el subagente marcado. Sin subagentes, las teclas siguen en el composer.
     if app.focus == Focus::Rail && !app.subagents.is_empty() {
         match code {
+            KeyCode::Char('x') => {
+                if let Some(child) = app.rail_selected.and_then(|id| app.subagents.get(&id)) {
+                    if !child.status.state.is_terminal() {
+                        app.cancel_subagent_requested = Some(child.child);
+                        app.status = format!("stopping subagent {}…", child.child.0);
+                    }
+                }
+                return None;
+            }
             KeyCode::Up => {
                 app.rail_move(-1);
                 return None;
@@ -641,8 +731,29 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
             _ => {}
         }
     }
+    if matches!(
+        code,
+        KeyCode::PageUp | KeyCode::PageDown | KeyCode::Home | KeyCode::End
+    ) {
+        let down = matches!(code, KeyCode::PageDown | KeyCode::End);
+        let amount = if matches!(code, KeyCode::Home | KeyCode::End) {
+            u16::MAX
+        } else {
+            5
+        };
+        if scroll_dashboard_widget(app, app.focus, down, amount) {
+            return None;
+        }
+    }
     if app.focus == Focus::Transcript {
         transcript_key(app, code, mods);
+        return None;
+    }
+    if app.focus == Focus::Composer
+        && matches!(code, KeyCode::Char('v' | 'V'))
+        && mods.contains(KeyModifiers::CONTROL)
+    {
+        paste_from_clipboard(app);
         return None;
     }
     // Escribir, borrar o ampliar la selección en el composer anula la del transcript.
@@ -727,7 +838,11 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
             None
         }
         KeyCode::Backspace => {
-            app.backspace();
+            if app.composer.is_empty() && app.detach_last_image() {
+                app.slash_feedback = Some("Removed last image attachment".into());
+            } else {
+                app.backspace();
+            }
             None
         }
         KeyCode::Char(c) => {
@@ -863,7 +978,7 @@ fn handle_queue_editor_key(app: &mut App, code: KeyCode, mods: KeyModifiers) {
         KeyCode::Enter => {
             if !app.queue_editor.text().trim().is_empty() {
                 if let Some(prompt) = app.pending_prompts.get_mut(app.queue_selected) {
-                    *prompt = app.queue_editor.text().to_string();
+                    prompt.text = app.queue_editor.text().to_string();
                 }
                 app.queue_editing = false;
             }
@@ -1085,8 +1200,23 @@ pub fn handle_event(app: &mut App, ev: Event) -> Option<String> {
                         3,
                     );
                 }
-                MouseEventKind::ScrollUp => app.viewport.scroll_up(3),
-                MouseEventKind::ScrollDown => app.viewport.scroll_down(3),
+                MouseEventKind::ScrollUp | MouseEventKind::ScrollDown => {
+                    let down = mouse.kind == MouseEventKind::ScrollDown;
+                    let pane = app.pane_at(mouse.column, mouse.row);
+                    if let Some(pane) = pane.filter(|pane| {
+                        matches!(
+                            pane,
+                            Focus::Activity | Focus::Mcp | Focus::Lsp | Focus::Skills
+                        )
+                    }) {
+                        app.focus = pane;
+                        scroll_dashboard_widget(app, pane, down, 2);
+                    } else if down {
+                        app.viewport.scroll_down(3);
+                    } else {
+                        app.viewport.scroll_up(3);
+                    }
+                }
                 MouseEventKind::Down(MouseButton::Left) => app.mouse_down(mouse.column, mouse.row),
                 MouseEventKind::Drag(MouseButton::Left) => {
                     app.mouse_drag_to(mouse.column, mouse.row);
@@ -1127,7 +1257,9 @@ pub fn handle_event(app: &mut App, ev: Event) -> Option<String> {
                 app.queue_editor.insert_str(&text);
             } else if !app.queue_open {
                 app.text_sel = None;
-                app.paste(&text);
+                if !paste_clipboard_image(app) {
+                    app.paste(&text);
+                }
             }
             None
         }
@@ -1137,10 +1269,12 @@ pub fn handle_event(app: &mut App, ev: Event) -> Option<String> {
 
 /// Encola prompts y mantiene un solo turno enviado al worker. Un mensaje del
 /// usuario rearma el presupuesto de turnos automáticos.
-fn send(app: &mut App, tx: &UnboundedSender<String>, prompt: Option<String>) {
+fn send(app: &mut App, tx: &UnboundedSender<crate::app::PendingPrompt>, prompt: Option<String>) {
     if let Some(text) = prompt {
         app.rearm_auto_turns();
-        app.pending_prompts.push_back(text);
+        let images = app.take_draft_images();
+        app.pending_prompts
+            .push_back(crate::app::PendingPrompt { text, images });
         app.queued = app.pending_prompts.len();
     }
     dispatch_next(app, tx);
@@ -1164,7 +1298,7 @@ fn dispatch_compact(app: &mut App, compact_tx: &UnboundedSender<()>) {
     }
 }
 
-fn dispatch_next(app: &mut App, tx: &UnboundedSender<String>) {
+fn dispatch_next(app: &mut App, tx: &UnboundedSender<crate::app::PendingPrompt>) {
     // Un despertar o una compactación en vuelo ocupan el turno: no se solapa un prompt con ellos.
     if app.turn_in_flight
         || app.wake_in_flight
@@ -1221,7 +1355,7 @@ fn apply_catalog(app: &mut App, catalog: Arc<Catalog>) {
 #[allow(clippy::too_many_arguments)]
 pub async fn run(
     mut app: App,
-    prompt_tx: UnboundedSender<String>,
+    prompt_tx: UnboundedSender<crate::app::PendingPrompt>,
     // Canal de despertares del padre ocioso: el trabajador ejecuta un turno sin mensaje de usuario.
     wake_tx: UnboundedSender<()>,
     // Canal de compactaciones manuales (`/compact`): el trabajador resume la sesión abierta.
@@ -1354,6 +1488,10 @@ pub async fn run(
                             app.apply(codeloom_core::event::LiveEvent::DevelopmentWorkflowChanged(workflow));
                         }
                         let _ = session;
+                    }
+                    Some(SessionUpdate::Capabilities(capabilities)) => {
+                        app.runtime_capabilities = Some(capabilities);
+                        app.capability_scroll = [0; 3];
                     }
                     Some(SessionUpdate::Error(error)) => {
                         app.session_load_failed();
@@ -1490,11 +1628,29 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
     if let Some(choice) = app.session_choice.take() {
         let _ = tx.send(SessionCommand::Select(choice));
     }
+    if let Some(child) = app.cancel_subagent_requested.take() {
+        let _ = tx.send(SessionCommand::CancelSubagent(child));
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn capability_widget_scroll_offsets_are_independent() {
+        let mut app = App::new();
+        assert!(scroll_dashboard_widget(&mut app, Focus::Mcp, true, 2));
+        assert!(scroll_dashboard_widget(&mut app, Focus::Skills, true, 3));
+        assert_eq!(app.capability_scroll, [2, 0, 3]);
+        assert_eq!(app.activity_scroll, 0);
+        assert!(!scroll_dashboard_widget(
+            &mut app,
+            Focus::Transcript,
+            true,
+            2
+        ));
+    }
     use ratatui::layout::Rect;
 
     fn open_dialog(
@@ -1673,11 +1829,15 @@ mod tests {
     }
 
     #[test]
-    fn pasted_newlines_never_submit() {
+    fn pasted_newlines_stay_together_until_enter_submits() {
         let mut app = App::new();
-        let sent = handle_event(&mut app, Event::Paste("uno\ndos\n".into()));
+        let sent = handle_event(&mut app, Event::Paste("uno\ndos\ntres".into()));
         assert_eq!(sent, None);
-        assert_eq!(app.composer.text(), "uno\ndos\n");
+        assert_eq!(app.composer.text(), "uno\ndos\ntres");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            Some("uno\ndos\ntres".into())
+        );
     }
 
     #[test]
@@ -1687,12 +1847,12 @@ mod tests {
         app.viewport.set_geometry(20, 5);
         handle_event(
             &mut app,
-            Event::Mouse(MouseEvent {
-                kind: MouseEventKind::ScrollUp,
-                column: 0,
-                row: 0,
-                modifiers: KeyModifiers::NONE,
-            }),
+            Event::Mouse(MouseEvent::new(
+                MouseEventKind::ScrollUp,
+                0,
+                0,
+                KeyModifiers::NONE,
+            )),
         );
         assert!(!app.viewport.is_following());
 
@@ -1700,12 +1860,12 @@ mod tests {
         app.viewport.follow_bottom();
         handle_event(
             &mut app,
-            Event::Mouse(MouseEvent {
-                kind: MouseEventKind::ScrollUp,
-                column: 0,
-                row: 0,
-                modifiers: KeyModifiers::NONE,
-            }),
+            Event::Mouse(MouseEvent::new(
+                MouseEventKind::ScrollUp,
+                0,
+                0,
+                KeyModifiers::NONE,
+            )),
         );
         assert!(app.viewport.is_following());
     }
@@ -1726,12 +1886,12 @@ mod tests {
         for _ in 0..12 {
             handle_event(
                 &mut app,
-                Event::Mouse(MouseEvent {
-                    kind: MouseEventKind::ScrollDown,
-                    column: 20,
-                    row: 15,
-                    modifiers: KeyModifiers::NONE,
-                }),
+                Event::Mouse(MouseEvent::new(
+                    MouseEventKind::ScrollDown,
+                    20,
+                    15,
+                    KeyModifiers::NONE,
+                )),
             );
         }
 
@@ -1768,12 +1928,7 @@ mod tests {
         use crossterm::event::MouseEvent;
         handle_event(
             app,
-            Event::Mouse(MouseEvent {
-                kind,
-                column: x,
-                row: y,
-                modifiers: KeyModifiers::NONE,
-            }),
+            Event::Mouse(MouseEvent::new(kind, x, y, KeyModifiers::NONE)),
         );
     }
 
@@ -2778,6 +2933,26 @@ mod tests {
     }
 
     #[test]
+    fn queued_prompt_keeps_its_image_parts_until_dispatch() {
+        let mut app = App::new();
+        app.turn_in_flight = true;
+        app.draft_images
+            .push(codeloom_core::message::ContentPart::Image {
+                mime_type: "image/png".into(),
+                data: "cG5n".into(),
+                filename: "sample.png".into(),
+            });
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        send(&mut app, &tx, Some("describe this".into()));
+        assert_eq!(app.pending_prompts[0].images.len(), 1);
+        app.turn_in_flight = false;
+        dispatch_next(&mut app, &tx);
+        let prompt = rx.try_recv().unwrap();
+        assert_eq!(prompt.text, "describe this");
+        assert_eq!(prompt.images.len(), 1);
+    }
+
+    #[test]
     fn slash_commands_share_existing_actions_and_session_guards() {
         for text in ["/help", "/new", "/sessions", "/queue", "/tools", "/quit"] {
             let mut app = App::new();
@@ -3048,18 +3223,18 @@ mod tests {
             "empty prompts cannot replace the original"
         );
         handle_event(&mut app, Event::Paste("changed\nsecond line".into()));
-        assert_eq!(app.pending_prompts[0], "original");
+        assert_eq!(app.pending_prompts[0].text, "original");
         handle_key(&mut app, KeyCode::Esc, KeyModifiers::NONE);
         assert!(app.queue_open);
         assert!(!app.queue_editing);
-        assert_eq!(app.pending_prompts[0], "original");
+        assert_eq!(app.pending_prompts[0].text, "original");
         handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
         handle_key(&mut app, KeyCode::Char('a'), KeyModifiers::CONTROL);
         handle_event(&mut app, Event::Paste("changed".into()));
         handle_key(&mut app, KeyCode::Char('j'), KeyModifiers::CONTROL);
         handle_key(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
         handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
-        assert_eq!(app.pending_prompts[0], "changed\nx");
+        assert_eq!(app.pending_prompts[0].text, "changed\nx");
         assert_eq!(app.composer.text(), "separate draft");
         assert_eq!(app.queued, 1);
         assert!(!app.queue_editing);
@@ -3108,7 +3283,7 @@ mod tests {
         app.apply(codeloom_core::event::LiveEvent::TurnEnded);
         drop(rx);
         send(&mut app, &tx, Some("retained on failure".into()));
-        assert_eq!(app.pending_prompts[0], "retained on failure");
+        assert_eq!(app.pending_prompts[0].text, "retained on failure");
         assert!(!app.turn_in_flight);
     }
 
@@ -3223,7 +3398,7 @@ mod tests {
     }
 
     #[test]
-    fn plain_c_types_and_enter_submits() {
+    fn enter_sends_prompt() {
         let mut app = App::new();
         assert_eq!(
             handle_key(&mut app, KeyCode::Char('h'), KeyModifiers::NONE),
@@ -3241,7 +3416,7 @@ mod tests {
     }
 
     #[test]
-    fn ctrl_j_adds_a_line_and_enter_sends() {
+    fn ctrl_j_adds_line_and_enter_sends() {
         let mut app = App::new();
         handle_key(&mut app, KeyCode::Char('a'), KeyModifiers::NONE);
         handle_key(&mut app, KeyCode::Char('j'), KeyModifiers::CONTROL);
@@ -3552,7 +3727,22 @@ mod tests {
     }
 
     #[test]
-    fn rail_enter_without_subagents_still_submits_composer() {
+    fn rail_x_requests_cancellation_of_only_the_selected_child() {
+        let mut app = rail_app();
+        app.rail_selected = Some(3);
+        app.focus = Focus::Rail;
+        handle_key(&mut app, KeyCode::Char('x'), KeyModifiers::NONE);
+        assert_eq!(
+            app.cancel_subagent_requested,
+            Some(codeloom_core::session::SessionId(3))
+        );
+        assert!(app.status.contains("stopping subagent 3"));
+        assert_eq!(app.focus, Focus::Rail);
+        assert!(!app.cancel_requested);
+    }
+
+    #[test]
+    fn rail_enter_without_subagents_submits_composer() {
         let mut app = App::new();
         app.focus = Focus::Rail;
         app.push_char('h');

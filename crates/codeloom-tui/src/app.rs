@@ -8,7 +8,7 @@ use codeloom_core::catalog::{Catalog, CatalogModel, CatalogProvider};
 use codeloom_core::config::{CodeLoomConfig, ProviderKind};
 use codeloom_core::event::LiveEvent;
 use codeloom_core::event::{A2aDirection, A2aObservation, A2aOperation};
-use codeloom_core::message::{ContentPart, Message, Role};
+use codeloom_core::message::{ContentPart, Message, MessageOrigin, Role, Usage, UsageSource};
 use codeloom_core::permission::{Decision, PermissionRequest};
 use codeloom_core::question::{Answer, Question};
 use codeloom_core::session::{SessionId, SessionInfo, UsageRecord};
@@ -21,6 +21,82 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+pub const MAX_IMAGE_BYTES: usize = 2 * 1024 * 1024;
+pub const MAX_IMAGE_BASE64_BYTES: usize = MAX_IMAGE_BYTES.div_ceil(3) * 4;
+pub const MAX_PROMPT_IMAGES: usize = 4;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum McpConfigState {
+    #[default]
+    Unknown,
+    NotConfigured,
+    Loaded,
+    Invalid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct McpServerCapability {
+    pub id: String,
+    pub initialized: bool,
+    pub tool_count: usize,
+    pub issue: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SkillCapability {
+    pub agent: String,
+    pub id: String,
+    pub name: String,
+    pub available: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RuntimeCapabilities {
+    pub mcp_config: McpConfigState,
+    pub mcp_servers: Vec<McpServerCapability>,
+    pub lsp_registered: bool,
+    pub rust_analyzer_available: bool,
+    pub announced_skills: Vec<SkillCapability>,
+    pub announced_skill_total: usize,
+    pub available_skill_total: usize,
+    pub declared_skill_scopes: Vec<(String, String)>,
+    pub declared_skill_scope_total: usize,
+    pub local_skill_loader_available: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PendingPrompt {
+    pub text: String,
+    pub images: Vec<ContentPart>,
+}
+
+impl From<String> for PendingPrompt {
+    fn from(text: String) -> Self {
+        Self {
+            text,
+            images: Vec::new(),
+        }
+    }
+}
+
+impl From<&str> for PendingPrompt {
+    fn from(text: &str) -> Self {
+        text.to_string().into()
+    }
+}
+
+impl PartialEq<str> for PendingPrompt {
+    fn eq(&self, other: &str) -> bool {
+        self.text == other
+    }
+}
+
+impl PartialEq<&str> for PendingPrompt {
+    fn eq(&self, other: &&str) -> bool {
+        self.text == *other
+    }
+}
 
 /// Líneas a partir de las cuales se pliega un bloque largo de la conversación.
 pub const MAX_BLOCK_LINES: usize = 10;
@@ -45,6 +121,10 @@ pub enum Focus {
     Agent,
     /// Panel «Activity» de herramientas (look Classic).
     Activity,
+    /// Widgets de capacidades del panel derecho.
+    Mcp,
+    Lsp,
+    Skills,
     /// Rail derecho del look Crush.
     Rail,
 }
@@ -54,7 +134,13 @@ impl Focus {
     pub fn is_side_pane(self) -> bool {
         matches!(
             self,
-            Focus::Sidebar | Focus::Agent | Focus::Activity | Focus::Rail
+            Focus::Sidebar
+                | Focus::Agent
+                | Focus::Activity
+                | Focus::Mcp
+                | Focus::Lsp
+                | Focus::Skills
+                | Focus::Rail
         )
     }
 }
@@ -264,6 +350,9 @@ enum Notice<'a> {
     },
     Subagent {
         label: &'a str,
+    },
+    SubagentInput {
+        label: &'a str,
         body: &'a str,
     },
     /// Resumen del historial que escribe el bucle al compactar. Lo emite CodeLoom.
@@ -314,8 +403,12 @@ fn parse_notice(text: &str) -> Option<Notice<'_>> {
     }
     let rest = header.strip_prefix("[Subagent ")?;
     let (inside, _) = rest.split_once(']')?;
-    let label = inside.strip_suffix(" completed")?;
-    Some(Notice::Subagent { label, body })
+    if let Some(label) = inside.strip_suffix(" completed") {
+        return Some(Notice::Subagent { label });
+    }
+    inside
+        .strip_suffix(" needs input")
+        .map(|label| Notice::SubagentInput { label, body })
 }
 
 /// Estado visible de un job, según el mapeo de la especificación.
@@ -425,6 +518,34 @@ pub enum ChildItem {
 #[derive(Debug, Clone, Default)]
 pub struct ChildLog {
     pub items: VecDeque<ChildItem>,
+}
+
+#[derive(Debug, Clone)]
+struct ActiveUsage {
+    model: String,
+    provider: Option<Usage>,
+    provider_final: bool,
+    estimate: Usage,
+    components: Vec<codeloom_core::session::UsageComponent>,
+}
+
+impl ActiveUsage {
+    fn live_counts(&self) -> Usage {
+        if self.provider_final {
+            self.provider
+                .clone()
+                .unwrap_or_else(|| self.estimate.clone())
+        } else {
+            self.estimate.clone()
+        }
+    }
+
+    fn stored_counts(&self) -> (Usage, UsageSource) {
+        match (&self.provider, self.provider_final) {
+            (Some(usage), true) => (usage.clone(), UsageSource::Provider),
+            _ => (self.estimate.clone(), UsageSource::Estimate),
+        }
+    }
 }
 
 /// Recorta `texto` a `maximo` caracteres. Cuenta caracteres, no bytes, de modo que no
@@ -600,6 +721,10 @@ pub struct App {
     /// Entrada de la respuesta en curso (los deltas se añaden a ella).
     assistant: Option<batten::state::EntryId>,
     pub composer: batten::state::Composer,
+    /// Imágenes del borrador, todavía no asignadas a un prompt en cola.
+    pub draft_images: Vec<ContentPart>,
+    /// Snapshot runtime recibido del daemon; `None` significa que aún no llegó.
+    pub runtime_capabilities: Option<RuntimeCapabilities>,
     pub slash_selected: usize,
     pub slash_dismissed: Option<String>,
     pub slash_feedback: Option<String>,
@@ -611,6 +736,7 @@ pub struct App {
     pub phase_durations: Vec<(String, Duration)>,
     pub should_quit: bool,
     pub cancel_requested: bool,
+    pub cancel_subagent_requested: Option<SessionId>,
     pub(crate) last_escape: Option<Instant>,
     pub cwd: String,
     pub model: String,
@@ -642,9 +768,12 @@ pub struct App {
     /// Métricas de los hijos de la sesión abierta, por id interno del hijo. Solo
     /// contiene hijos de esa sesión: se filtra al recibir y se limpia al cargarla.
     pub agent_stats: HashMap<i64, AgentStats>,
+    /// Skills seleccionadas/cargadas por cada subagente local de la sesión.
+    pub skill_statuses_by_child: HashMap<i64, Vec<codeloom_core::skills::SkillLoadStatus>>,
     /// Registro acotado de cada hijo de la sesión abierta, por id interno del hijo. Se
     /// alimenta de los mismos `ChildEvent` que `agent_stats` y se limpia al cargar otra sesión.
     pub child_logs: HashMap<i64, ChildLog>,
+    streaming_child_text: HashSet<i64>,
     /// Nodos de subagente desplegados, por id interno del hijo. Vacío significa que todos
     /// están plegados. Vive solo en memoria de la interfaz: no se persiste.
     pub expanded_nodes: HashSet<i64>,
@@ -666,6 +795,8 @@ pub struct App {
     pub tools_open: bool,
     pub tool_selected: usize,
     pub tool_scroll: (u16, u16),
+    pub activity_scroll: u16,
+    pub capability_scroll: [u16; 3],
     pub a2a_open: bool,
     pub a2a_focus: usize,
     pub a2a_agent_selected: usize,
@@ -726,7 +857,7 @@ pub struct App {
     /// Número de prompts pendientes en `pending_prompts`.
     pub queued: usize,
     /// Prompts pendientes; el worker recibe solo uno cada vez.
-    pub pending_prompts: VecDeque<String>,
+    pub pending_prompts: VecDeque<PendingPrompt>,
     pub queue_open: bool,
     pub queue_selected: usize,
     pub queue_paused: bool,
@@ -795,6 +926,8 @@ pub struct App {
     refresh_agents_hook: Option<Arc<dyn Fn() + Send + Sync>>,
     /// Apuntes de consumo de la sesión abierta: los persistidos al abrirla más los vivos.
     pub usage_records: Vec<UsageRecord>,
+    /// Peticiones de provider activas por sesión y request id, con cifras provisionales y finales.
+    active_usage: HashMap<(i64, u64), ActiveUsage>,
     /// Copia de los ajustes al abrir el diálogo y tras guardar con éxito.
     /// Sirve para saber si hay cambios sin guardar.
     pub settings_baseline: Option<ProviderSettings>,
@@ -904,6 +1037,8 @@ impl App {
             transcript: new_transcript(),
             assistant: None,
             composer: batten::state::Composer::new(),
+            draft_images: Vec::new(),
+            runtime_capabilities: None,
             slash_selected: 0,
             slash_dismissed: None,
             slash_feedback: None,
@@ -915,6 +1050,7 @@ impl App {
             phase_durations: Vec::new(),
             should_quit: false,
             cancel_requested: false,
+            cancel_subagent_requested: None,
             last_escape: None,
             cwd: String::new(),
             model: String::new(),
@@ -934,7 +1070,9 @@ impl App {
             jobs: BTreeMap::new(),
             subagents: BTreeMap::new(),
             agent_stats: HashMap::new(),
+            skill_statuses_by_child: HashMap::new(),
             child_logs: HashMap::new(),
+            streaming_child_text: HashSet::new(),
             expanded_nodes: HashSet::new(),
             node_actions: HashMap::new(),
             node_calls: HashMap::new(),
@@ -944,6 +1082,8 @@ impl App {
             tools_open: false,
             tool_selected: 0,
             tool_scroll: (0, 0),
+            activity_scroll: 0,
+            capability_scroll: [0; 3],
             a2a_open: false,
             a2a_focus: 0,
             a2a_agent_selected: 0,
@@ -1012,6 +1152,7 @@ impl App {
             agent_registry: None,
             refresh_agents_hook: None,
             usage_records: Vec::new(),
+            active_usage: HashMap::new(),
             settings_baseline: None,
             settings_warned: false,
             settings_open: false,
@@ -1063,8 +1204,14 @@ impl App {
         {
             return None;
         }
-        let query = text.trim_end().strip_prefix('/')?;
-        (!query.contains(char::is_whitespace) && !query.contains('/')).then_some(text.trim_end())
+        let trimmed = text.trim_end();
+        let query = trimmed.strip_prefix('/')?;
+        let command = query.split_whitespace().next().unwrap_or(query);
+        let has_args = command.len() < query.len();
+        if command.contains('/') || (has_args && command != "attach") {
+            return None;
+        }
+        Some(&trimmed[..command.len() + 1])
     }
 
     pub fn slash_matches(&self) -> Vec<(crate::commands::Command, &'static str, &'static str)> {
@@ -1949,6 +2096,7 @@ impl App {
         self.history = batten::state::History::new();
         self.tools.clear();
         self.tool_entries.clear();
+        self.activity_scroll = 0;
         // Las anotaciones de nodo van con sus entradas: si sobrevivieran, una llamada
         // restaurada se contaría dos veces o no se anotaría.
         self.node_calls.clear();
@@ -1985,16 +2133,17 @@ impl App {
             match message.role {
                 Role::User => {
                     let text = message.text();
+                    let authored_by_human = message.origin == MessageOrigin::Human;
                     // El último resumen reconocido fija la memoria del medidor.
                     if let Some((_, cuerpo)) = parse_summary_text(&text) {
                         self.context_memory = estimate_tokens(cuerpo.len());
                     }
-                    // Los avisos (resúmenes incluidos, de hasta 16 000 bytes) no los escribió la
-                    // persona usuaria: no entran en el historial del composer.
-                    if parse_notice(&text).is_none() {
+                    if authored_by_human {
                         self.history.push(text.clone());
+                        self.push_user(&text);
+                    } else {
+                        self.internal_user_message(&text);
                     }
-                    self.user_message(&text);
                 }
                 Role::Assistant => {
                     for part in message.parts {
@@ -2074,12 +2223,19 @@ impl App {
         self.rail_selected = None;
         self.subagents.clear();
         self.agent_stats.clear();
+        self.skill_statuses_by_child.clear();
         self.child_logs.clear();
+        self.streaming_child_text.clear();
         self.expanded_nodes.clear();
         self.node_actions.clear();
         self.node_calls.clear();
         // Los apuntes son de la sesión anterior; la carga posterior repone los de esta.
         self.usage_records.clear();
+        self.active_usage.clear();
+        self.input_tokens = 0;
+        self.output_tokens = 0;
+        self.turn_input_tokens = 0;
+        self.turn_output_tokens = 0;
         self.session_selected = 0;
         self.session_query.clear();
         self.session_searching = false;
@@ -2109,6 +2265,16 @@ impl App {
     /// carga de otra sesión se ignora, para no mezclar totales.
     pub fn load_usage(&mut self, session: SessionId, records: Vec<UsageRecord>) {
         if self.session_id == Some(session) {
+            self.input_tokens = records
+                .iter()
+                .filter(|record| record.session == session)
+                .map(|record| record.input_tokens)
+                .sum();
+            self.output_tokens = records
+                .iter()
+                .filter(|record| record.session == session)
+                .map(|record| record.output_tokens)
+                .sum();
             self.usage_records = records;
         }
     }
@@ -2132,6 +2298,123 @@ impl App {
         self.record_live_usage(session, input_tokens, output_tokens, None);
     }
 
+    fn apply_usage_progress(
+        &mut self,
+        session: SessionId,
+        event: &codeloom_core::event::LiveEvent,
+    ) {
+        let codeloom_core::event::LiveEvent::UsageProgress {
+            request_id,
+            model,
+            provider_usage,
+            provider_final,
+            estimated_usage,
+            finished,
+            components,
+        } = event
+        else {
+            return;
+        };
+        let key = (session.0, *request_id);
+        let previous = self
+            .active_usage
+            .get(&key)
+            .map(ActiveUsage::live_counts)
+            .unwrap_or(Usage {
+                input_tokens: 0,
+                output_tokens: 0,
+                reported_cost_usd: None,
+            });
+        let active = ActiveUsage {
+            model: model.clone(),
+            provider: provider_usage.clone(),
+            provider_final: *provider_final,
+            estimate: estimated_usage.clone(),
+            components: components.clone(),
+        };
+        let current = active.live_counts();
+        let adjust = |total: &mut u64, before: u32, after: u32| {
+            if after >= before {
+                *total = total.saturating_add(u64::from(after - before));
+            } else {
+                *total = total.saturating_sub(u64::from(before - after));
+            }
+        };
+        if session == self.session_id.unwrap_or(SessionId(0)) {
+            adjust(
+                &mut self.input_tokens,
+                previous.input_tokens,
+                current.input_tokens,
+            );
+            adjust(
+                &mut self.output_tokens,
+                previous.output_tokens,
+                current.output_tokens,
+            );
+            adjust(
+                &mut self.turn_input_tokens,
+                previous.input_tokens,
+                current.input_tokens,
+            );
+            adjust(
+                &mut self.turn_output_tokens,
+                previous.output_tokens,
+                current.output_tokens,
+            );
+            if current.input_tokens > 0 {
+                self.context_tokens = u64::from(current.input_tokens);
+            }
+        } else {
+            let stats = self.agent_stats.entry(session.0).or_default();
+            adjust(
+                &mut stats.input_tokens,
+                previous.input_tokens,
+                current.input_tokens,
+            );
+            adjust(
+                &mut stats.output_tokens,
+                previous.output_tokens,
+                current.output_tokens,
+            );
+        }
+        if *finished {
+            let (usage, source) = active.stored_counts();
+            self.record_usage_record(session, model, usage, source, true, active.components);
+            self.active_usage.remove(&key);
+        } else {
+            self.active_usage.insert(key, active);
+        }
+    }
+
+    fn record_usage_record(
+        &mut self,
+        session: SessionId,
+        model: &str,
+        usage: Usage,
+        source: UsageSource,
+        is_final: bool,
+        components: Vec<codeloom_core::session::UsageComponent>,
+    ) {
+        let prices = self.model_prices_for(model);
+        let created_at_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|elapsed| i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+            .unwrap_or(0);
+        self.usage_records.push(UsageRecord {
+            session,
+            model: model.to_owned(),
+            input_tokens: u64::from(usage.input_tokens),
+            output_tokens: u64::from(usage.output_tokens),
+            input_price: prices.map(|p| p.0),
+            output_price: prices.map(|p| p.1),
+            reported_cost_usd: usage.reported_cost_usd,
+            source,
+            is_final,
+            components,
+            created_at_ms,
+        });
+    }
+
     fn record_live_usage(
         &mut self,
         session: SessionId,
@@ -2152,6 +2435,9 @@ impl App {
             input_price,
             output_price,
             reported_cost_usd: reported_cost_usd.filter(|cost| cost.is_finite() && *cost >= 0.0),
+            source: UsageSource::Provider,
+            is_final: true,
+            components: Vec::new(),
             created_at_ms,
         });
     }
@@ -2175,6 +2461,12 @@ impl App {
         subagents: Vec<codeloom_core::session::SubagentDescriptor>,
     ) {
         if self.session_id == Some(session) {
+            for child in subagents
+                .iter()
+                .filter(|child| !child.status.state.is_terminal())
+            {
+                self.expanded_nodes.insert(child.child.0);
+            }
             self.subagents = subagents
                 .into_iter()
                 .map(|subagent| (subagent.child.0, subagent))
@@ -2292,7 +2584,7 @@ impl App {
     /// Copia la selección del composer al portapapeles (lo vuelca el bucle con
     /// OSC 52) y avisa del número de caracteres. Devuelve `false` sin selección.
     pub fn copy_composer_selection(&mut self) -> bool {
-        let Some(text) = self.composer.selected_text() else {
+        let Some(text) = self.composer.selected_text_expanded() else {
             return false;
         };
         let chars = text.chars().count();
@@ -2745,11 +3037,12 @@ impl App {
     /// Precios `(entrada, salida)` por millón de tokens del modelo actual, buscados en el
     /// catálogo. `None` si falta el catálogo, el proveedor, el modelo o alguno de los dos precios.
     pub fn model_prices(&self) -> Option<(f64, f64)> {
+        self.model_prices_for(&self.model)
+    }
+
+    fn model_prices_for(&self, model_id: &str) -> Option<(f64, f64)> {
         let provider = self.model_catalog_provider()?;
-        let model = provider
-            .models
-            .iter()
-            .find(|model| model.id == self.model)?;
+        let model = provider.models.iter().find(|model| model.id == model_id)?;
         Some((model.input_cost?, model.output_cost?))
     }
 
@@ -2775,6 +3068,60 @@ impl App {
         self.usage_records
             .iter()
             .any(|record| record.reported_cost_usd.is_none() && record.cost().is_some())
+    }
+
+    pub fn active_usage_label(&self) -> Option<String> {
+        let (_, active) = self
+            .active_usage
+            .iter()
+            .find(|((session, _), _)| Some(SessionId(*session)) == self.session_id)?;
+        let usage = active.live_counts();
+        let origin = if active.provider_final {
+            "provider"
+        } else if active.provider.is_some() {
+            "estimación provisional · provider parcial"
+        } else {
+            "estimación provisional"
+        };
+        let partial = active
+            .provider
+            .as_ref()
+            .filter(|_| !active.provider_final)
+            .map(|p| {
+                format!(
+                    " · provider parcial ↑{} ↓{}",
+                    p.input_tokens, p.output_tokens
+                )
+            })
+            .unwrap_or_default();
+        Some(format!(
+            "{} ↑{} ↓{} · {origin}{partial}",
+            active.model, usage.input_tokens, usage.output_tokens
+        ))
+    }
+
+    pub fn family_tokens(&self) -> (u64, u64) {
+        let input = self
+            .usage_records
+            .iter()
+            .map(|record| record.input_tokens)
+            .sum::<u64>()
+            + self
+                .active_usage
+                .values()
+                .map(|active| u64::from(active.live_counts().input_tokens))
+                .sum::<u64>();
+        let output = self
+            .usage_records
+            .iter()
+            .map(|record| record.output_tokens)
+            .sum::<u64>()
+            + self
+                .active_usage
+                .values()
+                .map(|active| u64::from(active.live_counts().output_tokens))
+                .sum::<u64>();
+        (input, output)
     }
 
     /// Coste de un hijo: suma los apuntes que llevan su sesión, con el mismo criterio que
@@ -2892,16 +3239,7 @@ impl App {
     /// Despliega (`true`) o pliega (`false`) el nodo del subagente que ocupa el bloque activo.
     /// Devuelve `false`, sin tocar nada, si el bloque activo no es un nodo de subagente.
     pub fn set_node_expanded(&mut self, expanded: bool) -> bool {
-        let Some(bloque) = self.block_index() else {
-            return false;
-        };
-        // Los avisos no son nodos: solo cuentan las entradas de subagente en vivo.
-        let hijo = self
-            .activity_entries
-            .iter()
-            .filter(|e| !e.from_notice && e.kind == "subagent" && e.id.index() == bloque)
-            .find_map(|e| e.key.strip_prefix("subagent:")?.parse::<i64>().ok());
-        let Some(hijo) = hijo else {
+        let Some(hijo) = self.active_node_child() else {
             return false;
         };
         if expanded {
@@ -2913,15 +3251,64 @@ impl App {
         true
     }
 
+    /// Alterna la expansión del nodo de subagente bajo el bloque activo.
+    pub fn toggle_node_expanded(&mut self) -> bool {
+        let Some(hijo) = self.active_node_child() else {
+            return false;
+        };
+        self.set_node_expanded(!self.expanded_nodes.contains(&hijo))
+    }
+
+    fn active_node_child(&self) -> Option<i64> {
+        let bloque = self.block_index()?;
+        // Los avisos no son nodos: solo cuentan las entradas de subagente en vivo.
+        self.activity_entries
+            .iter()
+            .filter(|e| !e.from_notice && e.kind == "subagent" && e.id.index() == bloque)
+            .find_map(|e| e.key.strip_prefix("subagent:")?.parse::<i64>().ok())
+    }
+
     fn apply_child_event(&mut self, child: SessionId, event: LiveEvent) {
         // Los eventos que no se reenvían no crean métricas.
         if !event.is_child_relevant() {
+            return;
+        }
+        if let LiveEvent::SkillsLoaded { skills } = event {
+            self.skill_statuses_by_child.insert(child.0, skills);
+            return;
+        }
+        if matches!(&event, LiveEvent::UsageProgress { .. }) {
+            self.apply_usage_progress(child, &event);
             return;
         }
         // Los mensajes del hijo alimentan su registro, pero no crean métricas: el registro
         // es independiente de `agent_stats`.
         if let LiveEvent::MessageAdded(message) = event {
             self.record_child_message(child.0, message);
+            return;
+        }
+        if matches!(&event, LiveEvent::TurnStarted) {
+            self.streaming_child_text.remove(&child.0);
+        }
+        if let LiveEvent::Delta { text } = event {
+            if !text.is_empty() {
+                let log = self.child_logs.entry(child.0).or_default();
+                if !self.streaming_child_text.insert(child.0) {
+                    if let Some(ChildItem::Text(current)) = log.items.back_mut() {
+                        current.push_str(&text);
+                        *current = recortar(current, MAX_CHILD_TEXT);
+                    } else {
+                        log.items
+                            .push_back(ChildItem::Text(recortar(&text, MAX_CHILD_TEXT)));
+                    }
+                } else {
+                    log.items
+                        .push_back(ChildItem::Text(recortar(&text, MAX_CHILD_TEXT)));
+                }
+                while log.items.len() > MAX_CHILD_ITEMS {
+                    log.items.pop_front();
+                }
+            }
             return;
         }
         // Un fichero editado por el hijo se anota en su sesión, sin tocar el panel del padre
@@ -2988,13 +3375,24 @@ impl App {
     /// cierran la llamada correspondiente. Los textos del usuario no se registran.
     fn record_child_message(&mut self, child: i64, message: Message) {
         let asistente = message.role == Role::Assistant;
+        let streaming = asistente && self.streaming_child_text.remove(&child);
         for part in message.parts {
             match part {
                 ContentPart::Text { text } if asistente => {
                     let texto = text.trim();
                     if !texto.is_empty() {
                         let recortado = recortar(texto, MAX_CHILD_TEXT);
-                        self.push_child_item(child, ChildItem::Text(recortado));
+                        let log = self.child_logs.entry(child).or_default();
+                        if streaming {
+                            if let Some(ChildItem::Text(current)) = log.items.back_mut() {
+                                *current = recortado;
+                                continue;
+                            }
+                        }
+                        log.items.push_back(ChildItem::Text(recortado));
+                        while log.items.len() > MAX_CHILD_ITEMS {
+                            log.items.pop_front();
+                        }
                     }
                 }
                 ContentPart::ToolCall { id, name, input } if asistente => {
@@ -3125,6 +3523,11 @@ impl App {
                     self.context_tokens = u64::from(input_tokens);
                 }
             }
+            event @ LiveEvent::UsageProgress { .. } => {
+                if let Some(session) = self.session_id {
+                    self.apply_usage_progress(session, &event);
+                }
+            }
             // El consumo de resumir cuenta como gasto igual que cualquier llamada, pero no es el
             // contexto del turno: no fija el medidor.
             LiveEvent::CompactionUsage {
@@ -3208,11 +3611,19 @@ impl App {
                 self.wake_in_flight = false;
                 self.cancel_requested = false;
                 self.status = format!("error: {message}");
+                self.transcript.push_entry(
+                    batten::state::LineKind::System,
+                    batten::state::Format::Plain,
+                    format!("error: {message}"),
+                );
                 self.finish_phase();
                 self.thinking = false;
                 self.matrix_rain.stop();
             }
             LiveEvent::RuntimeNotice { message } => {
+                if self.status.starts_with("stopping subagent") {
+                    self.status = "ready".into();
+                }
                 self.transcript.push_entry(
                     batten::state::LineKind::System,
                     batten::state::Format::Plain,
@@ -3255,6 +3666,15 @@ impl App {
             }
             LiveEvent::SubagentChanged(subagent) => {
                 if Some(subagent.parent) == self.session_id {
+                    let first_seen = !self.subagents.contains_key(&subagent.child.0);
+                    if first_seen && !subagent.status.state.is_terminal() {
+                        self.expanded_nodes.insert(subagent.child.0);
+                    }
+                    if self.status.starts_with("stopping subagent")
+                        && subagent.status.state.is_terminal()
+                    {
+                        self.status = "ready".into();
+                    }
                     self.sync_subagent_activity(&subagent);
                     self.subagents.insert(subagent.child.0, subagent);
                     // Una llamada del padre que llegó antes que su hijo puede colgar ahora de él.
@@ -3263,30 +3683,40 @@ impl App {
             }
             LiveEvent::DevelopmentWorkflowChanged(summary) => {
                 if Some(summary.parent) == self.session_id {
-                    let agent = match summary.phase {
-                        codeloom_core::workflow::WorkflowPhase::Specifying => &summary.planner,
-                        codeloom_core::workflow::WorkflowPhase::Implementing
-                        | codeloom_core::workflow::WorkflowPhase::ChangesRequested => {
-                            &summary.implementer
-                        }
-                        codeloom_core::workflow::WorkflowPhase::Reviewing => &summary.reviewer,
-                        _ => "coordinador",
-                    };
-                    let decision = match summary.phase {
+                    let phase = match summary.phase {
+                        codeloom_core::workflow::WorkflowPhase::Specifying => "crear spec+plan",
                         codeloom_core::workflow::WorkflowPhase::AwaitingPlanApproval => {
-                            " · aprobación del plan pendiente"
+                            "aprobar spec+plan"
                         }
+                        codeloom_core::workflow::WorkflowPhase::Implementing => "implementando",
+                        codeloom_core::workflow::WorkflowPhase::Reviewing => "revisando",
+                        codeloom_core::workflow::WorkflowPhase::ChangesRequested => "corregir",
                         codeloom_core::workflow::WorkflowPhase::AwaitingFinalAcceptance => {
-                            " · aceptación final pendiente"
+                            "aceptar resultado"
                         }
-                        _ => "",
+                        codeloom_core::workflow::WorkflowPhase::Completed => "completado",
+                        codeloom_core::workflow::WorkflowPhase::Cancelled => "cancelado",
+                        codeloom_core::workflow::WorkflowPhase::Failed => "fallido",
+                    };
+                    let agent = if summary.active_child.is_none() {
+                        "coordinador"
+                    } else {
+                        match summary.phase {
+                            codeloom_core::workflow::WorkflowPhase::Specifying => &summary.planner,
+                            codeloom_core::workflow::WorkflowPhase::Implementing
+                            | codeloom_core::workflow::WorkflowPhase::ChangesRequested => {
+                                &summary.implementer
+                            }
+                            codeloom_core::workflow::WorkflowPhase::Reviewing => &summary.reviewer,
+                            _ => "coordinador",
+                        }
                     };
                     self.transcript.push_entry(
                         batten::state::LineKind::System,
                         batten::state::Format::Plain,
                         format!(
-                            "flujo de desarrollo #{}: {:?} · agente {} · revisión {}{}",
-                            summary.id.0, summary.phase, agent, summary.correction_round, decision
+                            "flujo #{} · {} · {} · ronda {}",
+                            summary.id.0, phase, agent, summary.correction_round
                         ),
                     );
                 }
@@ -3417,6 +3847,9 @@ impl App {
                     {
                         self.record_live_usage(child, *input_tokens, *output_tokens, None);
                     }
+                    if matches!(event.as_ref(), LiveEvent::UsageProgress { .. }) {
+                        self.apply_usage_progress(child, event.as_ref());
+                    }
                     if let LiveEvent::ReportedCost { usd } = event.as_ref() {
                         self.set_reported_cost(child, *usd);
                     }
@@ -3448,12 +3881,18 @@ impl App {
             // El registro de agentes cambió. La interfaz aún no lo muestra: mostrarlo no es
             // objetivo del registro (spec del registro de agentes, «Eventos y observabilidad»).
             LiveEvent::AgentRegistryChanged { .. } => {}
+            LiveEvent::SkillsLoaded { .. } => {}
         }
     }
 
     fn apply_message_added(&mut self, message: Message) {
         if message.role == Role::User {
-            self.user_message(&message.text());
+            let text = message.text();
+            if message.origin == MessageOrigin::Human {
+                self.push_user(&text);
+            } else {
+                self.internal_user_message(&text);
+            }
         } else {
             for part in message.parts {
                 match part {
@@ -3720,31 +4159,34 @@ impl App {
         }
     }
 
-    /// Mensaje del usuario. En Crush, los avisos de jobs y subagentes se pintan
-    /// como elementos de actividad y no como mensajes; el resto sigue igual.
-    fn user_message(&mut self, text: &str) {
+    fn internal_user_message(&mut self, text: &str) {
         if self.tool_inline() && self.apply_notice(text) {
             return;
         }
-        // Con el look clásico el aviso se conserva entero, pero es del sistema: atribuirlo a la
-        // persona usuaria (`You`) confundiría a los actores.
-        if let Some(notice) = parse_notice(text) {
-            // El resumen se pinta con su cabecera de CodeLoom; los demás avisos, tal cual.
-            let shown = match notice {
-                Notice::Compaction { covers, body } => {
-                    format!("{}\n{body}", compaction_label(covers))
-                }
-                Notice::Job { .. } | Notice::Subagent { .. } => text.to_string(),
-            };
+        let Some(notice) = parse_notice(text) else {
             self.transcript.push_entry(
                 batten::state::LineKind::System,
                 batten::state::Format::Plain,
-                &shown,
+                format!("[Mensaje interno]\n{text}"),
             );
             self.assistant = None;
             return;
-        }
-        self.push_user(text);
+        };
+        let shown = match notice {
+            Notice::Compaction { covers, body } => {
+                format!("{}\n{body}", compaction_label(covers))
+            }
+            Notice::Job { .. } | Notice::SubagentInput { .. } => text.to_string(),
+            Notice::Subagent { label } => {
+                format!("[Subagent {label} completed; open its chat to read the response]")
+            }
+        };
+        self.transcript.push_entry(
+            batten::state::LineKind::System,
+            batten::state::Format::Plain,
+            shown,
+        );
+        self.assistant = None;
     }
 
     /// Sincroniza un elemento de actividad con su entrada del transcript. Como
@@ -3871,13 +4313,33 @@ impl App {
             .and_then(|stats| stats.tool.as_deref())
             .filter(|tool| !tool.is_empty())
             .map(str::to_string);
+        let tokens = stats
+            .filter(|stats| stats.input_tokens + stats.output_tokens > 0)
+            .map(|stats| {
+                let provisional = self
+                    .active_usage
+                    .iter()
+                    .any(|((session, _), usage)| *session == child && !usage.provider_final)
+                    || self
+                        .usage_records
+                        .iter()
+                        .rev()
+                        .find(|record| record.session.0 == child)
+                        .is_some_and(|record| record.source == UsageSource::Estimate);
+                format!(
+                    "{}↑{}/↓{}",
+                    if provisional { "~" } else { "" },
+                    format_tokens(stats.input_tokens),
+                    format_tokens(stats.output_tokens)
+                )
+            });
         let consultas = self
             .node_actions
             .get(&child)
             .map(Vec::len)
             .filter(|&n| n > 0)
             .map(|n| format!("{n} {}", if n == 1 { "query" } else { "queries" }));
-        let partes: Vec<String> = [paso, herramienta, consultas]
+        let partes: Vec<String> = [paso, herramienta, tokens, consultas]
             .into_iter()
             .flatten()
             .collect();
@@ -3892,6 +4354,7 @@ impl App {
         subagent: &codeloom_core::session::SubagentDescriptor,
     ) -> Vec<(String, String)> {
         use batten::state::ToolStatus;
+        let state = subagent.status.state;
         let mut filas: Vec<(String, String)> = self
             .child_logs
             .get(&subagent.child.0)
@@ -3932,6 +4395,29 @@ impl App {
             );
         }
         if subagent.status.state.is_terminal() {
+            if matches!(
+                state,
+                codeloom_core::task::TaskState::Failed | codeloom_core::task::TaskState::Rejected
+            ) {
+                let error = subagent
+                    .status
+                    .message
+                    .as_ref()
+                    .map(|message| {
+                        message
+                            .parts
+                            .iter()
+                            .filter_map(codeloom_core::a2a::Part::as_text)
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    })
+                    .filter(|text| !text.trim().is_empty())
+                    .unwrap_or_else(|| format!("subagent ended in {state:?}"));
+                filas.push((
+                    "✗".to_string(),
+                    format!("error: {}", una_linea(&recortar(&error, MAX_CHILD_TEXT))),
+                ));
+            }
             let resultado = subagent.result_text().unwrap_or_default();
             let primera = resultado
                 .lines()
@@ -3981,7 +4467,7 @@ impl App {
                     self.push_notice_entry("job", status, label, body);
                 }
             }
-            Notice::Subagent { label, body } => {
+            Notice::Subagent { label } => {
                 let live = self.activity_entries.iter_mut().find(|e| {
                     !e.from_notice && e.kind == "subagent" && e.label == label && !e.notice_consumed
                 });
@@ -3992,8 +4478,20 @@ impl App {
                         "subagent",
                         batten::state::ToolStatus::Success,
                         &format!("{label} (completed)"),
-                        body,
+                        "",
                     ),
+                }
+            }
+            Notice::SubagentInput { label, body } => {
+                if !self.activity_entries.iter().any(|entry| {
+                    !entry.from_notice && entry.kind == "subagent" && entry.label == label
+                }) {
+                    self.push_notice_entry(
+                        "subagent",
+                        batten::state::ToolStatus::Running,
+                        &format!("{label} (needs input)"),
+                        body,
+                    );
                 }
             }
             // Mismo mecanismo que un aviso de subagente, pero con el tipo `codeloom`: la
@@ -4036,8 +4534,65 @@ impl App {
             return;
         }
         let text = text.replace("\r\n", "\n").replace('\r', "\n");
-        self.composer.insert_str(&text);
+        self.composer.insert_paste(&text);
         self.history.reset();
+    }
+
+    pub fn attach_image_bytes(&mut self, bytes: &[u8], filename: &str) -> Result<(), String> {
+        if self.draft_images.len() >= MAX_PROMPT_IMAGES {
+            return Err(format!(
+                "A prompt can contain at most {MAX_PROMPT_IMAGES} images"
+            ));
+        }
+        if bytes.len() > MAX_IMAGE_BYTES {
+            return Err("Image must be no larger than 2 MiB".into());
+        }
+        let (mime_type, signature_matches) = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+            ("image/png", true)
+        } else if bytes.starts_with(b"\xff\xd8\xff") {
+            ("image/jpeg", true)
+        } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+            ("image/gif", true)
+        } else if bytes.len() >= 12 && &bytes[..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+            ("image/webp", true)
+        } else {
+            ("", false)
+        };
+        if !signature_matches {
+            return Err(
+                "Unsupported image or invalid image signature (use PNG, JPEG, GIF or WebP)".into(),
+            );
+        }
+        let filename = filename
+            .chars()
+            .map(|character| {
+                if character.is_control() || matches!(character, '[' | ']') {
+                    '_'
+                } else {
+                    character
+                }
+            })
+            .collect::<String>();
+        self.draft_images.push(ContentPart::Image {
+            mime_type: mime_type.into(),
+            data: base64::Engine::encode(&base64::engine::general_purpose::STANDARD, bytes),
+            filename: filename.clone(),
+        });
+        self.history.reset();
+        Ok(())
+    }
+
+    pub fn detach_last_image(&mut self) -> bool {
+        if self.draft_images.pop().is_some() {
+            self.history.reset();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn take_draft_images(&mut self) -> Vec<ContentPart> {
+        std::mem::take(&mut self.draft_images)
     }
 
     pub fn push_char(&mut self, c: char) {
@@ -4307,12 +4862,38 @@ mod tests {
         assert_eq!(app.submit(), Some("hi".to_string()));
         assert!(app.transcript.is_empty());
         app.apply(codeloom_core::event::LiveEvent::MessageAdded(
-            codeloom_core::message::Message::user("hi"),
+            codeloom_core::message::Message::human("hi"),
         ));
         assert_eq!(
             app.transcript.line(0).unwrap().kind,
             batten::state::LineKind::User
         );
+    }
+
+    #[test]
+    fn development_workflow_events_show_phase_agent_and_pending_decision() {
+        let mut app = App::new();
+        app.session_id = Some(SessionId(7));
+        app.apply(LiveEvent::DevelopmentWorkflowChanged(
+            codeloom_core::workflow::WorkflowSummary {
+                id: codeloom_core::workflow::WorkflowId(3),
+                parent: SessionId(7),
+                phase: codeloom_core::workflow::WorkflowPhase::AwaitingPlanApproval,
+                planner: "planner".into(),
+                implementer: "builder".into(),
+                reviewer: "reviewer".into(),
+                active_child: None,
+                correction_round: 1,
+                spec_path: Some("docs/spec.md".into()),
+                plan_path: Some("docs/plan.md".into()),
+                updated_at_ms: 0,
+            },
+        ));
+
+        let line = app.transcript.line(0).unwrap().plain();
+        assert!(line.contains("aprobar spec+plan"));
+        assert!(line.contains("coordinador"));
+        assert!(line.contains("ronda 1"));
     }
 
     #[test]
@@ -4331,9 +4912,9 @@ mod tests {
         });
         assert_eq!(
             app.transcript.line(0).unwrap().plain(),
-            "[Subagent review completed]"
+            "[Subagent review completed; open its chat to read the response]"
         );
-        assert_eq!(app.transcript.line(1).unwrap().plain(), "ready");
+        assert_eq!(app.transcript.entry_count(), 1);
     }
 
     #[test]
@@ -4446,6 +5027,62 @@ mod tests {
     }
 
     #[test]
+    fn restored_internal_prompt_is_not_user_and_human_message_is() {
+        let parent = SessionId(1);
+        let mut app = app_with_children(parent, &[7]);
+        assert!(app.open_child(7));
+        app.load_session(
+            SessionId(7),
+            vec![
+                Message::user("revisa estos archivos"),
+                Message::human("hola"),
+            ],
+        );
+        let users: Vec<_> = app
+            .transcript
+            .iter()
+            .filter(|line| line.kind == batten::state::LineKind::User)
+            .map(|line| line.plain())
+            .collect();
+        assert_eq!(users, ["hola"]);
+        assert!(texts(&app).iter().any(|text| text == "[Mensaje interno]"));
+        assert!(texts(&app)
+            .iter()
+            .any(|text| text == "revisa estos archivos"));
+
+        assert!(app.go_parent());
+        app.load_session(parent, vec![Message::human("mensaje escrito por mí")]);
+        assert!(has_user_line(&app));
+        assert!(texts(&app)
+            .iter()
+            .any(|text| text == "mensaje escrito por mí"));
+    }
+
+    #[test]
+    fn live_internal_user_role_is_not_attributed_to_the_user() {
+        let mut app = App::new();
+        app.apply(LiveEvent::MessageAdded(Message::user("texto interno")));
+        app.apply(LiveEvent::MessageAdded(Message::human("texto humano")));
+        app.apply(LiveEvent::MessageAdded(Message::human(
+            "[Subagent review completed]\ntexto que sí envié",
+        )));
+        let users: Vec<_> = app
+            .transcript
+            .iter()
+            .filter(|line| line.kind == batten::state::LineKind::User)
+            .map(|line| line.plain())
+            .collect();
+        assert_eq!(
+            users,
+            [
+                "texto humano",
+                "[Subagent review completed]",
+                "texto que sí envié"
+            ]
+        );
+    }
+
+    #[test]
     fn go_parent_refuses_with_empty_stack() {
         let mut app = App::new();
         assert!(!app.go_parent());
@@ -4552,7 +5189,7 @@ mod tests {
         app.turn_input_tokens = 99;
         app.turn_output_tokens = 50;
         app.restore_messages(vec![
-            Message::user("hola"),
+            Message::human("hola"),
             Message::assistant(vec![
                 ContentPart::Text {
                     text: "respuesta".into(),
@@ -4811,6 +5448,29 @@ Cuerpo de front.
     }
 
     #[test]
+    fn image_attachment_checks_signature_and_adds_badge() {
+        let mut app = App::new();
+        app.attach_image_bytes(b"\x89PNG\r\n\x1a\nimage", "clipboard.png")
+            .unwrap();
+        assert!(
+            matches!(app.draft_images.as_slice(), [ContentPart::Image { mime_type, .. }] if mime_type == "image/png")
+        );
+        assert!(app.composer.is_empty());
+        assert!(app
+            .attach_image_bytes(b"not an image", "clipboard.png")
+            .is_err());
+    }
+
+    #[test]
+    fn large_paste_shows_marker_but_submits_original_text() {
+        let mut app = App::new();
+        let pasted = "x".repeat(1001);
+        app.paste(&pasted);
+        assert_eq!(app.composer.text(), "[Pasted Content 1001 chars]");
+        assert_eq!(app.submit(), Some(pasted));
+    }
+
+    #[test]
     fn paste_is_ignored_without_composer_focus() {
         let mut app = App::new();
         app.toggle_focus();
@@ -4887,6 +5547,14 @@ Cuerpo de front.
         assert!(!app.turn_in_flight);
         assert!(!app.thinking);
         assert_eq!(app.status, "error: provider unavailable");
+        assert!(system_lines(&app)
+            .iter()
+            .any(|line| line == "error: provider unavailable"));
+        app.apply(LiveEvent::TurnEnded);
+        assert_eq!(app.status, "ready");
+        assert!(system_lines(&app)
+            .iter()
+            .any(|line| line == "error: provider unavailable"));
     }
 
     #[test]
@@ -5290,7 +5958,7 @@ linea 2",
     fn restoring_a_session_places_tools_in_conversation_order() {
         let mut app = crush_app();
         app.restore_messages(vec![
-            Message::user("hola"),
+            Message::human("hola"),
             Message::assistant(vec![
                 ContentPart::Text {
                     text: "respuesta".into(),
@@ -5427,11 +6095,11 @@ linea 2",
             TaskState::Working,
             SessionId(1),
         )));
-        // ADAPTADO: la cabecera del subagente es ahora la de un nodo plegado (`▸ <icono>`).
+        // Los nodos activos se despliegan para mostrar su conversación y estado.
         assert_eq!(
             heads(&app),
             vec![(
-                "▸ ● subagent  review (working)".to_string(),
+                "▾ ● subagent  review (working)".to_string(),
                 ToolStatus::Running
             )]
         );
@@ -5443,7 +6111,7 @@ linea 2",
         assert_eq!(
             heads(&app),
             vec![(
-                "▸ ✓ subagent  review (completed)".to_string(),
+                "▾ ✓ subagent  review (completed)".to_string(),
                 ToolStatus::Success
             )]
         );
@@ -5507,11 +6175,11 @@ linea 2",
             )));
             let nombre = agent_state(state).label();
             let glifo = agent_state(state).glyph();
-            // ADAPTADO: la cabecera es un nodo (`▸ <icono> subagent  review (estado)`).
+            let expansion = if state.is_terminal() { "▸" } else { "▾" };
             assert_eq!(
                 heads(&app),
                 vec![(
-                    format!("▸ {glifo} subagent  review ({nombre})"),
+                    format!("{expansion} {glifo} subagent  review ({nombre})"),
                     subagent_tool_status(state)
                 )],
                 "{state:?}"
@@ -5623,11 +6291,11 @@ línea dos {}",
             app.apply(LiveEvent::SubagentChanged(hijo));
             let nombre = agent_state(state).label();
             let glifo = agent_state(state).glyph();
-            // ADAPTADO: la cabecera es un nodo; la etiqueta del agente va antes del estado A2A.
+            let expansion = if state.is_terminal() { "▸" } else { "▾" };
             assert_eq!(
                 heads(&app),
                 vec![(
-                    format!("▸ {glifo} subagent  review [front] ({nombre})"),
+                    format!("{expansion} {glifo} subagent  review [front] ({nombre})"),
                     subagent_tool_status(state)
                 )],
                 "{state:?}"
@@ -5805,8 +6473,9 @@ línea dos {}",
     fn restored_notices_become_items_not_user_messages() {
         let mut app = crush_app();
         app.restore_messages(vec![
-            Message::user("hola"),
+            Message::human("hola"),
             Message::user("[Subagent review completed]\nready"),
+            Message::user("[Subagent review needs input]\n¿Qué prefieres?"),
             Message::user("[Job j1 failed] build\nboom"),
         ]);
         let user_lines: Vec<String> = app
@@ -5823,6 +6492,10 @@ línea dos {}",
                     "subagent  review (completed)".to_string(),
                     ToolStatus::Success
                 ),
+                (
+                    "subagent  review (needs input)".to_string(),
+                    ToolStatus::Running
+                ),
                 ("job  build".to_string(), ToolStatus::Error),
             ]
         );
@@ -5830,7 +6503,7 @@ línea dos {}",
         let pos = |text: &str| lines.iter().position(|t| t == text).unwrap();
         assert!(pos("hola") < pos("subagent  review (completed)"));
         assert!(pos("subagent  review (completed)") < pos("job  build"));
-        assert!(lines.iter().any(|t| t == "ready"));
+        assert!(!lines.iter().any(|t| t == "ready"));
         assert!(lines.iter().any(|t| t == "boom"));
     }
 
@@ -5843,15 +6516,15 @@ línea dos {}",
         ]);
         let lines = texts(&app);
         assert_eq!(heads(&app).len(), 2);
-        assert!(lines.iter().any(|t| t == "uno"));
-        assert!(lines.iter().any(|t| t == "dos"));
+        assert!(!lines.iter().any(|t| t == "uno"));
+        assert!(!lines.iter().any(|t| t == "dos"));
         assert!(!has_user_line(&app));
     }
 
     #[test]
     fn unparseable_notice_falls_back_to_a_plain_message() {
         let mut app = crush_app();
-        app.apply(LiveEvent::MessageAdded(Message::user("[Job sin cerrar")));
+        app.apply(LiveEvent::MessageAdded(Message::human("[Job sin cerrar")));
         assert!(app
             .transcript
             .iter()
@@ -5901,7 +6574,7 @@ línea dos {}",
     #[test]
     fn ordinary_user_message_starting_with_a_bracket_is_untouched() {
         let mut app = crush_app();
-        app.apply(LiveEvent::MessageAdded(Message::user("[nota] hola")));
+        app.apply(LiveEvent::MessageAdded(Message::human("[nota] hola")));
         assert!(app
             .transcript
             .iter()
@@ -5914,9 +6587,9 @@ línea dos {}",
         use codeloom_core::agent::compact::summary_message;
         let mut app = crush_app();
         app.restore_messages(vec![
-            Message::user("primera"),
+            Message::human("primera"),
             summary_message(1, "resumen viejo"),
-            Message::user("segunda"),
+            Message::human("segunda"),
         ]);
         let users: Vec<String> = app
             .transcript
@@ -5940,9 +6613,9 @@ línea dos {}",
         use codeloom_core::agent::compact::summary_message;
         let mut app = crush_app();
         app.restore_messages(vec![
-            Message::user("primera"),
+            Message::human("primera"),
             summary_message(1, "resumen viejo"),
-            Message::user("segunda"),
+            Message::human("segunda"),
         ]);
         assert_eq!(app.history.len(), 2, "solo los dos mensajes de la persona");
         assert_eq!(app.history.prev(""), Some("segunda"));
@@ -5960,8 +6633,9 @@ línea dos {}",
         )));
         app.apply(notice_for("[Subagent review completed]\nready"));
         let lines = texts(&app);
-        assert!(lines.iter().any(|t| t == "[Subagent review completed]"));
-        assert!(lines.iter().any(|t| t == "ready"));
+        assert!(lines
+            .iter()
+            .any(|t| t == "[Subagent review completed; open its chat to read the response]"));
         // El aviso lo emite el sistema: nunca se atribuye a la persona usuaria.
         let user_count = app
             .transcript
@@ -5974,7 +6648,7 @@ línea dos {}",
             .iter()
             .filter(|l| l.kind == batten::state::LineKind::System)
             .count();
-        assert_eq!(avisos, 2, "cabecera y cuerpo del aviso, como sistema");
+        assert_eq!(avisos, 1, "el resumen queda como una línea de sistema");
         assert_eq!(
             heads(&app).len(),
             1,
@@ -5982,7 +6656,7 @@ línea dos {}",
         );
         // ADAPTADO: la entrada viva del subagente es ahora un nodo (`▸ ● …`); el aviso la reclama
         // sin crear otra. Sigue comprobándose que la cabecera nombra al subagente.
-        assert!(heads(&app)[0].0.starts_with("▸ ● subagent  review"));
+        assert!(heads(&app)[0].0.starts_with("▾ ● subagent  review"));
     }
 
     #[test]
@@ -5997,9 +6671,9 @@ línea dos {}",
         assert_eq!(heads(&app).len(), 1);
         app.theme = batten::widgets::Theme::preset(batten::widgets::ThemePreset::Batten);
         app.sync_all_tools();
-        // ADAPTADO: la cabecera del subagente es un nodo (`▸ ● …`), no una cabecera de actividad.
+        // El nodo activo queda desplegado por defecto, también al cambiar de look.
         let esperado = vec![(
-            "▸ ● subagent  review (working)".to_string(),
+            "▾ ● subagent  review (working)".to_string(),
             ToolStatus::Running,
         )];
         assert_eq!(
@@ -6013,9 +6687,7 @@ línea dos {}",
     }
 
     #[test]
-    fn subagent_node_is_one_folded_line_by_default() {
-        // Con el look compacto (el de `App::new`), un nodo plegado sigue siendo una sola línea
-        // aunque su hijo tenga registro.
+    fn active_subagent_node_expands_by_default() {
         let mut app = App::new();
         app.session_id = Some(SessionId(1));
         app.apply(LiveEvent::SubagentChanged(sub(
@@ -6032,9 +6704,28 @@ línea dos {}",
         ));
         assert_eq!(
             texts(&app),
-            vec!["▸ ● subagent  review (working)".to_string()]
+            vec![
+                "▾ ● subagent  review (working)".to_string(),
+                "└─ › voy a mirar".to_string(),
+            ]
         );
-        assert!(app.expanded_nodes.is_empty());
+        assert!(app.expanded_nodes.contains(&9));
+    }
+
+    #[test]
+    fn failed_subagent_node_shows_its_bounded_error_message() {
+        let mut app = App::new();
+        app.session_id = Some(SessionId(1));
+        let mut child = sub("review", TaskState::Failed, SessionId(1));
+        child.status.message = Some(codeloom_core::a2a::Message::agent_text(
+            "provider unavailable",
+        ));
+        app.apply(LiveEvent::SubagentChanged(child));
+        app.expanded_nodes.insert(9);
+        app.refresh_child_node(9);
+        assert!(texts(&app)
+            .iter()
+            .any(|line| line == "└─ ✗ error: provider unavailable"));
     }
 
     #[test]
@@ -6051,8 +6742,9 @@ línea dos {}",
             let glifo = agent_state(state).glyph();
             let nombre = agent_state(state).label();
             let cabecera = texts(&app).into_iter().next().expect("cabecera");
+            let expansion = if state.is_terminal() { "▸" } else { "▾" };
             assert!(
-                cabecera.starts_with(&format!("▸ {glifo} subagent")),
+                cabecera.starts_with(&format!("{expansion} {glifo} subagent")),
                 "{state:?}: {cabecera}"
             );
             assert!(
@@ -6091,7 +6783,7 @@ línea dos {}",
         ));
         assert_eq!(
             texts(&app),
-            vec!["▸ ● subagent  review (working) · step 2/30 · read_file".to_string()]
+            vec!["▾ ● subagent  review (working) · step 2/30 · read_file".to_string()]
         );
         app.apply(child_event(
             SessionId(1),
@@ -6103,7 +6795,7 @@ línea dos {}",
         ));
         assert_eq!(
             texts(&app),
-            vec!["▸ ● subagent  review (working) · step 2/30".to_string()]
+            vec!["▾ ● subagent  review (working) · step 2/30".to_string()]
         );
     }
 
@@ -6194,6 +6886,7 @@ línea dos {}",
         ));
         app.focus = Focus::Transcript;
         app.block = Some(0);
+        crate::run::handle_key(&mut app, KeyCode::Left, KeyModifiers::NONE);
         assert_eq!(texts(&app).len(), 1, "plegado, el nodo ocupa una línea");
 
         crate::run::handle_key(&mut app, KeyCode::Right, KeyModifiers::NONE);
@@ -6210,6 +6903,15 @@ línea dos {}",
         assert_eq!(
             texts(&app),
             vec!["▸ ● subagent  review (working)".to_string()]
+        );
+
+        crate::run::handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(texts(&app).len(), 3, "Enter vuelve a desplegar el nodo");
+        crate::run::handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(
+            texts(&app),
+            vec!["▸ ● subagent  review (working)".to_string()],
+            "Enter vuelve a plegar el mismo nodo"
         );
     }
 
@@ -6240,8 +6942,8 @@ línea dos {}",
         )));
         app.block = Some(0);
         assert!(!app.set_node_expanded(true));
-        assert!(app.expanded_nodes.is_empty());
-        assert!(!texts(&app).iter().any(|t| t.starts_with('▾')));
+        assert!(app.expanded_nodes.contains(&9));
+        assert!(texts(&app).iter().any(|t| t.starts_with('▾')));
     }
 
     #[test]
@@ -6365,13 +7067,23 @@ línea dos {}",
         ));
         assert_eq!(
             texts(&app),
-            vec!["▸ ● subagent  review (working) · 3 queries".to_string()]
+            vec![
+                "▾ ● subagent  review (working) · 3 queries".to_string(),
+                "├─ ↳ parent: job_output".to_string(),
+                "├─ ↳ parent: job_kill".to_string(),
+                "└─ ↳ parent: subagent_control".to_string()
+            ]
         );
         // Volver a sincronizar las mismas llamadas no las cuenta de nuevo.
         app.sync_all_tools();
         assert_eq!(
             texts(&app),
-            vec!["▸ ● subagent  review (working) · 3 queries".to_string()]
+            vec![
+                "▾ ● subagent  review (working) · 3 queries".to_string(),
+                "├─ ↳ parent: job_output".to_string(),
+                "├─ ↳ parent: job_kill".to_string(),
+                "└─ ↳ parent: subagent_control".to_string()
+            ]
         );
     }
 
@@ -7413,6 +8125,118 @@ línea dos {}",
     }
 
     #[test]
+    fn child_skill_load_status_is_kept_for_the_capability_widget() {
+        let mut app = App::new();
+        let status = codeloom_core::skills::SkillLoadStatus {
+            id: "review".into(),
+            name: "Review".into(),
+            state: codeloom_core::skills::SkillLoadState::Loaded,
+            source: Some("project".into()),
+            input_tokens_per_request: 12,
+        };
+        app.apply_child_event(
+            SessionId(7),
+            LiveEvent::SkillsLoaded {
+                skills: vec![status.clone()],
+            },
+        );
+        assert_eq!(app.skill_statuses_by_child.get(&7), Some(&vec![status]));
+    }
+
+    #[test]
+    fn child_usage_progress_records_mcp_and_skill_components() {
+        let mut app = App::new();
+        app.session_id = Some(SessionId(1));
+        app.apply_child_event(
+            SessionId(7),
+            LiveEvent::UsageProgress {
+                request_id: 3,
+                model: "m".into(),
+                provider_usage: Some(Usage {
+                    input_tokens: 120,
+                    output_tokens: 8,
+                    reported_cost_usd: None,
+                }),
+                provider_final: true,
+                estimated_usage: Usage {
+                    input_tokens: 130,
+                    output_tokens: 9,
+                    reported_cost_usd: None,
+                },
+                finished: true,
+                components: vec![
+                    codeloom_core::session::UsageComponent {
+                        kind: codeloom_core::session::UsageComponentKind::Mcp,
+                        id: "token-demo".into(),
+                        input_tokens: 24,
+                    },
+                    codeloom_core::session::UsageComponent {
+                        kind: codeloom_core::session::UsageComponentKind::Skill,
+                        id: "token-counter-demo".into(),
+                        input_tokens: 16,
+                    },
+                ],
+            },
+        );
+        assert_eq!(app.usage_records.len(), 1);
+        assert_eq!(app.usage_records[0].session, SessionId(7));
+        assert_eq!(app.usage_records[0].components.len(), 2);
+        assert_eq!(app.usage_records[0].components[0].id, "token-demo");
+        assert_eq!(app.usage_records[0].components[1].id, "token-counter-demo");
+    }
+
+    #[test]
+    fn usage_progress_replaces_estimate_with_provider_snapshot_once() {
+        let mut app = App::new();
+        let session = SessionId(1);
+        app.session_id = Some(session);
+        let progress =
+            |provider_usage, provider_final, estimated_usage, finished| LiveEvent::UsageProgress {
+                request_id: 44,
+                model: "m".into(),
+                provider_usage,
+                provider_final,
+                estimated_usage,
+                finished,
+                components: vec![codeloom_core::session::UsageComponent {
+                    kind: codeloom_core::session::UsageComponentKind::Skill,
+                    id: "review".into(),
+                    input_tokens: 20,
+                }],
+            };
+        app.apply(progress(
+            None,
+            false,
+            Usage {
+                input_tokens: 100,
+                output_tokens: 20,
+                reported_cost_usd: None,
+            },
+            false,
+        ));
+        assert_eq!((app.turn_input_tokens, app.turn_output_tokens), (100, 20));
+        app.apply(progress(
+            Some(Usage {
+                input_tokens: 90,
+                output_tokens: 10,
+                reported_cost_usd: Some(0.1),
+            }),
+            true,
+            Usage {
+                input_tokens: 100,
+                output_tokens: 20,
+                reported_cost_usd: None,
+            },
+            true,
+        ));
+        assert_eq!((app.turn_input_tokens, app.turn_output_tokens), (90, 10));
+        assert_eq!(app.usage_records.len(), 1);
+        assert_eq!(app.usage_records[0].source, UsageSource::Provider);
+        assert_eq!(app.usage_records[0].components[0].id, "review");
+        assert_eq!((app.family_tokens().0, app.family_tokens().1), (90, 10));
+    }
+
+    #[test]
     fn usage_event_sets_the_context_tokens() {
         let mut app = App::new();
         app.apply(LiveEvent::Usage {
@@ -7610,6 +8434,9 @@ línea dos {}",
             input_price: Some(3.0),
             output_price: Some(15.0),
             reported_cost_usd: None,
+            source: UsageSource::Provider,
+            is_final: true,
+            components: Vec::new(),
             created_at_ms: 1,
         }
     }
@@ -7738,6 +8565,9 @@ línea dos {}",
             input_price: prices.map(|(price_in, _)| price_in),
             output_price: prices.map(|(_, price_out)| price_out),
             reported_cost_usd: None,
+            source: UsageSource::Provider,
+            is_final: true,
+            components: Vec::new(),
             created_at_ms: 1,
         }
     }
@@ -8054,6 +8884,37 @@ línea dos {}",
         );
         // El registro no crea métricas: estas siguen siendo las del ToolFinished.
         assert_eq!(app.agent_stats[&9].tool, None);
+    }
+
+    #[test]
+    fn child_live_text_deltas_become_one_chat_entry_when_message_arrives() {
+        let mut app = crush_app();
+        app.session_id = Some(SessionId(1));
+        app.apply(child_event(
+            SessionId(1),
+            9,
+            LiveEvent::Delta {
+                text: "voy ".into(),
+            },
+        ));
+        app.apply(child_event(
+            SessionId(1),
+            9,
+            LiveEvent::Delta {
+                text: "a mirar".into(),
+            },
+        ));
+        app.apply(child_event(
+            SessionId(1),
+            9,
+            LiveEvent::MessageAdded(Message::assistant(vec![ContentPart::Text {
+                text: "voy a mirar".into(),
+            }])),
+        ));
+        assert_eq!(
+            app.child_logs[&9].items.iter().collect::<Vec<_>>(),
+            [&ChildItem::Text("voy a mirar".into())]
+        );
     }
 
     #[test]

@@ -122,6 +122,7 @@ pub fn estimate_message_tokens(message: &Message) -> usize {
                 estimate_text_tokens(text) + signature.as_deref().map_or(0, estimate_text_tokens)
             }
             ContentPart::ImageUrl { url } => estimate_text_tokens(url),
+            ContentPart::Image { .. } => 1_024,
             ContentPart::ToolCall { name, input, .. } => {
                 estimate_text_tokens(name) + estimate_text_tokens(&input.to_string())
             }

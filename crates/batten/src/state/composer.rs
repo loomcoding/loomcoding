@@ -16,9 +16,17 @@ use unicode_width::UnicodeWidthStr;
 /// `painted` guarda el cursor con el que se pintó por última vez. La traducción
 /// de una celda a un índice (`hit_index`) debe usar esa misma geometría y no el
 /// cursor vivo: durante un arrastre el cursor se mueve antes del siguiente repintado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CollapsedPaste {
+    start: usize,
+    end: usize,
+    text: String,
+}
+
 #[derive(Debug, Default)]
 pub struct Composer {
     buf: String,
+    collapsed_pastes: Vec<CollapsedPaste>,
     cursor: usize,
     preferred_col: Option<usize>,
     anchor: Option<usize>,
@@ -72,7 +80,10 @@ impl Composer {
     /// Solo se invoca con selección activa (el llamador ya lo comprobó).
     fn delete_selection(&mut self) {
         if let Some((start, end)) = self.selection_bytes() {
+            let (start, end) = self.expand_selection_over_pastes(start, end);
             self.buf.replace_range(start..end, "");
+            self.remove_pastes_in(start, end);
+            self.shift_pastes_after(end, start as isize - end as isize);
             self.cursor = start;
         }
         self.anchor = None;
@@ -106,6 +117,71 @@ impl Composer {
     /// Texto seleccionado, o `None` sin selección.
     pub fn selected_text(&self) -> Option<&str> {
         self.selection_bytes().map(|(s, e)| &self.buf[s..e])
+    }
+
+    /// Selección con los pegados colapsados expandidos a su contenido real.
+    pub fn selected_text_expanded(&self) -> Option<String> {
+        let (mut start, mut end) = self.selection_bytes()?;
+        (start, end) = self.expand_selection_over_pastes(start, end);
+        let mut result = String::new();
+        let mut cursor = start;
+        for paste in self
+            .collapsed_pastes
+            .iter()
+            .filter(|p| p.start < end && p.end > start)
+        {
+            result.push_str(&self.buf[cursor..paste.start]);
+            result.push_str(&paste.text);
+            cursor = paste.end;
+        }
+        result.push_str(&self.buf[cursor..end]);
+        Some(result)
+    }
+
+    fn expand_selection_over_pastes(&self, mut start: usize, mut end: usize) -> (usize, usize) {
+        for paste in &self.collapsed_pastes {
+            if paste.start < end && paste.end > start {
+                start = start.min(paste.start);
+                end = end.max(paste.end);
+            }
+        }
+        (start, end)
+    }
+
+    fn shift_pastes_after(&mut self, from: usize, delta: isize) {
+        for paste in &mut self.collapsed_pastes {
+            if paste.start >= from {
+                paste.start = paste.start.checked_add_signed(delta).unwrap();
+                paste.end = paste.end.checked_add_signed(delta).unwrap();
+            }
+        }
+    }
+
+    fn remove_pastes_in(&mut self, start: usize, end: usize) {
+        self.collapsed_pastes
+            .retain(|p| p.end <= start || p.start >= end);
+    }
+
+    fn delete_paste(&mut self, index: usize) {
+        let paste = self.collapsed_pastes.remove(index);
+        self.buf.replace_range(paste.start..paste.end, "");
+        self.shift_pastes_after(paste.end, paste.start as isize - paste.end as isize);
+        self.cursor = paste.start;
+        self.anchor = None;
+        self.preferred_col = None;
+    }
+
+    fn expand_paste(&mut self, index: usize) {
+        let paste = self.collapsed_pastes.remove(index);
+        let old_len = paste.end - paste.start;
+        self.buf.replace_range(paste.start..paste.end, &paste.text);
+        let new_len = paste.text.len();
+        self.shift_pastes_after(paste.end, new_len as isize - old_len as isize);
+        if self.cursor >= paste.end {
+            self.cursor = self.cursor - old_len + new_len;
+        } else if self.cursor > paste.start {
+            self.cursor = paste.start + new_len;
+        }
     }
 
     /// Fija ancla y cursor (ambos acotados al nº de grafemas). Si coinciden,
@@ -191,6 +267,8 @@ impl Composer {
         if self.anchor.is_some() {
             self.delete_selection();
         }
+        self.expand_paste_at_cursor();
+        self.shift_pastes_after(self.cursor, c.len_utf8() as isize);
         self.buf.insert(self.cursor, c);
         self.cursor += c.len_utf8();
         self.snap_cursor_to_grapheme_end();
@@ -206,10 +284,47 @@ impl Composer {
             self.delete_selection();
         }
         let normalized = s.replace("\r\n", "\n").replace('\r', "\n");
+        self.expand_paste_at_cursor();
+        self.shift_pastes_after(self.cursor, normalized.len() as isize);
         self.buf.insert_str(self.cursor, &normalized);
         self.cursor += normalized.len();
         self.snap_cursor_to_grapheme_end();
         self.preferred_col = None;
+    }
+
+    /// Inserta un pegado largo como una unidad visible y conserva su payload.
+    pub fn insert_paste(&mut self, text: &str) {
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        if text.chars().count() <= 1000 {
+            self.insert_str(&text);
+            return;
+        }
+        if self.anchor.is_some() {
+            self.delete_selection();
+        }
+        self.expand_paste_at_cursor();
+        let label = format!("[Pasted Content {} chars]", text.chars().count());
+        let start = self.cursor;
+        self.shift_pastes_after(start, label.len() as isize);
+        self.buf.insert_str(start, &label);
+        self.cursor += label.len();
+        self.collapsed_pastes.push(CollapsedPaste {
+            start,
+            end: start + label.len(),
+            text,
+        });
+        self.collapsed_pastes.sort_by_key(|paste| paste.start);
+        self.preferred_col = None;
+    }
+
+    fn expand_paste_at_cursor(&mut self) {
+        if let Some(index) = self
+            .collapsed_pastes
+            .iter()
+            .position(|p| p.start < self.cursor && self.cursor < p.end)
+        {
+            self.expand_paste(index);
+        }
     }
 
     pub fn backspace(&mut self) {
@@ -220,6 +335,15 @@ impl Composer {
         if self.cursor == 0 {
             return;
         }
+        if let Some(index) = self
+            .collapsed_pastes
+            .iter()
+            .position(|p| p.end == self.cursor)
+        {
+            self.delete_paste(index);
+            return;
+        }
+        self.expand_paste_at_cursor();
         let (start, grapheme) = self
             .buf
             .grapheme_indices(true)
@@ -228,6 +352,7 @@ impl Composer {
             .unwrap();
         let end = start + grapheme.len();
         self.buf.replace_range(start..end, "");
+        self.shift_pastes_after(end, start as isize - end as isize);
         self.cursor = start;
         self.preferred_col = None;
     }
@@ -240,9 +365,19 @@ impl Composer {
         if self.cursor >= self.buf.len() {
             return;
         }
+        if let Some(index) = self
+            .collapsed_pastes
+            .iter()
+            .position(|p| p.start == self.cursor)
+        {
+            self.delete_paste(index);
+            return;
+        }
+        self.expand_paste_at_cursor();
         let start = self.cursor;
         let end = start + self.buf[start..].graphemes(true).next().unwrap().len();
         self.buf.replace_range(start..end, "");
+        self.shift_pastes_after(end, start as isize - end as isize);
         self.preferred_col = None;
     }
 
@@ -250,6 +385,15 @@ impl Composer {
     // selección) y los `extend_*` (que la amplían). Así ambos se comportan igual.
 
     fn step_left(&mut self) {
+        if let Some(paste) = self
+            .collapsed_pastes
+            .iter()
+            .find(|p| p.start < self.cursor && self.cursor <= p.end)
+        {
+            self.cursor = paste.start;
+            self.preferred_col = None;
+            return;
+        }
         self.cursor = self.buf[..self.cursor]
             .grapheme_indices(true)
             .next_back()
@@ -258,6 +402,15 @@ impl Composer {
     }
 
     fn step_right(&mut self) {
+        if let Some(paste) = self
+            .collapsed_pastes
+            .iter()
+            .find(|p| p.start <= self.cursor && self.cursor < p.end)
+        {
+            self.cursor = paste.end;
+            self.preferred_col = None;
+            return;
+        }
         if self.cursor < self.buf.len() {
             self.cursor += self.buf[self.cursor..]
                 .graphemes(true)
@@ -395,6 +548,7 @@ impl Composer {
 
     pub fn set_text(&mut self, s: &str) {
         self.buf = s.replace("\r\n", "\n").replace('\r', "\n");
+        self.collapsed_pastes.clear();
         self.cursor = self.buf.len();
         self.preferred_col = None;
         self.anchor = None;
@@ -418,11 +572,27 @@ impl Composer {
         self.cursor = 0;
         self.preferred_col = None;
         self.anchor = None;
-        if self.buf.trim().is_empty() {
+        if self.expanded_text().trim().is_empty() {
             self.buf.clear();
+            self.collapsed_pastes.clear();
             return None;
         }
-        Some(std::mem::take(&mut self.buf))
+        let text = self.expanded_text();
+        self.buf.clear();
+        self.collapsed_pastes.clear();
+        Some(text)
+    }
+
+    fn expanded_text(&self) -> String {
+        let mut result = String::new();
+        let mut cursor = 0;
+        for paste in &self.collapsed_pastes {
+            result.push_str(&self.buf[cursor..paste.start]);
+            result.push_str(&paste.text);
+            cursor = paste.end;
+        }
+        result.push_str(&self.buf[cursor..]);
+        result
     }
 }
 
@@ -825,5 +995,47 @@ mod tests {
         assert_eq!(c.cursor_row_col(), (1, 0));
         assert_eq!(c.selection(), None);
         assert_eq!(c.submit(), Some("ab\nz".to_string()));
+    }
+
+    #[test]
+    fn long_pastes_collapse_and_expand_on_submit() {
+        let mut c = Composer::new();
+        let pasted = "é".repeat(1001);
+        c.insert_paste(&pasted);
+        assert_eq!(c.text(), "[Pasted Content 1001 chars]");
+        assert_eq!(c.submit(), Some(pasted));
+    }
+
+    #[test]
+    fn pasted_marker_text_is_literal_and_deletion_is_atomic() {
+        let mut c = Composer::new();
+        let pasted = "x".repeat(1001);
+        c.insert_paste(&pasted);
+        c.backspace();
+        assert_eq!(c.text(), "");
+        c.insert_str("[Pasted Content 1001 chars]");
+        assert_eq!(c.submit(), Some("[Pasted Content 1001 chars]".to_string()));
+
+        let mut c = Composer::new();
+        c.insert_str("before");
+        c.insert_paste(&pasted);
+        c.insert_str("after");
+        c.set_cursor(6);
+        c.delete();
+        assert_eq!(c.submit(), Some("beforeafter".to_string()));
+    }
+
+    #[test]
+    fn multiple_pastes_keep_order_and_copy_expanded_content() {
+        let mut c = Composer::new();
+        let first = "a".repeat(1001);
+        let second = "b".repeat(1002);
+        c.insert_paste(&first);
+        c.insert_str("+");
+        c.insert_paste(&second);
+        c.select_all();
+        let copied = c.selected_text_expanded().unwrap();
+        assert_eq!(copied, format!("{first}+{second}"));
+        assert_eq!(c.submit(), Some(copied));
     }
 }

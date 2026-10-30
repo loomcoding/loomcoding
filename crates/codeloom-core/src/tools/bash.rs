@@ -20,6 +20,14 @@ impl ProjectBashTool {
     }
 }
 
+fn shell_description() -> &'static str {
+    if cfg!(windows) {
+        "Run a command using Windows cmd.exe (/C), not Bash. Use cmd syntax; for PowerShell, invoke `powershell -NoProfile -Command ...`. Params: command (string)."
+    } else {
+        "Run a shell command using sh -c. Params: command (string)."
+    }
+}
+
 async fn run_command(
     ctx: super::ToolCtx,
     input: serde_json::Value,
@@ -68,7 +76,7 @@ impl Tool for BashTool {
         "bash"
     }
     fn description(&self) -> &str {
-        "Run a shell command in the workspace. Params: command (string)."
+        shell_description()
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})
@@ -93,7 +101,7 @@ impl Tool for ProjectBashTool {
     }
 
     fn description(&self) -> &str {
-        "Run a shell command in the workspace with that project's environment. Params: command (string)."
+        shell_description()
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -119,6 +127,17 @@ mod tests {
     use super::*;
     use crate::permission::PermissionService;
     use std::sync::Arc;
+
+    #[test]
+    fn shell_description_matches_the_host() {
+        let description = BashTool.description();
+        if cfg!(windows) {
+            assert!(description.contains("cmd.exe"));
+            assert!(description.contains("PowerShell"));
+        } else {
+            assert!(description.contains("sh -c"));
+        }
+    }
 
     fn ctx(dir: &std::path::Path) -> ToolCtx {
         ToolCtx {

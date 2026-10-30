@@ -18,6 +18,7 @@ codeloom-tui = { path = "../codeloom-tui" }
 codeloom-herdr = { path = "../codeloom-herdr" }
 codeloom-a2a = { path = "../codeloom-a2a" }
 codeloom-mcp = { path = "../codeloom-mcp" }
+base64 = "0.22"
 tokio.workspace = true
 tokio-util.workspace = true
 async-trait.workspace = true

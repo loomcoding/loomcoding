@@ -48,8 +48,20 @@ pub enum StreamChunk {
     },
     ProviderState(crate::message::ProviderState),
     ProviderNotice(String),
+    Error(String),
     Usage(Usage),
+    /// Snapshot parcial del uso durante una respuesta. Los adapters emiten totales acumulados;
+    /// `None` significa que ese campo aún no ha sido informado.
+    UsageUpdate(UsageUpdate),
     Done(FinishReason),
+}
+
+#[derive(Debug, Clone)]
+pub struct UsageUpdate {
+    pub input_tokens: Option<u32>,
+    pub output_tokens: Option<u32>,
+    pub reported_cost_usd: Option<f64>,
+    pub final_update: bool,
 }
 
 #[derive(Debug, Clone, Copy)]

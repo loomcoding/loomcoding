@@ -41,11 +41,50 @@ fn job_counts(app: &App) -> (usize, usize, usize, usize) {
 
 /// Altura de la cabecera de espacio de trabajo: dos líneas, o tres si hay subagentes que nombrar.
 fn workspace_header_height(app: &App) -> u16 {
-    if app.subagent_state_counts().is_empty() {
-        2
-    } else {
-        3
-    }
+    2 + u16::from(!app.subagent_state_counts().is_empty())
+        + u16::from(app.runtime_capabilities.is_some())
+}
+
+fn capabilities_summary(app: &App) -> Option<Line<'static>> {
+    let capabilities = app.runtime_capabilities.as_ref()?;
+    let mcp = match capabilities.mcp_config {
+        crate::app::McpConfigState::Unknown => "MCP pending".to_owned(),
+        crate::app::McpConfigState::NotConfigured => "MCP not configured".to_owned(),
+        crate::app::McpConfigState::Invalid => "MCP config invalid".to_owned(),
+        crate::app::McpConfigState::Loaded => {
+            let initialized = capabilities
+                .mcp_servers
+                .iter()
+                .filter(|server| server.initialized)
+                .count();
+            format!(
+                "MCP {initialized}/{} initialized",
+                capabilities.mcp_servers.len()
+            )
+        }
+    };
+    let lsp = match (
+        capabilities.lsp_registered,
+        capabilities.rust_analyzer_available,
+    ) {
+        (false, _) => "LSP unavailable".to_owned(),
+        (true, false) => "LSP rust-analyzer missing".to_owned(),
+        (true, true) => "LSP rust-analyzer found".to_owned(),
+    };
+    Some(Line::from(Span::styled(
+        format!(
+            "   {mcp}  ·  {lsp}  ·  skills {}/{} cards, {} scopes{}",
+            capabilities.available_skill_total,
+            capabilities.announced_skill_total,
+            capabilities.declared_skill_scope_total,
+            if capabilities.local_skill_loader_available {
+                ""
+            } else {
+                " · SKILL.md unavailable"
+            }
+        ),
+        app.theme.styles.muted,
+    )))
 }
 
 fn draw_workspace_header(frame: &mut Frame, area: Rect, app: &App) {
@@ -100,6 +139,9 @@ fn draw_workspace_header(frame: &mut Frame, area: Rect, app: &App) {
                 "   conversation · activity · context · changed files",
                 app.theme.styles.muted,
             )));
+            if let Some(capabilities) = capabilities_summary(app) {
+                lineas.push(capabilities);
+            }
             lineas
         }),
         area,
@@ -120,7 +162,7 @@ fn draw_flat_header(frame: &mut Frame, area: Rect, app: &App) {
     } else {
         app.theme.styles.muted
     };
-    let mut text = vec![
+    let mut lines = vec![Line::from(vec![
         Span::styled(
             " CODEL∞M ",
             app.theme.styles.heading.add_modifier(Modifier::BOLD),
@@ -132,24 +174,29 @@ fn draw_flat_header(frame: &mut Frame, area: Rect, app: &App) {
             format!("  • {}{}", app.status, background_suffix(app)),
             status_style,
         ),
-    ];
+    ])];
     if app.queued > 0 {
-        text.push(Span::styled(
+        lines[0].spans.push(Span::styled(
             format!("  • {} queued", app.queued),
             app.theme.styles.muted,
         ));
     }
     if app.queue_paused {
-        text.push(Span::styled("  • queue paused", app.theme.styles.warning));
+        lines[0]
+            .spans
+            .push(Span::styled("  • queue paused", app.theme.styles.warning));
     }
     let (running, finished, subagents, subagents_finished) = job_counts(app);
     if running > 0 || finished > 0 || subagents > 0 || subagents_finished > 0 {
-        text.push(Span::styled(
+        lines[0].spans.push(Span::styled(
             format!("  • {} · {running} jobs", app.running_summary()),
             app.theme.styles.muted,
         ));
     }
-    frame.render_widget(Paragraph::new(Line::from(text)), area);
+    if let Some(capabilities) = capabilities_summary(app) {
+        lines.push(capabilities);
+    }
+    frame.render_widget(Paragraph::new(lines), area);
 }
 
 /// Atajos del pie del chrome `Flat`, en el orden en que se muestran.
@@ -381,7 +428,11 @@ fn draw_transcript(frame: &mut Frame, area: Rect, app: &mut App, panes: &mut Vec
         let waiting = usize::from(tool.output.is_none());
         (1 + args + visible_output + waiting).min(usize::from(max_tool_rows)) as u16
     });
-    let reserved_rows = 2u16.saturating_add(thinking_rows).saturating_add(tool_rows);
+    let attachment_rows = u16::from(!app.draft_images.is_empty());
+    let reserved_rows = 2u16
+        .saturating_add(thinking_rows)
+        .saturating_add(tool_rows)
+        .saturating_add(attachment_rows);
     let max_composer_height = inner.height.saturating_sub(reserved_rows);
     let composer_height = batten::widgets::composer::height_for_look(
         &app.theme,
@@ -396,11 +447,12 @@ fn draw_transcript(frame: &mut Frame, area: Rect, app: &mut App, panes: &mut Vec
         Constraint::Min(1),
         Constraint::Length(thinking_rows),
         Constraint::Length(tool_rows),
+        Constraint::Length(attachment_rows),
         Constraint::Length(composer_height),
     ])
     .split(inner);
-    app.composer_area = Some(rows[4]);
-    panes.push((Focus::Composer, rows[4]));
+    app.composer_area = Some(rows[5]);
+    panes.push((Focus::Composer, rows[5]));
     if !flat {
         frame.render_widget(
             Paragraph::new(Line::from(vec![
@@ -458,9 +510,26 @@ fn draw_transcript(frame: &mut Frame, area: Rect, app: &mut App, panes: &mut Vec
     if let Some(tool) = pinned_tool(app) {
         batten::widgets::tool_item::render_crush(frame, rows[3], tool, &app.theme);
     }
+    if attachment_rows > 0 {
+        let chip = Style::default()
+            .fg(ratatui::style::Color::Black)
+            .bg(ratatui::style::Color::LightCyan)
+            .add_modifier(Modifier::BOLD);
+        let mut spans = vec![Span::styled(" Attachments ", app.theme.styles.muted)];
+        for image in &app.draft_images {
+            if let codeloom_core::message::ContentPart::Image { filename, .. } = image {
+                spans.push(Span::styled(format!(" ▧ {filename} "), chip));
+            }
+        }
+        spans.push(Span::styled(
+            "  Backspace removes last",
+            app.theme.styles.muted,
+        ));
+        frame.render_widget(Paragraph::new(Line::from(spans)), rows[4]);
+    }
     batten::widgets::composer::render_for_look(
         frame,
-        rows[4],
+        rows[5],
         &app.composer,
         app.focus == crate::app::Focus::Composer
             && app.permission.is_none()
@@ -513,14 +582,13 @@ fn draw_workspace_metrics(
 ) {
     let rows = Layout::vertical([
         Constraint::Length(6),
-        Constraint::Length(5),
+        Constraint::Length(6),
         Constraint::Min(3),
     ])
     .split(area);
     // «Token usage» (rows[1]) pertenece a la misma ventana Agent.
     panes.push((Focus::Agent, rows[0]));
     panes.push((Focus::Agent, rows[1]));
-    panes.push((Focus::Activity, rows[2]));
     let (agent_info, agent_tone) = if app.status.starts_with("error:") {
         ("error", batten::state::Tone::Error)
     } else if app.status == "working" {
@@ -576,38 +644,324 @@ fn draw_workspace_metrics(
                 "Session ↑{} ↓{}",
                 app.input_tokens, app.output_tokens
             )),
+            Line::from(format!(
+                "Family ↑{} ↓{}",
+                app.family_tokens().0,
+                app.family_tokens().1
+            )),
+            Line::from(
+                app.active_usage_label()
+                    .unwrap_or_else(|| "Request · sin stream activo".into()),
+            ),
         ]),
         context,
     );
-    let activity = batten::widgets::panel::render(
+    let [activity, mcp, lsp, skills] = Layout::vertical([
+        Constraint::Ratio(1, 4),
+        Constraint::Ratio(1, 4),
+        Constraint::Ratio(1, 4),
+        Constraint::Ratio(1, 4),
+    ])
+    .areas(rows[2]);
+
+    let activity_lines = app
+        .tools
+        .iter()
+        .rev()
+        .take(64)
+        .map(|tool| {
+            let (symbol, style, status) = match tool.status() {
+                batten::state::ToolStatus::Pending => ("○", app.theme.styles.muted, "pending"),
+                batten::state::ToolStatus::Running => {
+                    ("◌", app.theme.styles.tool_running, "running")
+                }
+                batten::state::ToolStatus::Success => ("✓", app.theme.styles.success, "done"),
+                batten::state::ToolStatus::Error => ("!", app.theme.styles.error, "failed"),
+                batten::state::ToolStatus::Canceled => ("×", app.theme.styles.muted, "canceled"),
+                batten::state::ToolStatus::AwaitingPermission => {
+                    ("?", app.theme.styles.warning, "permission")
+                }
+            };
+            Line::from(vec![
+                Span::styled(format!("{symbol} "), style),
+                Span::raw(format!("{} · {status}", tool.name)),
+            ])
+        })
+        .collect::<Vec<_>>();
+    let activity_lines = if activity_lines.is_empty() {
+        vec![Line::from("No recent tools")]
+    } else {
+        activity_lines
+    };
+    draw_scrolled_panel(
         frame,
-        rows[2],
+        activity,
+        "Activity",
+        Focus::Activity,
+        &activity_lines,
+        app.activity_scroll,
+        None,
+        batten::state::Tone::Info,
+        app,
+        panes,
+    );
+
+    let mut mcp_lines = Vec::new();
+    if let Some(capabilities) = &app.runtime_capabilities {
+        match capabilities.mcp_config {
+            crate::app::McpConfigState::Unknown => {
+                mcp_lines.push(Line::from("MCP state unknown"));
+            }
+            crate::app::McpConfigState::NotConfigured => {
+                mcp_lines.push(Line::from("Not configured"));
+            }
+            crate::app::McpConfigState::Invalid => {
+                mcp_lines.push(Line::from(Span::styled(
+                    "● Configuration invalid",
+                    app.theme.styles.error,
+                )));
+            }
+            crate::app::McpConfigState::Loaded if capabilities.mcp_servers.is_empty() => {
+                mcp_lines.push(Line::from("Configured · no servers"));
+            }
+            crate::app::McpConfigState::Loaded => {
+                for server in &capabilities.mcp_servers {
+                    let style = if server.initialized {
+                        app.theme.styles.success
+                    } else {
+                        app.theme.styles.error
+                    };
+                    mcp_lines.push(Line::from(vec![
+                        Span::styled("● ", style),
+                        Span::raw(server.id.clone()),
+                    ]));
+                }
+            }
+        }
+    } else {
+        mcp_lines.push(Line::from("Waiting for runtime snapshot"));
+    }
+    let mut mcp_usage =
+        std::collections::BTreeMap::<(String, String), (u64, usize, f64, bool)>::new();
+    for record in &app.usage_records {
+        for component in record
+            .components
+            .iter()
+            .filter(|component| component.kind == codeloom_core::session::UsageComponentKind::Mcp)
+        {
+            let agent = app
+                .subagents
+                .get(&record.session.0)
+                .and_then(|child| child.agent.as_deref())
+                .unwrap_or("parent")
+                .to_owned();
+            let entry = mcp_usage.entry((agent, component.id.clone())).or_default();
+            entry.0 = entry.0.saturating_add(component.input_tokens);
+            entry.1 = entry.1.saturating_add(1);
+            if let Some(price) = record.input_price {
+                entry.2 += price * component.input_tokens as f64 / 1_000_000.0;
+                entry.3 = true;
+            }
+        }
+    }
+    let mcp_total_tokens = mcp_usage.values().map(|usage| usage.0).sum::<u64>();
+    let mcp_summary = if mcp_usage.is_empty() {
+        "—".to_owned()
+    } else {
+        format!("~{mcp_total_tokens} tok")
+    };
+    for ((agent, server), (tokens, requests, cost, priced)) in mcp_usage {
+        let per_request = tokens / requests.max(1) as u64;
+        let estimate = if priced {
+            format!(" · ~${:.5}/r", cost / requests.max(1) as f64)
+        } else {
+            " · $?/r".to_owned()
+        };
+        mcp_lines.push(Line::from(format!(
+            "{server}/{agent} ~{per_request} tok/r{estimate}"
+        )));
+    }
+    draw_scrolled_panel(
+        frame,
+        mcp,
+        "MCP",
+        Focus::Mcp,
+        &mcp_lines,
+        app.capability_scroll[0],
+        Some(&mcp_summary),
+        batten::state::Tone::Neutral,
+        app,
+        panes,
+    );
+
+    let lsp_lines = if let Some(capabilities) = &app.runtime_capabilities {
+        let available = capabilities.rust_analyzer_available;
+        vec![Line::from(vec![
+            Span::styled(
+                "● ",
+                if available {
+                    app.theme.styles.success
+                } else {
+                    app.theme.styles.error
+                },
+            ),
+            Span::raw(if available {
+                "rust-analyzer found"
+            } else {
+                "rust-analyzer missing"
+            }),
+        ])]
+    } else {
+        vec![Line::from("Waiting for runtime snapshot")]
+    };
+    draw_scrolled_panel(
+        frame,
+        lsp,
+        "LSP",
+        Focus::Lsp,
+        &lsp_lines,
+        app.capability_scroll[1],
+        None,
+        batten::state::Tone::Neutral,
+        app,
+        panes,
+    );
+
+    let mut skill_lines = Vec::new();
+    let mut skill_summary = "—".to_owned();
+    if let Some(capabilities) = &app.runtime_capabilities {
+        if app.skill_statuses_by_child.is_empty() {
+            for (agent, skill) in capabilities.declared_skill_scopes.iter().take(4) {
+                skill_lines.push(Line::from(format!("◌ {agent}/{skill} · pending")));
+            }
+            if skill_lines.is_empty() {
+                skill_lines.push(Line::from("No local skills assigned"));
+            }
+        } else {
+            for (child, loaded_skills) in &app.skill_statuses_by_child {
+                let agent = app
+                    .subagents
+                    .get(child)
+                    .and_then(|child| child.agent.as_deref())
+                    .unwrap_or("local agent");
+                for skill in loaded_skills {
+                    let (label, style) = match skill.state {
+                        codeloom_core::skills::SkillLoadState::Loaded => {
+                            ("loaded", app.theme.styles.success)
+                        }
+                        codeloom_core::skills::SkillLoadState::Missing => {
+                            ("missing", app.theme.styles.error)
+                        }
+                        codeloom_core::skills::SkillLoadState::Duplicate => {
+                            ("duplicate", app.theme.styles.warning)
+                        }
+                        _ => ("error", app.theme.styles.error),
+                    };
+                    skill_lines.push(Line::from(vec![
+                        Span::styled("● ", style),
+                        Span::raw(format!(
+                            "{agent}/{} · {label} ~{} tok/r",
+                            skill.id, skill.input_tokens_per_request
+                        )),
+                    ]));
+                }
+            }
+        }
+        let mut skill_usage =
+            std::collections::BTreeMap::<(String, String), (u64, usize, f64, bool)>::new();
+        for record in &app.usage_records {
+            for component in record.components.iter().filter(|component| {
+                component.kind == codeloom_core::session::UsageComponentKind::Skill
+            }) {
+                let agent = app
+                    .subagents
+                    .get(&record.session.0)
+                    .and_then(|child| child.agent.as_deref())
+                    .unwrap_or("parent")
+                    .to_owned();
+                let entry = skill_usage
+                    .entry((agent, component.id.clone()))
+                    .or_default();
+                entry.0 = entry.0.saturating_add(component.input_tokens);
+                entry.1 = entry.1.saturating_add(1);
+                if let Some(price) = record.input_price {
+                    entry.2 += price * component.input_tokens as f64 / 1_000_000.0;
+                    entry.3 = true;
+                }
+            }
+        }
+        let skill_total_tokens = skill_usage.values().map(|usage| usage.0).sum::<u64>();
+        if !skill_usage.is_empty() {
+            skill_summary = format!("~{skill_total_tokens} tok");
+        }
+        for ((agent, skill), (tokens, requests, cost, priced)) in skill_usage {
+            let per_request = tokens / requests.max(1) as u64;
+            let estimate = if priced {
+                format!(" · ~${:.5}/r", cost / requests.max(1) as f64)
+            } else {
+                " · $?/r".to_owned()
+            };
+            skill_lines.push(Line::from(format!(
+                "{skill}/{agent} ~{per_request} tok/r{estimate}"
+            )));
+        }
+    } else {
+        skill_lines.push(Line::from("Waiting for runtime snapshot"));
+    }
+    draw_scrolled_panel(
+        frame,
+        skills,
+        "Skills",
+        Focus::Skills,
+        &skill_lines,
+        app.capability_scroll[2],
+        Some(&skill_summary),
+        batten::state::Tone::Neutral,
+        app,
+        panes,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_scrolled_panel(
+    frame: &mut Frame,
+    area: Rect,
+    title: &'static str,
+    focus: Focus,
+    lines: &[Line<'static>],
+    requested_scroll: u16,
+    summary: Option<&str>,
+    tone: batten::state::Tone,
+    app: &App,
+    panes: &mut Vec<(Focus, Rect)>,
+) {
+    panes.push((focus, area));
+    let visible = area.height.saturating_sub(2).max(1);
+    let max_scroll = lines
+        .len()
+        .saturating_sub(usize::from(visible))
+        .min(usize::from(u16::MAX)) as u16;
+    let scroll = requested_scroll.min(max_scroll);
+    let end = (usize::from(scroll) + usize::from(visible)).min(lines.len());
+    let scroll_info = if lines.is_empty() {
+        "empty".to_owned()
+    } else {
+        format!("{}-{end}/{} ↕", usize::from(scroll) + 1, lines.len())
+    };
+    let info = summary
+        .map(|summary| format!("{summary} ↕"))
+        .unwrap_or(scroll_info);
+    let inner = batten::widgets::panel::render(
+        frame,
+        area,
         &batten::widgets::Panel {
-            title: "Activity",
-            info: "tools",
-            tone: batten::state::Tone::Info,
+            title,
+            info: &info,
+            tone,
         },
         &app.theme,
     );
-    let entries = app
-        .tools
-        .iter()
-        .map(|tool| batten::widgets::queue::QueueEntry {
-            label: tool.name.as_str(),
-            status: match tool.status() {
-                batten::state::ToolStatus::Pending
-                | batten::state::ToolStatus::AwaitingPermission => {
-                    batten::widgets::queue::QueueStatus::Pending
-                }
-                batten::state::ToolStatus::Running => batten::widgets::queue::QueueStatus::Running,
-                batten::state::ToolStatus::Success => batten::widgets::queue::QueueStatus::Done,
-                batten::state::ToolStatus::Error | batten::state::ToolStatus::Canceled => {
-                    batten::widgets::queue::QueueStatus::Failed
-                }
-            },
-        })
-        .collect::<Vec<_>>();
-    batten::widgets::queue::render_pawan(frame, activity, &entries, app.animation.frame);
+    frame.render_widget(Paragraph::new(lines.to_vec()).scroll((scroll, 0)), inner);
 }
 
 fn draw_workspace_sidebar(
@@ -1022,7 +1376,7 @@ fn draw_prompt_queue(frame: &mut Frame, area: Rect, app: &App) {
             } else {
                 "  "
             };
-            let text = prompt.lines().next().unwrap_or("");
+            let text = prompt.text.lines().next().unwrap_or("");
             let clipped = text
                 .chars()
                 .take(list.width.saturating_sub(3) as usize)
@@ -1050,7 +1404,7 @@ fn draw_prompt_queue(frame: &mut Frame, area: Rect, app: &App) {
         list,
     );
     let selected = app.pending_prompts.get(app.queue_selected);
-    let text = selected.map_or("Select a queued prompt", String::as_str);
+    let text = selected.map_or("Select a queued prompt", |prompt| prompt.text.as_str());
     if app.queue_editing {
         batten::widgets::composer::render_focused(
             frame,
@@ -2021,7 +2375,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     let flat = app.theme.look.chrome == ChromeStyle::Flat;
     let rows = Layout::vertical([
         Constraint::Length(if flat {
-            1
+            1 + u16::from(app.runtime_capabilities.is_some())
         } else {
             workspace_header_height(app)
         }),
@@ -2182,6 +2536,33 @@ mod tests {
             .iter()
             .map(|c| c.symbol())
             .collect()
+    }
+
+    #[test]
+    fn development_workflow_status_is_visible_in_the_chat_viewport() {
+        let mut app = App::new();
+        app.session_id = Some(codeloom_core::session::SessionId(7));
+        app.apply(codeloom_core::event::LiveEvent::DevelopmentWorkflowChanged(
+            codeloom_core::workflow::WorkflowSummary {
+                id: codeloom_core::workflow::WorkflowId(3),
+                parent: codeloom_core::session::SessionId(7),
+                phase: codeloom_core::workflow::WorkflowPhase::AwaitingPlanApproval,
+                planner: "planner".into(),
+                implementer: "builder".into(),
+                reviewer: "reviewer".into(),
+                active_child: None,
+                correction_round: 1,
+                spec_path: Some("docs/spec.md".into()),
+                plan_path: Some("docs/plan.md".into()),
+                updated_at_ms: 0,
+            },
+        ));
+
+        let screen = buffer_of(&mut app, 120, 30);
+        assert!(
+            screen.contains("flujo #3 · aprobar spec+plan · coordinador · ronda 1"),
+            "{screen}"
+        );
     }
 
     /// App con el tema indicado, un modelo de ventana conocida y una última petición de 142 000
@@ -3630,6 +4011,9 @@ tres",
             Focus::Transcript,
             Focus::Agent,
             Focus::Activity,
+            Focus::Mcp,
+            Focus::Lsp,
+            Focus::Skills,
             Focus::Composer,
         ] {
             assert!(panes.contains(&pane), "falta {pane:?}");

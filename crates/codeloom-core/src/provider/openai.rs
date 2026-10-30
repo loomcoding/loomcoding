@@ -4,6 +4,7 @@ use crate::error::{CoreError, Result};
 use crate::message::{FinishReason, Usage};
 use async_trait::async_trait;
 use futures::StreamExt;
+use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Default)]
@@ -103,6 +104,7 @@ pub struct OpenAiCompatProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
+    request_timeout: Duration,
 }
 
 impl OpenAiCompatProvider {
@@ -111,6 +113,7 @@ impl OpenAiCompatProvider {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             api_key: api_key.into(),
             client: reqwest::Client::new(),
+            request_timeout: Duration::from_secs(120),
         }
     }
 
@@ -206,7 +209,37 @@ fn wire_messages(messages: &[crate::message::Message]) -> Vec<serde_json::Value>
                 }
             }
             other => {
-                out.push(serde_json::json!({ "role": role_str(other), "content": m.text() }));
+                let has_image = m.parts.iter().any(|part| {
+                    matches!(
+                        part,
+                        ContentPart::Image { .. } | ContentPart::ImageUrl { .. }
+                    )
+                });
+                let content = if has_image {
+                    serde_json::Value::Array(
+                        m.parts
+                            .iter()
+                            .filter_map(|part| match part {
+                                ContentPart::Text { text } => Some(serde_json::json!({
+                                    "type": "text",
+                                    "text": text
+                                })),
+                                ContentPart::Image { mime_type, data, .. } => Some(serde_json::json!({
+                                    "type": "image_url",
+                                    "image_url": { "url": format!("data:{mime_type};base64,{data}") }
+                                })),
+                                ContentPart::ImageUrl { url } => Some(serde_json::json!({
+                                    "type": "image_url",
+                                    "image_url": { "url": url }
+                                })),
+                                _ => None,
+                            })
+                            .collect(),
+                    )
+                } else {
+                    serde_json::Value::String(m.text())
+                };
+                out.push(serde_json::json!({ "role": role_str(other), "content": content }));
             }
         }
     }
@@ -232,15 +265,24 @@ impl Provider for OpenAiCompatProvider {
         let resp = self
             .client
             .post(url)
+            .timeout(self.request_timeout)
             .bearer_auth(&self.api_key)
             .json(&self.build_body(&req))
             .send()
             .await
-            .map_err(|e| CoreError::Provider(e.to_string()))?;
+            .map_err(|error| {
+                let phase = if error.is_timeout() {
+                    "timed out before response headers"
+                } else if error.is_connect() {
+                    "could not connect before response headers"
+                } else {
+                    "failed before response headers"
+                };
+                CoreError::Provider(format!("OpenAI-compatible request {phase}"))
+            })?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let text = resp.text().await.unwrap_or_default();
-            return Err(CoreError::Provider(format!("http {status}: {text}")));
+            return Err(CoreError::Provider(format!("http {status}")));
         }
 
         struct State<S> {
@@ -287,7 +329,16 @@ impl Provider for OpenAiCompatProvider {
                             }
                         }
                     }
-                    _ => {
+                    Some(Err(error)) => {
+                        st.done = true;
+                        st.queue
+                            .push_back(StreamChunk::Error(if error.is_timeout() {
+                                "OpenAI-compatible response stream timed out".into()
+                            } else {
+                                "OpenAI-compatible response stream failed".into()
+                            }));
+                    }
+                    None => {
                         st.queue.extend(st.acc.finish());
                         if !st.queue.iter().any(|c| matches!(c, StreamChunk::Done(_))) {
                             st.queue.push_back(StreamChunk::Done(FinishReason::Stop));
@@ -810,6 +861,37 @@ mod http_tests {
         assert_eq!(texts, "hello");
         assert!(saw_done);
     }
+
+    #[tokio::test]
+    async fn request_timeout_reports_failure_before_response_headers() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(Duration::from_millis(100))
+                    .set_body_raw("data: [DONE]\n\n", "text/event-stream"),
+            )
+            .mount(&server)
+            .await;
+        let mut provider = OpenAiCompatProvider::new(server.uri(), "sk-test");
+        provider.request_timeout = Duration::from_millis(10);
+        let request = ProviderRequest {
+            model: "m".into(),
+            system: String::new(),
+            messages: vec![],
+            tools: vec![],
+            temperature: 0.0,
+            max_tokens: 16,
+            effort: None,
+            programmatic_tool_calling: false,
+        };
+
+        assert!(matches!(
+            provider.stream(request, CancellationToken::new()).await,
+            Err(CoreError::Provider(message)) if message.contains("timed out before response headers")
+        ));
+    }
 }
 
 #[cfg(test)]
@@ -964,6 +1046,23 @@ mod effort_tests {
         assert!(sent.len() < big.len());
         // ADAPTADO: el resultado se recorta ahora con cabeza y cola y el marcador «bytes omitted».
         assert!(sent.contains("bytes omitted ...]"));
+    }
+
+    #[test]
+    fn encodes_local_image_parts_as_openai_data_urls() {
+        use crate::message::{ContentPart, Message};
+        let mut message = Message::human("What is this?");
+        message.parts.push(ContentPart::Image {
+            mime_type: "image/png".into(),
+            data: "cG5n".into(),
+            filename: "sample.png".into(),
+        });
+        let wire = super::wire_messages(&[message]);
+        assert_eq!(wire[0]["content"][0]["text"], "What is this?");
+        assert_eq!(
+            wire[0]["content"][1]["image_url"]["url"],
+            "data:image/png;base64,cG5n"
+        );
     }
 }
 

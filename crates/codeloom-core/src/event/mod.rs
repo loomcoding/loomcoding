@@ -78,6 +78,16 @@ pub enum LiveEvent {
         input_tokens: u32,
         output_tokens: u32,
     },
+    /// Conteo de la petición activa, incluyendo provisional local y snapshots del provider.
+    UsageProgress {
+        request_id: u64,
+        model: String,
+        provider_usage: Option<crate::message::Usage>,
+        provider_final: bool,
+        estimated_usage: crate::message::Usage,
+        finished: bool,
+        components: Vec<crate::session::UsageComponent>,
+    },
     ReportedCost {
         usd: f64,
     },
@@ -143,6 +153,10 @@ pub enum LiveEvent {
     },
     JobChanged(crate::job::JobSnapshot),
     SubagentChanged(crate::session::SubagentDescriptor),
+    /// Resultado de carga de las skills locales seleccionadas para un hijo.
+    SkillsLoaded {
+        skills: Vec<crate::skills::SkillLoadStatus>,
+    },
     DevelopmentWorkflowChanged(crate::workflow::WorkflowSummary),
     /// El enrutador (A12b) eligió el agente de una delegación que no nombraba ninguno. Queda a la
     /// vista de la persona usuaria: qué agente, por qué y quién decidió (`rule` o `classifier`).
@@ -219,7 +233,7 @@ pub enum LiveEvent {
 
 impl LiveEvent {
     /// Indica si un evento del bus de un hijo merece reenviarse al padre. Quedan
-    /// fuera los deltas de texto (volumen) y el resto de eventos de la sesión. Los
+    /// fuera los eventos internos de razonamiento y el resto de eventos de la sesión. Los
     /// mensajes completos sí se reenvían: son el registro que la interfaz muestra del hijo.
     pub fn is_child_relevant(&self) -> bool {
         match self {
@@ -228,6 +242,8 @@ impl LiveEvent {
             | LiveEvent::ToolStarted { .. }
             | LiveEvent::ToolFinished { .. }
             | LiveEvent::Usage { .. }
+            | LiveEvent::UsageProgress { .. }
+            | LiveEvent::SkillsLoaded { .. }
             | LiveEvent::ReportedCost { .. }
             | LiveEvent::CompactionUsage { .. }
             | LiveEvent::ContextCompacted { .. }
@@ -239,8 +255,7 @@ impl LiveEvent {
             | LiveEvent::MessageAdded(_)
             | LiveEvent::TurnEnded
             | LiveEvent::Error { .. } => true,
-            LiveEvent::Delta { .. }
-            | LiveEvent::ReasoningDelta { .. }
+            LiveEvent::ReasoningDelta { .. }
             | LiveEvent::SessionMessageAdded { .. }
             | LiveEvent::JobChanged(_)
             | LiveEvent::SubagentChanged(_)
@@ -258,6 +273,7 @@ impl LiveEvent {
             | LiveEvent::SubagentSettled { .. }
             | LiveEvent::RuntimeNotice { .. }
             | LiveEvent::ChildEvent { .. } => false,
+            LiveEvent::Delta { .. } => true,
         }
     }
 }
@@ -312,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn child_relevance_filter_excludes_deltas() {
+    fn child_relevance_filter_includes_text_but_excludes_reasoning_deltas() {
         let session = crate::session::SessionId(1);
         let job = crate::job::JobSnapshot {
             id: crate::job::JobId("subagent-1".into()),
@@ -328,7 +344,6 @@ mod tests {
             result: None,
         };
         let excluded = [
-            LiveEvent::Delta { text: "x".into() },
             LiveEvent::ReasoningDelta { text: "x".into() },
             LiveEvent::JobChanged(job),
         ];
@@ -371,18 +386,16 @@ mod tests {
     }
 
     #[test]
-    fn message_added_is_child_relevant_but_deltas_are_not() {
+    fn messages_and_text_deltas_are_child_relevant_but_reasoning_is_not() {
         let message = LiveEvent::MessageAdded(Message::user("hola"));
         assert!(
             message.is_child_relevant(),
             "debería reenviarse: {message:?}"
         );
 
-        let deltas = [
-            LiveEvent::Delta { text: "x".into() },
-            LiveEvent::ReasoningDelta { text: "x".into() },
-        ];
-        for delta in &deltas {
+        assert!(LiveEvent::Delta { text: "x".into() }.is_child_relevant());
+        let reasoning = LiveEvent::ReasoningDelta { text: "x".into() };
+        for delta in [&reasoning] {
             assert!(!delta.is_child_relevant(), "debería filtrarse: {delta:?}");
         }
     }

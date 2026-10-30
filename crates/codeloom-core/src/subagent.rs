@@ -593,6 +593,8 @@ impl InProcessSubagentLauncher {
             child_config.provider = provider.clone();
         }
         let mut child_system = None;
+        let mut skill_statuses = Vec::new();
+        let mut skill_usage_components = Vec::new();
         if let Some(AgentEntry {
             execution: Execution::Local(spec),
             ..
@@ -614,7 +616,43 @@ impl InProcessSubagentLauncher {
             if !sistema.trim().is_empty() {
                 child_system = Some(sistema);
             }
+            let home = std::env::var_os("USERPROFILE")
+                .or_else(|| std::env::var_os("HOME"))
+                .map(PathBuf::from);
+            let loaded = crate::skills::load_scoped_skills(
+                &spec.scope.skills,
+                &crate::skills::SkillRoots::new(self.cwd.clone(), home),
+            );
+            skill_statuses = loaded.statuses;
+            skill_usage_components = skill_statuses
+                .iter()
+                .filter(|skill| skill.state == crate::skills::SkillLoadState::Loaded)
+                .map(|skill| crate::session::UsageComponent {
+                    kind: crate::session::UsageComponentKind::Skill,
+                    id: skill.id.clone(),
+                    input_tokens: skill.input_tokens_per_request,
+                })
+                .collect();
+            if loaded.shared_input_tokens_per_request > 0 {
+                skill_usage_components.push(crate::session::UsageComponent {
+                    kind: crate::session::UsageComponentKind::Skill,
+                    id: "local-skills-preamble".into(),
+                    input_tokens: loaded.shared_input_tokens_per_request,
+                });
+            }
+            if !loaded.prompt.is_empty() {
+                let mut system = child_system.take().unwrap_or_default();
+                let available_profile_bytes =
+                    16_000usize.saturating_sub(loaded.prompt.len().saturating_add(2));
+                system = crate::tools::limit_bytes(&system, available_profile_bytes).into_owned();
+                if !system.is_empty() {
+                    system.push_str("\n\n");
+                }
+                system.push_str(&loaded.prompt);
+                child_system = Some(system);
+            }
         }
+        let child_max_steps = child_config.max_steps;
         let child_cwd = self.cwd.clone();
         let child_jobs = self.jobs.clone();
         let child_catalog = self.catalog.clone();
@@ -625,6 +663,11 @@ impl InProcessSubagentLauncher {
         // evento de su arranque. Su canal se cierra cuando se sueltan todos sus emisores.
         let child_bus = EventBus::new(256);
         let mut child_rx = child_bus.subscribe();
+        if !skill_statuses.is_empty() {
+            child_bus.publish(LiveEvent::SkillsLoaded {
+                skills: skill_statuses,
+            });
+        }
         // La compuerta retiene al hijo hasta que su tarea `submitted` está guardada.
         let (abrir_puerta, puerta) = tokio::sync::oneshot::channel::<()>();
         let cuerpo_tracker = tracker.clone();
@@ -675,6 +718,7 @@ impl InProcessSubagentLauncher {
                     .with_jobs(child_jobs)
                     .with_catalog(child_catalog)
                     .with_system_extra(child_system)
+                    .with_system_usage_components(skill_usage_components)
                     .with_budget(child_budget)
                     .with_budget_family(parent);
                     if let Some(spill) = child_spill {
@@ -682,7 +726,7 @@ impl InProcessSubagentLauncher {
                     }
                     let child_cancel = CancellationToken::new();
                     let outcome = tokio::select! {
-                        result = child_agent.run(child, prompt, child_cancel.clone()) => result?,
+                        result = child_agent.run_internal(child, prompt, child_cancel.clone()) => result?,
                         _ = job_cancel.cancelled() => {
                             child_cancel.cancel();
                             return Ok(None);
@@ -698,7 +742,18 @@ impl InProcessSubagentLauncher {
                     // El agente ya no emite: soltarlo cierra el bus del hijo y permite
                     // que la tarea de reenvío termine.
                     drop(child_agent);
+                    let steps = outcome.steps;
                     let text = outcome.final_text;
+                    if text.trim().is_empty() {
+                        let reason = if steps >= child_max_steps {
+                            format!(
+                                "subagent reached its step limit ({steps}/{child_max_steps}) without a final response"
+                            )
+                        } else {
+                            format!("subagent produced no final response after {steps} steps")
+                        };
+                        return Err(CoreError::Tool(reason));
+                    }
                     child_store
                         .complete_subagent(parent, child, &[Artifact::text_artifact(text.as_str())])
                         .await?;
@@ -1659,7 +1714,7 @@ mod tests {
     use crate::session::sqlite::SqliteStore;
     use crate::task::TaskState;
     use crate::tools::subagent::SubagentTool;
-    use crate::tools::MAX_NOTICE_BYTES;
+    use crate::tools::{Tool, ToolCtx, ToolOutput, MAX_NOTICE_BYTES};
     use std::time::Duration;
 
     #[tokio::test]
@@ -1735,6 +1790,189 @@ mod tests {
             .control(parent, child, "interrupt", None)
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn child_at_step_limit_without_final_text_fails_instead_of_completing_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("empty-final.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let parent = store.create_session("/project").await.unwrap();
+        let provider: Arc<dyn Provider> = Arc::new(QueueProvider {
+            scripts: std::sync::Mutex::new(
+                vec![vec![
+                    StreamChunk::ToolCallComplete {
+                        id: "c1".into(),
+                        name: "echo".into(),
+                        input: serde_json::json!({"text": "inspect"}),
+                    },
+                    StreamChunk::Done(FinishReason::ToolCalls),
+                ]]
+                .into(),
+            ),
+        });
+        let mut tools = ToolRegistry::new();
+        tools.register(Arc::new(EchoTool));
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let runtime = InProcessSubagentLauncher::new(
+            Arc::new(RwLock::new(provider)),
+            store.clone(),
+            Arc::new(tools),
+            Arc::new(PermissionService::allow_all()),
+            Arc::new(RwLock::new(CodeLoomConfig {
+                provider: ProviderConfig {
+                    kind: ProviderKind::OpenAiCompat,
+                    base_url: "http://localhost".into(),
+                    api_key_env: "KEY".into(),
+                },
+                model: "test".into(),
+                max_steps: 1,
+                effort: None,
+            })),
+            dir.path().to_path_buf(),
+            jobs.clone(),
+            EventBus::new(64),
+        );
+
+        let (child, job) = runtime
+            .start(
+                parent,
+                "review".into(),
+                "inspect files".into(),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        let outcome = jobs.wait(parent, &job).await.unwrap();
+        assert_eq!(outcome.status, JobStatus::Failed);
+        espera_estado_del_hijo(&store, parent, child, TaskState::Failed).await;
+        let descriptor = store
+            .list_subagents(parent)
+            .await
+            .unwrap()
+            .into_iter()
+            .find(|descriptor| descriptor.child == child)
+            .unwrap();
+        assert_eq!(descriptor.status.state, TaskState::Failed);
+        assert!(descriptor
+            .status
+            .message_text()
+            .unwrap()
+            .contains("step limit (1/1)"));
+        assert_eq!(descriptor.result_text(), None);
+    }
+
+    #[tokio::test]
+    async fn reviewer_cannot_execute_a_model_requested_write_tool() {
+        let dir = tempfile::tempdir().unwrap();
+        let global = tempfile::tempdir().unwrap();
+        escribir_perfil(
+            global.path(),
+            "reviewer",
+            &PERFIL_CON_PERSONA.replace("frontend", "reviewer"),
+        );
+        let registry = registro_global(global.path());
+        let (store, parent) = tienda_de_prueba(dir.path(), "reviewer-write.db").await;
+        let attempted = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut tools = ToolRegistry::new();
+        tools.register(Arc::new(WriteMarker(attempted.clone())));
+        let provider: Arc<dyn Provider> = Arc::new(WriteAttemptProvider {
+            requests: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        });
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let runtime = InProcessSubagentLauncher::new(
+            Arc::new(RwLock::new(provider)),
+            store,
+            Arc::new(tools),
+            Arc::new(PermissionService::allow_all()),
+            Arc::new(RwLock::new(config_de_prueba())),
+            dir.path().to_path_buf(),
+            jobs.clone(),
+            EventBus::new(32),
+        )
+        .with_registry(registry);
+
+        let (_, job) = runtime
+            .start_read_only_review(
+                parent,
+                "review".into(),
+                "review changes".into(),
+                "reviewer".into(),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        let outcome = tokio::time::timeout(Duration::from_secs(5), jobs.wait(parent, &job))
+            .await
+            .expect("reviewer should finish")
+            .unwrap();
+
+        assert_eq!(outcome.status, JobStatus::Completed);
+        assert!(!attempted.load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    struct WriteMarker(Arc<std::sync::atomic::AtomicBool>);
+    #[async_trait]
+    impl Tool for WriteMarker {
+        fn name(&self) -> &str {
+            "bash"
+        }
+        fn description(&self) -> &str {
+            "write marker"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        async fn run(
+            &self,
+            _ctx: ToolCtx,
+            _input: serde_json::Value,
+            _cancel: CancellationToken,
+        ) -> Result<ToolOutput> {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(ToolOutput::ok("written"))
+        }
+    }
+
+    struct WriteAttemptProvider {
+        requests: Arc<std::sync::atomic::AtomicUsize>,
+    }
+    #[async_trait]
+    impl Provider for WriteAttemptProvider {
+        fn capabilities(&self) -> crate::provider::Capabilities {
+            crate::provider::Capabilities {
+                tool_use: true,
+                reasoning: false,
+                streaming: true,
+            }
+        }
+        async fn stream(
+            &self,
+            _req: crate::provider::ProviderRequest,
+            _cancel: CancellationToken,
+        ) -> Result<crate::provider::ProviderStream> {
+            use std::sync::atomic::Ordering;
+            let chunks = if self.requests.fetch_add(1, Ordering::SeqCst) == 0 {
+                vec![
+                    StreamChunk::ToolCallComplete {
+                        id: "write-attempt".into(),
+                        name: "bash".into(),
+                        input: serde_json::json!({}),
+                    },
+                    StreamChunk::Done(FinishReason::ToolCalls),
+                ]
+            } else {
+                vec![
+                    StreamChunk::TextDelta("review complete".into()),
+                    StreamChunk::Done(FinishReason::Stop),
+                ]
+            };
+            Ok(Box::pin(futures::stream::iter(chunks)))
+        }
     }
 
     #[tokio::test]
@@ -2493,10 +2731,10 @@ mod tests {
             "{forwarded:?}"
         );
         assert!(
-            !forwarded
+            forwarded
                 .iter()
-                .any(|(_, _, e)| matches!(e, LiveEvent::Delta { .. })),
-            "{forwarded:?}"
+                .any(|(_, _, e)| matches!(e, LiveEvent::Delta { text } if text == "listo")),
+            "el texto visible del hijo se reenvía: {forwarded:?}"
         );
         let started = forwarded.iter().position(
             |(_, _, e)| matches!(e, LiveEvent::ToolStarted { name, .. } if name.as_str() == "echo"),
@@ -2584,6 +2822,15 @@ mod tests {
             message,
             Some((parent, child)),
             "el mensaje del hijo debería llegar al padre etiquetado con su identidad: {forwarded:?}"
+        );
+        assert!(
+            forwarded.iter().any(|(_, _, event)| matches!(
+                event,
+                LiveEvent::MessageAdded(message)
+                    if message.role == crate::message::Role::User
+                        && message.origin == crate::message::MessageOrigin::Internal
+            )),
+            "la tarea asignada al hijo nunca se atribuye a la persona usuaria: {forwarded:?}"
         );
     }
 

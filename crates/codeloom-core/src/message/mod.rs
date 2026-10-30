@@ -11,6 +11,16 @@ pub enum Role {
     Tool,
 }
 
+/// Who authored a user-role message. Model role and author are separate because internal
+/// prompts still need the provider-facing `user` role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MessageOrigin {
+    Human,
+    #[default]
+    Internal,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FinishReason {
@@ -28,6 +38,15 @@ pub struct Usage {
     pub reported_cost_usd: Option<f64>,
 }
 
+/// Origen del conteo guardado en el ledger. Una estimación nunca equivale a un dato del provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageSource {
+    #[default]
+    Provider,
+    Estimate,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentPart {
@@ -40,6 +59,11 @@ pub enum ContentPart {
     },
     ImageUrl {
         url: String,
+    },
+    Image {
+        mime_type: String,
+        data: String,
+        filename: String,
     },
     ToolCall {
         id: String,
@@ -60,6 +84,9 @@ pub enum ContentPart {
 pub struct Message {
     pub id: u64,
     pub role: Role,
+    /// Defaults to internal so older persisted messages cannot be falsely attributed to a person.
+    #[serde(default)]
+    pub origin: MessageOrigin,
     pub parts: Vec<ContentPart>,
     #[serde(default)]
     pub usage: Option<Usage>,
@@ -80,6 +107,7 @@ impl Message {
         Self {
             id: 0,
             role,
+            origin: MessageOrigin::Internal,
             parts,
             usage: None,
             provider_state: None,
@@ -88,6 +116,11 @@ impl Message {
     }
     pub fn user(text: impl Into<String>) -> Self {
         Self::new(Role::User, vec![ContentPart::Text { text: text.into() }])
+    }
+    pub fn human(text: impl Into<String>) -> Self {
+        let mut message = Self::user(text);
+        message.origin = MessageOrigin::Human;
+        message
     }
     pub fn assistant(parts: Vec<ContentPart>) -> Self {
         Self::new(Role::Assistant, parts)
@@ -171,5 +204,18 @@ mod tests {
             .unwrap()
             .provider_state
             .is_none());
+    }
+
+    #[test]
+    fn origin_round_trips_and_legacy_messages_fail_closed() {
+        let human = Message::human("prompt enviado");
+        let encoded = serde_json::to_string(&human).unwrap();
+        let restored: Message = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(restored.origin, MessageOrigin::Human);
+
+        let mut legacy = serde_json::to_value(Message::user("histórico")).unwrap();
+        legacy.as_object_mut().unwrap().remove("origin");
+        let restored: Message = serde_json::from_value(legacy).unwrap();
+        assert_eq!(restored.origin, MessageOrigin::Internal);
     }
 }

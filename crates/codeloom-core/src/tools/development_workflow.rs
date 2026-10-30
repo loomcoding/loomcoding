@@ -14,13 +14,13 @@ impl Tool for DevelopmentWorkflowTool {
         "development_workflow"
     }
     fn description(&self) -> &str {
-        "Coordinate the approved planner, implementation, and independent review workflow. Actions: start, advance, accept (final user decision), cancel, status."
+        "Coordinate planner, implementation, and independent review. Planner, implementer, and reviewer must be three distinct local agent names. After start, end the turn and wait for the completion notice; do not poll jobs or sleep. After planner completion, call advance with the exact spec_path and plan_path from its report. Never create or repair planner artifacts as the parent. If the planner did not create both files, report the blocker and stop. Actions: start, advance, accept (final user decision), cancel, status."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({"type":"object","properties":{
             "action":{"type":"string","enum":["start","advance","accept","cancel","status"]},
-            "task":{"type":"string","maxLength":8000},"planner":{"type":"string","maxLength":64},
-            "implementer":{"type":"string","maxLength":64},"reviewer":{"type":"string","maxLength":64},
+            "task":{"type":"string","maxLength":8000},"planner":{"type":"string","maxLength":64,"description":"Local agent name; must differ from implementer and reviewer."},
+            "implementer":{"type":"string","maxLength":64,"description":"Local agent name; must differ from planner and reviewer."},"reviewer":{"type":"string","maxLength":64,"description":"Local agent name; must differ from planner and implementer."},
             "spec_path":{"type":"string","maxLength":512},"plan_path":{"type":"string","maxLength":512}
         },"required":["action"]})
     }
@@ -89,7 +89,8 @@ impl Tool for DevelopmentWorkflowTool {
                     "workflow started",
                 )
                 .await?;
-            let prompt = format!("Produce a repository-specific spec and implementation plan for this task. Do not implement. Return the exact spec and plan file paths, assumptions, and acceptance checks.\n\nTask:\n{task}\n\nPrior review findings, if any:\n{}", workflow.last_report.as_deref().unwrap_or("none"));
+            let platform = planner_platform_instruction();
+            let prompt = format!("Produce a repository-specific spec and implementation plan for this task. Do not implement. Return the exact spec and plan file paths, assumptions, and acceptance checks. {platform}\n\nTask:\n{task}\n\nPrior review findings, if any:\n{}", workflow.last_report.as_deref().unwrap_or("none"));
             workflow = launch(
                 store.as_ref(),
                 ctx.session,
@@ -104,19 +105,110 @@ impl Tool for DevelopmentWorkflowTool {
                     workflow.summary(),
                 ));
             Ok(ToolOutput::ok(format!(
-                "Started workflow {} in specifying phase.",
+                "Started workflow {} in specifying phase. The planner is running; end this turn and wait for its completion notice. Do not poll jobs or use sleep.",
                 workflow.id.0
             )))
         } else if action == "status" {
-            let workflow = match store.active_development_workflow(ctx.session).await? {
+            let mut workflow = match store.active_development_workflow(ctx.session).await? {
                 Some(workflow) => workflow,
                 None => store
                     .latest_development_workflow(ctx.session)
                     .await?
                     .ok_or_else(|| CoreError::Tool("no development workflow exists".into()))?,
             };
+            let mut child_state = None;
+            let mut result_available = false;
+            let mut next_action = "continue according to the workflow phase";
+            let phase_child = workflow.active_child.or_else(|| match workflow.phase {
+                WorkflowPhase::Specifying => workflow.planner_child,
+                WorkflowPhase::Implementing | WorkflowPhase::ChangesRequested => {
+                    workflow.implementation_children.last().copied()
+                }
+                WorkflowPhase::Reviewing => workflow.reviewer_children.last().copied(),
+                _ => None,
+            });
+            if let Some(child) = phase_child {
+                let descriptor = launcher
+                    .list(ctx.session)
+                    .await?
+                    .into_iter()
+                    .find(|item| item.child == child)
+                    .ok_or_else(|| {
+                        CoreError::Tool(format!("workflow child {} is missing", child.0))
+                    })?;
+                child_state = Some(descriptor.status.state);
+                if !descriptor.status.state.is_terminal() {
+                    next_action = "wait for this subagent; it is still running";
+                } else if descriptor.status.state == crate::task::TaskState::Completed {
+                    result_available = descriptor
+                        .result_text()
+                        .is_some_and(|report| !report.trim().is_empty());
+                    if !result_available {
+                        return fail_workflow(
+                            &ctx,
+                            store.as_ref(),
+                            workflow,
+                            "workflow child completed without a result",
+                        )
+                        .await;
+                    }
+                    next_action =
+                        "read the report and call advance; do not claim the agent is still running";
+                    // Keep the phase-specific id for `advance`; active_child means running only.
+                    if workflow.active_child.is_some() {
+                        workflow.active_child = None;
+                        workflow = store
+                            .update_development_workflow(
+                                workflow,
+                                "coordinator",
+                                "child completed; awaiting advance",
+                            )
+                            .await?;
+                        ctx.bus
+                            .publish(crate::event::LiveEvent::DevelopmentWorkflowChanged(
+                                workflow.summary(),
+                            ));
+                    }
+                } else {
+                    workflow.phase = if matches!(
+                        descriptor.status.state,
+                        crate::task::TaskState::Canceled | crate::task::TaskState::Rejected
+                    ) {
+                        WorkflowPhase::Cancelled
+                    } else {
+                        WorkflowPhase::Failed
+                    };
+                    workflow.active_child = None;
+                    let detail = descriptor.status.message.as_ref().map(|message| {
+                        message
+                            .parts
+                            .iter()
+                            .filter_map(crate::a2a::Part::as_text)
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    });
+                    let report = detail
+                        .filter(|text| !text.trim().is_empty())
+                        .unwrap_or_else(|| {
+                            format!("workflow child ended in {:?}", descriptor.status.state)
+                        });
+                    workflow.last_report = Some(report.clone());
+                    workflow = store
+                        .update_development_workflow(workflow, "coordinator", &report)
+                        .await?;
+                    ctx.bus
+                        .publish(crate::event::LiveEvent::DevelopmentWorkflowChanged(
+                            workflow.summary(),
+                        ));
+                    next_action = "report the child failure and stop; no later phase may start";
+                }
+            }
             Ok(ToolOutput::ok(
-                serde_json::to_string(&workflow.summary()).unwrap_or_default(),
+                serde_json::to_string(&serde_json::json!({
+                    "workflow": workflow.summary(), "child_state": child_state,
+                    "result_available": result_available, "next_action": next_action
+                }))
+                .unwrap_or_default(),
             ))
         } else {
             let mut workflow = store
@@ -304,6 +396,14 @@ impl Tool for DevelopmentWorkflowTool {
                     let descriptors = launcher.list(ctx.session).await?;
                     let child = workflow
                         .active_child
+                        .or_else(|| match workflow.phase {
+                            WorkflowPhase::Specifying => workflow.planner_child,
+                            WorkflowPhase::Implementing | WorkflowPhase::ChangesRequested => {
+                                workflow.implementation_children.last().copied()
+                            }
+                            WorkflowPhase::Reviewing => workflow.reviewer_children.last().copied(),
+                            _ => None,
+                        })
                         .ok_or_else(|| CoreError::Tool("workflow has no active child".into()))?;
                     let descriptor = descriptors
                         .into_iter()
@@ -321,12 +421,12 @@ impl Tool for DevelopmentWorkflowTool {
                         } else {
                             WorkflowPhase::Failed
                         };
+                        workflow.active_child = None;
+                        let reason =
+                            format!("workflow child ended in {:?}", descriptor.status.state);
+                        workflow.last_report = Some(reason.clone());
                         let updated = store
-                            .update_development_workflow(
-                                workflow,
-                                "coordinator",
-                                "workflow child did not complete successfully",
-                            )
+                            .update_development_workflow(workflow, "coordinator", &reason)
                             .await?;
                         ctx.bus
                             .publish(crate::event::LiveEvent::DevelopmentWorkflowChanged(
@@ -336,37 +436,93 @@ impl Tool for DevelopmentWorkflowTool {
                             "workflow child did not complete successfully; no phase was advanced",
                         ));
                     }
-                    let report = descriptor.result_text().ok_or_else(|| {
-                        CoreError::Tool("workflow child completed without a result".into())
-                    })?;
+                    let Some(report) = descriptor
+                        .result_text()
+                        .filter(|report| !report.trim().is_empty())
+                    else {
+                        return fail_workflow(
+                            &ctx,
+                            store.as_ref(),
+                            workflow,
+                            "planner completed without a result; no implementation was started",
+                        )
+                        .await;
+                    };
                     if report.len() > 8_000 {
-                        return Err(CoreError::Tool("report exceeds 8000 bytes".into()));
+                        return fail_workflow(
+                            &ctx,
+                            store.as_ref(),
+                            workflow,
+                            "planner report exceeds 8000 bytes; no implementation was started",
+                        )
+                        .await;
                     }
                     workflow.last_report = Some(report.to_owned());
                     workflow.active_child = None;
                     match workflow.phase {
                         WorkflowPhase::Specifying => {
                             workflow.phase = WorkflowPhase::AwaitingPlanApproval;
-                            let spec_path = bounded(&input, "spec_path", 512)?;
-                            let plan_path = bounded(&input, "plan_path", 512)?;
-                            if !report.contains(&spec_path) || !report.contains(&plan_path) {
-                                return Err(CoreError::Tool(
-                                    "spec and plan paths must come from the planner result".into(),
-                                ));
+                            let (Some(spec_path), Some(plan_path)) = (
+                                input["spec_path"]
+                                    .as_str()
+                                    .filter(|path| !path.trim().is_empty() && path.len() <= 512),
+                                input["plan_path"]
+                                    .as_str()
+                                    .filter(|path| !path.trim().is_empty() && path.len() <= 512),
+                            ) else {
+                                return Ok(ToolOutput::err(format!(
+                                    "The planner is complete, but advance needs its exact spec_path and plan_path. Read both paths from the planner report and call advance again. Do not create files as the parent. Planner report: {}",
+                                    crate::tools::limit_bytes(&report, 2_000)
+                                )));
+                            };
+                            if !report.contains(spec_path) || !report.contains(plan_path) {
+                                return fail_workflow(
+                                    &ctx,
+                                    store.as_ref(),
+                                    workflow,
+                                    "planner did not report the exact spec_path and plan_path; no implementation was started",
+                                )
+                                .await;
                             }
-                            let spec = artifact(&ctx.cwd, &spec_path)?;
-                            let plan = artifact(&ctx.cwd, &plan_path)?;
+                            let spec = match artifact(&ctx.cwd, spec_path) {
+                                Ok(spec) => spec,
+                                Err(_) => {
+                                    return fail_workflow(
+                                        &ctx,
+                                        store.as_ref(),
+                                        workflow,
+                                        "planner reported a spec path but did not create a readable spec file; no implementation was started",
+                                    )
+                                    .await;
+                                }
+                            };
+                            let plan = match artifact(&ctx.cwd, plan_path) {
+                                Ok(plan) => plan,
+                                Err(_) => {
+                                    return fail_workflow(
+                                        &ctx,
+                                        store.as_ref(),
+                                        workflow,
+                                        "planner reported a plan path but did not create a readable plan file; no implementation was started",
+                                    )
+                                    .await;
+                                }
+                            };
                             let exact_artifacts = format!(
                                 "SPEC ({spec_path}):\n{spec}\n\nPLAN ({plan_path}):\n{plan}"
                             );
                             if exact_artifacts.len() > crate::workflow::MAX_WORKFLOW_ARTIFACT_BYTES
                             {
-                                return Err(CoreError::Tool(
-                                    "combined spec and plan exceed 20000 bytes".into(),
-                                ));
+                                return fail_workflow(
+                                    &ctx,
+                                    store.as_ref(),
+                                    workflow,
+                                    "combined spec and plan exceed 20000 bytes; no implementation was started",
+                                )
+                                .await;
                             }
-                            workflow.spec_path = Some(spec_path);
-                            workflow.plan_path = Some(plan_path);
+                            workflow.spec_path = Some(spec_path.to_string());
+                            workflow.plan_path = Some(plan_path.to_string());
                             workflow.spec_sha256 = Some(hash(spec.as_bytes()));
                             workflow.plan_sha256 = Some(hash(plan.as_bytes()));
                             workflow.last_report = Some(exact_artifacts.clone());
@@ -478,6 +634,27 @@ impl Tool for DevelopmentWorkflowTool {
     }
 }
 
+async fn fail_workflow(
+    ctx: &ToolCtx,
+    store: &dyn crate::session::SessionStore,
+    mut workflow: DevelopmentWorkflow,
+    reason: &str,
+) -> Result<ToolOutput> {
+    workflow.phase = WorkflowPhase::Failed;
+    workflow.active_child = None;
+    workflow.last_report = Some(reason.to_string());
+    let updated = store
+        .update_development_workflow(workflow, "coordinator", reason)
+        .await?;
+    ctx.bus
+        .publish(crate::event::LiveEvent::DevelopmentWorkflowChanged(
+            updated.summary(),
+        ));
+    Ok(ToolOutput::err(format!(
+        "Workflow failed: {reason}. Do not create or implement artifacts as the parent; report this blocker to the user."
+    )))
+}
+
 fn bounded(input: &serde_json::Value, key: &str, max: usize) -> Result<String> {
     input[key]
         .as_str()
@@ -485,6 +662,15 @@ fn bounded(input: &serde_json::Value, key: &str, max: usize) -> Result<String> {
         .map(str::to_owned)
         .ok_or_else(|| CoreError::Tool(format!("{key} must be 1 to {max} bytes")))
 }
+
+fn planner_platform_instruction() -> &'static str {
+    if cfg!(windows) {
+        "This project runs on Windows. Inspect with view, ls, glob, or grep. Do not use POSIX commands such as `pwd`, `ls -la`, or `cat` through bash; bash runs cmd.exe here. If shell is essential, invoke PowerShell explicitly. Create new artifacts with the write tool."
+    } else {
+        "Inspect the project with the available read tools and create new artifacts with the write tool."
+    }
+}
+
 fn hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
@@ -799,6 +985,17 @@ mod tests {
     }
 
     #[test]
+    fn planner_prompt_matches_the_host_shell() {
+        let instruction = planner_platform_instruction();
+        if cfg!(windows) {
+            assert!(instruction.contains("bash runs cmd.exe"));
+            assert!(instruction.contains("PowerShell"));
+        } else {
+            assert!(instruction.contains("available read tools"));
+        }
+    }
+
+    #[test]
     fn artifacts_are_bounded_and_cannot_escape_the_project() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("spec.md"), "approved spec").unwrap();
@@ -982,6 +1179,203 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(completed.phase, WorkflowPhase::Completed);
+    }
+
+    #[tokio::test]
+    async fn status_fails_a_completed_planner_with_an_empty_report() {
+        let project = tempfile::tempdir().unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let (store, session) = store_and_session(&directory.path().join("empty-report.db")).await;
+        let launcher = Arc::new(TestLauncher::new());
+        let tool = DevelopmentWorkflowTool;
+        tool.run(context(project.path(), session, store.clone(), launcher.clone(), false), serde_json::json!({"action":"start","task":"test","planner":"planner","implementer":"builder","reviewer":"reviewer"}), CancellationToken::new()).await.unwrap();
+        let child = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap()
+            .active_child
+            .unwrap();
+        launcher.complete(child, "  ");
+        let status = tool
+            .run(
+                context(project.path(), session, store.clone(), launcher, false),
+                serde_json::json!({"action":"status"}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(status.is_error);
+        let workflow = store
+            .latest_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(workflow.phase, WorkflowPhase::Failed);
+        assert!(workflow.active_child.is_none());
+    }
+
+    #[tokio::test]
+    async fn planner_that_reports_missing_files_fails_without_starting_implementation() {
+        let project = tempfile::tempdir().unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let (store, session) =
+            store_and_session(&directory.path().join("missing-artifacts.db")).await;
+        let launcher = Arc::new(TestLauncher::new());
+        let tool = DevelopmentWorkflowTool;
+
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                true,
+            ),
+            serde_json::json!({
+                "action":"start", "task":"smoke test",
+                "planner":"planner", "implementer":"builder", "reviewer":"reviewer"
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let started = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        let planner_child = started.active_child.unwrap();
+        launcher.complete(planner_child, planner_report());
+
+        let result = tool
+            .run(
+                context(
+                    project.path(),
+                    session,
+                    store.clone(),
+                    launcher.clone(),
+                    true,
+                ),
+                serde_json::json!({
+                    "action":"advance",
+                    "spec_path":"docs/spec.md",
+                    "plan_path":"docs/plan.md"
+                }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+
+        assert!(result.is_error);
+        assert!(result
+            .content
+            .contains("did not create a readable spec file"));
+        assert!(store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .is_none());
+        let failed = store
+            .latest_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(failed.phase, WorkflowPhase::Failed);
+        assert!(failed.active_child.is_none());
+        assert_eq!(launcher.list(session).await.unwrap().len(), 1);
+        assert_eq!(
+            launcher.list(session).await.unwrap()[0].agent.as_deref(),
+            Some("planner")
+        );
+    }
+
+    #[tokio::test]
+    async fn missing_planner_paths_return_actionable_error_and_can_be_retried() {
+        let project = tempfile::tempdir().unwrap();
+        write_artifacts(project.path());
+        let directory = tempfile::tempdir().unwrap();
+        let (store, session) = store_and_session(&directory.path().join("planner-paths.db")).await;
+        let launcher = Arc::new(TestLauncher::new());
+        let tool = DevelopmentWorkflowTool;
+
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                true,
+            ),
+            serde_json::json!({
+                "action":"start", "task":"smoke test",
+                "planner":"planner", "implementer":"builder", "reviewer":"reviewer"
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let started = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        let planner_child = started.active_child.unwrap();
+        launcher.complete(planner_child, planner_report());
+
+        let missing_paths = tool
+            .run(
+                context(
+                    project.path(),
+                    session,
+                    store.clone(),
+                    launcher.clone(),
+                    true,
+                ),
+                serde_json::json!({"action":"advance"}),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(missing_paths.is_error);
+        assert!(missing_paths
+            .content
+            .contains("exact spec_path and plan_path"));
+        assert!(missing_paths
+            .content
+            .contains("Do not create files as the parent"));
+        let still_planning = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(still_planning.phase, WorkflowPhase::Specifying);
+        assert_eq!(still_planning.active_child, Some(planner_child));
+
+        tool.run(
+            context(
+                project.path(),
+                session,
+                store.clone(),
+                launcher.clone(),
+                true,
+            ),
+            serde_json::json!({
+                "action":"advance",
+                "spec_path":"docs/spec.md",
+                "plan_path":"docs/plan.md"
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+        let implementing = store
+            .active_development_workflow(session)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(implementing.phase, WorkflowPhase::Implementing);
+        assert_eq!(launcher.list(session).await.unwrap().len(), 2);
     }
 
     #[tokio::test]

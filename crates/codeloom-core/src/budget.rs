@@ -179,6 +179,9 @@ mod tests {
             input_price: precios.map(|p| p.0),
             output_price: precios.map(|p| p.1),
             reported_cost_usd: None,
+            source: crate::message::UsageSource::Provider,
+            is_final: true,
+            components: Vec::new(),
             created_at_ms: 0,
         }
     }

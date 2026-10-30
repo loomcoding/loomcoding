@@ -2,6 +2,16 @@ use crate::event::{EventBus, LiveEvent};
 use crate::tools::{ExecutionMode, ToolCtx, ToolOutput, ToolRegistry};
 use futures::StreamExt;
 
+pub(crate) const WORKFLOW_PARENT_TOOLS: &[&str] = &[
+    "development_workflow",
+    "view",
+    "ls",
+    "glob",
+    "grep",
+    "lsp",
+    "web",
+];
+
 /// Ejecuta tool calls respetando barreras:
 /// las `Exclusive` se ejecutan solas y en orden; las `Parallel` en un lote comun.
 pub async fn execute_tools(
@@ -68,19 +78,7 @@ pub async fn execute_tools(
                             None => false,
                         };
                         if (workflow_active || workflow_start_requested)
-                            && !matches!(
-                                name.as_str(),
-                                "development_workflow"
-                                    | "view"
-                                    | "ls"
-                                    | "glob"
-                                    | "grep"
-                                    | "lsp"
-                                    | "web"
-                                    | "job_list"
-                                    | "job_output"
-                                    | "subagent_list"
-                            )
+                            && !WORKFLOW_PARENT_TOOLS.contains(&name.as_str())
                         {
                             let message = format!(
                                 "{name} is blocked while a development workflow is active or starting"
@@ -124,7 +122,10 @@ pub async fn execute_tools(
 mod tests {
     use super::*;
     use crate::permission::PermissionService;
+    use crate::session::sqlite::SqliteStore;
+    use crate::session::SessionStore;
     use crate::tools::{ExecutionMode, Tool};
+    use crate::workflow::{DevelopmentWorkflow, WorkflowPhase};
     use async_trait::async_trait;
     use std::sync::Arc;
     use tokio_util::sync::CancellationToken;
@@ -320,5 +321,124 @@ mod tests {
             .iter()
             .find(|(id, _)| id == "write-1")
             .is_some_and(|(_, result)| result.is_error));
+    }
+
+    #[tokio::test]
+    async fn parent_write_delegation_and_polling_are_blocked_while_workflow_active() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(directory.path().join("workflow.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let session = store.create_session("/project").await.unwrap();
+        store
+            .create_development_workflow(
+                DevelopmentWorkflow {
+                    id: crate::workflow::WorkflowId(0),
+                    parent: session,
+                    task: "test gate".into(),
+                    planner: "planner".into(),
+                    implementer: "builder".into(),
+                    reviewer: "reviewer".into(),
+                    phase: WorkflowPhase::Specifying,
+                    version: 0,
+                    active_child: None,
+                    planner_child: None,
+                    implementation_children: Vec::new(),
+                    reviewer_children: Vec::new(),
+                    correction_round: 0,
+                    spec_path: None,
+                    plan_path: None,
+                    spec_sha256: None,
+                    plan_sha256: None,
+                    last_report: None,
+                    created_at_ms: 0,
+                    updated_at_ms: 0,
+                },
+                "test",
+            )
+            .await
+            .unwrap();
+
+        let executed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(WriteFlag(executed.clone())));
+        registry.register(Arc::new(SubagentFlag(executed.clone())));
+        registry.register(Arc::new(JobListFlag(executed.clone())));
+        let ctx = ToolCtx {
+            cwd: ".".into(),
+            store: Some(store),
+            permission: Arc::new(PermissionService::allow_all()),
+            session,
+            jobs: Arc::new(crate::job::LocalJobRegistry::default()),
+            bus: EventBus::new(8),
+            subagents: None,
+        };
+
+        let results = execute_tools(
+            &registry,
+            ctx,
+            vec![
+                ("write".into(), "bash".into(), serde_json::json!({})),
+                ("delegate".into(), "subagent".into(), serde_json::json!({})),
+                ("poll".into(), "job_list".into(), serde_json::json!({})),
+            ],
+            CancellationToken::new(),
+            EventBus::new(8),
+        )
+        .await;
+
+        assert!(!executed.load(std::sync::atomic::Ordering::SeqCst));
+        assert_eq!(results.len(), 3);
+        assert!(results
+            .iter()
+            .all(|(_, result)| result.is_error && result.content.contains("blocked")));
+    }
+
+    struct SubagentFlag(Arc<std::sync::atomic::AtomicBool>);
+    #[async_trait]
+    impl Tool for SubagentFlag {
+        fn name(&self) -> &str {
+            "subagent"
+        }
+        fn description(&self) -> &str {
+            "start a child"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        async fn run(
+            &self,
+            _ctx: ToolCtx,
+            _input: serde_json::Value,
+            _cancel: CancellationToken,
+        ) -> crate::error::Result<ToolOutput> {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(ToolOutput::ok("delegated"))
+        }
+    }
+
+    struct JobListFlag(Arc<std::sync::atomic::AtomicBool>);
+    #[async_trait]
+    impl Tool for JobListFlag {
+        fn name(&self) -> &str {
+            "job_list"
+        }
+        fn description(&self) -> &str {
+            "poll job list"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        async fn run(
+            &self,
+            _ctx: ToolCtx,
+            _input: serde_json::Value,
+            _cancel: CancellationToken,
+        ) -> crate::error::Result<ToolOutput> {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(ToolOutput::ok("polled"))
+        }
     }
 }

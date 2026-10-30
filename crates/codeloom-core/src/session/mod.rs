@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod sqlite;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SessionId(pub i64);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -62,6 +62,20 @@ impl SubagentDescriptor {
 /// `session` es la sesión que originó el consumo: el padre para su propio turno y el hijo
 /// para lo que gasta un subagente.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UsageComponent {
+    pub kind: UsageComponentKind,
+    pub id: String,
+    pub input_tokens: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageComponentKind {
+    Mcp,
+    Skill,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UsageRecord {
     pub session: SessionId,
     pub model: String,
@@ -71,7 +85,17 @@ pub struct UsageRecord {
     pub output_price: Option<f64>,
     #[serde(default)]
     pub reported_cost_usd: Option<f64>,
+    #[serde(default)]
+    pub source: crate::message::UsageSource,
+    #[serde(default = "usage_complete_default")]
+    pub is_final: bool,
+    #[serde(default)]
+    pub components: Vec<UsageComponent>,
     pub created_at_ms: i64,
+}
+
+fn usage_complete_default() -> bool {
+    true
 }
 
 impl UsageRecord {
@@ -90,6 +114,7 @@ impl UsageRecord {
 pub trait SessionStore: Send + Sync {
     async fn create_session(&self, project: &str) -> Result<SessionId>;
     async fn list_sessions(&self, project: &str) -> Result<Vec<SessionInfo>>;
+    async fn session_belongs_to_project(&self, session: SessionId, project: &str) -> Result<bool>;
     async fn append_message(&self, sid: SessionId, msg: &Message) -> Result<()>;
     async fn messages(&self, sid: SessionId) -> Result<Vec<Message>>;
     async fn save_subagent(&self, descriptor: &SubagentDescriptor) -> Result<()>;
@@ -193,6 +218,9 @@ mod tests {
             input_price: Some(3.0),
             output_price: Some(15.0),
             reported_cost_usd: None,
+            source: crate::message::UsageSource::Provider,
+            is_final: true,
+            components: Vec::new(),
             created_at_ms: 0,
         };
         let cost = priced.cost().expect("con ambos precios hay coste");
@@ -229,6 +257,9 @@ mod tests {
             input_price: Some(3.0),
             output_price: Some(15.0),
             reported_cost_usd: Some(0.0042),
+            source: crate::message::UsageSource::Provider,
+            is_final: true,
+            components: Vec::new(),
             created_at_ms: 0,
         };
         assert_eq!(record.cost(), Some(0.0042));
