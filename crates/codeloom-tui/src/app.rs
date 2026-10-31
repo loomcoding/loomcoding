@@ -40,6 +40,9 @@ pub struct McpServerCapability {
     pub id: String,
     pub initialized: bool,
     pub tool_count: usize,
+    /// Tokens estimados de las definiciones de sus herramientas; cero si no se midieron.
+    #[serde(default)]
+    pub schema_tokens: u64,
     pub issue: Option<String>,
 }
 
@@ -4834,6 +4837,14 @@ fn budget_warning_line(
 mod tests {
     use super::*;
     use batten::state::ToolStatus;
+
+    #[test]
+    fn mcp_capability_without_schema_tokens_deserializes_with_zero() {
+        let server: McpServerCapability =
+            serde_json::from_str(r#"{"id":"fs","initialized":true,"tool_count":3,"issue":null}"#)
+                .unwrap();
+        assert_eq!(server.schema_tokens, 0);
+    }
     use codeloom_core::job::{JobId, JobProgress, JobResult, JobSnapshot, JobStatus};
     use codeloom_core::question::QuestionOption;
     use codeloom_core::session::SubagentDescriptor;

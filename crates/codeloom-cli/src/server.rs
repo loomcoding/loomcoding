@@ -712,6 +712,7 @@ async fn build_agent(
                     ),
                 });
             }
+            let schema_tokens = codeloom_core::tools::mcp_schema_tokens_by_server(&mcp.tools());
             let statuses = mcp
                 .server_statuses()
                 .iter()
@@ -719,6 +720,7 @@ async fn build_agent(
                     id: status.server_id.clone(),
                     initialized: status.initialized,
                     tool_count: status.tool_count,
+                    schema_tokens: schema_tokens.get(&status.server_id).copied().unwrap_or(0),
                     issue: status.issue.clone(),
                 })
                 .collect();

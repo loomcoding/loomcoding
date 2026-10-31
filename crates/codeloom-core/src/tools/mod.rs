@@ -204,7 +204,7 @@ impl ToolRegistry {
         &self,
         included: &[crate::provider::ToolSpec],
     ) -> Vec<crate::session::UsageComponent> {
-        let mut by_server = BTreeMap::<String, usize>::new();
+        let mut by_server = BTreeMap::<String, u64>::new();
         for spec in included {
             let Some(tool) = self.tools.get(&spec.name) else {
                 continue;
@@ -212,13 +212,7 @@ impl ToolRegistry {
             let Some(server_id) = tool.mcp_server_id() else {
                 continue;
             };
-            let tokens = crate::agent::compact::estimate_text_tokens(&spec.name)
-                .saturating_add(crate::agent::compact::estimate_text_tokens(
-                    &spec.description,
-                ))
-                .saturating_add(crate::agent::compact::estimate_text_tokens(
-                    &spec.input_schema.to_string(),
-                ));
+            let tokens = tool_schema_tokens(&spec.name, &spec.description, &spec.input_schema);
             let entry = by_server.entry(server_id.to_owned()).or_default();
             *entry = entry.saturating_add(tokens);
         }
@@ -227,10 +221,37 @@ impl ToolRegistry {
             .map(|(id, input_tokens)| crate::session::UsageComponent {
                 kind: crate::session::UsageComponentKind::Mcp,
                 id,
-                input_tokens: input_tokens as u64,
+                input_tokens,
             })
             .collect()
     }
+}
+
+/// Tokens estimados de la definición de una herramienta (nombre, descripción y esquema), con la misma
+/// estimación local que el resto del núcleo.
+pub fn tool_schema_tokens(name: &str, description: &str, schema: &serde_json::Value) -> u64 {
+    use crate::agent::compact::estimate_text_tokens;
+    (estimate_text_tokens(name) as u64)
+        .saturating_add(estimate_text_tokens(description) as u64)
+        .saturating_add(estimate_text_tokens(&schema.to_string()) as u64)
+}
+
+/// Tokens estimados de las definiciones de las herramientas MCP, agrupados por servidor. Las
+/// herramientas que no pertenecen a un servidor MCP no cuentan.
+pub fn mcp_schema_tokens_by_server(tools: &[std::sync::Arc<dyn Tool>]) -> BTreeMap<String, u64> {
+    let mut by_server = BTreeMap::<String, u64>::new();
+    for tool in tools {
+        let Some(server_id) = tool.mcp_server_id() else {
+            continue;
+        };
+        let entry = by_server.entry(server_id.to_owned()).or_default();
+        *entry = entry.saturating_add(tool_schema_tokens(
+            tool.name(),
+            tool.description(),
+            &tool.schema(),
+        ));
+    }
+    by_server
 }
 
 #[cfg(test)]
@@ -286,6 +307,47 @@ mod tests {
         ) -> Result<ToolOutput> {
             Ok(ToolOutput::ok("ok"))
         }
+    }
+
+    #[test]
+    fn schema_tokens_by_server_counts_only_mcp_tools_and_matches_usage_components() {
+        let mut r = ToolRegistry::new();
+        r.register(std::sync::Arc::new(Dummy));
+        r.register(std::sync::Arc::new(DummyMcp {
+            server: "fs",
+            name: "fs_read",
+        }));
+        r.register(std::sync::Arc::new(DummyMcp {
+            server: "fs",
+            name: "fs_write",
+        }));
+        r.register(std::sync::Arc::new(DummyMcp {
+            server: "git",
+            name: "git_log",
+        }));
+        let tools: Vec<std::sync::Arc<dyn Tool>> = ["dummy", "fs_read", "fs_write", "git_log"]
+            .iter()
+            .map(|name| r.get(name).unwrap())
+            .collect();
+        let by_server = mcp_schema_tokens_by_server(&tools);
+        assert_eq!(by_server.keys().collect::<Vec<_>>(), ["fs", "git"]);
+        assert!(by_server["fs"] > by_server["git"]);
+        // Debe coincidir con lo que se apunta por petición para las mismas herramientas.
+        for component in r.mcp_usage_components(&r.specs()) {
+            assert_eq!(component.input_tokens, by_server[&component.id]);
+        }
+    }
+
+    #[test]
+    fn tool_schema_tokens_grows_with_the_definition() {
+        let small = tool_schema_tokens("a", "d", &serde_json::json!({"type":"object"}));
+        let large = tool_schema_tokens(
+            "a",
+            &"d".repeat(400),
+            &serde_json::json!({"type":"object","properties":{"x":{"type":"string"}}}),
+        );
+        assert!(small > 0);
+        assert!(large > small + 99);
     }
 
     #[test]

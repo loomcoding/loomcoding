@@ -574,6 +574,46 @@ fn draw_transcript(frame: &mut Frame, area: Rect, app: &mut App, panes: &mut Vec
     }
 }
 
+/// Umbrales de partida para avisar de un exceso de definiciones MCP (candidata A2): proceden de la
+/// bibliografía citada en la spec, no de una medición propia.
+const MCP_TOOLS_WARNING: usize = 30;
+const MCP_TOKENS_WARNING: u64 = 10_000;
+
+/// Línea de un servidor MCP en el panel de capacidades: herramientas y tokens estimados.
+fn mcp_server_summary(server: &crate::app::McpServerCapability) -> String {
+    let noun = if server.tool_count == 1 {
+        "tool"
+    } else {
+        "tools"
+    };
+    format!(
+        "{} · {} {noun} · ~{} tok",
+        server.id, server.tool_count, server.schema_tokens
+    )
+}
+
+/// Aviso cuando el conjunto de servidores conectados supera alguno de los umbrales, o `None`.
+fn mcp_load_warning(servers: &[crate::app::McpServerCapability]) -> Option<String> {
+    let live = servers.iter().filter(|server| server.initialized);
+    let (tools, tokens) = live.fold((0usize, 0u64), |(tools, tokens), server| {
+        (
+            tools.saturating_add(server.tool_count),
+            tokens.saturating_add(server.schema_tokens),
+        )
+    });
+    if tools > MCP_TOOLS_WARNING {
+        Some(format!(
+            "{tools} tools (~{tokens} tok) exceed {MCP_TOOLS_WARNING}: selection may degrade"
+        ))
+    } else if tokens > MCP_TOKENS_WARNING {
+        Some(format!(
+            "~{tokens} tok of tool schemas exceed {MCP_TOKENS_WARNING}: consider fewer servers"
+        ))
+    } else {
+        None
+    }
+}
+
 fn draw_workspace_metrics(
     frame: &mut Frame,
     area: Rect,
@@ -731,10 +771,18 @@ fn draw_workspace_metrics(
                     } else {
                         app.theme.styles.error
                     };
+                    let label = if server.initialized {
+                        mcp_server_summary(server)
+                    } else {
+                        server.id.clone()
+                    };
                     mcp_lines.push(Line::from(vec![
                         Span::styled("● ", style),
-                        Span::raw(server.id.clone()),
+                        Span::raw(label),
                     ]));
+                }
+                if let Some(warning) = mcp_load_warning(&capabilities.mcp_servers) {
+                    mcp_lines.push(Line::from(Span::styled(warning, app.theme.styles.error)));
                 }
             }
         }
@@ -2510,6 +2558,51 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 mod tests {
     use super::*;
     use crate::app::App;
+
+    fn mcp_server(id: &str, tools: usize, tokens: u64) -> crate::app::McpServerCapability {
+        crate::app::McpServerCapability {
+            id: id.into(),
+            initialized: true,
+            tool_count: tools,
+            schema_tokens: tokens,
+            issue: None,
+        }
+    }
+
+    #[test]
+    fn mcp_server_summary_shows_tools_and_estimated_tokens() {
+        assert_eq!(
+            mcp_server_summary(&mcp_server("fs", 12, 3400)),
+            "fs · 12 tools · ~3400 tok"
+        );
+        assert_eq!(
+            mcp_server_summary(&mcp_server("git", 1, 80)),
+            "git · 1 tool · ~80 tok"
+        );
+    }
+
+    #[test]
+    fn mcp_load_warning_stays_silent_under_both_thresholds() {
+        let servers = [mcp_server("a", 10, 4000), mcp_server("b", 10, 5000)];
+        assert_eq!(mcp_load_warning(&servers), None);
+    }
+
+    #[test]
+    fn mcp_load_warning_names_the_threshold_that_was_exceeded() {
+        let many = [mcp_server("a", 20, 100), mcp_server("b", 11, 100)];
+        let by_tools = mcp_load_warning(&many).unwrap();
+        assert!(by_tools.contains("31 tools"), "{by_tools}");
+        let heavy = [mcp_server("a", 2, 6000), mcp_server("b", 2, 4001)];
+        let by_tokens = mcp_load_warning(&heavy).unwrap();
+        assert!(by_tokens.contains("10001"), "{by_tokens}");
+    }
+
+    #[test]
+    fn mcp_load_warning_ignores_servers_that_failed_to_initialize() {
+        let mut down = mcp_server("a", 40, 20_000);
+        down.initialized = false;
+        assert_eq!(mcp_load_warning(&[down]), None);
+    }
     use codeloom_core::task::{TaskState, TaskStatus};
     use ratatui::backend::{Backend, TestBackend};
     use ratatui::Terminal;
