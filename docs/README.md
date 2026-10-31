@@ -105,6 +105,8 @@ ejecutarlo).
 - [Decálogo agent-first (borrador) y diseño de evaluación](specs/2026-10-31-codeloom-decalogo-agent-first.md)
   y [fuentes externas con auditoría del flujo](references/2026-10-31-agent-first-fuentes-externas-y-auditoria.md):
   propuesta de diseño sin evidencia propia todavía.
+- [Estudio de agentpatterns.ai aplicado a CodeLoom](references/2026-10-31-agentpatterns-estudio-codeloom.md):
+  primera pasada (22 páginas de 1.926) con matriz patrón → código y borrador de modos; CC BY 4.0, resumen propio.
 
 ## Cómo navegar y mantenerla
 
