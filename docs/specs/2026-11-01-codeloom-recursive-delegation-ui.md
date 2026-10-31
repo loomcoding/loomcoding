@@ -11,12 +11,12 @@
 
 ## 1. Problema
 
-Con la recursión activada, el nieto existe, trabaja y queda guardado como tarea de su padre, pero la sesión raíz no se
-entera: los eventos del nieto viajan por el bus del hijo y el reenvío filtrado del lanzador (`arrancar`, bucle de
-`child_rx`) solo deja pasar los eventos «relevantes» del propio hijo, entre los que no figuran ni `SubagentChanged` ni
-`ChildEvent`. En la interfaz, `LiveEvent::SubagentChanged` solo se atiende si `parent` es la sesión abierta, y
-`LiveEvent::ChildEvent` igual. Consecuencia: el trabajo anidado es invisible en la raíz, que es justo el riesgo que la
-fase 1 anotó («un nieto cuya salida no llega a la sesión raíz puede esconder trabajo»).
+Con la recursión activada, el nieto existe, trabaja y queda guardado como tarea de su padre, pero la sesión raíz no lo
+muestra. Comprobado (2026-11-01): el lanzador anidado comparte el bus de la raíz, de modo que `SubagentChanged` y
+`ChildEvent` del nieto (con `parent` = el hijo) **ya llegan** al bus de la raíz. El cuello de botella está solo en la
+interfaz: `LiveEvent::SubagentChanged` y `LiveEvent::ChildEvent` se atienden únicamente si `parent` es la sesión abierta.
+Consecuencia: el trabajo anidado es invisible, que es el riesgo que la fase 1 anotó («un nieto cuya salida no llega a la
+sesión raíz puede esconder trabajo»).
 
 ## 2. Objetivo
 
@@ -35,16 +35,11 @@ diario igual que las de un hijo directo.
 
 ## 4. Diseño
 
-### 4.1 Reenvío ascendente sin envolver
+### 4.1 Reenvío ascendente: nada que cambiar en el motor
 
-El reenvío filtrado del lanzador pasa a dejar subir también los eventos `SubagentChanged` y `ChildEvent` que le lleguen del
-bus del hijo. Se reenvían **tal cual**, sin volver a envolverlos: ya llevan la identidad real (`parent` es el hijo, `child`
-es el nieto), de modo que quien los recibe sabe de quién son sin necesidad de un camino acumulado en el evento. Solo los
-emite el bus de un hijo que tiene lanzador anidado, así que con la profundidad por defecto no sube nada nuevo.
-
-Cotas: la cantidad de eventos que sube por nivel es la de los eventos relevantes ya existentes (cada uno cruza como mucho
-dos reenvíos con el techo en 3), y el bus de difusión conserva su comportamiento actual ante retraso (se pierden eventos,
-no el reenvío). No hay bucles posibles: el árbol es finito y el techo es 3.
+Los eventos del nieto ya viajan por el bus de la raíz, sin envolver y con su identidad real (`parent` es el hijo, `child` es
+el nieto). No se añade reenvío alguno; se fijan con pruebas de regresión (que el nieto llega con recursión y que no llega
+nada con la profundidad por defecto). Cotas: no hay bucles, el árbol es finito y el techo es 3.
 
 ### 4.2 Qué acepta la interfaz
 
@@ -85,7 +80,7 @@ nodo del hijo y el nieto aparece como nodo propio: el actor queda distinguible p
 ## 5. Criterios de aceptación
 
 1. Con profundidad 2, un nieto lanzado por un hijo genera en el bus de la raíz un `SubagentChanged` y `ChildEvent`
-   observables (prueba de núcleo con proveedor simulado).
+   observables (prueba de núcleo con proveedor simulado; ya cumplido, solo se fija).
 2. Con la profundidad por defecto, no sube ningún evento nuevo al bus de la raíz (prueba de no regresión).
 3. La interfaz crea el nodo del nieto, con sangría de un nivel y etiqueta `hijo › nieto`, y conserva el estado A2A exacto
    entre paréntesis.
@@ -97,7 +92,7 @@ nodo del hijo y el nieto aparece como nodo propio: el actor queda distinguible p
 
 ## 6. Riesgos
 
-- **Duplicidad de eventos:** un evento de nieto lo recibe la raíz una sola vez porque se reenvía tal cual y no se vuelve a
+- **Duplicidad de eventos:** un evento de nieto llega a la raíz una sola vez porque el bus es compartido y no se vuelve a
   envolver; una prueba lo fija (criterio 1).
 - **Ruido:** un árbol ancho puede llenar el diario. Se mitiga con las cotas del semáforo y el plegado por defecto de los
   nodos terminales ya existente.

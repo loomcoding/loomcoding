@@ -6595,6 +6595,80 @@ mod tests {
             .any(|n| n == "subagent"));
     }
 
+    /// Recoge, hasta que se agote la espera, los eventos de nieto que llegan al bus de la raíz:
+    /// los descriptores cuyo padre es `hijo` y los `ChildEvent` de ese padre.
+    async fn eventos_de_nieto(
+        rx: &mut tokio::sync::broadcast::Receiver<LiveEvent>,
+        hijo: SessionId,
+    ) -> (Vec<SessionId>, usize) {
+        let mut descriptores = Vec::new();
+        let mut reenviados = 0;
+        while let Ok(Ok(evento)) = tokio::time::timeout(Duration::from_millis(300), rx.recv()).await
+        {
+            match evento {
+                LiveEvent::SubagentChanged(d) if d.parent == hijo => descriptores.push(d.child),
+                LiveEvent::ChildEvent { parent, .. } if parent == hijo => reenviados += 1,
+                _ => {}
+            }
+        }
+        (descriptores, reenviados)
+    }
+
+    #[tokio::test]
+    async fn the_root_bus_receives_the_grandchild_events_untouched() {
+        let perfil = perfil_con_profundidad("coord", Some(2));
+        let e = entorno_recursivo(
+            2,
+            &[("coord", perfil.as_str())],
+            &[("hijo", None, "nieto")],
+            &[],
+        )
+        .await;
+        let mut rx = e.lanzador.bus.subscribe();
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        esperar_hijos_terminales(&e.store, hijo).await;
+        let nieto = e.store.list_subagents(hijo).await.unwrap()[0].child;
+        let (descriptores, reenviados) = eventos_de_nieto(&mut rx, hijo).await;
+        assert!(descriptores.contains(&nieto), "{descriptores:?}");
+        assert!(
+            reenviados > 0,
+            "ningún ChildEvent del nieto llegó a la raíz"
+        );
+    }
+
+    #[tokio::test]
+    async fn with_the_default_ceiling_no_grandchild_event_reaches_the_root_bus() {
+        let perfil = perfil_con_profundidad("coord", Some(3));
+        let e = entorno_recursivo(1, &[("coord", perfil.as_str())], &[], &[]).await;
+        let mut rx = e.lanzador.bus.subscribe();
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        let (descriptores, reenviados) = eventos_de_nieto(&mut rx, hijo).await;
+        assert!(descriptores.is_empty());
+        assert_eq!(reenviados, 0);
+    }
+
     #[tokio::test]
     async fn a_profile_clipped_by_the_ceiling_is_reported_once() {
         let perfil = perfil_con_profundidad("coord", Some(3));
