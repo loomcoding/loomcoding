@@ -658,7 +658,9 @@ async fn build_agent(
     let budget = codeloom_core::budget::BudgetConfig::load(&config_path)?;
     let compaction = codeloom_core::agent::compact::CompactionConfig::load(&config_path)?;
     let a2a = codeloom_a2a::config::A2aConfig::load(&config_path)?;
-    let (provider, api_key_configured) = super::build_provider_state(&cfg, &project_env, None)?;
+    let prompt_cache = codeloom_core::config::ProviderCacheConfig::load(&config_path)?.prompt_cache;
+    let (provider, api_key_configured) =
+        super::build_provider_state(&cfg, &project_env, None, prompt_cache)?;
     let project = format!("{}#codeloom-agent:{id}", cwd.display());
     let bus = codeloom_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
@@ -762,7 +764,7 @@ async fn build_agent(
         move |profile_provider: &codeloom_core::config::ProviderConfig| {
             let mut config = profile_config.clone();
             config.provider = profile_provider.clone();
-            super::build_provider(&config, &profile_env)
+            super::build_provider(&config, &profile_env, prompt_cache)
                 .map_err(|error| CoreError::Provider(error.to_string()))
         },
     );
@@ -1923,7 +1925,7 @@ pub async fn run_server() -> anyhow::Result<()> {
                 max_steps: 1,
                 effort: None,
             };
-            super::build_provider(&config, &HashMap::new())
+            super::build_provider(&config, &HashMap::new(), None)
                 .ok()
                 .map(|provider| (provider, config.model))
         });

@@ -47,7 +47,8 @@ Con el interruptor apagado el cuerpo es idéntico al actual.
 **Interruptor.** `AnthropicProvider::with_prompt_cache(bool)`; por defecto apagado en la biblioteca, de modo que los
 usuarios de la biblioteca y las pruebas no cambian. El CLI lo enciende salvo que `CODELOOM_PROMPT_CACHE` valga `0`,
 `off` o `false`. Se eligió una variable de entorno y no una clave de `codeloom.toml` para no tocar los más de cuarenta
-sitios que construyen `ProviderConfig`; es un compromiso, y queda como mejora ponerlo en la configuración.
+sitios que construyen `ProviderConfig`; es un compromiso, y después se añadió la clave `[provider] prompt_cache`
+(véase `2026-10-31-codeloom-prompt-cache-config.md`), con la variable de entorno por encima.
 
 ## 5. Criterios de aceptación
 

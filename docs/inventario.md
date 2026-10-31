@@ -30,7 +30,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   context-meter, context-summary; el decálogo está vigente. Se suma `cache-usage-ledger` (fase 1:
   registro de los tokens de caché comunicados por el proveedor; desglose y TUI quedan pendientes) y
   `mcp-schema-cost` (herramientas y tokens estimados por servidor MCP al conectar, con aviso por umbrales) y
-  `prompt-cache-points` (dos puntos de caché en el adaptador de Anthropic, medido en real) y
+  `prompt-cache-points` (dos puntos de caché en el adaptador de Anthropic, medido en real; configurable con `[provider] prompt_cache`, por debajo de `CODELOOM_PROMPT_CACHE`: `prompt-cache-config`) y
   `context-breakdown-ui` (desglose estimado de la petición y caché acumulada en el panel de uso, solo con datos) y
   `delegation-control` (aprobación por código de cada delegación con `confirm_delegation = always` y mando
   `[agents] delegation = off | on_request | proactive`; solo `off` es garantía de código) y

@@ -163,6 +163,37 @@ impl AgentsConfig {
     }
 }
 
+/// Clave opcional `prompt_cache` de la sección `[provider]`. Va en un cargador aparte para no añadir un
+/// campo a `ProviderConfig`, que se construye en muchos sitios; el resto de claves de `[provider]` se ignora.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct ProviderCacheConfig {
+    /// Puntos de caché de prompts del adaptador de Anthropic. Sin valor, decide el resto de la precedencia.
+    pub prompt_cache: Option<bool>,
+}
+
+/// Forma del fichero a efectos de `[provider] prompt_cache`.
+#[derive(Deserialize)]
+struct FicheroConProveedor {
+    #[serde(default)]
+    provider: ProviderCacheConfig,
+}
+
+impl ProviderCacheConfig {
+    /// Lee `[provider] prompt_cache` de un texto TOML. Su ausencia da `None`.
+    pub fn from_toml(text: &str) -> Result<ProviderCacheConfig> {
+        toml::from_str::<FicheroConProveedor>(text)
+            .map(|fichero| fichero.provider)
+            .map_err(|e| CoreError::Config(e.to_string()))
+    }
+
+    pub fn load(path: &Path) -> Result<ProviderCacheConfig> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| CoreError::Config(format!("read {}: {e}", path.display())))?;
+        Self::from_toml(&text)
+    }
+}
+
 pub fn validate_base_url(input: &str) -> std::result::Result<(), String> {
     let url = reqwest::Url::parse(input).map_err(|_| "Base URL is invalid".to_string())?;
     let local_http = url.scheme() == "http"
@@ -414,6 +445,25 @@ mod tests {
         // La sección convive con el resto: la configuración principal sigue leyéndose igual.
         let cfg: CodeLoomConfig = toml::from_str(text).unwrap();
         assert_eq!(cfg.model, "gpt-4o");
+    }
+
+    #[test]
+    fn provider_prompt_cache_is_optional_and_boolean() {
+        let base = "model = \"m\"\n[provider]\nkind = \"anthropic\"\n";
+        assert_eq!(
+            ProviderCacheConfig::from_toml("").unwrap().prompt_cache,
+            None
+        );
+        assert_eq!(
+            ProviderCacheConfig::from_toml(base).unwrap().prompt_cache,
+            None
+        );
+        for (texto, esperado) in [("true", true), ("false", false)] {
+            let leido = ProviderCacheConfig::from_toml(&format!("{base}prompt_cache = {texto}\n"));
+            assert_eq!(leido.unwrap().prompt_cache, Some(esperado), "{texto}");
+        }
+        let no_booleano = format!("{base}prompt_cache = \"off\"\n");
+        assert!(ProviderCacheConfig::from_toml(&no_booleano).is_err());
     }
 
     #[test]

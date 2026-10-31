@@ -55,28 +55,29 @@ struct Cli {
     yolo: bool,
 }
 
-/// Interruptor de los puntos de caché de prompts del adaptador de Anthropic: encendidos salvo que
-/// `CODELOOM_PROMPT_CACHE` valga `0`, `off` o `false` (sin distinguir mayúsculas).
-fn prompt_cache_enabled(value: Option<&str>) -> bool {
-    !value.is_some_and(|value| {
-        matches!(
-            value.trim().to_ascii_lowercase().as_str(),
-            "0" | "off" | "false"
-        )
-    })
+/// Interruptor de los puntos de caché de prompts del adaptador de Anthropic. Precedencia: la variable
+/// `CODELOOM_PROMPT_CACHE` si no está vacía (`0`, `off` o `false`, sin distinguir mayúsculas, apaga; otro valor
+/// enciende); si no, `[provider] prompt_cache` de `codeloom.toml`; si no, encendido.
+fn prompt_cache_enabled(value: Option<&str>, configured: Option<bool>) -> bool {
+    match value.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) => !matches!(value.to_ascii_lowercase().as_str(), "0" | "off" | "false"),
+        None => configured.unwrap_or(true),
+    }
 }
 
 fn build_provider(
     cfg: &CodeLoomConfig,
     project_env: &HashMap<String, String>,
+    prompt_cache: Option<bool>,
 ) -> Result<Arc<dyn Provider>> {
-    Ok(build_provider_state(cfg, project_env, None)?.0)
+    Ok(build_provider_state(cfg, project_env, None, prompt_cache)?.0)
 }
 
 fn build_provider_state(
     cfg: &CodeLoomConfig,
     project_env: &HashMap<String, String>,
     api_key_override: Option<&str>,
+    prompt_cache: Option<bool>,
 ) -> Result<(Arc<dyn Provider>, bool)> {
     let key = api_key_override
         .map(str::to_string)
@@ -99,7 +100,10 @@ fn build_provider_state(
             )),
             ProviderKind::Anthropic => Arc::new(
                 AnthropicProvider::new(cfg.provider.base_url.clone(), key).with_prompt_cache(
-                    prompt_cache_enabled(std::env::var("CODELOOM_PROMPT_CACHE").ok().as_deref()),
+                    prompt_cache_enabled(
+                        std::env::var("CODELOOM_PROMPT_CACHE").ok().as_deref(),
+                        prompt_cache,
+                    ),
                 ),
             ),
             ProviderKind::Gemini => {
@@ -178,8 +182,13 @@ fn apply_provider_settings(
         credentials::set(&candidate.provider.api_key_env, key)
             .map_err(|error| format!("could not save API key securely: {error}"))?;
     }
-    let (provider, configured) = build_provider_state(&candidate, project_env, api_key)
-        .map_err(|error| error.to_string())?;
+    // Un fichero ilegible no impide guardar los ajustes: se usa el valor por defecto.
+    let prompt_cache = codeloom_core::config::ProviderCacheConfig::load(config_path)
+        .ok()
+        .and_then(|config| config.prompt_cache);
+    let (provider, configured) =
+        build_provider_state(&candidate, project_env, api_key, prompt_cache)
+            .map_err(|error| error.to_string())?;
     candidate
         .save(config_path)
         .map_err(|error| error.to_string())?;
@@ -689,13 +698,24 @@ a2a:
 
     #[test]
     fn prompt_cache_is_on_unless_explicitly_switched_off() {
-        assert!(prompt_cache_enabled(None));
-        assert!(prompt_cache_enabled(Some("1")));
-        assert!(prompt_cache_enabled(Some("on")));
-        assert!(prompt_cache_enabled(Some("")));
+        assert!(prompt_cache_enabled(None, None));
+        assert!(prompt_cache_enabled(Some("1"), None));
+        assert!(prompt_cache_enabled(Some("on"), None));
+        assert!(prompt_cache_enabled(Some(""), None));
         for apagado in ["0", "off", "OFF", "false", " False "] {
-            assert!(!prompt_cache_enabled(Some(apagado)), "{apagado}");
+            assert!(!prompt_cache_enabled(Some(apagado), None), "{apagado}");
         }
+    }
+
+    #[test]
+    fn prompt_cache_takes_the_toml_key_unless_the_environment_decides() {
+        assert!(!prompt_cache_enabled(None, Some(false)));
+        assert!(prompt_cache_enabled(None, Some(true)));
+        // Un entorno vacío no decide: vale la clave.
+        assert!(!prompt_cache_enabled(Some(""), Some(false)));
+        // La variable de entorno manda sobre el fichero, en ambos sentidos.
+        assert!(!prompt_cache_enabled(Some("off"), Some(true)));
+        assert!(prompt_cache_enabled(Some("1"), Some(false)));
     }
 
     #[test]
