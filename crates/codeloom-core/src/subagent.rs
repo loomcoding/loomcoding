@@ -17,7 +17,7 @@ use crate::session::{SessionId, SessionStore, SubagentDescriptor};
 use crate::subagent_input::{ChildResponder, InputBroker, PendingInput};
 use crate::task::{TaskState, TaskStatus};
 use crate::tools::spill::ToolSpill;
-use crate::tools::ToolRegistry;
+use crate::tools::{Tool, ToolRegistry};
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -205,6 +205,17 @@ pub struct InProcessSubagentLauncher {
     /// Enrutador de agentes (A12b) y el modo de confirmación con el que convive. Sin él no se elige
     /// agente automáticamente.
     router: Option<(Arc<dyn AgentRouter>, ConfirmDelegation)>,
+    /// Niveles restantes de la sesión que usa este lanzador (véase `child_levels`). Por defecto, los de
+    /// la raíz con el techo por defecto: la delegación de siempre, sin recursión.
+    levels_left: u32,
+    /// Herramientas de subagentes que el constructor retira de los hijos y que solo reciben los que
+    /// pueden delegar. `development_workflow` nunca figura aquí: solo la sesión raíz la gobierna.
+    delegation_tools: Vec<Arc<dyn Tool>>,
+    /// Sesión raíz de la familia de presupuesto. `None` en el lanzador de la raíz (su padre es la raíz);
+    /// los lanzadores anidados la heredan, de modo que el gasto de los nietos suma a la misma familia.
+    family_root: Option<SessionId>,
+    /// Perfiles cuyo recorte de profundidad ya se avisó, para avisar una sola vez por nombre.
+    clipped_notified: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
 }
 
 /// Descarta la pregunta pendiente del hijo al terminar su trabajo, sea cual sea la
@@ -330,6 +341,10 @@ impl InProcessSubagentLauncher {
         jobs: Arc<dyn JobRegistry>,
         bus: EventBus,
     ) -> Self {
+        let delegation_tools = ["subagent", "subagent_control", "subagent_list"]
+            .into_iter()
+            .filter_map(|name| tools.get(name))
+            .collect();
         Self {
             provider,
             store,
@@ -360,7 +375,68 @@ impl InProcessSubagentLauncher {
             remote_input_wait: REMOTE_ESPERA_RESPUESTA,
             profile_provider_resolver: None,
             router: None,
+            levels_left: root_levels(crate::config::DEFAULT_DEPTH_CEILING),
+            delegation_tools,
+            family_root: None,
+            clipped_notified: Arc::default(),
         }
+    }
+
+    /// Lanzador de la sesión `hijo`, que puede delegar: comparte con este el semáforo de activos, el
+    /// buzón de preguntas, el almacén, el bus, los trabajos, el catálogo, el registro y el presupuesto, y
+    /// ve el árbol entero como una sola familia. Cambian el proveedor, la configuración, el servicio de
+    /// permisos y las herramientas, que son los del hijo, y los niveles restantes.
+    #[allow(clippy::too_many_arguments)]
+    fn anidado(
+        &self,
+        raiz: SessionId,
+        provider: Arc<dyn Provider>,
+        config: CodeLoomConfig,
+        permission: Arc<PermissionService>,
+        tools: &ToolRegistry,
+        levels_left: u32,
+    ) -> Self {
+        Self {
+            provider: Arc::new(RwLock::new(provider)),
+            store: self.store.clone(),
+            tools: Arc::new(
+                tools
+                    .without("subagent")
+                    .without("subagent_control")
+                    .without("subagent_list")
+                    .without("development_workflow"),
+            ),
+            permission,
+            config: Arc::new(RwLock::new(config)),
+            cwd: self.cwd.clone(),
+            jobs: self.jobs.clone(),
+            active: self.active.clone(),
+            max_active: self.max_active,
+            confirm: self.confirm,
+            bus: self.bus.clone(),
+            broker: self.broker.clone(),
+            catalog: self.catalog.clone(),
+            registry: self.registry.clone(),
+            spill: self.spill.clone(),
+            budget: self.budget.clone(),
+            cancel_wait: self.cancel_wait,
+            remote_clients: self.remote_clients.clone(),
+            remote_poll: self.remote_poll,
+            remote_max_follow: self.remote_max_follow,
+            remote_input_wait: self.remote_input_wait,
+            profile_provider_resolver: self.profile_provider_resolver.clone(),
+            router: self.router.clone(),
+            levels_left,
+            delegation_tools: self.delegation_tools.clone(),
+            family_root: Some(raiz),
+            clipped_notified: self.clipped_notified.clone(),
+        }
+    }
+
+    /// Fija los niveles restantes de la sesión que usa este lanzador. Con la raíz, `root_levels(techo)`.
+    pub fn with_levels_left(mut self, levels_left: u32) -> Self {
+        self.levels_left = levels_left;
+        self
     }
 
     /// Fija el modo de confirmación al delegar. Con `Always`, `start` pregunta antes de crear el hijo
@@ -675,7 +751,34 @@ Task: {label}
                 });
             }
         }
-        let scoped_tools = self.tools.with_mcp_scope(scope);
+        // Niveles restantes del hijo y si puede delegar (véase `child_levels`). Un agente remoto o de
+        // revisión de solo lectura nunca delega.
+        let profile_depth = match &perfil {
+            Some(AgentEntry {
+                execution: Execution::Local(spec),
+                ..
+            }) => spec.max_depth,
+            _ => None,
+        };
+        let child_left = child_levels(self.levels_left, profile_depth);
+        let delegates = !read_only && can_delegate(child_left);
+        if depth_clipped(self.levels_left, profile_depth) {
+            let nombre = agente.clone().unwrap_or_else(|| AGENTE_POR_DEFECTO.into());
+            if self.clipped_notified.lock().unwrap().insert(nombre.clone()) {
+                self.bus.publish(crate::event::LiveEvent::RuntimeNotice {
+                    message: format!(
+                        "Agent `{nombre}` asks for max_depth {} but the depth ceiling leaves it {child_left}",
+                        profile_depth.unwrap_or_default()
+                    ),
+                });
+            }
+        }
+        let mut scoped_tools = self.tools.with_mcp_scope(scope);
+        if delegates {
+            for tool in &self.delegation_tools {
+                scoped_tools.register(tool.clone());
+            }
+        }
         let child_tools = if read_only {
             Arc::new(scoped_tools.only(&["view", "glob", "grep"]))
         } else {
@@ -754,6 +857,25 @@ Task: {label}
             }
             child_system = compose_child_system(child_system.take(), &loaded.prompt);
         }
+        // El hijo que puede delegar recibe un lanzador anidado que comparte con este el tope de activos, el
+        // buzón y el presupuesto de toda la familia; los demás no reciben ninguno.
+        let child_family = self.family_root.unwrap_or(parent);
+        let child_nested = delegates.then(|| -> Arc<dyn SubagentLauncher> {
+            Arc::new(self.anidado(
+                child_family,
+                child_provider.clone(),
+                child_config.clone(),
+                child_permission.clone(),
+                &child_tools,
+                child_left,
+            ))
+        });
+        let child_registry = if delegates {
+            self.registry.clone()
+        } else {
+            None
+        };
+        let child_confirm = self.confirm;
         let child_max_steps = child_config.max_steps;
         let child_cwd = self.cwd.clone();
         let child_jobs = self.jobs.clone();
@@ -822,9 +944,18 @@ Task: {label}
                     .with_system_extra(child_system)
                     .with_system_usage_components(skill_usage_components)
                     .with_budget(child_budget)
-                    .with_budget_family(parent);
+                    .with_budget_family(child_family);
                     if let Some(spill) = child_spill {
                         child_agent = child_agent.with_spill(spill);
+                    }
+                    if let Some(registro) = child_registry {
+                        child_agent = child_agent
+                            .with_agent_registry(registro)
+                            .with_delegation_confirm(child_confirm);
+                    }
+                    // Al final: los demás `with_*` reconstruyen el lanzador por defecto del agente.
+                    if let Some(lanzador) = child_nested {
+                        child_agent = child_agent.with_subagent_launcher(lanzador);
                     }
                     let child_cancel = CancellationToken::new();
                     let outcome = tokio::select! {
@@ -6154,5 +6285,322 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+    }
+
+    /// Proveedor de prueba que encadena delegaciones según el primer mensaje de cada conversación:
+    /// si el plan tiene una entrada para ese texto y aún no hay resultado de herramienta, llama a
+    /// `subagent`; si no, responde. Registra las herramientas que vio cada conversación.
+    struct ProveedorEnCadena {
+        plan: std::collections::HashMap<String, (Option<String>, String)>,
+        herramientas: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>>,
+        puertas: std::collections::HashMap<String, Arc<tokio::sync::Notify>>,
+    }
+
+    #[async_trait]
+    impl Provider for ProveedorEnCadena {
+        fn capabilities(&self) -> crate::provider::Capabilities {
+            crate::provider::Capabilities {
+                tool_use: true,
+                reasoning: false,
+                streaming: true,
+            }
+        }
+        async fn stream(
+            &self,
+            req: crate::provider::ProviderRequest,
+            _cancel: CancellationToken,
+        ) -> Result<crate::provider::ProviderStream> {
+            let primero = req
+                .messages
+                .iter()
+                .find(|mensaje| mensaje.role == crate::message::Role::User)
+                .map(|mensaje| mensaje.text())
+                .unwrap_or_default();
+            self.herramientas
+                .lock()
+                .unwrap()
+                .entry(primero.clone())
+                .or_insert_with(|| req.tools.iter().map(|tool| tool.name.clone()).collect());
+            let con_resultado = req
+                .messages
+                .iter()
+                .any(|mensaje| mensaje.role == crate::message::Role::Tool);
+            if let Some(puerta) = self.puertas.get(&primero) {
+                puerta.notified().await;
+            }
+            let trozos = match self.plan.get(&primero) {
+                Some((agente, siguiente)) if !con_resultado => vec![
+                    StreamChunk::ToolCallComplete {
+                        id: format!("llamada-{primero}"),
+                        name: "subagent".into(),
+                        input: serde_json::json!({
+                            "label": siguiente,
+                            "prompt": siguiente,
+                            "agent": agente,
+                        }),
+                    },
+                    StreamChunk::Done(FinishReason::ToolCalls),
+                ],
+                _ => vec![
+                    StreamChunk::TextDelta(format!("{primero} listo")),
+                    StreamChunk::Done(FinishReason::Stop),
+                ],
+            };
+            Ok(Box::pin(futures::stream::iter(trozos)))
+        }
+    }
+
+    struct EntornoRecursivo {
+        _dir: tempfile::TempDir,
+        _global: tempfile::TempDir,
+        store: Arc<SqliteStore>,
+        parent: SessionId,
+        jobs: Arc<LocalJobRegistry>,
+        lanzador: InProcessSubagentLauncher,
+        herramientas: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>>,
+    }
+
+    /// Lanzador con las tres herramientas de subagentes y `development_workflow` registradas, los
+    /// perfiles dados y el plan de delegaciones dado. `techo` es el techo de profundidad del árbol.
+    async fn entorno_recursivo(
+        techo: u32,
+        perfiles: &[(&str, &str)],
+        plan: &[(&str, Option<&str>, &str)],
+        puertas: &[&str],
+    ) -> EntornoRecursivo {
+        let global = tempfile::tempdir().unwrap();
+        for (nombre, texto) in perfiles {
+            escribir_perfil(global.path(), nombre, texto);
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let (store, parent) = tienda_de_prueba(dir.path(), "recursivo.db").await;
+        let herramientas = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+        let proveedor: Arc<dyn Provider> = Arc::new(ProveedorEnCadena {
+            plan: plan
+                .iter()
+                .map(|(primero, agente, siguiente)| {
+                    (
+                        (*primero).to_string(),
+                        (agente.map(str::to_string), (*siguiente).to_string()),
+                    )
+                })
+                .collect(),
+            herramientas: herramientas.clone(),
+            puertas: puertas
+                .iter()
+                .map(|primero| ((*primero).to_string(), Arc::new(tokio::sync::Notify::new())))
+                .collect(),
+        });
+        let mut tools = ToolRegistry::new();
+        tools.register(Arc::new(SubagentTool));
+        tools.register(Arc::new(
+            crate::tools::subagent_control::SubagentControlTool,
+        ));
+        tools.register(Arc::new(crate::tools::subagent_list::SubagentListTool));
+        tools.register(Arc::new(
+            crate::tools::development_workflow::DevelopmentWorkflowTool,
+        ));
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let lanzador = InProcessSubagentLauncher::new(
+            Arc::new(RwLock::new(proveedor)),
+            store.clone(),
+            Arc::new(tools),
+            Arc::new(PermissionService::allow_all()),
+            Arc::new(RwLock::new(config_de_prueba())),
+            dir.path().to_path_buf(),
+            jobs.clone(),
+            EventBus::new(256),
+        )
+        .with_registry(registro_global(global.path()))
+        .with_levels_left(root_levels(techo));
+        EntornoRecursivo {
+            _dir: dir,
+            _global: global,
+            store,
+            parent,
+            jobs,
+            lanzador,
+            herramientas,
+        }
+    }
+
+    fn perfil_con_profundidad(nombre: &str, profundidad: Option<u32>) -> String {
+        let extra = profundidad
+            .map(|n| format!("max_depth: {n}\n"))
+            .unwrap_or_default();
+        format!("---\nname: {nombre}\ndescription: prueba\n{extra}---\n\nCuerpo.\n")
+    }
+
+    /// Espera (con cota) a que todos los hijos de `padre` estén en estado terminal.
+    async fn esperar_hijos_terminales(store: &SqliteStore, padre: SessionId) {
+        for _ in 0..200 {
+            let hijos = store.list_subagents(padre).await.unwrap();
+            if !hijos.is_empty() && hijos.iter().all(|hijo| hijo.status.state.is_terminal()) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("los hijos de {padre:?} no terminaron");
+    }
+
+    fn herramientas_de(entorno: &EntornoRecursivo, primero: &str) -> Vec<String> {
+        entorno
+            .herramientas
+            .lock()
+            .unwrap()
+            .get(primero)
+            .cloned()
+            .unwrap_or_else(|| panic!("la conversación {primero} no llegó al proveedor"))
+    }
+
+    #[tokio::test]
+    async fn with_the_default_ceiling_a_child_never_sees_the_subagent_tools() {
+        let perfil = perfil_con_profundidad("coord", Some(3));
+        let e = entorno_recursivo(1, &[("coord", perfil.as_str())], &[], &[]).await;
+        let (_hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        let vistas = herramientas_de(&e, "hijo");
+        for fuera in [
+            "subagent",
+            "subagent_control",
+            "subagent_list",
+            "development_workflow",
+        ] {
+            assert!(!vistas.iter().any(|n| n == fuera), "{fuera} en {vistas:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_child_without_max_depth_is_a_leaf_even_with_a_higher_ceiling() {
+        let e = entorno_recursivo(2, &[], &[], &[]).await;
+        let (_hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        assert!(!herramientas_de(&e, "hijo").iter().any(|n| n == "subagent"));
+    }
+
+    #[tokio::test]
+    async fn ceiling_two_and_a_two_level_profile_let_the_child_launch_a_leaf_grandchild() {
+        let perfil = perfil_con_profundidad("coord", Some(2));
+        let e = entorno_recursivo(
+            2,
+            &[("coord", perfil.as_str())],
+            &[("hijo", None, "nieto")],
+            &[],
+        )
+        .await;
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        esperar_hijos_terminales(&e.store, hijo).await;
+
+        let del_hijo = herramientas_de(&e, "hijo");
+        assert!(del_hijo.iter().any(|n| n == "subagent"), "{del_hijo:?}");
+        assert!(
+            del_hijo.iter().any(|n| n == "subagent_list"),
+            "{del_hijo:?}"
+        );
+        assert!(
+            !del_hijo.iter().any(|n| n == "development_workflow"),
+            "{del_hijo:?}"
+        );
+        let del_nieto = herramientas_de(&e, "nieto");
+        assert!(!del_nieto.iter().any(|n| n == "subagent"), "{del_nieto:?}");
+        // El nieto queda guardado como tarea de su padre, con su resultado.
+        let nietos = e.store.list_subagents(hijo).await.unwrap();
+        assert_eq!(nietos.len(), 1);
+        assert_eq!(nietos[0].status.state, TaskState::Completed);
+    }
+
+    #[tokio::test]
+    async fn ceiling_three_builds_a_chain_whose_last_member_is_a_leaf() {
+        let a = perfil_con_profundidad("a", Some(3));
+        let b = perfil_con_profundidad("b", Some(2));
+        let e = entorno_recursivo(
+            3,
+            &[("a", a.as_str()), ("b", b.as_str())],
+            &[("hijo", Some("b"), "nieto"), ("nieto", None, "bisnieto")],
+            &[],
+        )
+        .await;
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("a".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        esperar_hijos_terminales(&e.store, hijo).await;
+        let nieto = e.store.list_subagents(hijo).await.unwrap()[0].child;
+        esperar_hijos_terminales(&e.store, nieto).await;
+
+        assert!(herramientas_de(&e, "hijo").iter().any(|n| n == "subagent"));
+        assert!(herramientas_de(&e, "nieto").iter().any(|n| n == "subagent"));
+        assert!(!herramientas_de(&e, "bisnieto")
+            .iter()
+            .any(|n| n == "subagent"));
+    }
+
+    #[tokio::test]
+    async fn a_profile_clipped_by_the_ceiling_is_reported_once() {
+        let perfil = perfil_con_profundidad("coord", Some(3));
+        let e = entorno_recursivo(1, &[("coord", perfil.as_str())], &[], &[]).await;
+        let mut avisos = e.lanzador.bus.subscribe();
+        for etiqueta in ["uno", "dos"] {
+            let (_hijo, job) = e
+                .lanzador
+                .start(
+                    e.parent,
+                    etiqueta.into(),
+                    etiqueta.into(),
+                    Some("coord".into()),
+                    CancellationToken::new(),
+                )
+                .await
+                .unwrap();
+            e.jobs.wait(e.parent, &job).await.unwrap();
+        }
+        let mut recortes = 0;
+        while let Ok(evento) = avisos.try_recv() {
+            if let LiveEvent::RuntimeNotice { message } = evento {
+                if message.contains("asks for max_depth 3") {
+                    recortes += 1;
+                }
+            }
+        }
+        assert_eq!(recortes, 1);
     }
 }

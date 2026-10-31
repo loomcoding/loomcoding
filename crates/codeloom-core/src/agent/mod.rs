@@ -224,6 +224,8 @@ pub struct AgentLoop {
     max_active_subagents: usize,
     /// Mando de delegación (`[agents] delegation`); `None` es el comportamiento de siempre.
     delegation: Option<crate::config::DelegationMode>,
+    /// Techo de profundidad de la delegación (`[agents] max_depth`).
+    depth_ceiling: u32,
     /// Enrutador de agentes (A12b); sin él no se elige agente automáticamente.
     router: Option<Arc<dyn crate::registry::router::AgentRouter>>,
     /// Volcado a disco de las salidas recortadas; `None` no guarda nada y no añade ruta.
@@ -344,6 +346,7 @@ impl AgentLoop {
             delegation_confirm: ConfirmDelegation::default(),
             max_active_subagents: crate::config::DEFAULT_ACTIVE_SUBAGENTS,
             delegation: None,
+            depth_ceiling: crate::config::DEFAULT_DEPTH_CEILING,
             router: None,
             spill: None,
             remote_clients: None,
@@ -433,6 +436,26 @@ impl AgentLoop {
     pub fn with_delegation_confirm(mut self, confirm: ConfirmDelegation) -> Self {
         self.delegation_confirm = confirm;
         // El lanzador lleva el modo para aprobar cada delegación: si ya existía, se reconstruye.
+        if self.subagents.is_some() {
+            self.subagents = Some(self.subagent_launcher());
+        }
+        self
+    }
+
+    /// Sustituye el lanzador de subagentes del agente. Lo usa el lanzador para dar al hijo que puede
+    /// delegar uno anidado, que comparte con el árbol el tope de activos y el presupuesto.
+    pub(crate) fn with_subagent_launcher(
+        mut self,
+        launcher: Arc<dyn crate::subagent::SubagentLauncher>,
+    ) -> Self {
+        self.subagents = Some(launcher);
+        self
+    }
+
+    /// Fija el techo de profundidad de la delegación (`[agents] max_depth`). Por defecto, 1: los hijos no
+    /// delegan.
+    pub fn with_depth_ceiling(mut self, ceiling: u32) -> Self {
+        self.depth_ceiling = ceiling;
         if self.subagents.is_some() {
             self.subagents = Some(self.subagent_launcher());
         }
@@ -612,7 +635,8 @@ impl AgentLoop {
         .with_catalog(self.catalog.clone())
         .with_budget(self.budget.clone())
         .with_max_active(self.max_active_subagents)
-        .with_delegation_confirm(self.delegation_confirm);
+        .with_delegation_confirm(self.delegation_confirm)
+        .with_levels_left(crate::subagent::root_levels(self.depth_ceiling));
         let lanzador = match &self.profile_provider_resolver {
             Some(resolver) => lanzador.with_profile_provider_resolver(resolver.clone()),
             None => lanzador,

@@ -783,6 +783,7 @@ async fn build_agent(
     .with_agent_registry(registry.clone())
     .with_delegation_confirm(agents_cfg.confirm_delegation)
     .with_delegation_mode(agents_cfg.delegation)
+    .with_depth_ceiling(agents_cfg.depth_ceiling())
     .with_max_active_subagents(agents_cfg.active_subagents())
     .with_spill(codeloom_core::tools::spill::ToolSpill::new(
         data_dir.join("tool-output"),
