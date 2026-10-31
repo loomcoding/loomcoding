@@ -1367,6 +1367,83 @@ mod programmatic_tests {
         }
     }
 
+    /// Medición real de caché (A1/B1): cuatro peticiones pequeñas a Haiku 4.5 por OpenRouter. Dos por
+    /// el adaptador tal cual (sin `cache_control`) y dos con `cache_control` puesto a mano, para ver
+    /// qué comunica el proveedor y si nuestro lector de caché lo entiende. Tope de gasto: 0,50 USD.
+    #[tokio::test]
+    #[ignore = "live OpenRouter calls; incurs provider usage"]
+    async fn openrouter_haiku_live_cache_usage_measurement() {
+        use crate::message::Message;
+        use futures::StreamExt;
+
+        const CAP_USD: f64 = 0.50;
+        let key = std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY");
+        let provider = AnthropicProvider::new("https://openrouter.ai/api", key.clone());
+        // Prefijo estable de unos 7 000 tokens, por encima del mínimo cacheable de Haiku 4.5.
+        let system: String = (0..420)
+            .map(|i| format!("Rule {i}: keep answers short, cite the rule number, never invent facts about item {i}.
+"))
+            .collect();
+        let mut req = request();
+        req.model = "anthropic/claude-haiku-4.5".into();
+        req.system = system;
+        req.messages = vec![Message::user("Reply with the single word OK.")];
+        req.tools = Vec::new();
+        req.max_tokens = 16;
+        req.programmatic_tool_calling = false;
+        let mut spent = 0.0_f64;
+
+        for round in 1..=2 {
+            let mut stream = provider
+                .stream(req.clone(), CancellationToken::new())
+                .await
+                .expect("stream");
+            let (mut input, mut output, mut cost, mut cache) = (0, 0, None, None);
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    StreamChunk::UsageUpdate(u) => {
+                        input = input.max(u.input_tokens.unwrap_or(0));
+                        output = output.max(u.output_tokens.unwrap_or(0));
+                        cost = u.reported_cost_usd.or(cost);
+                    }
+                    StreamChunk::CacheUsage(c) => cache = Some(c),
+                    _ => {}
+                }
+            }
+            spent += cost.unwrap_or(input as f64 * 1.0 / 1e6 + output as f64 * 5.0 / 1e6);
+            println!("adapter-as-is round={round} input={input} output={output} cost={cost:?} cache_chunk={cache:?}");
+            assert!(spent < CAP_USD, "cap reached");
+        }
+
+        // Con `cache_control` en el bloque de sistema, a mano: lo que añadiría B1.
+        let mut body = provider.build_body(&req);
+        body["stream"] = json!(false);
+        body["system"] = json!([{
+            "type":"text",
+            "text": req.system,
+            "cache_control": {"type":"ephemeral"}
+        }]);
+        let client = reqwest::Client::new();
+        for round in 1..=2 {
+            let response = client
+                .post("https://openrouter.ai/api/v1/messages")
+                .header("x-api-key", &key)
+                .header("anthropic-version", "2023-06-01")
+                .json(&body)
+                .send()
+                .await
+                .expect("request");
+            let status = response.status();
+            let value: serde_json::Value = response.json().await.expect("json");
+            let usage = value.get("usage").cloned().unwrap_or(json!(null));
+            let parsed = cache_usage(&usage);
+            println!("with-cache_control round={round} status={status} usage={usage} parsed_by_cache_usage={parsed:?}");
+            spent += usage["cost"].as_f64().unwrap_or(0.02);
+            assert!(spent < CAP_USD, "cap reached");
+        }
+        println!("total_spent_usd~{spent:.5}");
+    }
+
     #[test]
     fn body_enables_code_execution_only_when_a_tool_is_eligible() {
         let provider = AnthropicProvider::new("http://localhost", "test-key");
