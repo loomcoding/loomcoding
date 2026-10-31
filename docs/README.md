@@ -102,6 +102,9 @@ ejecutarlo).
 - [Marco agent-first y evaluación de skills](specs/2026-10-25-codeloom-agent-first-development-skills.md)
   y [estudio comparativo](references/2026-10-25-agent-development-skills-study.md):
   documentación de evaluación; las skills candidatas no están adoptadas.
+- [Decálogo agent-first (borrador) y diseño de evaluación](specs/2026-10-31-codeloom-decalogo-agent-first.md)
+  y [fuentes externas con auditoría del flujo](references/2026-10-31-agent-first-fuentes-externas-y-auditoria.md):
+  propuesta de diseño sin evidencia propia todavía.
 
 ## Cómo navegar y mantenerla
 
