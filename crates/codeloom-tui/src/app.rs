@@ -931,6 +931,8 @@ pub struct App {
     pub usage_records: Vec<UsageRecord>,
     /// Peticiones de provider activas por sesión y request id, con cifras provisionales y finales.
     active_usage: HashMap<(i64, u64), ActiveUsage>,
+    /// Desglose estimado de la última petición de la sesión mostrada; `None` hasta recibir uno.
+    pub context_breakdown: Option<codeloom_core::agent::compact::ContextBreakdown>,
     /// Copia de los ajustes al abrir el diálogo y tras guardar con éxito.
     /// Sirve para saber si hay cambios sin guardar.
     pub settings_baseline: Option<ProviderSettings>,
@@ -1156,6 +1158,7 @@ impl App {
             refresh_agents_hook: None,
             usage_records: Vec::new(),
             active_usage: HashMap::new(),
+            context_breakdown: None,
             settings_baseline: None,
             settings_warned: false,
             settings_open: false,
@@ -2235,6 +2238,7 @@ impl App {
         // Los apuntes son de la sesión anterior; la carga posterior repone los de esta.
         self.usage_records.clear();
         self.active_usage.clear();
+        self.context_breakdown = None;
         self.input_tokens = 0;
         self.output_tokens = 0;
         self.turn_input_tokens = 0;
@@ -3534,6 +3538,10 @@ impl App {
                 if let Some(session) = self.session_id {
                     self.apply_usage_progress(session, &event);
                 }
+            }
+            // Solo el desglose de la sesión mostrada: el de los hijos no se reenvía.
+            LiveEvent::ContextBreakdown { breakdown, .. } => {
+                self.context_breakdown = Some(breakdown);
             }
             // El consumo de resumir cuenta como gasto igual que cualquier llamada, pero no es el
             // contexto del turno: no fija el medidor.
@@ -8456,6 +8464,21 @@ línea dos {}",
             cache_write_tokens: 0,
             created_at_ms: 1,
         }
+    }
+
+    #[test]
+    fn context_breakdown_is_kept_for_the_open_session_and_dropped_on_load() {
+        let mut app = App::new();
+        app.apply(LiveEvent::ContextBreakdown {
+            request_id: 1,
+            breakdown: codeloom_core::agent::compact::ContextBreakdown {
+                system: 1,
+                ..Default::default()
+            },
+        });
+        assert_eq!(app.context_breakdown.map(|b| b.system), Some(1));
+        app.load_session(SessionId(2), Vec::new());
+        assert_eq!(app.context_breakdown, None);
     }
 
     #[test]

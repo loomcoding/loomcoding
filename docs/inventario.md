@@ -29,7 +29,8 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 - **Contexto y coste:** context-compaction, background-compaction, budget-warning,
   context-meter, context-summary; el decálogo está vigente. Se suma `cache-usage-ledger` (fase 1:
   registro de los tokens de caché comunicados por el proveedor; desglose y TUI quedan pendientes) y
-  `mcp-schema-cost` (herramientas y tokens estimados por servidor MCP al conectar, con aviso por umbrales).
+  `mcp-schema-cost` (herramientas y tokens estimados por servidor MCP al conectar, con aviso por umbrales) y
+  `context-breakdown-ui` (desglose estimado de la petición y caché acumulada en el panel de uso, solo con datos).
 - **Runtime R1 a R6** y sus anexos del 10-27.
 - **Verificados el 2026-10-30 contra el código:** provider-timeouts, coste-real-y-estimado-por-adapter,
   parent-wakeup, chat-demo-streaming, cost-estimate; conversation-composer-review queda superado

@@ -614,15 +614,41 @@ fn mcp_load_warning(servers: &[crate::app::McpServerCapability]) -> Option<Strin
     }
 }
 
+/// Línea del desglose estimado de la última petición propia.
+fn context_breakdown_line(breakdown: &codeloom_core::agent::compact::ContextBreakdown) -> String {
+    format!(
+        "Context ~{} · sys {} · tools {} · msgs {}",
+        breakdown.total(),
+        breakdown.system,
+        breakdown.tools,
+        breakdown.messages
+    )
+}
+
+/// Línea de la caché acumulada en la sesión, tal como la comunica el proveedor. `None` si ambos
+/// acumulados son cero: cero significa «no informado o sin caché», no una medición.
+fn cache_usage_line(records: &[codeloom_core::session::UsageRecord]) -> Option<String> {
+    let (read, write) = records.iter().fold((0u64, 0u64), |(read, write), record| {
+        (
+            read.saturating_add(record.cache_read_tokens),
+            write.saturating_add(record.cache_write_tokens),
+        )
+    });
+    (read > 0 || write > 0).then(|| format!("Cache read {read} · write {write}"))
+}
+
 fn draw_workspace_metrics(
     frame: &mut Frame,
     area: Rect,
     app: &App,
     panes: &mut Vec<(Focus, Rect)>,
 ) {
+    // Cada línea con dato (desglose, caché) añade una fila al panel «Token usage»; sin dato, no cambia.
+    let cache_line = cache_usage_line(&app.usage_records);
+    let extra_rows = u16::from(app.context_breakdown.is_some()) + u16::from(cache_line.is_some());
     let rows = Layout::vertical([
         Constraint::Length(6),
-        Constraint::Length(6),
+        Constraint::Length(6 + extra_rows),
         Constraint::Min(3),
     ])
     .split(area);
@@ -674,28 +700,30 @@ fn draw_workspace_metrics(
         },
         &app.theme,
     );
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(format!(
-                "Turn ↑{} ↓{}",
-                app.turn_input_tokens, app.turn_output_tokens
-            )),
-            Line::from(format!(
-                "Session ↑{} ↓{}",
-                app.input_tokens, app.output_tokens
-            )),
-            Line::from(format!(
-                "Family ↑{} ↓{}",
-                app.family_tokens().0,
-                app.family_tokens().1
-            )),
-            Line::from(
-                app.active_usage_label()
-                    .unwrap_or_else(|| "Request · sin stream activo".into()),
-            ),
-        ]),
-        context,
-    );
+    let mut usage_lines = vec![
+        Line::from(format!(
+            "Turn ↑{} ↓{}",
+            app.turn_input_tokens, app.turn_output_tokens
+        )),
+        Line::from(format!(
+            "Session ↑{} ↓{}",
+            app.input_tokens, app.output_tokens
+        )),
+        Line::from(format!(
+            "Family ↑{} ↓{}",
+            app.family_tokens().0,
+            app.family_tokens().1
+        )),
+        Line::from(
+            app.active_usage_label()
+                .unwrap_or_else(|| "Request · sin stream activo".into()),
+        ),
+    ];
+    if let Some(breakdown) = &app.context_breakdown {
+        usage_lines.push(Line::from(context_breakdown_line(breakdown)));
+    }
+    usage_lines.extend(cache_line.map(Line::from));
+    frame.render_widget(Paragraph::new(usage_lines), context);
     let [activity, mcp, lsp, skills] = Layout::vertical([
         Constraint::Ratio(1, 4),
         Constraint::Ratio(1, 4),
@@ -2559,6 +2587,49 @@ mod tests {
     use super::*;
     use crate::app::App;
 
+    fn record_with_cache(read: u64, write: u64) -> codeloom_core::session::UsageRecord {
+        codeloom_core::session::UsageRecord {
+            session: codeloom_core::session::SessionId(1),
+            model: "m".into(),
+            input_tokens: 1,
+            output_tokens: 1,
+            input_price: None,
+            output_price: None,
+            reported_cost_usd: None,
+            source: codeloom_core::message::UsageSource::Provider,
+            is_final: true,
+            components: Vec::new(),
+            cache_read_tokens: read,
+            cache_write_tokens: write,
+            created_at_ms: 0,
+        }
+    }
+
+    #[test]
+    fn context_breakdown_line_shows_total_and_the_three_main_parts() {
+        let desglose = codeloom_core::agent::compact::ContextBreakdown {
+            system: 100,
+            tools: 40,
+            messages: 20,
+            framing: 3,
+        };
+        assert_eq!(
+            context_breakdown_line(&desglose),
+            "Context ~163 · sys 100 · tools 40 · msgs 20"
+        );
+    }
+
+    #[test]
+    fn cache_usage_line_is_absent_without_data_and_sums_the_records() {
+        assert_eq!(cache_usage_line(&[]), None);
+        assert_eq!(cache_usage_line(&[record_with_cache(0, 0)]), None);
+        let registros = [record_with_cache(900, 40), record_with_cache(100, 0)];
+        assert_eq!(
+            cache_usage_line(&registros).as_deref(),
+            Some("Cache read 1000 · write 40")
+        );
+    }
+
     fn mcp_server(id: &str, tools: usize, tokens: u64) -> crate::app::McpServerCapability {
         crate::app::McpServerCapability {
             id: id.into(),
@@ -3931,6 +4002,29 @@ tres",
             reference_task_ids: Vec::new(),
         }));
         app
+    }
+
+    #[test]
+    fn token_usage_panel_shows_breakdown_and_cache_only_with_data() {
+        let mut app = App::new();
+        let sin_datos = buffer_of(&mut app, 140, 50);
+        assert!(sin_datos.contains("Token usage"), "layout sin panel de uso");
+        assert!(!sin_datos.contains("Context ~"));
+        assert!(!sin_datos.contains("Cache read"));
+
+        app.apply(codeloom_core::event::LiveEvent::ContextBreakdown {
+            request_id: 1,
+            breakdown: codeloom_core::agent::compact::ContextBreakdown {
+                system: 100,
+                tools: 40,
+                messages: 20,
+                framing: 3,
+            },
+        });
+        app.usage_records = vec![record_with_cache(900, 40)];
+        let con_datos = buffer_of(&mut app, 140, 50);
+        assert!(con_datos.contains("Context ~163"));
+        assert!(con_datos.contains("Cache read 900"));
     }
 
     #[test]

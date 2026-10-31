@@ -88,6 +88,12 @@ pub enum LiveEvent {
         finished: bool,
         components: Vec<crate::session::UsageComponent>,
     },
+    /// Desglose estimado de la petición que se va a enviar: una vez por petición, antes de enviarla.
+    /// Telemetría local; no se reenvía al padre desde los hijos.
+    ContextBreakdown {
+        request_id: u64,
+        breakdown: crate::agent::compact::ContextBreakdown,
+    },
     ReportedCost {
         usd: f64,
     },
@@ -256,6 +262,7 @@ impl LiveEvent {
             | LiveEvent::TurnEnded
             | LiveEvent::Error { .. } => true,
             LiveEvent::ReasoningDelta { .. }
+            | LiveEvent::ContextBreakdown { .. }
             | LiveEvent::SessionMessageAdded { .. }
             | LiveEvent::JobChanged(_)
             | LiveEvent::SubagentChanged(_)

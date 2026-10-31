@@ -1,6 +1,6 @@
 # CodeLoom — Presentación del desglose del contexto y de la caché (A1, fase 3)
 
-> Estado: **borrador para implementar**.
+> Estado: **implementado** (2026-10-31).
 >
 > Fecha: 2026-10-31
 >

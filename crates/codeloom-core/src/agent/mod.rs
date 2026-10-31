@@ -902,6 +902,10 @@ impl AgentLoop {
             request_components
                 .sort_by(|left, right| (left.kind, &left.id).cmp(&(right.kind, &right.id)));
             let estimated_input = estimate_provider_request_tokens(&req);
+            self.bus.publish(LiveEvent::ContextBreakdown {
+                request_id,
+                breakdown: compact::breakdown_request(&req.system, &req.messages, &req.tools),
+            });
             self.bus.publish(LiveEvent::RuntimeNotice {
                 message: format!("provider request started for `{}`", config.model),
             });
@@ -4557,6 +4561,35 @@ Cuerpo.
 
         // 800 tokens sobre un límite de 1000: se cruza el 80 % y no el 100 %.
         assert_eq!(avisos_del_bus(&mut rx), vec![(80, 800.0)]);
+    }
+
+    #[tokio::test]
+    async fn each_request_publishes_its_context_breakdown_once() {
+        let proveedor = proveedor_de("", false, vec![respuesta_con_consumo("hola", 10, 1)]);
+        let e = entorno_de_turno(
+            proveedor,
+            catalogo_de_ventana(100_000),
+            &[],
+            ToolRegistry::new(),
+        )
+        .await;
+        let mut rx = e.agente.bus.subscribe();
+        e.agente
+            .run(e.sid, "hola".into(), CancellationToken::new())
+            .await
+            .unwrap();
+        let mut desgloses = Vec::new();
+        while let Ok(evento) = rx.try_recv() {
+            if let LiveEvent::ContextBreakdown { breakdown, .. } = evento {
+                desgloses.push(breakdown);
+            }
+        }
+        assert_eq!(desgloses.len(), 1, "una petición, un desglose");
+        let peticion = e.proveedor.seen.lock().unwrap()[0].clone();
+        let esperado =
+            compact::breakdown_request(&peticion.system, &peticion.messages, &peticion.tools);
+        assert_eq!(desgloses[0], esperado);
+        assert!(desgloses[0].messages > 0);
     }
 
     /// Dos respuestas: la primera llama a `noop` y consume 1 100 tokens; la segunda es texto.
