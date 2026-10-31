@@ -27,25 +27,8 @@ const MAX_TURN_PROVIDER_STATE_BYTES: usize = 256 * 1024;
 static NEXT_USAGE_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 fn estimate_provider_request_tokens(request: &ProviderRequest) -> u32 {
-    let messages = request
-        .messages
-        .iter()
-        .map(compact::estimate_message_tokens)
-        .sum::<usize>();
-    let tools = request
-        .tools
-        .iter()
-        .map(|tool| {
-            compact::estimate_text_tokens(&tool.name)
-                + compact::estimate_text_tokens(&tool.description)
-                + compact::estimate_text_tokens(&tool.input_schema.to_string())
-        })
-        .sum::<usize>();
-    let estimated = compact::estimate_text_tokens(&request.system)
-        .saturating_add(messages)
-        .saturating_add(tools)
-        .saturating_add(request.messages.len().saturating_mul(3));
-    u32::try_from(estimated).unwrap_or(u32::MAX)
+    let desglose = compact::breakdown_request(&request.system, &request.messages, &request.tools);
+    u32::try_from(desglose.total()).unwrap_or(u32::MAX)
 }
 
 fn estimate_stream_output(text: &str, calls: &[(String, String, serde_json::Value)]) -> u32 {

@@ -70,7 +70,10 @@ numérico, negativo o ausente en la respuesta del proveedor se ignora. No hay na
 
 ## 5. Fases siguientes (sin diseño cerrado)
 
-- **Fase 2:** función pura que desglosa el contexto estimado en sistema, herramientas, MCP, memoria y mensajes.
+- **Fase 2 (hecha en parte, 2026-10-31):** `compact::breakdown_request` desglosa una petición en sistema, herramientas,
+  mensajes y formato, y su total es exactamente la estimación que ya usaba el agente. Queda fuera llevarlo al evento de
+  uso y a la TUI (fase 3), y separar las herramientas MCP de las propias en el desglose (hoy las MCP ya constan por
+  servidor en los componentes del apunte). No hay una «memoria» aparte que desglosar: los ficheros de contexto del proyecto viajan dentro del sistema.
 - **Fase 3:** presentación en la TUI y mostrar lectura y escritura de caché en el resumen de uso. Toca la interfaz,
   de modo que necesita su propia spec.
 

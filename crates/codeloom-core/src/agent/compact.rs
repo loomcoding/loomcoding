@@ -132,6 +132,50 @@ pub fn estimate_message_tokens(message: &Message) -> usize {
         .sum()
 }
 
+/// Desglose estimado de lo que ocupa una petición al modelo, con la misma estimación local
+/// (bytes entre cuatro) que el resto del núcleo. `total` suma las cuatro partes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ContextBreakdown {
+    /// Prompt de sistema.
+    pub system: usize,
+    /// Definiciones de herramientas (nombre, descripción y esquema), MCP incluidas.
+    pub tools: usize,
+    /// Mensajes del historial.
+    pub messages: usize,
+    /// Sobrecoste fijo de formato por mensaje (tres tokens cada uno).
+    pub framing: usize,
+}
+
+impl ContextBreakdown {
+    pub fn total(&self) -> usize {
+        self.system
+            .saturating_add(self.tools)
+            .saturating_add(self.messages)
+            .saturating_add(self.framing)
+    }
+}
+
+/// Desglosa lo que ocupa una petición: sistema, herramientas, mensajes y formato.
+pub fn breakdown_request(
+    system: &str,
+    messages: &[Message],
+    tools: &[crate::provider::ToolSpec],
+) -> ContextBreakdown {
+    ContextBreakdown {
+        system: estimate_text_tokens(system),
+        tools: tools
+            .iter()
+            .map(|tool| {
+                estimate_text_tokens(&tool.name)
+                    + estimate_text_tokens(&tool.description)
+                    + estimate_text_tokens(&tool.input_schema.to_string())
+            })
+            .sum(),
+        messages: messages.iter().map(estimate_message_tokens).sum(),
+        framing: messages.len().saturating_mul(3),
+    }
+}
+
 /// Construye el mensaje de resumen: rol `User` con una única parte de texto que empieza por la
 /// cabecera `[Context summary: first {covers} messages]`.
 pub fn summary_message(covers: usize, text: &str) -> Message {
@@ -312,6 +356,30 @@ pub fn choose_cut(history: &[Message]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn breakdown_splits_system_tools_messages_and_framing() {
+        let tools = [crate::provider::ToolSpec {
+            name: "view".into(),
+            description: "d".repeat(40),
+            input_schema: serde_json::json!({"type":"object"}),
+            programmatic_allowed: false,
+        }];
+        let messages = [Message::user("a".repeat(80))];
+        let desglose = breakdown_request(&"s".repeat(400), &messages, &tools);
+        assert_eq!(desglose.system, 100);
+        assert_eq!(desglose.messages, 20);
+        assert_eq!(desglose.framing, 3);
+        // Nombre (1), descripción (10) y esquema (`{"type":"object"}`, 5).
+        assert_eq!(desglose.tools, 1 + 10 + 5);
+        assert_eq!(desglose.total(), 100 + 16 + 20 + 3);
+    }
+
+    #[test]
+    fn breakdown_of_an_empty_request_is_zero() {
+        assert_eq!(breakdown_request("", &[], &[]), ContextBreakdown::default());
+        assert_eq!(ContextBreakdown::default().total(), 0);
+    }
 
     #[test]
     fn context_overflow_is_recognised_only_for_a_400_or_413_with_a_known_wording() {
