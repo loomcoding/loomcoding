@@ -22,6 +22,8 @@ use tokio_util::sync::CancellationToken;
 const MODEL: &str = "anthropic/claude-haiku-4.5";
 const STAGE0_CAP_USD: f64 = 0.05;
 const STAGE1_CAP_USD: f64 = 0.40;
+const STAGE3_CAP_USD: f64 = 0.40;
+const HARD_REPS: usize = 3;
 const REPS: usize = 4;
 
 const INSTRUCTION: &str = "Review the following Python function for defects. Reply with a short list of findings, one line each, \
@@ -63,6 +65,142 @@ const CASES: [Case; 6] = [
     Case {
         name: "clean",
         code: "def clamp(value, low, high):\n    \"\"\"Limit `value` to the inclusive range [low, high]; low must not exceed high.\"\"\"\n    if low > high:\n        raise ValueError(\"low must not exceed high\")\n    return max(low, min(value, high))\n",
+        defect_pattern: None,
+    },
+];
+
+/// Batería difícil (etapa 3): defectos que obligan a razonar y dos casos correctos de apariencia sospechosa.
+const HARD_CASES: [Case; 8] = [
+    Case {
+        name: "merge-keeps-last-end",
+        code: r#"def merge(intervals):
+    """Merge overlapping or touching [start, end] intervals; return them sorted by start."""
+    out = []
+    for start, end in sorted(intervals):
+        if out and start <= out[-1][1]:
+            out[-1][1] = end
+        else:
+            out.append([start, end])
+    return out
+"#,
+        defect_pattern: Some(
+            r"max\(|contained|nested|enclos|inside (an|another|the)|shrink|smaller end|larger end|already (larger|greater)|overwrit|should (keep|take) the (larger|greater|max)",
+        ),
+    },
+    Case {
+        name: "binary-search-no-progress",
+        code: r#"def first_ge(sorted_values, target):
+    """Index of the first value >= target, or len(sorted_values) if none."""
+    lo, hi = 0, len(sorted_values)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if sorted_values[mid] < target:
+            lo = mid
+        else:
+            hi = mid
+    return lo
+"#,
+        defect_pattern: Some(
+            r"infinite|forever|never terminat|does not terminate|mid ?\+ ?1|no progress|not (make|making) progress|hang",
+        ),
+    },
+    Case {
+        name: "retry-returns-none",
+        code: r#"import time
+
+
+def call_with_retry(fn, retries=3, delay=0.1):
+    """Call fn(); on exception retry up to `retries` times in total; re-raise the last error if all fail."""
+    for attempt in range(retries):
+        try:
+            return fn()
+        except Exception:
+            time.sleep(delay)
+"#,
+        defect_pattern: Some(
+            r"re-?rais|returns? None|never raise|does not raise|no (error|exception) (is )?(raised|propagated|re-?raised)|last (error|exception)",
+        ),
+    },
+    Case {
+        name: "bucket-without-cap",
+        code: r#"import time
+
+
+class Bucket:
+    """Token bucket: `rate` tokens per second, never holding more than `capacity`."""
+
+    def __init__(self, rate, capacity):
+        self.rate, self.capacity = rate, capacity
+        self.tokens, self.last = capacity, time.monotonic()
+
+    def take(self):
+        now = time.monotonic()
+        self.tokens += (now - self.last) * self.rate
+        self.last = now
+        if self.tokens >= 1:
+            self.tokens -= 1
+            return True
+        return False
+"#,
+        defect_pattern: Some(
+            r"(not|never|no) (capped|clamped|limited|bounded)|exceed(s|ing)? (the )?capacity|above (the )?capacity|beyond (the )?capacity|no (upper )?(cap|limit|clamp|bound)|min\(|unbounded|grows? (without|indefinitely)",
+        ),
+    },
+    Case {
+        name: "counter-write-outside-lock",
+        code: r#"import threading
+
+
+class Counter:
+    """Thread-safe counter."""
+
+    def __init__(self):
+        self.value = 0
+        self.lock = threading.Lock()
+
+    def incr(self):
+        with self.lock:
+            current = self.value
+        self.value = current + 1
+"#,
+        defect_pattern: Some(
+            r"outside (of )?(the )?(lock|`?with)|not (protected|inside|within|under)|race|lost update|atomic|after (the )?lock|released",
+        ),
+    },
+    Case {
+        name: "leap-year-400",
+        code: r#"def is_leap(year):
+    """Gregorian leap year."""
+    return year % 4 == 0 and (year % 100 != 0 or year % 400 != 0)
+"#,
+        defect_pattern: Some(
+            r"2000|400 ?== ?0|should be ?== ?0|!= ?0 .{0,40}(should|instead|wrong|incorrect)",
+        ),
+    },
+    Case {
+        name: "clean-global-memo",
+        code: r#"_cache = {}
+
+
+def fib(n):
+    """Memoised Fibonacci; the module-level cache is intentional and process-wide."""
+    if n < 2:
+        return n
+    if n not in _cache:
+        _cache[n] = fib(n - 1) + fib(n - 2)
+    return _cache[n]
+"#,
+        defect_pattern: None,
+    },
+    Case {
+        name: "clean-chunks",
+        code: r#"def chunks(items, size):
+    """Yield consecutive lists of at most `size` items; the last may be shorter. size must be positive."""
+    if size <= 0:
+        raise ValueError("size must be positive")
+    for start in range(0, len(items), size):
+        yield items[start:start + size]
+"#,
         defect_pattern: None,
     },
 ];
@@ -225,6 +363,42 @@ fn the_spend_accumulator_stops_the_stage_once_its_cap_is_reached() {
     assert!(!spend.allows_next());
 }
 
+#[test]
+fn every_hard_case_matches_a_description_of_its_defect_and_not_a_generic_answer() {
+    let descriptions = [
+        "the last end is overwritten instead of max, so a contained interval shrinks the result",
+        "lo = mid makes no progress when the range has two elements: infinite loop, it should be mid + 1",
+        "after the retries are exhausted the function returns None and never re-raises the last error",
+        "tokens are never clamped to capacity, so the bucket can exceed the capacity after a long idle",
+        "the write happens outside the lock, so concurrent increments suffer a lost update",
+        "is_leap(2000) is False because the 400 test uses != 0 instead of == 0",
+    ];
+    for (case, description) in HARD_CASES.iter().zip(descriptions) {
+        assert!(score(case, description).hit, "{}", case.name);
+        assert!(
+            !score(
+                case,
+                "Looks fine. Consider adding type hints and a docstring example."
+            )
+            .hit,
+            "{}",
+            case.name
+        );
+    }
+}
+
+#[test]
+fn the_two_hard_clean_cases_only_hit_with_no_defects() {
+    for case in &HARD_CASES[6..] {
+        assert!(score(case, "NO_DEFECTS").hit, "{}", case.name);
+        assert!(
+            score(case, "- global mutable cache is not thread safe").false_positive,
+            "{}",
+            case.name
+        );
+    }
+}
+
 #[tokio::test]
 #[ignore = "live OpenRouter calls; incurs provider usage"]
 async fn stage0_effort_reaches_the_model() {
@@ -251,15 +425,14 @@ async fn stage0_effort_reaches_the_model() {
     );
 }
 
-#[tokio::test]
-#[ignore = "live OpenRouter calls; incurs provider usage"]
-async fn stage1_review_without_tools() {
+/// Pasa una batería por los tres niveles de esfuerzo e imprime un resumen por nivel.
+async fn run_battery(cases: &[Case], reps: usize, cap: f64) {
     let key = key();
-    let mut spend = Spend::new(STAGE1_CAP_USD);
+    let mut spend = Spend::new(cap);
     for effort in [None, Some("medium"), Some("high")] {
         let (mut hits, mut false_positives, mut tokens, mut cost, mut runs) = (0, 0, 0_u64, 0.0, 0);
-        for case in &CASES {
-            for _ in 0..REPS {
+        for case in cases {
+            for _ in 0..reps {
                 if !spend.allows_next() {
                     println!("cap reached, stopping before the next call");
                     break;
@@ -288,9 +461,18 @@ async fn stage1_review_without_tools() {
             "SUMMARY {effort:?}: runs={runs} hits={hits} false_positives={false_positives} output_tokens={tokens} cost={cost:.5}"
         );
     }
-    println!("stage1_spent_usd~{:.5}", spend.spent);
-    assert!(
-        spend.spent < STAGE1_CAP_USD + 0.05,
-        "tope de gasto superado"
-    );
+    println!("stage_spent_usd~{:.5}", spend.spent);
+    assert!(spend.spent < cap + 0.05, "tope de gasto superado");
+}
+
+#[tokio::test]
+#[ignore = "live OpenRouter calls; incurs provider usage"]
+async fn stage1_review_without_tools() {
+    run_battery(&CASES, REPS, STAGE1_CAP_USD).await;
+}
+
+#[tokio::test]
+#[ignore = "live OpenRouter calls; incurs provider usage"]
+async fn stage3_hard_battery() {
+    run_battery(&HARD_CASES, HARD_REPS, STAGE3_CAP_USD).await;
 }

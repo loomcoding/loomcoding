@@ -1,0 +1,90 @@
+# Etapa 1 — salida literal de: cargo test -p codeloom-core --test effort_by_phase_live stage1 -- --ignored --nocapture
+# (2026-10-31; 6 casos x 4 repeticiones x {ninguno, medium, high}; clave filtrada con sed)
+warning: E:\workspace\personal\loom\crates\codeloom-cli\Cargo.toml: file `E:\workspace\personal\loom\crates\codeloom-cli\src\main.rs` found to be present in multiple build targets:
+  * `bin` target `codeloom`
+  * `bin` target `loom`
+    Finished `test` profile [unoptimized] target(s) in 28.49s
+     Running tests\effort_by_phase_live.rs (target\e2e\debug\deps\effort_by_phase_live-ace7ebaf515b432a.exe)
+
+running 1 test
+None pagination-off-by-one hit=true fp=false out=36 cost=0.00029 :: - Off-by-one error: slicing includes `size + 1` instead of `size`, returning one extra item on all pages except possibly the last
+None pagination-off-by-one hit=true fp=false out=36 cost=0.00029 :: - Off-by-one error: slicing includes `size + 1` instead of `size`, returning one extra item on all pages except possibly the last
+None pagination-off-by-one hit=true fp=false out=36 cost=0.00029 :: - Off-by-one error: slicing includes `size + 1` instead of `size`, returning one extra item on all pages except possibly the last
+None pagination-off-by-one hit=true fp=false out=36 cost=0.00029 :: - Off-by-one error: slicing includes `size + 1` instead of `size`, returning one extra item on all pages except possibly the last
+None mutable-default hit=true fp=false out=41 cost=0.00030 :: - Mutable default argument: `tags=[]` is shared across all function calls, causing unexpected state persistence | - Function modifies input parameter instead of creating a new list as documented
+None mutable-default hit=true fp=false out=41 cost=0.00030 :: - Mutable default argument: `tags=[]` is shared across all function calls, causing unexpected state persistence | - Function modifies input parameter instead of creating a new list as documented
+None mutable-default hit=true fp=false out=41 cost=0.00030 :: - Mutable default argument: `tags=[]` is shared across all function calls, causing unexpected state persistence | - Function modifies input parameter instead of creating a new list as documented
+None mutable-default hit=true fp=false out=41 cost=0.00030 :: - Mutable default argument: `tags=[]` is shared across all function calls, causing unexpected state persistence | - Function modifies input parameter instead of creating a new list as documented
+None sql-injection hit=true fp=false out=36 cost=0.00028 :: - SQL injection vulnerability: user input is directly interpolated into the SQL query string | - Missing cursor close: the cursor is not closed after use, causing resource leak
+None sql-injection hit=true fp=false out=36 cost=0.00028 :: - SQL injection vulnerability: user input is directly interpolated into the SQL query string | - Missing cursor close: the cursor is not closed after use, causing resource leak
+None sql-injection hit=true fp=false out=36 cost=0.00028 :: - SQL injection vulnerability: user input is directly interpolated into the SQL query string | - Missing cursor close: the cursor is not closed after use, causing resource leak
+None sql-injection hit=true fp=false out=36 cost=0.00028 :: - SQL injection vulnerability: user input is directly interpolated into the SQL query string | - Missing cursor close: the cursor is not closed after use, causing resource leak
+None swallowed-exception hit=true fp=false out=64 cost=0.00043 :: - Function always returns True even when exceptions occur, making it impossible to detect save failures | - Silently catching all exceptions masks errors and makes debugging difficult | - No indication to caller which records failed to save | - E
+None swallowed-exception hit=true fp=false out=64 cost=0.00043 :: - Function always returns True even when exceptions occur, making it impossible to detect save failures | - Silently catching all exceptions masks errors and makes debugging difficult | - No indication to caller which records failed to save | - E
+None swallowed-exception hit=true fp=false out=64 cost=0.00043 :: - Function always returns True even when exceptions occur, making it impossible to detect save failures | - Silently catching all exceptions masks errors and makes debugging difficult | - No indication to caller which records failed to save | - E
+None swallowed-exception hit=true fp=false out=64 cost=0.00043 :: - Function always returns True even when exceptions occur, making it impossible to detect save failures | - Silently catching all exceptions masks errors and makes debugging difficult | - No indication to caller which records failed to save | - E
+None strict-comparison hit=true fp=false out=48 cost=0.00033 :: The comparison operator is incorrect. The function uses `<=` (less than or equal to) when it should use `<` (strictly less than) to match the docstring requirement of "strictly before `today`".
+None strict-comparison hit=true fp=false out=48 cost=0.00033 :: The comparison operator is incorrect. The function uses `<=` (less than or equal to) when it should use `<` (strictly less than) to match the docstring requirement of "strictly before `today`".
+None strict-comparison hit=true fp=false out=48 cost=0.00033 :: The comparison operator is incorrect. The function uses `<=` (less than or equal to) when it should use `<` (strictly less than) to match the docstring requirement of "strictly before `today`".
+None strict-comparison hit=true fp=false out=48 cost=0.00033 :: The comparison operator is incorrect. The function uses `<=` (less than or equal to) when it should use `<` (strictly less than) to match the docstring requirement of "strictly before `today`".
+None clean hit=true fp=false out=8 cost=0.00015 :: NO_DEFECTS
+None clean hit=true fp=false out=8 cost=0.00015 :: NO_DEFECTS
+None clean hit=true fp=false out=8 cost=0.00015 :: NO_DEFECTS
+None clean hit=true fp=false out=8 cost=0.00015 :: NO_DEFECTS
+SUMMARY None: runs=24 hits=24 false_positives=0 output_tokens=932 cost=0.00719
+Some("medium") pagination-off-by-one hit=true fp=false out=494 cost=0.00261 :: Off-by-one error: `start + size + 1` should be `start + size` — currently returns one extra item per page
+Some("medium") pagination-off-by-one hit=true fp=false out=544 cost=0.00286 :: Off-by-one error: Returns `size + 1` items instead of `size` items due to the `+ 1` in the slice; should be `items[start:start + size]`.
+test stage1_review_without_tools has been running for over 60 seconds
+Some("medium") pagination-off-by-one hit=true fp=false out=716 cost=0.00372 :: - Off-by-one error: slice should be `items[start:start + size]` not `items[start:start + size + 1]` (returns one extra item per page)
+Some("medium") pagination-off-by-one hit=true fp=false out=595 cost=0.00312 :: Off-by-one error: Returns `size + 1` items per page instead of `size` items (should be `start + size` not `start + size + 1`)
+Some("medium") mutable-default hit=true fp=false out=525 cost=0.00275 :: # Findings |  | 1. Mutable default argument - `tags=[]` is created once at function definition, causing all calls without a `tags` parameter to share the same list object, contradicting the docstring's promise of "a new list per call when none 
+Some("medium") mutable-default hit=true fp=false out=507 cost=0.00266 :: # Findings |  | 1. Mutable default argument: The default `tags=[]` is shared across all function calls, causing accumulated state instead of creating a new list per call as documented.
+Some("medium") mutable-default hit=true fp=false out=552 cost=0.00289 :: - Mutable default argument (`tags=[]`) causes shared state across function calls; all calls without an explicit tags argument will reuse the same list object | - Docstring claims "a new list per call when none is given" but the function actua
+Some("medium") mutable-default hit=true fp=false out=598 cost=0.00312 :: # Findings |  | 1. **Mutable default argument**: The default `tags=[]` is shared across all function calls, causing unexpected state persistence. Each call without an argument should get a fresh empty list, but instead all calls reuse the same 
+Some("medium") sql-injection hit=true fp=false out=404 cost=0.00215 :: # Defects Found |  | 1. SQL injection vulnerability: `name` parameter is directly interpolated into SQL query without escaping or parameterization | 2. No error handling for database exceptions | 3. No validation that `conn` is valid before use
+Some("medium") sql-injection hit=true fp=false out=581 cost=0.00304 :: SQL Injection vulnerability: User input is directly interpolated into SQL query using f-string instead of parameterized queries. |  | Missing error handling: Database operations can fail but no exceptions are caught. |  | No input validation: The `
+Some("medium") sql-injection hit=true fp=false out=529 cost=0.00278 :: - SQL injection vulnerability: user input is directly interpolated into SQL query without parameterization | - Cursor resource not closed: should use parameterized query and/or context manager for cursor management
+Some("medium") sql-injection hit=true fp=false out=326 cost=0.00176 :: - SQL injection vulnerability: user input `name` is directly interpolated into the query string without escaping or parameterization | - Missing parameterized query: should use `?` placeholder and pass parameters separately to `conn.execute()
+Some("medium") swallowed-exception hit=true fp=false out=447 cost=0.00237 :: # Defects Found |  | 1. Function always returns `True` even when saves fail, contradicting the docstring that says "return True only if all of them were saved" | 2. Silently catches and ignores all exceptions with no error reporting, making failu
+Some("medium") swallowed-exception hit=true fp=false out=526 cost=0.00277 :: - Return value contradicts docstring: function always returns True even when saves fail | - Silently ignores all exceptions with bare `except`, making errors invisible to caller | - No mechanism to report which records failed to save
+Some("medium") swallowed-exception hit=true fp=false out=484 cost=0.00256 :: - Function always returns True regardless of whether saves succeeded, contradicting the docstring ("return True only if all of them were saved") | - Exceptions are silently ignored with no tracking of failures | - Caller has no way to know whic
+Some("medium") swallowed-exception hit=true fp=false out=494 cost=0.00261 :: - Return value always `True` even when saves fail, contradicting docstring requirement to return `True` only if all records were saved | - Silently suppresses all exceptions without tracking which records failed, providing no feedback to call
+Some("medium") strict-comparison hit=true fp=false out=412 cost=0.00218 :: - Logic error: Docstring says "strictly before `today`" but code uses `<=` which includes invoices due today; should use `<` instead of `<=`
+Some("medium") strict-comparison hit=true fp=false out=354 cost=0.00189 :: Logic error: The comparison operator `<=` contradicts the docstring's requirement of "strictly before" `today`, should use `<` instead.
+Some("medium") strict-comparison hit=true fp=false out=344 cost=0.00184 :: Comparison operator mismatch: docstring specifies "strictly before" (should use `<`) but implementation uses `<=` which includes today's date.
+Some("medium") strict-comparison hit=true fp=false out=372 cost=0.00198 :: 1. Incorrect comparison operator: uses `<=` instead of `<`, contradicting the docstring requirement for "strictly before"
+Some("medium") clean hit=true fp=false out=1057 cost=0.00543 :: NO_DEFECTS
+Some("medium") clean hit=true fp=false out=779 cost=0.00404 :: NO_DEFECTS
+Some("medium") clean hit=true fp=false out=1195 cost=0.00612 :: NO_DEFECTS
+Some("medium") clean hit=true fp=false out=1043 cost=0.00536 :: NO_DEFECTS
+SUMMARY Some("medium"): runs=24 hits=24 false_positives=0 output_tokens=13878 cost=0.07261
+Some("high") pagination-off-by-one hit=true fp=false out=823 cost=0.00426 :: # Findings |  | 1. Off-by-one error in slice: `start + size + 1` should be `start + size` (returns size+1 items per page instead of size items)
+Some("high") pagination-off-by-one hit=true fp=false out=502 cost=0.00265 :: Off-by-one error in slice endpoint: `start + size + 1` should be `start + size`, currently returns `size + 1` items instead of `size` per page.
+Some("high") pagination-off-by-one hit=true fp=false out=548 cost=0.00288 :: Off-by-one error: the slice should be `items[start:start + size]` not `items[start:start + size + 1]`, as this returns one extra item per page.
+Some("high") pagination-off-by-one hit=true fp=false out=795 cost=0.00412 :: Off-by-one error in slice: `start + size + 1` should be `start + size`, causing the function to return one more item than specified.
+Some("high") mutable-default hit=true fp=false out=507 cost=0.00266 :: - Mutable default argument `tags=[]` causes state to be shared across function calls, violating the documented behavior of "a new list per call when none is given"
+Some("high") mutable-default hit=true fp=false out=466 cost=0.00246 :: - Mutable default argument `tags=[]` is reused across function calls instead of creating a new list per call, contradicting the docstring and causing unexpected state sharing between calls
+Some("high") mutable-default hit=true fp=false out=637 cost=0.00331 :: # Findings |  | 1. Mutable default argument - the default list `[]` is shared across all calls, so repeated calls without providing `tags` accumulate values instead of creating new lists per call, contradicting the docstring
+Some("high") mutable-default hit=true fp=false out=612 cost=0.00319 :: # Findings |  | - **Mutable default argument**: The `tags=[]` default is evaluated once at function definition time, causing the same list object to be reused across multiple calls instead of creating a new list per call as the docstring claims
+Some("high") sql-injection hit=true fp=false out=397 cost=0.00212 :: - SQL Injection vulnerability: User input is directly interpolated into the SQL query without parameterization
+Some("high") sql-injection hit=true fp=false out=762 cost=0.00394 :: # Defects Found: |  | 1. SQL Injection vulnerability - user input `name` is interpolated directly into SQL query without parameterization | 2. Missing error handling - no try/except for potential database exceptions | 3. Using `SELECT *` is ineffic
+Some("high") sql-injection hit=true fp=false out=565 cost=0.00296 :: # Findings |  | 1. SQL Injection vulnerability - `name` parameter is directly interpolated into the query string instead of using parameterized queries | 2. Use of SELECT * is inefficient and brittle; explicitly specify required columns
+Some("high") sql-injection hit=true fp=false out=525 cost=0.00276 :: # Defects Found |  | 1. **SQL Injection vulnerability** - `name` parameter is interpolated directly into the SQL query using an f-string, allowing arbitrary SQL execution | 2. **Missing parameterized queries** - Should use query placeholders (e.g
+Some("high") swallowed-exception hit=true fp=false out=495 cost=0.00261 :: # Defects Found |  | 1. Function always returns `True` regardless of save failures, contradicting the docstring that states "return True only if all of them were saved" | 2. Silent exception handling (`except Exception: pass`) masks all errors an
+Some("high") swallowed-exception hit=true fp=false out=529 cost=0.00278 :: # Defects Found |  | 1. **Logic error**: Function always returns `True` even if all saves fail, contradicting the docstring "return True only if all of them were saved" | 2. **Silent exception handling**: Bare `except Exception: pass` masks all f
+Some("high") swallowed-exception hit=true fp=false out=724 cost=0.00376 :: - Function always returns True despite the docstring stating "return True only if all of them were saved" — exceptions are silently caught and ignored, contradicting the specified behavior | - Silent exception suppression with no error tracki
+Some("high") swallowed-exception hit=true fp=false out=535 cost=0.00281 :: # Defects Found |  | 1. **Return value contradicts docstring**: Function always returns `True` even if saves fail, contradicting the documented behavior ("return True only if all of them were saved") | 2. **Silent exception handling**: Bare `exce
+Some("high") strict-comparison hit=true fp=false out=433 cost=0.00229 :: - Comparison operator contradicts docstring: uses `<=` but docstring specifies "strictly before" which requires `<`
+Some("high") strict-comparison hit=true fp=false out=394 cost=0.00209 :: # Findings |  | 1. Logic error: Uses `<=` instead of `<` — condition should be `i["due"] < today` to match the docstring stating "strictly before"
+Some("high") strict-comparison hit=true fp=false out=377 cost=0.00201 :: - Logic error: Uses `<=` (less than or equal) instead of `<` (strictly less than) to match the docstring specification of "strictly before"
+Some("high") strict-comparison hit=true fp=false out=442 cost=0.00233 :: Condition uses `<=` but docstring specifies "strictly before", which should use `<` operator.
+Some("high") clean hit=true fp=false out=1652 cost=0.00840 :: NO_DEFECTS
+Some("high") clean hit=true fp=false out=951 cost=0.00490 :: NO_DEFECTS
+Some("high") clean hit=true fp=false out=866 cost=0.00447 :: NO_DEFECTS
+Some("high") clean hit=true fp=false out=1006 cost=0.00517 :: NO_DEFECTS
+SUMMARY Some("high"): runs=24 hits=24 false_positives=0 output_tokens=15543 cost=0.08094
+stage1_spent_usd~0.16074
+test stage1_review_without_tools ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 322.61s
+

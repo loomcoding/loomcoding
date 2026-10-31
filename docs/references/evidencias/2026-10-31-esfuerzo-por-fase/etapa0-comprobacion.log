@@ -1,0 +1,8 @@
+# Etapa 0 — salida literal de:
+# cargo test -p codeloom-core --test effort_by_phase_live stage0 -- --ignored --nocapture
+# (2026-10-31; clave filtrada con sed; modelo anthropic/claude-haiku-4.5 por OpenRouter, caso sql-injection)
+effort=None output_tokens=36 cost=0.00028 answer_chars=174
+effort=Some("high") output_tokens=477 cost=0.00252 answer_chars=332
+stage0_spent_usd~0.00280
+test stage0_effort_reaches_the_model ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 5.23s

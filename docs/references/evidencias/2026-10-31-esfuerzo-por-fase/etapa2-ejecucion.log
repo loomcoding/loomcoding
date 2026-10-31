@@ -1,0 +1,10 @@
+# Etapa 2 — salida literal de:
+# cargo test -p codeloom-core --test reproduce_first_live stage2 -- --ignored --nocapture
+# (2026-10-31; effort = low; misma tarea que la medición de reproducir-antes-de-arreglar)
+low: solved=true tool_calls=7 cost=0.01912
+low: solved=true tool_calls=11 cost=0.02980
+low: solved=true tool_calls=9 cost=0.02723
+low: solved=true tool_calls=9 cost=0.02602
+SUMMARY low: runs=4 solved=4 tool_calls=36 cost=0.10217
+test stage2_low_effort_on_execution ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 68.99s
