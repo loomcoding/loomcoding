@@ -33,4 +33,4 @@
 ## 4. Riesgos
 
 - El tope se aplica por lanzador; un cambio de configuración exige reconstruirlo, como con el resto de opciones.
-- Aplicar `max_depth` de verdad queda como decisión futura, con su spec.
+- Aplicar `max_depth` de verdad quedó resuelto después: `2026-10-31-codeloom-recursive-delegation.md`.

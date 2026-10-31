@@ -1,6 +1,6 @@
 # CodeLoom — Delegación recursiva acotada por profundidad
 
-> Estado: **aprobada** (2026-10-31); fase 1 en curso: motor hecho (techo, niveles, lanzador anidado, tope, cancelación y presupuesto), faltan la prueba de aprobación y el cierre.
+> Estado: **fase 1 (motor) implementada** (2026-10-31). Falta la fase 2: presentación de varios niveles en la interfaz.
 >
 > Origen: decisión futura anotada en `2026-10-31-codeloom-delegation-limits.md` §4 («aplicar `max_depth` de verdad»).
 >

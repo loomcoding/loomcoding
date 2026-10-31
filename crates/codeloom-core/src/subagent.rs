@@ -6746,4 +6746,75 @@ mod tests {
         // Y comparten el mismo semáforo de activos.
         assert!(Arc::ptr_eq(&e.lanzador.active, &bisnieto.active));
     }
+
+    /// Con `confirm_delegation = always` y la raíz aprobando, el hijo delega en un nieto: su pregunta
+    /// llega al buzón de la raíz como la de cualquier hijo. Devuelve la pregunta vista y cuántos nietos
+    /// existen después de contestar `respuesta`.
+    async fn aprobar_nieto(respuesta: &str) -> (String, usize) {
+        let perfil = perfil_con_profundidad("coord", Some(2));
+        let mut e = entorno_recursivo(
+            2,
+            &[("coord", perfil.as_str())],
+            &[("hijo", None, "nieto")],
+            &[],
+        )
+        .await;
+        e.lanzador = e
+            .lanzador
+            .with_delegation_confirm(ConfirmDelegation::Always);
+        e.lanzador.permission = Arc::new(PermissionService::with_responder(Box::new(FixedAnswer(
+            Some("Approve"),
+        ))));
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        // La delegación del nieto espera la contestación de la persona usuaria, igual que otra pregunta.
+        let mut pendiente = None;
+        for _ in 0..200 {
+            if let Some(entrada) = e.lanzador.pending_inputs(e.parent).into_iter().next() {
+                pendiente = Some(entrada);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        let pendiente = pendiente.expect("la delegación del nieto no pidió aprobación");
+        assert_eq!(pendiente.child, hijo);
+        assert!(
+            e.store.list_subagents(hijo).await.unwrap().is_empty(),
+            "el nieto no debe existir antes de la aprobación"
+        );
+        let pregunta = pendiente.questions[0].question.clone();
+        e.lanzador
+            .answer(e.parent, hijo, vec![respuesta.to_string()])
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        let nietos = e.store.list_subagents(hijo).await.unwrap();
+        for nieto in &nietos {
+            esperar_hijos_terminales(&e.store, hijo).await;
+            assert_eq!(nieto.parent, hijo);
+        }
+        (pregunta, nietos.len())
+    }
+
+    #[tokio::test]
+    async fn a_grandchild_delegation_asks_for_approval_and_launches_only_when_approved() {
+        let (pregunta, nietos) = aprobar_nieto("Approve").await;
+        assert!(pregunta.contains("Task: nieto"), "{pregunta}");
+        assert_eq!(nietos, 1);
+    }
+
+    #[tokio::test]
+    async fn a_canceled_grandchild_delegation_leaves_no_grandchild() {
+        let (_pregunta, nietos) = aprobar_nieto("Cancel").await;
+        assert_eq!(nietos, 0);
+    }
 }
