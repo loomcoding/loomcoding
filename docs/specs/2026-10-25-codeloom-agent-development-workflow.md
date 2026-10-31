@@ -8,6 +8,13 @@
 > `2026-10-15-loom-agent-profile-a2a.md`,
 > `2026-10-22-codeloom-a2a-delegation-choice-design.md`,
 > `2026-10-22-codeloom-subagent-tree-design.md`.
+>
+> Patrones afines (agentpatterns.ai, CC BY 4.0; estado en `docs/references/2026-10-31-agentpatterns-estudio-codeloom.md`):
+> [Specification Authority Boundary](https://agentpatterns.ai/patterns/agent-design/specification-authority-boundary/) (aplicado),
+> [Binding an Agent's Effect to the Approval It Claims](https://agentpatterns.ai/patterns/agent-design/interaction-effect-obligations/) (aplicado),
+> [Phase-Specific Context Assembly](https://agentpatterns.ai/context-engineering/phase-specific-context-assembly/) (parcial),
+> [Plan as Control Flow](https://agentpatterns.ai/patterns/agent-design/plan-as-control-flow/) (parcial),
+> [Role-Declared Context Mode](https://agentpatterns.ai/patterns/multi-agent/role-declared-context-mode/) (parcial).
 
 ## 1. Objetivo
 

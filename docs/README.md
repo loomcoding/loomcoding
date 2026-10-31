@@ -109,6 +109,8 @@ ejecutarlo).
   primera pasada (22 páginas de 1.926) con matriz patrón → código y borrador de modos; CC BY 4.0, resumen propio.
 - [Patrones aplicados y ahorro de tokens (agentpatterns.ai)](references/2026-10-31-agentpatterns-patrones-aplicados-y-ahorro-de-tokens.md):
   registro de lo que CodeLoom ya sigue, lo que no mide (la caché) y orden de trabajo propuesto.
+- [Candidatas a implementar (agentpatterns.ai)](references/2026-10-31-agentpatterns-candidatas-a-implementar.md):
+  lista priorizada con criterios, descartadas con su motivo y orden propuesto; nada está adoptado.
 
 ## Cómo navegar y mantenerla
 

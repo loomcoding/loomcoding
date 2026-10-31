@@ -3,6 +3,12 @@
 Estado: vigente desde el 2026-10-22. Nace de un incidente real y se amplía con lo que se vaya
 aprendiendo.
 
+Patrones afines (agentpatterns.ai, CC BY 4.0; estado y enlaces en `docs/references/2026-10-31-agentpatterns-patrones-aplicados-y-ahorro-de-tokens.md`):
+[Context Compression Strategies](https://agentpatterns.ai/context-engineering/context-compression-strategies/) (aplicado),
+[Graceful Tool-Output Truncation](https://agentpatterns.ai/tool-engineering/graceful-tool-output-truncation/) (parcial),
+[Progressive Spend Threshold Alerting](https://agentpatterns.ai/patterns/agent-design/progressive-spend-threshold-alerting/) (parcial),
+[Prompt Caching: Architectural Discipline](https://agentpatterns.ai/context-engineering/prompt-caching-architectural-discipline/) (no aplicado y sin medir).
+
 ## Qué es y qué no es
 
 **No es un estándar.** Es una síntesis propia, escrita a partir de un incidente y contrastada el
