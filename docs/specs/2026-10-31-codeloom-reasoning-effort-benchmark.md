@@ -1,6 +1,6 @@
 # CodeLoom — Benchmark del esfuerzo de razonamiento por fase
 
-> Estado: **borrador para aprobar** (no se ha lanzado ninguna llamada real).
+> Estado: **ejecutado el 2026-10-31**; resultado en `docs/references/2026-10-31-medicion-real-esfuerzo-por-fase.md`.
 >
 > Fecha: 2026-10-31
 >
@@ -72,8 +72,8 @@ Matriz: 6 casos × {`none`, `high`} × 2 repeticiones = 24 llamadas.
 ### 4.4 Etapa 2: ejecución con herramientas
 
 Los dos fallos de Python reales de `reproduce_first_live` con el agente completo (`view`, `edit`, `bash`), solo con
-`low`. El punto de comparación sin esfuerzo es la medición ya publicada (3/3 resueltas, 9 llamadas, ≈ 0,079 USD por
-ejecución); se reutiliza porque el modelo, los ficheros y la tarea son los mismos. Matriz: 2 fallos × 2 repeticiones =
+`low`. El punto de comparación sin esfuerzo es la medición ya publicada (3/3 resueltas, 9 llamadas, ≈ 0,027 USD por
+ejecución; 0,0798 USD las tres); se reutiliza porque el modelo, los ficheros y la tarea son los mismos. Matriz: 2 fallos × 2 repeticiones =
 4 ejecuciones. Se registra: resuelto, llamadas a herramientas, coste.
 
 ### 4.5 Criterios de decisión (fijados antes de medir)

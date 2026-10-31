@@ -79,7 +79,7 @@ struct Outcome {
     cost: f64,
 }
 
-async fn run_once(key: &str, task: &str) -> Outcome {
+async fn run_once(key: &str, task: &str, effort: Option<&str>) -> Outcome {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("inventory.py"), INVENTORY).unwrap();
     std::fs::write(dir.path().join("test_inventory.py"), TESTS).unwrap();
@@ -107,7 +107,7 @@ async fn run_once(key: &str, task: &str) -> Outcome {
             },
             model: MODEL.into(),
             max_steps: 14,
-            effort: None,
+            effort: effort.map(String::from),
         },
         dir.path().to_path_buf(),
     );
@@ -168,7 +168,7 @@ async fn reproduce_first_versus_baseline() {
                 println!("cap reached, stopping before the next run");
                 break;
             }
-            let outcome = run_once(&key, task).await;
+            let outcome = run_once(&key, task, None).await;
             runs += 1;
             spent += outcome.cost;
             solved += usize::from(outcome.solved);
@@ -186,4 +186,31 @@ async fn reproduce_first_versus_baseline() {
     }
     println!("total_spent_usd~{spent:.5}");
     assert!(spent < CAP_USD + 0.05, "tope de gasto superado");
+}
+
+/// Etapa 2 del benchmark de esfuerzo (C2): el mismo agente y la misma tarea que la línea base, con
+/// `effort = low`. Tope de gasto propio; la comparación es con la medición ya publicada.
+#[tokio::test]
+#[ignore = "live OpenRouter calls; incurs provider usage"]
+async fn stage2_low_effort_on_execution() {
+    const STAGE2_CAP_USD: f64 = 0.35;
+    let key = std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY");
+    let (mut spent, mut solved, mut calls, mut runs) = (0.0_f64, 0, 0, 0);
+    for _ in 0..4 {
+        if spent >= STAGE2_CAP_USD {
+            println!("cap reached, stopping before the next run");
+            break;
+        }
+        let outcome = run_once(&key, BASE_TASK, Some("low")).await;
+        runs += 1;
+        spent += outcome.cost;
+        solved += usize::from(outcome.solved);
+        calls += outcome.tool_calls;
+        println!(
+            "low: solved={} tool_calls={} cost={:.5}",
+            outcome.solved, outcome.tool_calls, outcome.cost
+        );
+    }
+    println!("SUMMARY low: runs={runs} solved={solved} tool_calls={calls} cost={spent:.5}");
+    assert!(spent < STAGE2_CAP_USD + 0.05, "tope de gasto superado");
 }

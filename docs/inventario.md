@@ -33,7 +33,8 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   `prompt-cache-points` (dos puntos de caché en el adaptador de Anthropic, medido en real) y
   `context-breakdown-ui` (desglose estimado de la petición y caché acumulada en el panel de uso, solo con datos) y
   `delegation-control` (aprobación por código de cada delegación con `confirm_delegation = always` y mando
-  `[agents] delegation = off | on_request | proactive`; solo `off` es garantía de código).
+  `[agents] delegation = off | on_request | proactive`; solo `off` es garantía de código) y
+  `reasoning-effort-benchmark` (medido: sin efecto ni en revisión ni en ejecución con Haiku 4.5; no se fijan valores).
 - **Runtime R1 a R6** y sus anexos del 10-27.
 - **Verificados el 2026-10-30 contra el código:** provider-timeouts, coste-real-y-estimado-por-adapter,
   parent-wakeup, chat-demo-streaming, cost-estimate; conversation-composer-review queda superado

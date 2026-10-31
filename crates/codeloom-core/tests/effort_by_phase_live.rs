@@ -22,7 +22,7 @@ use tokio_util::sync::CancellationToken;
 const MODEL: &str = "anthropic/claude-haiku-4.5";
 const STAGE0_CAP_USD: f64 = 0.05;
 const STAGE1_CAP_USD: f64 = 0.40;
-const REPS: usize = 2;
+const REPS: usize = 4;
 
 const INSTRUCTION: &str = "Review the following Python function for defects. Reply with a short list of findings, one line each, \
 naming the problem. If the function has no defects, reply with exactly NO_DEFECTS.\n\n";
@@ -256,7 +256,7 @@ async fn stage0_effort_reaches_the_model() {
 async fn stage1_review_without_tools() {
     let key = key();
     let mut spend = Spend::new(STAGE1_CAP_USD);
-    for effort in [None, Some("high")] {
+    for effort in [None, Some("medium"), Some("high")] {
         let (mut hits, mut false_positives, mut tokens, mut cost, mut runs) = (0, 0, 0_u64, 0.0, 0);
         for case in &CASES {
             for _ in 0..REPS {
