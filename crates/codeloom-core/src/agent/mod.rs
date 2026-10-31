@@ -63,6 +63,14 @@ fn publish_usage_progress(
     });
 }
 
+/// Herramientas que `delegation = "off"` retira de la petición.
+const DELEGATION_TOOLS: [&str; 4] = [
+    "subagent",
+    "subagent_control",
+    "subagent_list",
+    "development_workflow",
+];
+
 /// Tope de la sección «Available agents» del prompt de sistema, que crece con el número de
 /// agentes del registro y viaja en cada petición.
 const MAX_AGENT_SECTION_BYTES: usize = 8_000;
@@ -208,6 +216,8 @@ pub struct AgentLoop {
     delegation_confirm: ConfirmDelegation,
     /// Subagentes activos a la vez (`[agents] max_active_subagents`).
     max_active_subagents: usize,
+    /// Mando de delegación (`[agents] delegation`); `None` es el comportamiento de siempre.
+    delegation: Option<crate::config::DelegationMode>,
     /// Enrutador de agentes (A12b); sin él no se elige agente automáticamente.
     router: Option<Arc<dyn crate::registry::router::AgentRouter>>,
     /// Volcado a disco de las salidas recortadas; `None` no guarda nada y no añade ruta.
@@ -327,6 +337,7 @@ impl AgentLoop {
             registry: None,
             delegation_confirm: ConfirmDelegation::default(),
             max_active_subagents: crate::config::DEFAULT_ACTIVE_SUBAGENTS,
+            delegation: None,
             router: None,
             spill: None,
             remote_clients: None,
@@ -422,6 +433,13 @@ impl AgentLoop {
         self
     }
 
+    /// Fija el mando de delegación (`[agents] delegation`). `Off` retira de verdad las herramientas
+    /// de subagentes; los otros dos modos añaden una regla al prompt.
+    pub fn with_delegation_mode(mut self, mode: Option<crate::config::DelegationMode>) -> Self {
+        self.delegation = mode;
+        self
+    }
+
     /// Fija cuántos subagentes pueden estar activos a la vez. Por defecto, 8.
     pub fn with_max_active_subagents(mut self, maximo: usize) -> Self {
         self.max_active_subagents = maximo;
@@ -485,16 +503,35 @@ impl AgentLoop {
     /// Prompt de sistema vigente: contexto del proyecto, lista de agentes y prompt propio, cada
     /// parte con su tope. Se calcula en cada turno, de modo que la recarga en caliente del registro
     /// también le llega al modelo.
+    /// El lanzador, salvo con `delegation = "off"`: entonces el modelo no ve nada de subagentes.
+    fn subagents_visibles(&self) -> Option<&Arc<dyn crate::subagent::SubagentLauncher>> {
+        match self.delegation {
+            Some(crate::config::DelegationMode::Off) => None,
+            _ => self.subagents.as_ref(),
+        }
+    }
+
     fn system_prompt(&self) -> String {
         let mut system = crate::config::context::load_context_files(&self.cwd).join("\n\n");
         // Con la herramienta `subagent` y un registro, el modelo recibe la lista vigente de agentes:
         // se lee en cada turno, de modo que la recarga en caliente también le llega.
-        if let (Some(_), Some(registro)) = (&self.subagents, &self.registry) {
+        if let (Some(_), Some(registro)) = (self.subagents_visibles(), &self.registry) {
             if !system.is_empty() {
                 system.push_str("\n\n");
             }
             let seccion = registro.snapshot().prompt_section(self.delegation_confirm);
             system.push_str(&limit_bytes(&seccion, MAX_AGENT_SECTION_BYTES));
+        }
+        // Las reglas de `on_request` y `proactive` son persuasión del prompt, no una garantía.
+        if let Some(regla) = self
+            .delegation
+            .and_then(|modo| modo.rule())
+            .filter(|_| self.subagents.is_some())
+        {
+            if !system.is_empty() {
+                system.push_str("\n\n");
+            }
+            system.push_str(regla);
         }
         // El prompt propio del agente va detrás del contexto del proyecto, sin sustituirlo.
         if let Some(extra) = self
@@ -763,7 +800,7 @@ impl AgentLoop {
             session,
             jobs: self.jobs.clone(),
             bus: self.bus.clone(),
-            subagents: self.subagents.clone(),
+            subagents: self.subagents_visibles().cloned(),
         };
         let mut steps = 0usize;
         let mut final_text = String::new();
@@ -881,11 +918,14 @@ impl AgentLoop {
             } else {
                 false
             };
-            let tools = if workflow_active {
+            let mut tools = if workflow_active {
                 self.tools.only(dispatch::WORKFLOW_PARENT_TOOLS).specs()
             } else {
                 self.tools.specs()
             };
+            if self.delegation == Some(crate::config::DelegationMode::Off) {
+                tools.retain(|tool| !DELEGATION_TOOLS.contains(&tool.name.as_str()));
+            }
             let req = ProviderRequest {
                 model: config.model.clone(),
                 system: system.clone(),
@@ -4595,6 +4635,65 @@ Cuerpo.
             compact::breakdown_request(&peticion.system, &peticion.messages, &peticion.tools);
         assert_eq!(desgloses[0], esperado);
         assert!(desgloses[0].messages > 0);
+    }
+
+    async fn turno_con_delegacion(
+        modo: Option<crate::config::DelegationMode>,
+    ) -> (Vec<String>, String) {
+        let mut herramientas = ToolRegistry::new();
+        for nombre in [
+            "subagent",
+            "subagent_control",
+            "subagent_list",
+            "development_workflow",
+            "noop",
+        ] {
+            herramientas.register(Arc::new(NamedTool(nombre)));
+        }
+        let proveedor = proveedor_de("", false, vec![respuesta_con_consumo("hola", 10, 1)]);
+        let mut e =
+            entorno_de_turno(proveedor, catalogo_de_ventana(100_000), &[], herramientas).await;
+        e.agente = e.agente.with_delegation_mode(modo);
+        e.agente
+            .run(e.sid, "hola".into(), CancellationToken::new())
+            .await
+            .unwrap();
+        let vistas = e.proveedor.seen.lock().unwrap();
+        let nombres = vistas[0].tools.iter().map(|t| t.name.clone()).collect();
+        (nombres, vistas[0].system.clone())
+    }
+
+    #[tokio::test]
+    async fn delegation_off_withdraws_the_subagent_tools_from_the_model() {
+        use crate::config::DelegationMode;
+        let (con_todo, _) = turno_con_delegacion(None).await;
+        assert!(con_todo.iter().any(|n| n == "subagent"), "{con_todo:?}");
+        let (sin_delegar, _) = turno_con_delegacion(Some(DelegationMode::Off)).await;
+        for retirada in [
+            "subagent",
+            "subagent_control",
+            "subagent_list",
+            "development_workflow",
+        ] {
+            assert!(!sin_delegar.iter().any(|n| n == retirada), "{retirada}");
+        }
+        assert!(
+            sin_delegar.iter().any(|n| n == "noop"),
+            "las demás se conservan"
+        );
+    }
+
+    #[tokio::test]
+    async fn delegation_prompt_modes_add_their_rule_and_keep_the_tools() {
+        use crate::config::DelegationMode;
+        let (_, base) = turno_con_delegacion(None).await;
+        assert!(!base.contains("explicitly asks") && !base.contains("proactively"));
+        let (herramientas, a_peticion) =
+            turno_con_delegacion(Some(DelegationMode::OnRequest)).await;
+        assert!(a_peticion.contains("explicitly asks"), "{a_peticion}");
+        assert!(herramientas.iter().any(|n| n == "subagent"));
+        let (_, proactiva) = turno_con_delegacion(Some(DelegationMode::Proactive)).await;
+        assert!(proactiva.contains("proactively"), "{proactiva}");
     }
 
     /// Dos respuestas: la primera llama a `noop` y consume 1 100 tokens; la segunda es texto.

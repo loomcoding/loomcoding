@@ -1,6 +1,6 @@
 # CodeLoom — Control de la delegación: aprobación por código y mando de agresividad
 
-> Estado: **borrador para implementar**.
+> Estado: **implementado** (C3 y C1, 2026-10-31).
 >
 > Fecha: 2026-10-31
 >

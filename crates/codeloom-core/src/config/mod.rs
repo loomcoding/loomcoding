@@ -56,6 +56,38 @@ pub enum ConfirmDelegation {
     Never,
 }
 
+/// Cuánto delega el agente (`[agents] delegation`, C1). Sin valor, el comportamiento actual.
+///
+/// Solo `off` es una garantía de código; `on_request` y `proactive` son reglas del prompt, y su
+/// cumplimiento depende del modelo. Concepto propio de CodeLoom, no de A2A.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DelegationMode {
+    /// El modelo no recibe las herramientas de subagentes ni la sección de agentes.
+    Off,
+    /// Delega solo si la persona usuaria lo pide expresamente.
+    OnRequest,
+    /// Delega de forma proactiva las subtareas independientes y autocontenidas.
+    Proactive,
+}
+
+impl DelegationMode {
+    /// Regla que se añade al prompt de sistema; `Off` no añade ninguna porque retira las herramientas.
+    pub fn rule(self) -> Option<&'static str> {
+        match self {
+            DelegationMode::Off => None,
+            DelegationMode::OnRequest => Some(concat!(
+                "## Delegation\n\nDelegate to a subagent only when the user explicitly asks you to. ",
+                "Otherwise do the work yourself."
+            )),
+            DelegationMode::Proactive => Some(concat!(
+                "## Delegation\n\nDelegate proactively: hand independent, self-contained subtasks to ",
+                "subagents whenever that keeps your own context small."
+            )),
+        }
+    }
+}
+
 /// Elección automática de agente al delegar (`[agents] routing`, A12b).
 ///
 /// Cabe señalar que A2A no fija cómo se elige un agente: es decisión propia, y por eso va apagada
@@ -89,6 +121,8 @@ pub struct AgentsConfig {
     pub routing: RoutingMode,
     /// Modelo del clasificador (solo con `routing = "classifier"`). Sin él, el del padre.
     pub routing_model: Option<String>,
+    /// Mando de delegación. Sin valor, el comportamiento actual.
+    pub delegation: Option<DelegationMode>,
     /// Subagentes activos a la vez. Sin valor, `DEFAULT_ACTIVE_SUBAGENTS`; ver `active_subagents`.
     pub max_active_subagents: Option<usize>,
 }
@@ -380,6 +414,30 @@ mod tests {
         // La sección convive con el resto: la configuración principal sigue leyéndose igual.
         let cfg: CodeLoomConfig = toml::from_str(text).unwrap();
         assert_eq!(cfg.model, "gpt-4o");
+    }
+
+    #[test]
+    fn delegation_is_optional_reads_its_three_values_and_rejects_others() {
+        assert_eq!(AgentsConfig::default().delegation, None);
+        let leer = |valor: &str| {
+            AgentsConfig::from_toml(&format!("[agents]\ndelegation = \"{valor}\"\n"))
+                .map(|agents| agents.delegation)
+        };
+        assert_eq!(leer("off").unwrap(), Some(DelegationMode::Off));
+        assert_eq!(leer("on_request").unwrap(), Some(DelegationMode::OnRequest));
+        assert_eq!(leer("proactive").unwrap(), Some(DelegationMode::Proactive));
+        assert!(leer("sometimes").is_err());
+    }
+
+    #[test]
+    fn only_the_prompt_modes_carry_a_rule() {
+        assert_eq!(DelegationMode::Off.rule(), None);
+        assert!(DelegationMode::OnRequest
+            .rule()
+            .is_some_and(|rule| rule.contains("explicitly asks")));
+        assert!(DelegationMode::Proactive
+            .rule()
+            .is_some_and(|rule| rule.contains("proactively")));
     }
 
     #[test]

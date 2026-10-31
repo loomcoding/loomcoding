@@ -1,6 +1,6 @@
 # Plan — Control de la delegación
 
-> Estado: en ejecución.
+> Estado: implementado (2026-10-31): C3 en `8cb2780`, C1 en el commit siguiente.
 > Spec: `docs/specs/2026-10-31-codeloom-delegation-control.md`.
 
 1. **C3.** Pruebas del lanzador con respuestas Approve, Cancel y sin usuario, y con otros modos; luego campo
