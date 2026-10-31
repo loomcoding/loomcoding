@@ -135,6 +135,8 @@ pub struct InProcessSubagentLauncher {
     active: Arc<Semaphore>,
     /// Tope de subagentes activos, el mismo con que se creó `active`; sirve al mensaje de rechazo.
     max_active: usize,
+    /// Modo de confirmación al delegar. Con `Always`, cada delegación exige aprobación humana (C3).
+    confirm: ConfirmDelegation,
     bus: EventBus,
     broker: Arc<InputBroker>,
     /// Catálogo compartido con el agente padre; cada hijo lo usa para sus apuntes de consumo.
@@ -300,6 +302,7 @@ impl InProcessSubagentLauncher {
             jobs,
             active: Arc::new(Semaphore::new(8)),
             max_active: 8,
+            confirm: ConfirmDelegation::default(),
             bus,
             broker: Arc::new(InputBroker::default()),
             catalog: Arc::new(RwLock::new(Catalog::default())),
@@ -314,6 +317,13 @@ impl InProcessSubagentLauncher {
             profile_provider_resolver: None,
             router: None,
         }
+    }
+
+    /// Fija el modo de confirmación al delegar. Con `Always`, `start` pregunta antes de crear el hijo
+    /// y deniega si no hay respuesta humana explícita.
+    pub fn with_delegation_confirm(mut self, confirm: ConfirmDelegation) -> Self {
+        self.confirm = confirm;
+        self
     }
 
     /// Fija cuántos subagentes pueden estar activos a la vez (`[agents] max_active_subagents`).
@@ -500,6 +510,52 @@ impl InProcessSubagentLauncher {
             .and_then(|fabrica| fabrica.client_for(name, spec))
             .map(Some)
             .ok_or_else(|| CoreError::Tool(format!("agente remoto no disponible: «{name}»")))
+    }
+
+    /// Con `confirm_delegation = always`, pregunta a la persona usuaria antes de crear el hijo y solo
+    /// continúa si responde exactamente «Approve». Sin nadie que responda (sin usuario interactivo,
+    /// `--yolo`, pregunta descartada) se deniega: nada se aprueba por omisión. Es el control por código
+    /// de esa regla, que antes solo existía como frase del prompt.
+    async fn pedir_aprobacion(&self, label: &str, prompt: &str, agent: Option<&str>) -> Result<()> {
+        if self.confirm != ConfirmDelegation::Always {
+            return Ok(());
+        }
+        let extracto = crate::tools::limit_bytes(prompt, 600);
+        let pregunta = crate::question::Question {
+            header: "Delegation".into(),
+            question: format!(
+                "Start a subagent?
+Agent: {}
+Task: {label}
+
+{extracto}",
+                agent.unwrap_or("default")
+            ),
+            options: vec![
+                crate::question::QuestionOption {
+                    label: "Approve".into(),
+                    description: String::new(),
+                },
+                crate::question::QuestionOption {
+                    label: "Cancel".into(),
+                    description: String::new(),
+                },
+            ],
+            multi_select: false,
+        };
+        let aprobada = self
+            .permission
+            .ask_user(&[pregunta])
+            .await
+            .and_then(|respuestas| respuestas.into_iter().next())
+            .is_some_and(|respuesta| respuesta.selected == ["Approve"]);
+        if aprobada {
+            Ok(())
+        } else {
+            Err(CoreError::Tool(
+                "delegation was not approved by the user".into(),
+            ))
+        }
     }
 
     /// Arranque común de `start` y `start_follow_up`. La petición ya viene validada.
@@ -1435,6 +1491,8 @@ impl SubagentLauncher for InProcessSubagentLauncher {
         parent_cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)> {
         validar_peticion(&label, &prompt)?;
+        self.pedir_aprobacion(&label, &prompt, agent.as_deref())
+            .await?;
         self.arrancar(
             parent,
             label,
@@ -3054,6 +3112,114 @@ mod tests {
             ],
             "cada transición se publica en orden"
         );
+    }
+
+    /// Responde a las preguntas con una opción fija; `None` simula que no hay nadie a quien preguntar.
+    struct FixedAnswer(Option<&'static str>);
+
+    #[async_trait]
+    impl crate::permission::PermissionResponder for FixedAnswer {
+        async fn decide(
+            &self,
+            _request: &crate::permission::PermissionRequest,
+        ) -> crate::permission::Decision {
+            crate::permission::Decision::Allow
+        }
+
+        async fn ask(
+            &self,
+            questions: &[crate::question::Question],
+        ) -> Option<Vec<crate::question::Answer>> {
+            let choice = self.0?;
+            Some(
+                questions
+                    .iter()
+                    .map(|question| crate::question::Answer {
+                        question: question.question.clone(),
+                        selected: vec![choice.to_string()],
+                    })
+                    .collect(),
+            )
+        }
+    }
+
+    async fn delegating_with(
+        responder: Option<FixedAnswer>,
+        confirm: ConfirmDelegation,
+    ) -> (Result<(SessionId, JobId)>, usize) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("confirm.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let parent = store.create_session("/project").await.unwrap();
+        let mut runtime = echo_launcher(
+            dir.path(),
+            store.clone(),
+            Arc::new(LocalJobRegistry::default()),
+            EventBus::new(64),
+            vec![vec![
+                StreamChunk::TextDelta("hecho".into()),
+                StreamChunk::Done(FinishReason::Stop),
+            ]],
+        )
+        .with_delegation_confirm(confirm);
+        runtime.permission = Arc::new(match responder {
+            Some(responder) => PermissionService::with_responder(Box::new(responder)),
+            None => PermissionService::allow_all(),
+        });
+        let result = runtime
+            .start(
+                parent,
+                "revisar".into(),
+                "revisa el módulo".into(),
+                None,
+                CancellationToken::new(),
+            )
+            .await;
+        let hijos = store.list_subagents(parent).await.unwrap().len();
+        (result, hijos)
+    }
+
+    #[tokio::test]
+    async fn always_launches_only_after_an_explicit_approval() {
+        let (resultado, hijos) = delegating_with(
+            Some(FixedAnswer(Some("Approve"))),
+            ConfirmDelegation::Always,
+        )
+        .await;
+        assert!(resultado.is_ok(), "{resultado:?}");
+        assert_eq!(hijos, 1);
+    }
+
+    #[tokio::test]
+    async fn always_denies_on_cancel_without_leaving_a_child() {
+        let (resultado, hijos) =
+            delegating_with(Some(FixedAnswer(Some("Cancel"))), ConfirmDelegation::Always).await;
+        let error = resultado.unwrap_err().to_string();
+        assert!(error.contains("not approved"), "{error}");
+        assert_eq!(hijos, 0, "una denegación no deja sesión hija ni tarea");
+    }
+
+    #[tokio::test]
+    async fn always_denies_when_nobody_can_answer_as_under_yolo() {
+        // `allow_all` (yolo) concede permisos pero no responde preguntas.
+        let (sin_responder, hijos) = delegating_with(None, ConfirmDelegation::Always).await;
+        assert!(sin_responder.is_err());
+        assert_eq!(hijos, 0);
+        let (descartada, _) =
+            delegating_with(Some(FixedAnswer(None)), ConfirmDelegation::Always).await;
+        assert!(descartada.is_err());
+    }
+
+    #[tokio::test]
+    async fn other_confirmation_modes_do_not_ask() {
+        for modo in [ConfirmDelegation::Doubt, ConfirmDelegation::Never] {
+            let (resultado, hijos) = delegating_with(None, modo).await;
+            assert!(resultado.is_ok(), "{modo:?}: {resultado:?}");
+            assert_eq!(hijos, 1);
+        }
     }
 
     #[tokio::test]

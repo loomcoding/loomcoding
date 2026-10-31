@@ -415,6 +415,10 @@ impl AgentLoop {
     /// Por defecto, `Doubt`. Solo cambia la regla del prompt; no garantiza el comportamiento.
     pub fn with_delegation_confirm(mut self, confirm: ConfirmDelegation) -> Self {
         self.delegation_confirm = confirm;
+        // El lanzador lleva el modo para aprobar cada delegación: si ya existía, se reconstruye.
+        if self.subagents.is_some() {
+            self.subagents = Some(self.subagent_launcher());
+        }
         self
     }
 
@@ -564,7 +568,8 @@ impl AgentLoop {
         )
         .with_catalog(self.catalog.clone())
         .with_budget(self.budget.clone())
-        .with_max_active(self.max_active_subagents);
+        .with_max_active(self.max_active_subagents)
+        .with_delegation_confirm(self.delegation_confirm);
         let lanzador = match &self.profile_provider_resolver {
             Some(resolver) => lanzador.with_profile_provider_resolver(resolver.clone()),
             None => lanzador,
