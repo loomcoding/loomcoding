@@ -107,6 +107,8 @@ ejecutarlo).
   propuesta de diseño sin evidencia propia todavía.
 - [Estudio de agentpatterns.ai aplicado a CodeLoom](references/2026-10-31-agentpatterns-estudio-codeloom.md):
   primera pasada (22 páginas de 1.926) con matriz patrón → código y borrador de modos; CC BY 4.0, resumen propio.
+- [Patrones aplicados y ahorro de tokens (agentpatterns.ai)](references/2026-10-31-agentpatterns-patrones-aplicados-y-ahorro-de-tokens.md):
+  registro de lo que CodeLoom ya sigue, lo que no mide (la caché) y orden de trabajo propuesto.
 
 ## Cómo navegar y mantenerla
 
