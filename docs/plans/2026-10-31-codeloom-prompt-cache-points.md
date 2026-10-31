@@ -1,6 +1,6 @@
 # Plan — Puntos de caché de prompts
 
-> Estado: en ejecución.
+> Estado: implementado (2026-10-31).
 > Spec: `docs/specs/2026-10-31-codeloom-prompt-cache-points.md`.
 
 1. Pruebas de `apply_cache_points` (criterios 1 a 5) con una función vacía; verlas fallar.

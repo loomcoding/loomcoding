@@ -263,6 +263,61 @@ pub struct AnthropicProvider {
     api_key: String,
     client: reqwest::Client,
     capabilities: CapabilityRegistry,
+    /// Si marca puntos de caché de prompts en el cuerpo. Apagado por omisión.
+    prompt_cache: bool,
+}
+
+/// Marca puntos de caché de prompts en un cuerpo ya construido: como mucho dos (el límite del proveedor
+/// es cuatro). Uno en el sistema, que por el orden del proveedor cubre también las herramientas, y otro
+/// en el último bloque del último mensaje. Ver `docs/specs/2026-10-31-codeloom-prompt-cache-points.md`.
+fn apply_cache_points(body: &mut serde_json::Value) {
+    let marker = serde_json::json!({ "type": "ephemeral" });
+    // Punto 1: el sistema. Cadena a bloque de texto; si está vacío, la última herramienta.
+    match body.get("system").cloned() {
+        Some(serde_json::Value::String(text)) if !text.is_empty() => {
+            body["system"] = serde_json::json!([
+                { "type": "text", "text": text, "cache_control": marker }
+            ]);
+        }
+        _ => {
+            if let Some(tool) = body
+                .get_mut("tools")
+                .and_then(serde_json::Value::as_array_mut)
+                .and_then(|tools| tools.last_mut())
+            {
+                tool["cache_control"] = marker.clone();
+            }
+        }
+    }
+    // Punto 2: el último bloque del último mensaje. Los bloques de razonamiento no admiten el marcador.
+    let Some(message) = body
+        .get_mut("messages")
+        .and_then(serde_json::Value::as_array_mut)
+        .and_then(|messages| messages.last_mut())
+    else {
+        return;
+    };
+    if let Some(text) = message["content"].as_str().map(str::to_owned) {
+        if text.is_empty() {
+            return;
+        }
+        message["content"] = serde_json::json!([
+            { "type": "text", "text": text, "cache_control": marker }
+        ]);
+        return;
+    }
+    if let Some(block) = message["content"]
+        .as_array_mut()
+        .and_then(|blocks| blocks.last_mut())
+    {
+        let markable = matches!(
+            block["type"].as_str(),
+            Some("text" | "tool_use" | "tool_result" | "image")
+        );
+        if markable {
+            block["cache_control"] = marker;
+        }
+    }
 }
 
 impl AnthropicProvider {
@@ -272,7 +327,14 @@ impl AnthropicProvider {
             api_key: api_key.into(),
             client: reqwest::Client::new(),
             capabilities: CapabilityRegistry::default(),
+            prompt_cache: false,
         }
+    }
+
+    /// Activa los puntos de caché de prompts (`cache_control`) en las peticiones.
+    pub fn with_prompt_cache(mut self, enabled: bool) -> Self {
+        self.prompt_cache = enabled;
+        self
     }
 
     /// Destino exacto de una petición: el mismo modelo en otra URL es otro destino.
@@ -404,6 +466,9 @@ impl AnthropicProvider {
                 .and_then(serde_json::Value::as_str)
         }) {
             cuerpo["container"] = serde_json::json!({ "id": container });
+        }
+        if self.prompt_cache {
+            apply_cache_points(&mut cuerpo);
         }
         cuerpo
     }
@@ -1442,6 +1507,161 @@ mod programmatic_tests {
             assert!(spent < CAP_USD, "cap reached");
         }
         println!("total_spent_usd~{spent:.5}");
+    }
+
+    fn cached_provider() -> AnthropicProvider {
+        AnthropicProvider::new("https://api.anthropic.com", "k").with_prompt_cache(true)
+    }
+
+    fn marked(value: &serde_json::Value) -> usize {
+        value.to_string().matches("\"cache_control\"").count()
+    }
+
+    #[test]
+    fn cache_points_are_off_by_default() {
+        let mut req = request();
+        req.system = "sistema".into();
+        req.messages = vec![crate::message::Message::user("hola")];
+        let body = AnthropicProvider::new("https://api.anthropic.com", "k").build_body(&req);
+        assert_eq!(body["system"], "sistema");
+        assert_eq!(marked(&body), 0);
+    }
+
+    #[test]
+    fn cache_points_mark_the_system_block_and_the_last_message_block() {
+        let mut req = request();
+        req.system = "sistema".into();
+        req.programmatic_tool_calling = false;
+        req.messages = vec![
+            crate::message::Message::user("primero"),
+            crate::message::Message::user("ultimo"),
+        ];
+        let body = cached_provider().build_body(&req);
+        assert_eq!(body["system"][0]["text"], "sistema");
+        assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
+        let last = body["messages"].as_array().unwrap().last().unwrap().clone();
+        assert_eq!(last["content"][0]["text"], "ultimo");
+        assert_eq!(last["content"][0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(marked(&body), 2, "como mucho dos puntos");
+        // Solo el último mensaje se marca; el anterior sigue siendo una cadena.
+        assert_eq!(body["messages"][0]["content"], "primero");
+    }
+
+    #[test]
+    fn cache_points_fall_back_to_the_last_tool_without_a_system_prompt() {
+        let mut req = request();
+        req.system.clear();
+        req.programmatic_tool_calling = false;
+        let body = cached_provider().build_body(&req);
+        let tools = body["tools"].as_array().unwrap();
+        assert!(tools.last().unwrap().get("cache_control").is_some());
+        assert_eq!(marked(&body), 1);
+    }
+
+    #[test]
+    fn cache_points_use_only_the_system_block_without_messages() {
+        let mut req = request();
+        req.system = "sistema".into();
+        req.programmatic_tool_calling = false;
+        let body = cached_provider().build_body(&req);
+        assert_eq!(marked(&body), 1);
+    }
+
+    #[test]
+    fn cache_points_skip_a_trailing_thinking_block() {
+        let mut body = json!({
+            "system": "s",
+            "messages": [{"role":"assistant","content":[
+                {"type":"text","text":"t"},
+                {"type":"thinking","thinking":"x","signature":"sig"}
+            ]}]
+        });
+        apply_cache_points(&mut body);
+        assert!(body["messages"][0]["content"][1]
+            .get("cache_control")
+            .is_none());
+        assert_eq!(marked(&body), 1, "solo el punto del sistema");
+    }
+
+    /// Medición real de los puntos de caché del propio adaptador (B1): tres peticiones por streaming a
+    /// Haiku 4.5 por OpenRouter. Prefijo único por ejecución para no leer cachés de ejecuciones previas.
+    /// Esperado: la 1.ª escribe, la 2.ª lee el prefijo y la 3.ª, con un mensaje añadido, lo vuelve a leer.
+    #[tokio::test]
+    #[ignore = "live OpenRouter calls; incurs provider usage"]
+    async fn openrouter_haiku_live_adapter_cache_points() {
+        use crate::message::{ContentPart, Message};
+        use futures::StreamExt;
+
+        const CAP_USD: f64 = 0.15;
+        let key = std::env::var("OPENROUTER_API_KEY").expect("set OPENROUTER_API_KEY");
+        let provider =
+            AnthropicProvider::new("https://openrouter.ai/api", key).with_prompt_cache(true);
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let system: String = std::iter::once(format!("Session nonce {nonce}.
+"))
+            .chain((0..420).map(|i| {
+                format!("Rule {i}: keep answers short, cite the rule number, never invent facts about item {i}.
+")
+            }))
+            .collect();
+        let mut req = request();
+        req.model = "anthropic/claude-haiku-4.5".into();
+        req.system = system;
+        req.tools = Vec::new();
+        req.max_tokens = 16;
+        req.programmatic_tool_calling = false;
+        let mut spent = 0.0_f64;
+        let mut reads = Vec::new();
+        let mut writes = Vec::new();
+
+        for round in 1..=3 {
+            req.messages = vec![Message::user("Reply with the single word OK.")];
+            if round == 3 {
+                req.messages
+                    .push(Message::assistant(vec![ContentPart::Text {
+                        text: "OK".into(),
+                    }]));
+                req.messages.push(Message::user("Say OK once more."));
+            }
+            let mut stream = provider
+                .stream(req.clone(), CancellationToken::new())
+                .await
+                .expect("stream");
+            let (mut input, mut output, mut cost, mut cache) = (0, 0, None, None);
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    StreamChunk::UsageUpdate(u) => {
+                        input = input.max(u.input_tokens.unwrap_or(0));
+                        output = output.max(u.output_tokens.unwrap_or(0));
+                        cost = u.reported_cost_usd.or(cost);
+                    }
+                    StreamChunk::CacheUsage(c) => cache = Some(c),
+                    _ => {}
+                }
+            }
+            let cache = cache.unwrap_or_default();
+            reads.push(cache.read_tokens);
+            writes.push(cache.write_tokens);
+            spent += cost.unwrap_or(0.02);
+            println!(
+                "adapter-with-cache round={round} input={input} output={output} cost={cost:?} read={} write={}",
+                cache.read_tokens, cache.write_tokens
+            );
+            assert!(spent < CAP_USD, "cap reached");
+        }
+        println!("total_spent_usd~{spent:.5}");
+        assert!(
+            writes[0] > 9000,
+            "la 1.ª petición debe escribir el prefijo: {writes:?}"
+        );
+        assert!(reads[1] > 9000, "la 2.ª debe leer el prefijo: {reads:?}");
+        assert!(
+            reads[2] > 9000,
+            "la 3.ª debe leer el prefijo anterior: {reads:?}"
+        );
     }
 
     #[test]

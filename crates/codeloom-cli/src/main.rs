@@ -55,6 +55,17 @@ struct Cli {
     yolo: bool,
 }
 
+/// Interruptor de los puntos de caché de prompts del adaptador de Anthropic: encendidos salvo que
+/// `CODELOOM_PROMPT_CACHE` valga `0`, `off` o `false` (sin distinguir mayúsculas).
+fn prompt_cache_enabled(value: Option<&str>) -> bool {
+    !value.is_some_and(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "0" | "off" | "false"
+        )
+    })
+}
+
 fn build_provider(
     cfg: &CodeLoomConfig,
     project_env: &HashMap<String, String>,
@@ -86,9 +97,11 @@ fn build_provider_state(
                 cfg.provider.base_url.clone(),
                 key,
             )),
-            ProviderKind::Anthropic => {
-                Arc::new(AnthropicProvider::new(cfg.provider.base_url.clone(), key))
-            }
+            ProviderKind::Anthropic => Arc::new(
+                AnthropicProvider::new(cfg.provider.base_url.clone(), key).with_prompt_cache(
+                    prompt_cache_enabled(std::env::var("CODELOOM_PROMPT_CACHE").ok().as_deref()),
+                ),
+            ),
             ProviderKind::Gemini => {
                 Arc::new(GeminiProvider::new(cfg.provider.base_url.clone(), key))
             }
@@ -672,6 +685,17 @@ a2a:
             )),
         ]));
         (registro, dir)
+    }
+
+    #[test]
+    fn prompt_cache_is_on_unless_explicitly_switched_off() {
+        assert!(prompt_cache_enabled(None));
+        assert!(prompt_cache_enabled(Some("1")));
+        assert!(prompt_cache_enabled(Some("on")));
+        assert!(prompt_cache_enabled(Some("")));
+        for apagado in ["0", "off", "OFF", "false", " False "] {
+            assert!(!prompt_cache_enabled(Some(apagado)), "{apagado}");
+        }
     }
 
     #[test]

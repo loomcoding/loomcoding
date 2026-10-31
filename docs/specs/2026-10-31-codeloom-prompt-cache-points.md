@@ -1,6 +1,6 @@
 # CodeLoom — Puntos de caché de prompts en el adaptador de Anthropic
 
-> Estado: **borrador para implementar**.
+> Estado: **implementado** (2026-10-31); medido en real con Haiku 4.5 por OpenRouter.
 >
 > Fecha: 2026-10-31
 >
@@ -25,7 +25,7 @@ puntos de caché, sin cambiar lo que se envía al modelo ni el comportamiento de
 
 ## 3. No objetivos
 
-- No afecta a `openai_compat`, `openai_responses` ni `gemini`, que no usan este adaptador. Notese que la
+- No afecta a `openai_compat`, `openai_responses` ni `gemini`, que no usan este adaptador. Nótese que la
   configuración por defecto de CodeLoom usa `openai_compat`: este cambio no la toca.
 - No usa la caché de 1 hora (TTL de 5 minutos, la predeterminada).
 - No se calcula coste con caché: el coste sigue siendo el comunicado por el proveedor.

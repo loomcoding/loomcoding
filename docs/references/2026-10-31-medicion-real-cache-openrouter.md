@@ -34,8 +34,23 @@ Cuatro peticiones con el mismo prefijo de sistema de unos 9 700 tokens y salida 
   conviene matizarla.
 - No se midió la ruta compatible con OpenAI de OpenRouter, ni DeepSeek, ni caché con herramientas, ni TTL de 1 h.
 
+## Segunda medición: puntos de caché del propio adaptador (B1 implementada)
+
+Prueba `openrouter_haiku_live_adapter_cache_points`: tres peticiones por **streaming** con `with_prompt_cache(true)`,
+prefijo único por ejecución (≈ 9 700 tokens). Gasto ≈ 0,014 USD (acumulado ≈ 0,047 de los 0,50 autorizados).
+
+| Petición | `input_tokens` | Lectura | Escritura | Coste |
+|---|---|---|---|---|
+| 1.ª | 3 | 0 | 9 683 | 0,01213 $ |
+| 2.ª (mismo prefijo) | 3 | 9 683 | 0 | 0,00099 $ |
+| 3.ª (con un mensaje añadido) | 3 | 9 683 | 12 | 0,00101 $ |
+
+Confirma por streaming, con valores no nulos, la lectura de caché, y que el segundo punto (último mensaje) deja que
+una petición con historial ampliado siga leyendo el prefijo y escriba solo lo nuevo. Sigue siendo un caso: un
+modelo, un proveedor, un prefijo.
+
 ## Consecuencias
 
-B1 (puntos de caché en el adaptador de Anthropic) queda justificada con datos propios para prefijos grandes y
-estables. No se ha implementado: necesita spec (dónde colocar los puntos, qué prefijo es estable, qué pasa si el
-sistema cambia entre turnos, y el coste de escritura en sesiones cortas).
+B1 queda justificada con datos propios para prefijos grandes y estables, y se implementó:
+`docs/specs/2026-10-31-codeloom-prompt-cache-points.md`. Pendiente: el coste de escritura en sesiones de una sola
+petición (+25 % sobre el prefijo) y Anthropic directo, que no se midió.
