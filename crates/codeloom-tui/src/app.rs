@@ -2411,6 +2411,8 @@ impl App {
             source,
             is_final,
             components,
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms,
         });
     }
@@ -2438,6 +2440,8 @@ impl App {
             source: UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms,
         });
     }
@@ -8437,6 +8441,8 @@ línea dos {}",
             source: UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 1,
         }
     }
@@ -8568,6 +8574,8 @@ línea dos {}",
             source: UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 1,
         }
     }

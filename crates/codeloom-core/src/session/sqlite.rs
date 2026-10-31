@@ -145,6 +145,17 @@ impl SqliteStore {
                 .await
                 .map_err(|e| CoreError::Store(e.to_string()))?;
         }
+        // Tokens de caché del proveedor; cero significa «no informado o sin caché».
+        for column in ["cache_read_tokens", "cache_write_tokens"] {
+            if !usage_columns.iter().any(|existing| existing == column) {
+                sqlx::query(&format!(
+                    "ALTER TABLE usage ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0"
+                ))
+                .execute(&pool)
+                .await
+                .map_err(|e| CoreError::Store(e.to_string()))?;
+            }
+        }
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS development_workflows (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -508,8 +519,8 @@ impl SessionStore for SqliteStore {
 
     async fn record_usage(&self, session: SessionId, record: &UsageRecord) -> Result<()> {
         sqlx::query(
-            "INSERT INTO usage (session_id, model, input_tokens, output_tokens, input_price, output_price, reported_cost_usd, source, is_final, components_json, created_at_ms)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO usage (session_id, model, input_tokens, output_tokens, input_price, output_price, reported_cost_usd, source, is_final, components_json, cache_read_tokens, cache_write_tokens, created_at_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(session.0)
         .bind(&record.model)
@@ -524,6 +535,8 @@ impl SessionStore for SqliteStore {
         })
         .bind(record.is_final)
         .bind(serde_json::to_string(&record.components).map_err(|e| CoreError::Store(e.to_string()))?)
+        .bind(to_sql_int(record.cache_read_tokens)?)
+        .bind(to_sql_int(record.cache_write_tokens)?)
         .bind(record.created_at_ms)
         .execute(&self.pool)
         .await
@@ -533,7 +546,7 @@ impl SessionStore for SqliteStore {
 
     async fn session_usage(&self, session: SessionId) -> Result<Vec<UsageRecord>> {
         let rows = sqlx::query(
-            "SELECT session_id, model, input_tokens, output_tokens, input_price, output_price, reported_cost_usd, source, is_final, components_json, created_at_ms
+            "SELECT session_id, model, input_tokens, output_tokens, input_price, output_price, reported_cost_usd, source, is_final, components_json, cache_read_tokens, cache_write_tokens, created_at_ms
              FROM usage
              WHERE session_id = ? OR session_id IN (SELECT child_session_id FROM subagents WHERE parent_session_id = ?)
              ORDER BY id",
@@ -562,6 +575,8 @@ impl SessionStore for SqliteStore {
                         row.get::<String, _>("components_json").as_str(),
                     )
                     .unwrap_or_default(),
+                    cache_read_tokens: from_sql_int(row.get("cache_read_tokens"))?,
+                    cache_write_tokens: from_sql_int(row.get("cache_write_tokens"))?,
                     created_at_ms: row.get("created_at_ms"),
                 })
             })
@@ -1370,8 +1385,30 @@ mod tests {
             source: crate::message::UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: crate::message::now_ms(),
         }
+    }
+
+    #[tokio::test]
+    async fn usage_cache_tokens_survive_a_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("c.db").to_str().unwrap())
+            .await
+            .unwrap();
+        let sid = store.create_session("/p").await.unwrap();
+        let mut record = usage("m", 100, 5, None);
+        record.session = sid;
+        record.cache_read_tokens = 900;
+        record.cache_write_tokens = 40;
+        store.record_usage(sid, &record).await.unwrap();
+        let rows = store.session_usage(sid).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            (rows[0].cache_read_tokens, rows[0].cache_write_tokens),
+            (900, 40)
+        );
     }
 
     #[tokio::test]
@@ -1396,6 +1433,8 @@ mod tests {
                 id: "filesystem".into(),
                 input_tokens: 73,
             }],
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 1_000,
         };
         let unpriced = UsageRecord {
@@ -1409,6 +1448,8 @@ mod tests {
             source: crate::message::UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 2_000,
         };
         store.record_usage(sid, &priced).await.unwrap();
@@ -1605,6 +1646,11 @@ mod tests {
         assert_eq!(records[0].source, crate::message::UsageSource::Provider);
         assert!(records[0].is_final);
         assert_eq!((records[0].input_tokens, records[0].output_tokens), (12, 4));
+        // Una base anterior a la caché se lee con ceros: «no informado», no una medición.
+        assert_eq!(
+            (records[0].cache_read_tokens, records[0].cache_write_tokens),
+            (0, 0)
+        );
     }
 
     /// Inserta una fila con el esquema de columnas que escribía la versión anterior de `status`.

@@ -135,6 +135,7 @@ impl UsageRecorder {
         model: &str,
         base_url: &str,
         usage: &crate::message::Usage,
+        cache: crate::provider::CacheUsage,
         source: crate::message::UsageSource,
         is_final: bool,
         components: &[crate::session::UsageComponent],
@@ -157,6 +158,8 @@ impl UsageRecorder {
             source,
             is_final,
             components: components.to_vec(),
+            cache_read_tokens: cache.read_tokens,
+            cache_write_tokens: cache.write_tokens,
             created_at_ms: crate::message::now_ms(),
         };
         // Con presupuesto, el acumulado previo se lee antes de guardar el apunte para comparar
@@ -272,6 +275,7 @@ async fn resumir_en_segundo_plano(
                     &record_model,
                     &base_url,
                     uso,
+                    crate::provider::CacheUsage::default(),
                     crate::message::UsageSource::Provider,
                     true,
                     &[],
@@ -605,13 +609,14 @@ impl AgentLoop {
         model: &str,
         base_url: &str,
         usage: &crate::message::Usage,
+        cache: crate::provider::CacheUsage,
         source: crate::message::UsageSource,
         is_final: bool,
         components: &[crate::session::UsageComponent],
     ) {
         self.recorder()
             .record(
-                session, model, base_url, usage, source, is_final, components,
+                session, model, base_url, usage, cache, source, is_final, components,
             )
             .await;
     }
@@ -899,6 +904,7 @@ impl AgentLoop {
                     &request_model,
                     &request_base_url,
                     &estimate,
+                    crate::provider::CacheUsage::default(),
                     crate::message::UsageSource::Estimate,
                     true,
                     &request_components,
@@ -974,6 +980,7 @@ impl AgentLoop {
                         &request_model,
                         &request_base_url,
                         &estimate,
+                        crate::provider::CacheUsage::default(),
                         crate::message::UsageSource::Estimate,
                         true,
                         &request_components,
@@ -996,6 +1003,7 @@ impl AgentLoop {
             let mut tool_calls: Vec<(String, String, serde_json::Value)> = Vec::new();
             let mut provider_usage: Option<Usage> = None;
             let mut provider_usage_final = false;
+            let mut provider_cache = crate::provider::CacheUsage::default();
             let mut provider_state = None;
             let mut stream_error = None;
             let mut finish = FinishReason::Stop;
@@ -1043,6 +1051,13 @@ impl AgentLoop {
                             false,
                             &request_components,
                         );
+                    }
+                    StreamChunk::CacheUsage(cache) => {
+                        // Como con los demás contadores, vale el máximo visto: el proveedor los repite acumulados.
+                        provider_cache.read_tokens =
+                            provider_cache.read_tokens.max(cache.read_tokens);
+                        provider_cache.write_tokens =
+                            provider_cache.write_tokens.max(cache.write_tokens);
                     }
                     StreamChunk::UsageUpdate(update) => {
                         let total = provider_usage.get_or_insert(Usage {
@@ -1149,6 +1164,11 @@ impl AgentLoop {
                 &request_model,
                 &request_base_url,
                 stored_usage,
+                if provider_usage_final {
+                    provider_cache
+                } else {
+                    crate::provider::CacheUsage::default()
+                },
                 usage_source,
                 true,
                 &request_components,
@@ -1341,6 +1361,7 @@ impl AgentLoop {
                 &model,
                 &base_url,
                 uso,
+                crate::provider::CacheUsage::default(),
                 crate::message::UsageSource::Provider,
                 true,
                 &[],
@@ -2839,6 +2860,70 @@ mod tests {
             (rows[0].input_price, rows[0].output_price),
             (Some(3.0), Some(15.0))
         );
+    }
+
+    #[tokio::test]
+    async fn agent_records_cache_tokens_reported_by_the_provider() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("cache.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let sid = store.create_session("/p").await.unwrap();
+        // La caché llega repetida y acumulada, como en Anthropic: vale el máximo.
+        let provider = Arc::new(QueueProvider {
+            scripts: Mutex::new(
+                vec![vec![
+                    StreamChunk::TextDelta("hola".into()),
+                    StreamChunk::UsageUpdate(crate::provider::UsageUpdate {
+                        input_tokens: Some(10),
+                        output_tokens: Some(1),
+                        reported_cost_usd: None,
+                        final_update: false,
+                    }),
+                    StreamChunk::CacheUsage(crate::provider::CacheUsage {
+                        read_tokens: 900,
+                        write_tokens: 40,
+                    }),
+                    StreamChunk::UsageUpdate(crate::provider::UsageUpdate {
+                        input_tokens: None,
+                        output_tokens: Some(6),
+                        reported_cost_usd: None,
+                        final_update: true,
+                    }),
+                    StreamChunk::CacheUsage(crate::provider::CacheUsage {
+                        read_tokens: 900,
+                        write_tokens: 40,
+                    }),
+                    StreamChunk::Done(FinishReason::Stop),
+                ]]
+                .into(),
+            ),
+        });
+        let agent = AgentLoop::new(
+            provider,
+            store.clone(),
+            Arc::new(ToolRegistry::new()),
+            EventBus::new(64),
+            Arc::new(PermissionService::allow_all()),
+            acme_config("m-caro"),
+            dir.path().to_path_buf(),
+        )
+        .with_catalog(priced_catalog());
+        agent
+            .run(sid, "hi".into(), CancellationToken::new())
+            .await
+            .unwrap();
+
+        let rows = store.session_usage(sid).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            (rows[0].cache_read_tokens, rows[0].cache_write_tokens),
+            (900, 40)
+        );
+        // La entrada no se reescribe: sigue siendo la que comunicó el proveedor.
+        assert_eq!(rows[0].input_tokens, 10);
     }
 
     #[tokio::test]
@@ -4478,6 +4563,8 @@ Cuerpo.
                     source: crate::message::UsageSource::Provider,
                     is_final: true,
                     components: Vec::new(),
+                    cache_read_tokens: 0,
+                    cache_write_tokens: 0,
                     created_at_ms: 0,
                 },
             )

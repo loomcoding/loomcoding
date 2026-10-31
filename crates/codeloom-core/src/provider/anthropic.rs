@@ -100,6 +100,19 @@ fn append_str(block: &mut serde_json::Value, key: &str, extra: &str) {
     }
 }
 
+/// Tokens de caché que comunica un objeto `usage` de Anthropic, o `None` si no informa ninguno.
+fn cache_usage(usage: &serde_json::Value) -> Option<super::CacheUsage> {
+    let read = usage["cache_read_input_tokens"].as_u64();
+    let write = usage["cache_creation_input_tokens"].as_u64();
+    if read.is_none() && write.is_none() {
+        return None;
+    }
+    Some(super::CacheUsage {
+        read_tokens: read.unwrap_or(0),
+        write_tokens: write.unwrap_or(0),
+    })
+}
+
 pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> Vec<StreamChunk> {
     let mut out = Vec::new();
     let v: serde_json::Value = match serde_json::from_str(data) {
@@ -178,6 +191,7 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
                         .filter(|cost| cost.is_finite() && *cost >= 0.0),
                     final_update: false,
                 }));
+                out.extend(cache_usage(u).map(StreamChunk::CacheUsage));
             }
         }
         "message_delta" => {
@@ -190,6 +204,7 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
                         .filter(|cost| cost.is_finite() && *cost >= 0.0),
                     final_update: true,
                 }));
+                out.extend(cache_usage(u).map(StreamChunk::CacheUsage));
             }
             out.extend(acc.finish());
             let reason = match v
@@ -582,6 +597,7 @@ impl AnthropicProvider {
                     .as_f64()
                     .filter(|cost| cost.is_finite() && *cost >= 0.0),
             }));
+            chunks.extend(cache_usage(usage).map(StreamChunk::CacheUsage));
         }
         chunks.push(StreamChunk::ProviderState(state));
         let finish = if response["stop_reason"] == "tool_use" {
@@ -929,6 +945,62 @@ mod tests {
             chunks.last(),
             Some(StreamChunk::Done(FinishReason::ToolCalls))
         ));
+    }
+
+    #[test]
+    fn message_start_reports_cache_tokens_when_the_provider_informs_them() {
+        let chunks = ev(
+            "message_start",
+            json!({"message":{"usage":{"input_tokens":12,"output_tokens":0,
+                "cache_read_input_tokens":900,"cache_creation_input_tokens":40}}}),
+        );
+        assert!(chunks.iter().any(|chunk| matches!(
+            chunk,
+            StreamChunk::CacheUsage(cache) if cache.read_tokens == 900 && cache.write_tokens == 40
+        )));
+        // El conteo de entrada no se altera: Anthropic lo informa sin la caché.
+        assert!(chunks.iter().any(
+            |chunk| matches!(chunk, StreamChunk::UsageUpdate(u) if u.input_tokens == Some(12))
+        ));
+    }
+
+    #[test]
+    fn message_start_without_cache_fields_emits_no_cache_chunk() {
+        let chunks = ev(
+            "message_start",
+            json!({"message":{"usage":{"input_tokens":12,"output_tokens":0}}}),
+        );
+        assert!(!chunks
+            .iter()
+            .any(|chunk| matches!(chunk, StreamChunk::CacheUsage(_))));
+    }
+
+    #[test]
+    fn message_delta_reports_cache_tokens_too() {
+        let chunks = ev(
+            "message_delta",
+            json!({"delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":7,
+                "cache_read_input_tokens":5}}),
+        );
+        assert!(chunks.iter().any(|chunk| matches!(
+            chunk,
+            StreamChunk::CacheUsage(cache) if cache.read_tokens == 5 && cache.write_tokens == 0
+        )));
+    }
+
+    #[test]
+    fn cache_usage_ignores_values_that_are_not_non_negative_integers() {
+        assert_eq!(
+            cache_usage(&json!({"cache_read_input_tokens":"9","cache_creation_input_tokens":-3})),
+            None
+        );
+        assert_eq!(cache_usage(&json!({"input_tokens":4})), None);
+    }
+
+    #[test]
+    fn cache_usage_keeps_a_single_reported_field() {
+        let cache = cache_usage(&json!({"cache_creation_input_tokens":21})).unwrap();
+        assert_eq!((cache.read_tokens, cache.write_tokens), (0, 21));
     }
 
     #[test]

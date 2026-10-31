@@ -1286,6 +1286,8 @@ mod tests {
             source: codeloom_core::message::UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 1,
         }
     }
@@ -1339,6 +1341,8 @@ mod tests {
             source: codeloom_core::message::UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 0,
         });
         let rows = rows_of(&app, 40, 24);

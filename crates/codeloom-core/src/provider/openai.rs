@@ -51,6 +51,22 @@ impl ToolCallAcc {
     }
 }
 
+/// Tokens de caché que comunica un objeto `usage` compatible con OpenAI, o `None` si no informa ninguno.
+fn cache_usage(usage: &serde_json::Value) -> Option<super::CacheUsage> {
+    let details = &usage["prompt_tokens_details"];
+    let read = details["cached_tokens"]
+        .as_u64()
+        .or_else(|| usage["prompt_cache_hit_tokens"].as_u64());
+    let write = details["cache_write_tokens"].as_u64();
+    if read.is_none() && write.is_none() {
+        return None;
+    }
+    Some(super::CacheUsage {
+        read_tokens: read.unwrap_or(0),
+        write_tokens: write.unwrap_or(0),
+    })
+}
+
 pub fn map_openai_event(data: &str, acc: &mut ToolCallAcc) -> Vec<StreamChunk> {
     let mut out = Vec::new();
     let v: serde_json::Value = match serde_json::from_str(data) {
@@ -65,6 +81,7 @@ pub fn map_openai_event(data: &str, acc: &mut ToolCallAcc) -> Vec<StreamChunk> {
                 .as_f64()
                 .filter(|cost| cost.is_finite() && *cost >= 0.0),
         }));
+        out.extend(cache_usage(u).map(StreamChunk::CacheUsage));
     }
     let Some(choices) = v.get("choices").and_then(|c| c.as_array()) else {
         return out;
@@ -776,6 +793,56 @@ mod tests {
         let data = json!({"choices":[{"delta":{"content":"hi"}}]}).to_string();
         let chunks = map_openai_event(&data, &mut acc);
         assert!(matches!(chunks.as_slice(), [StreamChunk::TextDelta(t)] if t == "hi"));
+    }
+
+    #[test]
+    fn usage_reports_cached_tokens_and_cache_writes() {
+        let mut acc = ToolCallAcc::default();
+        let chunks = map_openai_event(
+            r#"{"usage":{"prompt_tokens":1000,"completion_tokens":2,
+                "prompt_tokens_details":{"cached_tokens":800,"cache_write_tokens":50}}}"#,
+            &mut acc,
+        );
+        // El fragmento de uso conserva el índice 0 y el de caché va a continuación.
+        assert!(matches!(&chunks[0], StreamChunk::Usage(usage) if usage.input_tokens == 1000));
+        assert!(matches!(
+            &chunks[1],
+            StreamChunk::CacheUsage(cache) if cache.read_tokens == 800 && cache.write_tokens == 50
+        ));
+    }
+
+    #[test]
+    fn usage_reports_deepseek_cache_hits() {
+        let mut acc = ToolCallAcc::default();
+        let chunks = map_openai_event(
+            r#"{"usage":{"prompt_tokens":500,"completion_tokens":1,"prompt_cache_hit_tokens":300}}"#,
+            &mut acc,
+        );
+        assert!(chunks.iter().any(|chunk| matches!(
+            chunk,
+            StreamChunk::CacheUsage(cache) if cache.read_tokens == 300 && cache.write_tokens == 0
+        )));
+    }
+
+    #[test]
+    fn usage_without_cache_details_emits_no_cache_chunk() {
+        let mut acc = ToolCallAcc::default();
+        let chunks = map_openai_event(
+            r#"{"usage":{"prompt_tokens":4,"completion_tokens":2}}"#,
+            &mut acc,
+        );
+        assert_eq!(chunks.len(), 1);
+        assert!(matches!(&chunks[0], StreamChunk::Usage(_)));
+    }
+
+    #[test]
+    fn cache_usage_ignores_negative_and_non_numeric_values() {
+        assert_eq!(
+            cache_usage(&serde_json::json!({
+                "prompt_tokens_details":{"cached_tokens":-1,"cache_write_tokens":"x"}
+            })),
+            None
+        );
     }
 
     #[test]

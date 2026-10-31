@@ -91,6 +91,12 @@ pub struct UsageRecord {
     pub is_final: bool,
     #[serde(default)]
     pub components: Vec<UsageComponent>,
+    /// Tokens de entrada servidos desde la caché del proveedor; cero significa «no informado o sin caché».
+    #[serde(default)]
+    pub cache_read_tokens: u64,
+    /// Tokens de entrada escritos en la caché del proveedor; cero significa «no informado o sin caché».
+    #[serde(default)]
+    pub cache_write_tokens: u64,
     pub created_at_ms: i64,
 }
 
@@ -221,6 +227,8 @@ mod tests {
             source: crate::message::UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 0,
         };
         let cost = priced.cost().expect("con ambos precios hay coste");
@@ -260,6 +268,8 @@ mod tests {
             source: crate::message::UsageSource::Provider,
             is_final: true,
             components: Vec::new(),
+            cache_read_tokens: 0,
+            cache_write_tokens: 0,
             created_at_ms: 0,
         };
         assert_eq!(record.cost(), Some(0.0042));

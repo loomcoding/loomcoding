@@ -53,7 +53,20 @@ pub enum StreamChunk {
     /// Snapshot parcial del uso durante una respuesta. Los adapters emiten totales acumulados;
     /// `None` significa que ese campo aún no ha sido informado.
     UsageUpdate(UsageUpdate),
+    /// Tokens de caché que el proveedor informa para esta petición, como totales acumulados.
+    CacheUsage(CacheUsage),
     Done(FinishReason),
+}
+
+/// Tokens de entrada que el proveedor informa como leídos de su caché o escritos en ella.
+///
+/// Cabe señalar que se conservan tal como llegan y no se suman a `input_tokens`: en Anthropic ese
+/// campo los excluye, mientras que en los proveedores compatibles con OpenAI los incluye. Un cero
+/// significa «no informado o sin caché», nunca una medición.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CacheUsage {
+    pub read_tokens: u64,
+    pub write_tokens: u64,
 }
 
 #[derive(Debug, Clone)]
