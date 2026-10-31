@@ -1501,6 +1501,43 @@ mod programmatic_tests {
     }
 
     #[tokio::test]
+    async fn non_streaming_response_reports_cache_tokens() {
+        use futures::StreamExt;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models/claude-test"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "capabilities":{"code_execution":{"supported":true}}
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1/messages"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "stop_reason":"end_turn",
+                "content":[{"type":"text","text":"hola"}],
+                "usage":{"input_tokens":12,"output_tokens":3,
+                    "cache_read_input_tokens":900,"cache_creation_input_tokens":40}
+            })))
+            .mount(&server)
+            .await;
+        let provider = AnthropicProvider::new(server.uri(), "test-key");
+        let chunks: Vec<StreamChunk> = provider
+            .stream(request(), CancellationToken::new())
+            .await
+            .unwrap()
+            .collect()
+            .await;
+        assert!(chunks.iter().any(|chunk| matches!(
+            chunk,
+            StreamChunk::CacheUsage(cache) if cache.read_tokens == 900 && cache.write_tokens == 40
+        )));
+    }
+
+    #[tokio::test]
     async fn unverified_model_uses_direct_calls_and_reports_fallback() {
         use futures::StreamExt;
         use wiremock::matchers::{method, path};

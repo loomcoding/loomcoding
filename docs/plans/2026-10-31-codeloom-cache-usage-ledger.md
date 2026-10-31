@@ -1,7 +1,6 @@
 # Plan — Registro de tokens de caché en el ledger (fase 1)
 
-> Estado: fase 1 implementada (2026-10-31). Salvedades: la respuesta sin streaming de Anthropic lee la caché
-> pero carece de prueba propia, y la API Responses de OpenAI no se ha cubierto; ambas quedan como seguimiento.
+> Estado: fase 1 implementada (2026-10-31). Salvedad: la API Responses de OpenAI no se ha cubierto (seguimiento).
 > Spec: `docs/specs/2026-10-31-codeloom-cache-usage-ledger.md`.
 
 ## Restricciones
