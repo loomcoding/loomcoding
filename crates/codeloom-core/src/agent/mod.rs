@@ -76,7 +76,13 @@ const DELEGATION_TOOLS: [&str; 4] = [
 const MAX_AGENT_SECTION_BYTES: usize = 8_000;
 
 /// Tope del prompt propio de un agente (el cuerpo de su perfil), que se suma al contexto.
-const MAX_SYSTEM_EXTRA_BYTES: usize = 16_000;
+/// Tope del prompt adicional del hijo: la persona del perfil, su separador y el prompt de skills, cada
+/// uno con su cota propia (véase `subagent::compose_child_system`), más la holgura del marcador de recorte
+/// de la persona, para que un recorte previo no provoque un segundo recorte aquí.
+const MAX_SYSTEM_EXTRA_BYTES: usize = crate::subagent::MAX_PROFILE_PROMPT_BYTES
+    + 2
+    + crate::skills::MAX_SKILL_PROMPT_BYTES
+    + crate::subagent::TRUNCATION_MARKER_SLACK;
 
 /// Contenido que recibe el modelo para el resultado de una herramienta. Si supera el tope y hay
 /// volcado, guarda el original y añade su ruta tras el recorte; la reserva de 256 bytes deja

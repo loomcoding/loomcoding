@@ -137,6 +137,27 @@ pub fn child_levels(parent_left: u32, profile_max_depth: Option<u32>) -> u32 {
         .min(profile_max_depth.unwrap_or(1).max(1))
 }
 
+/// Tope del texto de persona del perfil dentro del prompt adicional del hijo. Las skills tienen el suyo.
+pub(crate) const MAX_PROFILE_PROMPT_BYTES: usize = 16_000;
+
+/// Holgura para el marcador que `limit_bytes` añade al recortar (`[... N bytes omitted ...]`).
+pub(crate) const TRUNCATION_MARKER_SLACK: usize = 128;
+
+/// Une la persona del perfil y las skills cargadas en el prompt adicional del hijo. Cada parte lleva su
+/// tope propio: unas skills grandes no deben recortar la persona.
+pub(crate) fn compose_child_system(persona: Option<String>, skills_prompt: &str) -> Option<String> {
+    let mut sistema = persona
+        .map(|texto| crate::tools::limit_bytes(&texto, MAX_PROFILE_PROMPT_BYTES).into_owned())
+        .unwrap_or_default();
+    if !skills_prompt.is_empty() {
+        if !sistema.is_empty() {
+            sistema.push_str("\n\n");
+        }
+        sistema.push_str(skills_prompt);
+    }
+    (!sistema.is_empty()).then_some(sistema)
+}
+
 /// Si el perfil pide más niveles de los que el techo del árbol deja al hijo.
 pub fn depth_clipped(parent_left: u32, profile_max_depth: Option<u32>) -> bool {
     profile_max_depth.is_some_and(|pedidos| pedidos > parent_left.saturating_sub(1))
@@ -731,17 +752,7 @@ Task: {label}
                     input_tokens: loaded.shared_input_tokens_per_request,
                 });
             }
-            if !loaded.prompt.is_empty() {
-                let mut system = child_system.take().unwrap_or_default();
-                let available_profile_bytes =
-                    16_000usize.saturating_sub(loaded.prompt.len().saturating_add(2));
-                system = crate::tools::limit_bytes(&system, available_profile_bytes).into_owned();
-                if !system.is_empty() {
-                    system.push_str("\n\n");
-                }
-                system.push_str(&loaded.prompt);
-                child_system = Some(system);
-            }
+            child_system = compose_child_system(child_system.take(), &loaded.prompt);
         }
         let child_max_steps = child_config.max_steps;
         let child_cwd = self.cwd.clone();
@@ -1794,7 +1805,34 @@ impl SubagentLauncher for InProcessSubagentLauncher {
 
 #[cfg(test)]
 mod tests {
-    use super::{can_delegate, child_levels, depth_clipped, root_levels};
+    use super::{
+        can_delegate, child_levels, compose_child_system, depth_clipped, root_levels,
+        MAX_PROFILE_PROMPT_BYTES,
+    };
+
+    #[test]
+    fn a_full_persona_and_a_full_skills_prompt_both_reach_the_child_untouched() {
+        let persona = "p".repeat(MAX_PROFILE_PROMPT_BYTES);
+        let skills = "s".repeat(crate::skills::MAX_SKILL_PROMPT_TOKENS * 4);
+        let sistema = compose_child_system(Some(persona.clone()), &skills).unwrap();
+        assert!(sistema.starts_with(&persona));
+        assert!(sistema.ends_with(&skills));
+        assert_eq!(sistema.len(), persona.len() + 2 + skills.len());
+    }
+
+    #[test]
+    fn the_persona_is_capped_on_its_own_and_without_skills_it_is_returned_as_is() {
+        let larga = "p".repeat(MAX_PROFILE_PROMPT_BYTES * 2);
+        let sistema = compose_child_system(Some(larga.clone()), "").unwrap();
+        // El recorte añade su marcador, que cabe en la holgura.
+        assert!(sistema.len() <= MAX_PROFILE_PROMPT_BYTES + super::TRUNCATION_MARKER_SLACK);
+        assert!(sistema.contains("bytes omitted"));
+        assert_eq!(compose_child_system(None, ""), None);
+        assert_eq!(
+            compose_child_system(None, "skills").as_deref(),
+            Some("skills")
+        );
+    }
 
     #[test]
     fn with_the_default_ceiling_the_child_never_delegates_even_if_its_profile_asks() {

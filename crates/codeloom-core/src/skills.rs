@@ -7,8 +7,13 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_SKILLS_PER_AGENT: usize = 16;
-pub const MAX_SKILL_FILE_BYTES: usize = 4 * 1024;
-pub const MAX_SKILL_PROMPT_BYTES: usize = 6 * 1024;
+/// Cota defensiva de lectura por fichero: es propia de CodeLoom, no una exigencia de Agent Skills, que solo
+/// recomienda unas 500 líneas y unos 5.000 tokens por `SKILL.md` como guía de autoría.
+pub const MAX_SKILL_FILE_BYTES: usize = 32 * 1024;
+/// Presupuesto del prompt de skills por agente, en tokens estimados (bytes UTF-8 entre cuatro).
+pub const MAX_SKILL_PROMPT_TOKENS: usize = 8_000;
+/// El mismo presupuesto en bytes, que es lo que se compara al ir añadiendo secciones.
+pub const MAX_SKILL_PROMPT_BYTES: usize = MAX_SKILL_PROMPT_TOKENS * 4;
 const MAX_FRONTMATTER_BYTES: usize = 2 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -302,6 +307,100 @@ mod tests {
         assert_eq!(result.statuses[0].state, SkillLoadState::Loaded);
         assert!(result.statuses[0].input_tokens_per_request > 0);
         assert!(result.shared_input_tokens_per_request > 0);
+    }
+
+    /// Una skill de `lineas` líneas de unos `ancho` bytes cada una, con cabecera válida.
+    fn skill_larga(lineas: usize, ancho: usize) -> String {
+        let linea = format!(
+            "{}
+",
+            "x".repeat(ancho - 1)
+        );
+        format!(
+            "---
+name: Larga
+---
+{}",
+            linea.repeat(lineas)
+        )
+    }
+
+    #[test]
+    fn explicit_skills_above_four_kib_and_five_hundred_lines_load_when_they_fit() {
+        // Tamaños tomados de los ejemplos de ECC citados en la spec: ~13,5 KB/500 líneas, ~16,9 KB/751
+        // líneas y ~23,7 KB/592 líneas. Pasar de 500 líneas no provoca por sí solo `Oversized`.
+        for (id, lineas, ancho) in [("rust", 500, 27), ("python", 751, 22), ("types", 592, 40)] {
+            let project = tempfile::tempdir().unwrap();
+            let texto = skill_larga(lineas, ancho);
+            assert!(texto.len() > 4 * 1024, "{id}");
+            skill(project.path(), id, &texto);
+            let result =
+                load_scoped_skills(&[id.into()], &SkillRoots::new(project.path().into(), None));
+            assert_eq!(result.statuses[0].state, SkillLoadState::Loaded, "{id}");
+            assert!(result.prompt.contains("xxxxxxxx"), "{id}");
+        }
+    }
+
+    #[test]
+    fn a_file_above_thirty_two_kib_is_oversized_and_not_loaded() {
+        let project = tempfile::tempdir().unwrap();
+        skill(project.path(), "enorme", &skill_larga(1, 32 * 1024 + 1));
+        let result = load_scoped_skills(
+            &["enorme".into()],
+            &SkillRoots::new(project.path().into(), None),
+        );
+        assert_eq!(result.statuses[0].state, SkillLoadState::Oversized);
+        assert!(result.prompt.is_empty());
+    }
+
+    #[test]
+    fn the_aggregate_prompt_never_exceeds_eight_thousand_estimated_tokens() {
+        let project = tempfile::tempdir().unwrap();
+        // Cada skill pesa ~20 000 bytes (~5 000 tokens): la primera cabe, la segunda no.
+        skill(project.path(), "a", &skill_larga(1, 20_000));
+        skill(project.path(), "b", &skill_larga(1, 20_000));
+        let result = load_scoped_skills(
+            &["a".into(), "b".into()],
+            &SkillRoots::new(project.path().into(), None),
+        );
+        assert_eq!(result.statuses[0].state, SkillLoadState::Loaded);
+        assert_eq!(result.statuses[1].state, SkillLoadState::PromptLimit);
+        assert_eq!(result.statuses[1].input_tokens_per_request, 0);
+        assert!(crate::agent::compact::estimate_text_tokens(&result.prompt) <= 8_000);
+        // Sin contenido parcial de la segunda skill.
+        assert!(!result.prompt.contains("### Larga (b)"));
+    }
+
+    #[test]
+    fn the_shared_preamble_counts_against_the_budget_and_attributed_tokens_match_the_prompt() {
+        let project = tempfile::tempdir().unwrap();
+        // La sección sola cabe en 32 000 bytes, pero con el preámbulo se pasa: todo queda en `PromptLimit`.
+        skill(project.path(), "justa", &skill_larga(1, 31_950));
+        let result = load_scoped_skills(
+            &["justa".into()],
+            &SkillRoots::new(project.path().into(), None),
+        );
+        assert_eq!(result.statuses[0].state, SkillLoadState::PromptLimit);
+        assert!(result.prompt.is_empty());
+        // Y cuando cabe, los tokens atribuidos (secciones más preámbulo, una vez) cuadran con el texto
+        // añadido, salvo el redondeo por sección.
+        let dos = tempfile::tempdir().unwrap();
+        skill(dos.path(), "uno", &skill_larga(3, 100));
+        skill(dos.path(), "dos", &skill_larga(3, 100));
+        let result = load_scoped_skills(
+            &["uno".into(), "dos".into()],
+            &SkillRoots::new(dos.path().into(), None),
+        );
+        let atribuidos: u64 = result
+            .loaded_tokens()
+            .map(|(_, tokens)| tokens)
+            .sum::<u64>()
+            + result.shared_input_tokens_per_request;
+        let reales = crate::agent::compact::estimate_text_tokens(&result.prompt) as u64;
+        assert!(
+            atribuidos.abs_diff(reales) <= 3,
+            "{atribuidos} frente a {reales}"
+        );
     }
 
     #[test]
