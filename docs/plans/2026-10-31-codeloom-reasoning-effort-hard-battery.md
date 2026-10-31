@@ -1,6 +1,6 @@
 # Plan — Batería difícil del benchmark de esfuerzo
 
-> Estado: en ejecución (2026-10-31).
+> Estado: ejecutado en parte (2026-10-31); `high` sin datos válidos por HTTP 402. Resultado en `docs/references/2026-10-31-medicion-real-esfuerzo-por-fase.md`.
 > Spec: `docs/specs/2026-10-31-codeloom-reasoning-effort-hard-battery.md`.
 
 ## Restricciones

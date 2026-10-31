@@ -1,0 +1,92 @@
+# PARCIALMENTE VALIDO: los niveles ninguno y medium son validos (24 llamadas cada uno); el nivel high NO: casi todas sus llamadas
+# devolvieron respuesta vacia (0 tokens, 0 USD) porque el test ignoraba el error (probable HTTP 402 por crédito, no verificado). Cifras de high descartadas.
+# Etapa 3 — salida literal de: cargo test -p codeloom-core --test effort_by_phase_live stage3 -- --ignored --nocapture
+# (2026-10-31; 8 casos x 3 repeticiones x {ninguno, medium, high}; clave filtrada con sed)
+warning: E:\workspace\personal\loom\crates\codeloom-cli\Cargo.toml: file `E:\workspace\personal\loom\crates\codeloom-cli\src\main.rs` found to be present in multiple build targets:
+  * `bin` target `codeloom`
+  * `bin` target `loom`
+    Finished `test` profile [unoptimized] target(s) in 0.42s
+     Running tests\effort_by_phase_live.rs (target\e2e\debug\deps\effort_by_phase_live-ace7ebaf515b432a.exe)
+
+running 1 test
+None merge-keeps-last-end hit=true fp=false out=49 cost=0.00038 :: 1. When merging intervals, the code uses `end` directly instead of `max(end, out[-1][1])`, which fails to extend the interval if the new interval is contained within the previous one.
+None merge-keeps-last-end hit=true fp=false out=49 cost=0.00038 :: 1. When merging intervals, the code uses `end` directly instead of `max(end, out[-1][1])`, which fails to extend the interval if the new interval is contained within the previous one.
+None merge-keeps-last-end hit=true fp=false out=49 cost=0.00038 :: 1. When merging intervals, the code uses `end` directly instead of `max(end, out[-1][1])`, which fails to extend the interval if the new interval is contained within the previous one.
+None binary-search-no-progress hit=true fp=false out=45 cost=0.00037 :: 1. Infinite loop: when `sorted_values[mid] < target`, `lo` is set to `mid` instead of `mid + 1`, causing the loop to not progress.
+None binary-search-no-progress hit=true fp=false out=45 cost=0.00037 :: 1. Infinite loop: when `sorted_values[mid] < target`, `lo` is set to `mid` instead of `mid + 1`, causing the loop to not progress.
+None binary-search-no-progress hit=true fp=false out=45 cost=0.00037 :: 1. Infinite loop: when `sorted_values[mid] < target`, `lo` is set to `mid` instead of `mid + 1`, causing the loop to not progress.
+None retry-returns-none hit=true fp=false out=30 cost=0.00028 :: - Missing re-raise of exception after all retries are exhausted | - Will sleep even on the final failed attempt before returning None
+None retry-returns-none hit=true fp=false out=30 cost=0.00028 :: - Missing re-raise of exception after all retries are exhausted | - Will sleep even on the final failed attempt before returning None
+None retry-returns-none hit=true fp=false out=30 cost=0.00028 :: - Missing re-raise of exception after all retries are exhausted | - Will sleep even on the final failed attempt before returning None
+None bucket-without-cap hit=true fp=false out=57 cost=0.00047 :: - `tokens` can exceed `capacity` because refills are not capped at the capacity limit | - `take()` only removes 1 token but doesn't prevent `tokens` from growing unbounded over time when `take()` is not called frequently
+None bucket-without-cap hit=true fp=false out=57 cost=0.00047 :: - `tokens` can exceed `capacity` because refills are not capped at the capacity limit | - `take()` only removes 1 token but doesn't prevent `tokens` from growing unbounded over time when `take()` is not called frequently
+None bucket-without-cap hit=true fp=false out=57 cost=0.00047 :: - `tokens` can exceed `capacity` because refills are not capped at the capacity limit | - `take()` only removes 1 token but doesn't prevent `tokens` from growing unbounded over time when `take()` is not called frequently
+None counter-write-outside-lock hit=true fp=false out=45 cost=0.00035 :: # Findings |  | 1. **Race condition**: `self.value` is read outside the lock in `incr()`, then written outside the lock, allowing concurrent modifications between the read and write operations.
+None counter-write-outside-lock hit=true fp=false out=45 cost=0.00035 :: # Findings |  | 1. **Race condition**: `self.value` is read outside the lock in `incr()`, then written outside the lock, allowing concurrent modifications between the read and write operations.
+None counter-write-outside-lock hit=true fp=false out=45 cost=0.00035 :: # Findings |  | 1. **Race condition**: `self.value` is read outside the lock in `incr()`, then written outside the lock, allowing concurrent modifications between the read and write operations.
+None leap-year-400 hit=false fp=false out=8 cost=0.00014 :: NO_DEFECTS
+None leap-year-400 hit=false fp=false out=8 cost=0.00014 :: NO_DEFECTS
+None leap-year-400 hit=false fp=false out=8 cost=0.00014 :: NO_DEFECTS
+None clean-global-memo hit=true fp=false out=8 cost=0.00018 :: NO_DEFECTS
+None clean-global-memo hit=true fp=false out=8 cost=0.00018 :: NO_DEFECTS
+None clean-global-memo hit=true fp=false out=8 cost=0.00018 :: NO_DEFECTS
+None clean-chunks hit=true fp=false out=8 cost=0.00017 :: NO_DEFECTS
+None clean-chunks hit=true fp=false out=8 cost=0.00017 :: NO_DEFECTS
+None clean-chunks hit=true fp=false out=8 cost=0.00017 :: NO_DEFECTS
+SUMMARY None: runs=24 hits=21 false_positives=0 output_tokens=750 cost=0.00701
+Some("medium") merge-keeps-last-end hit=true fp=false out=1183 cost=0.00608 :: # Defects Found: |  | 1. **Incorrect merge logic**: When merging overlapping intervals, the code uses `out[-1][1] = end` instead of `out[-1][1] = max(out[-1][1], end)`. This causes incorrect results when a later interval's end point is before t
+Some("medium") merge-keeps-last-end hit=true fp=false out=2517 cost=0.01275 :: # Defects Found |  | 1. When merging overlapping intervals, the code should use `max(out[-1][1], end)` instead of just `end`, otherwise intervals like `[[1,5], [2,3]]` produce `[[1,3]]` instead of the correct `[[1,5]]`.
+test stage3_hard_battery has been running for over 60 seconds
+Some("medium") merge-keeps-last-end hit=true fp=false out=1354 cost=0.00693 :: # Findings |  | 1. When merging overlapping intervals, the code fails to preserve the maximum end value. If a contained interval is processed after a larger one (e.g., [1,10] then [2,3]), it incorrectly overwrites the end value instead of using
+Some("medium") binary-search-no-progress hit=true fp=false out=1416 cost=0.00726 :: - Infinite loop: when `sorted_values[mid] < target`, `lo = mid` should be `lo = mid + 1` to make progress in binary search
+Some("medium") binary-search-no-progress hit=true fp=false out=1472 cost=0.00754 :: # Findings |  | 1. **Infinite loop bug**: When `sorted_values[mid] < target`, setting `lo = mid` causes the loop to get stuck when `lo` and `hi` converge (since `mid` will keep equaling the old `lo`). Should be `lo = mid + 1`.
+Some("medium") binary-search-no-progress hit=true fp=false out=1359 cost=0.00697 :: # Defects Found |  | 1. **Infinite loop bug**: When `lo` and `hi` are adjacent (differ by 1), and `sorted_values[mid] < target`, the code sets `lo = mid`, but `mid` will equal `lo` on the next iteration, causing an infinite loop instead of prog
+Some("medium") retry-returns-none hit=true fp=false out=860 cost=0.00446 :: - Missing re-raise of last exception after retries exhausted; function returns None instead of re-raising per docstring | - Unnecessary sleep delay occurs after the final failed attempt before returning
+Some("medium") retry-returns-none hit=true fp=false out=1204 cost=0.00618 :: - Missing exception re-raise: the function catches all exceptions but never re-raises the last one, returning None instead when all retries are exhausted (contradicts docstring) | - Unnecessary sleep after final failed attempt: sleeps even wh
+Some("medium") retry-returns-none hit=true fp=false out=618 cost=0.00325 :: # Defects Found |  | 1. Function returns `None` instead of re-raising the last exception when all retries fail (violates documented behavior) | 2. No exception is captured or stored to re-raise later | 3. Unnecessary `sleep` call on the final faile
+Some("medium") bucket-without-cap hit=true fp=false out=730 cost=0.00386 :: # Findings |  | 1. Tokens are not capped at capacity - should clamp `self.tokens` to `self.capacity` after adding the accumulated tokens. | 2. Not thread-safe - the read-modify-write operations on `self.tokens` and `self.last` can race in concurr
+Some("medium") bucket-without-cap hit=true fp=false out=1673 cost=0.00858 :: # Findings |  | 1. Tokens can exceed capacity - when refilled by `self.tokens += (now - self.last) * self.rate`, there is no check to cap tokens at the maximum capacity limit.
+Some("medium") bucket-without-cap hit=true fp=false out=726 cost=0.00384 :: - Tokens can accumulate beyond capacity: missing `self.tokens = min(self.tokens, self.capacity)` after adding tokens | - Not thread-safe: concurrent calls to `take()` can cause race conditions on state updates
+Some("medium") counter-write-outside-lock hit=true fp=false out=570 cost=0.00300 :: - Race condition: `self.value = current + 1` is executed outside the lock, allowing concurrent modifications between read and write operations
+Some("medium") counter-write-outside-lock hit=true fp=false out=443 cost=0.00237 :: Race condition: the increment `self.value = current + 1` is executed outside the lock, allowing multiple threads to read the same value and overwrite each other's increments.
+Some("medium") counter-write-outside-lock hit=true fp=false out=537 cost=0.00284 :: - Race condition: lock is released before `self.value = current + 1` executes, allowing another thread to read and overwrite the value, causing lost increments
+Some("medium") leap-year-400 hit=true fp=false out=876 cost=0.00451 :: Leap year logic is incorrect. The condition should use `year % 400 == 0` instead of `year % 400 != 0` — this causes years divisible by 400 (like 2000) to be incorrectly classified as non-leap years.
+Some("medium") leap-year-400 hit=true fp=false out=1105 cost=0.00565 :: Leap year logic is incorrect. Years divisible by 400 (e.g., 2000) are incorrectly classified as non-leap years. The condition should be: `year % 400 == 0 or (year % 4 == 0 and year % 100 != 0)`
+Some("medium") leap-year-400 hit=true fp=false out=861 cost=0.00443 :: Incorrect leap year logic for years divisible by 400: should use `year % 400 == 0` instead of `year % 400 != 0`, causing years like 2000 to incorrectly return False.
+Some("medium") clean-global-memo hit=false fp=true out=2191 cost=0.01112 :: - No input validation: Function accepts negative numbers and floats, which produce incorrect results (e.g., `fib(-1)` returns `-1` instead of raising an error; `fib(3.5)` operates on floats incorrectly)
+Some("medium") clean-global-memo hit=false fp=true out=3376 cost=0.01705 :: - Recursion depth exceeded for large n on first call: will raise RecursionError for n > ~1000 despite memoization, since the initial computation still requires O(n) recursive depth. | - Incorrect handling of negative inputs: returns n itself 
+Some("medium") clean-global-memo hit=false fp=true out=2552 cost=0.01293 :: - No validation for negative n; returns semantically incorrect negative Fibonacci numbers | - Stack overflow risk for large n on first invocation due to recursion depth limit before memoization takes effect | - Global cache dictionary is not th
+Some("medium") clean-chunks hit=true fp=false out=1834 cost=0.00933 :: NO_DEFECTS |  | The function correctly validates input, handles edge cases (empty sequences, chunks smaller than size, last chunk being partial), and implements the slicing logic properly. The logic `items[start:start + size]` correctly handles
+Some("medium") clean-chunks hit=false fp=true out=2061 cost=0.01046 :: - Size parameter is not validated to be an integer type; positive floats will pass the check but cause TypeError in range()
+Some("medium") clean-chunks hit=false fp=true out=1477 cost=0.00754 :: # Findings |  | 1. No validation that `size` is an integer; passing a float will cause a TypeError from `range()` rather than an explicit validation error.
+SUMMARY Some("medium"): runs=24 hits=19 false_positives=5 output_tokens=32995 cost=0.16893
+Some("high") merge-keeps-last-end hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") merge-keeps-last-end hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") merge-keeps-last-end hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") binary-search-no-progress hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") binary-search-no-progress hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") binary-search-no-progress hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") retry-returns-none hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") retry-returns-none hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") retry-returns-none hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") bucket-without-cap hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") bucket-without-cap hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") bucket-without-cap hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") counter-write-outside-lock hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") counter-write-outside-lock hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") counter-write-outside-lock hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") leap-year-400 hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") leap-year-400 hit=false fp=false out=0 cost=0.00000 :: 
+Some("high") leap-year-400 hit=true fp=false out=893 cost=0.00459 :: # Defects Found |  | 1. Incorrect leap year logic: Should use `year % 400 == 0` instead of `year % 400 != 0`, causing years divisible by 400 (e.g., 2000) to return False instead of True.
+Some("high") clean-global-memo hit=false fp=true out=0 cost=0.00000 :: 
+Some("high") clean-global-memo hit=false fp=true out=2258 cost=0.01146 :: - **No validation for negative inputs**: Fibonacci is undefined for negative integers, but the function returns them without error | - **Race condition on cache access**: The check-then-set pattern (`if n not in _cache:` followed by assignmen
+Some("high") clean-global-memo hit=false fp=true out=0 cost=0.00000 :: 
+Some("high") clean-chunks hit=false fp=true out=0 cost=0.00000 :: 
+Some("high") clean-chunks hit=false fp=true out=0 cost=0.00000 :: 
+Some("high") clean-chunks hit=false fp=true out=0 cost=0.00000 :: 
+SUMMARY Some("high"): runs=24 hits=1 false_positives=6 output_tokens=3151 cost=0.01605
+stage_spent_usd~0.19199
+test stage3_hard_battery ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 323.00s
+

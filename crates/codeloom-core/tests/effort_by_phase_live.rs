@@ -252,6 +252,8 @@ struct Review {
     text: String,
     output_tokens: u64,
     cost: f64,
+    /// Error de la ejecución, si la hubo: una respuesta vacía con error no es un fallo del modelo.
+    error: Option<String>,
 }
 
 async fn review(key: &str, code: &str, effort: Option<&str>) -> Review {
@@ -280,13 +282,14 @@ async fn review(key: &str, code: &str, effort: Option<&str>) -> Review {
         },
         dir.path().to_path_buf(),
     );
-    let _ = agent
+    let outcome = agent
         .run(
             sid,
             format!("{INSTRUCTION}{code}"),
             CancellationToken::new(),
         )
         .await;
+    let error = outcome.err().map(|error| error.to_string());
     let text = store
         .messages(sid)
         .await
@@ -308,6 +311,7 @@ async fn review(key: &str, code: &str, effort: Option<&str>) -> Review {
             .iter()
             .map(|record| record.cost().unwrap_or(0.0))
             .sum(),
+        error,
     }
 }
 
@@ -430,15 +434,43 @@ async fn run_battery(cases: &[Case], reps: usize, cap: f64) {
     let key = key();
     let mut spend = Spend::new(cap);
     for effort in [None, Some("medium"), Some("high")] {
-        let (mut hits, mut false_positives, mut tokens, mut cost, mut runs) = (0, 0, 0_u64, 0.0, 0);
+        let (mut hits, mut false_positives, mut tokens, mut cost, mut runs, mut errors) =
+            (0, 0, 0_u64, 0.0, 0, 0);
         for case in cases {
             for _ in 0..reps {
                 if !spend.allows_next() {
                     println!("cap reached, stopping before the next call");
                     break;
                 }
-                let result = review(&key, case.code, effort).await;
+                // Una respuesta vacía o con error no es un fallo del modelo: se reintenta y, si persiste,
+                // se cuenta aparte para que no contamine los aciertos.
+                let mut result = review(&key, case.code, effort).await;
                 spend.charge(result.cost);
+                for attempt in 1..=2 {
+                    if result.error.is_none() && result.output_tokens > 0 {
+                        break;
+                    }
+                    println!(
+                        "ERROR {effort:?} {} attempt={attempt} error={:?}",
+                        case.name, result.error
+                    );
+                    // Sin crédito no sirve reintentar: se detiene la batería en vez de esperar en vano.
+                    assert!(
+                        !result
+                            .error
+                            .as_deref()
+                            .is_some_and(|error| error.contains("HTTP 402")),
+                        "crédito agotado (HTTP 402): se detiene la batería"
+                    );
+                    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    result = review(&key, case.code, effort).await;
+                    spend.charge(result.cost);
+                }
+                if result.error.is_some() || result.output_tokens == 0 {
+                    println!("GAVE_UP {effort:?} {} error={:?}", case.name, result.error);
+                    errors += 1;
+                    continue;
+                }
                 let outcome = score(case, &result.text);
                 runs += 1;
                 hits += usize::from(outcome.hit);
@@ -458,7 +490,7 @@ async fn run_battery(cases: &[Case], reps: usize, cap: f64) {
             }
         }
         println!(
-            "SUMMARY {effort:?}: runs={runs} hits={hits} false_positives={false_positives} output_tokens={tokens} cost={cost:.5}"
+            "SUMMARY {effort:?}: runs={runs} errors={errors} hits={hits} false_positives={false_positives} output_tokens={tokens} cost={cost:.5}"
         );
     }
     println!("stage_spent_usd~{:.5}", spend.spent);
@@ -475,4 +507,17 @@ async fn stage1_review_without_tools() {
 #[ignore = "live OpenRouter calls; incurs provider usage"]
 async fn stage3_hard_battery() {
     run_battery(&HARD_CASES, HARD_REPS, STAGE3_CAP_USD).await;
+}
+
+#[tokio::test]
+#[ignore = "live OpenRouter calls; incurs provider usage"]
+async fn diagnose_one_high_call() {
+    let result = review(&key(), HARD_CASES[0].code, Some("high")).await;
+    println!(
+        "out={} cost={:.5} chars={} error={:?}",
+        result.output_tokens,
+        result.cost,
+        result.text.len(),
+        result.error
+    );
 }

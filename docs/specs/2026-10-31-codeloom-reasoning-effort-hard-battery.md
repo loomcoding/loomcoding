@@ -1,6 +1,6 @@
 # CodeLoom — Batería difícil del benchmark de esfuerzo de razonamiento
 
-> Estado: **borrador para implementar** (2026-10-31).
+> Estado: **ejecutada en parte** (2026-10-31): `none` y `medium` medidos; `high` pendiente por falta de crédito (HTTP 402).
 >
 > Origen: la medición `docs/references/2026-10-31-medicion-real-esfuerzo-por-fase.md` quedó en efecto techo (24 de 24
 > en todos los niveles). Amplía `2026-10-31-codeloom-reasoning-effort-benchmark.md`; no lo sustituye.

@@ -7,6 +7,10 @@
 
 ## Resumen
 
+**Actualización (batería difícil, ver más abajo):** cuando el defecto exige razonar, `medium` sí lo encuentra y el modo sin
+esfuerzo no (3 de 3 frente a 0 de 3), pero `medium` inventa defectos en código correcto (5 de 6 frente a 0 de 6) y cuesta
+unas 24 veces más. `high` no pudo medirse por falta de crédito. Lo que sigue es el resumen de la primera batería.
+
 Con Haiku 4.5 y tareas de esta dificultad, **el esfuerzo de razonamiento no mejora el resultado**: en revisión acierta
 todo sin él, y en ejecución resuelve lo mismo con `low`. En revisión, `medium` y `high` multiplican el coste por diez.
 La medición es de un solo modelo y de tareas fáciles (efecto techo), de modo que **no refuta** el patrón: solo muestra
@@ -64,7 +68,50 @@ tres** ejecuciones. Queda corregido en la spec.
   temperatura (0,0 sin él), así que ambos brazos no son idénticos en eso.
 - La etapa 2 no recogió tokens de salida: no se sabe cuánto razonó realmente con presupuesto de 2.048.
 
+## Batería difícil (etapa 3)
+
+Spec y plan: `docs/specs/2026-10-31-codeloom-reasoning-effort-hard-battery.md`, `docs/plans/2026-10-31-codeloom-reasoning-effort-hard-battery.md`.
+Ocho fragmentos: seis con un defecto que exige razonar (intervalos, búsqueda binaria, reintento, cubo de fichas, contador con
+candado, año bisiesto) y dos correctos de apariencia sospechosa (Fibonacci con caché global documentada, generador de trozos).
+Tres repeticiones por caso y nivel.
+
+**Datos válidos** (registro en bruto: `evidencias/2026-10-31-esfuerzo-por-fase/etapa3-intento1-invalido.log` para `medium`;
+`etapa3-bateria-dificil.log` repite `ninguno` con el mismo resultado):
+
+| Esfuerzo | Defectos hallados (18 llamadas) | Código correcto aceptado (6 llamadas) | Falsos positivos | Tokens de salida | Coste |
+|---|---|---|---|---|---|
+| ninguno | 15 de 18 | 6 de 6 | 0 | 750 | 0,0070 $ |
+| `medium` | 18 de 18 | 1 de 6 | 5 | 32.995 | 0,1689 $ |
+| `high` | sin datos válidos | — | — | — | — |
+
+- **Lo que sí ayuda:** el año bisiesto (`!= 0` donde debía ser `== 0`) lo falla Haiku **sin esfuerzo las tres veces**, contestando
+  `NO_DEFECTS`, y con `medium` lo encuentra las tres veces explicando el caso de 2000. Es el primer efecto real del esfuerzo.
+- **Lo que perjudica:** con `medium`, 5 de 6 revisiones de código correcto devuelven hallazgos inventados (falta de validación
+  de tipos, desbordamiento de pila con `n` grande, «condición de carrera» de la caché). Sin esfuerzo, ninguna.
+- **Coste:** unas 24 veces más (0,169 $ frente a 0,007 $) por 3 hallazgos adicionales sobre 18.
+- **Criterio del §4 de la spec** (mejora de al menos 25 puntos sin subir los falsos positivos): **no se cumple**, porque los
+  falsos positivos suben de 0 a 5. Los defectos hallados mejoran 17 puntos (83 % a 100 %).
+
+**Datos inválidos, descartados:**
+
+- `high`, primera pasada: casi todas las llamadas devolvieron respuesta vacía (0 tokens, 0 $) porque la prueba ignoraba el
+  error de la ejecución. Una llamada suelta posterior con `high` funcionó, de modo que no se sabe la causa con certeza.
+- Repetición con registro de errores: **HTTP 402 de OpenRouter** («requires more credits… can only afford 7162 tokens»). 138
+  llamadas rechazadas, `medium` sin datos salvo dos llamadas y `high` sin ninguna. Mi tope de 1,00 USD no era el límite: el
+  límite era el crédito de la cuenta o la clave de OpenRouter, que hay que revisar fuera de este repositorio. Además, los
+  reintentos de 30 s alargaron la prueba a 52 minutos; ahora un 402 aborta de inmediato.
+- Corrección: antes sospeché de un límite de ritmo; no hay prueba de eso, y la evidencia apunta al crédito.
+
+## Conclusión ampliada
+
+- **Revisión de defectos que exigen razonar:** el esfuerzo medio encuentra lo que el modo sin esfuerzo se pierde, pero a un
+  coste muy alto y generando falsos positivos. No compensa como valor por defecto; podría tener sentido solo como mando
+  explícito para una revisión concreta, si se tolera revisar los hallazgos a mano.
+- **Ejecución:** sigue sin efecto (primera batería).
+- **Sin medir:** `high` en la batería difícil. Con `n` = 24 por nivel y un caso que explica casi toda la diferencia, es
+  orientativo, no concluyente.
+
 ## Siguiente paso posible
 
-Si se quiere saber si el esfuerzo sirve de algo, hace falta una batería **más difícil** (revisión de defectos que Haiku
-sin esfuerzo falle de verdad, o un modelo más pequeño), con presupuesto aparte. Quedan ≈ 0,73 USD de los 1,00 autorizados.
+Repetir `high` de la batería difícil (≈ 0,2 USD) cuando haya crédito en OpenRouter. El gasto de esta tarea por mi cuenta ronda
+0,5 USD, pero el saldo real de la cuenta es el que manda.
