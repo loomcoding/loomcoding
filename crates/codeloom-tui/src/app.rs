@@ -458,6 +458,47 @@ pub(crate) fn agent_tag(subagent: &codeloom_core::session::SubagentDescriptor) -
     Some(format!("[{agente}{nivel}]"))
 }
 
+/// Profundidad máxima de la cadena de subagentes que la interfaz sigue (el techo duro del motor).
+const MAX_TREE_DEPTH: usize = 3;
+
+/// Posición de `child` en el árbol que cuelga de la sesión `root`: su profundidad (1 para un hijo
+/// directo) y las etiquetas desde el primer descendiente hasta él. `None` si la cadena de padres no
+/// llega a `root` o supera la cota: un padre desconocido se descarta.
+pub(crate) fn profundidad_y_camino(
+    subagents: &BTreeMap<i64, codeloom_core::session::SubagentDescriptor>,
+    root: Option<SessionId>,
+    child: i64,
+) -> Option<(usize, Vec<String>)> {
+    let root = root?;
+    let mut camino = Vec::new();
+    let mut actual = child;
+    while camino.len() < MAX_TREE_DEPTH {
+        let descriptor = subagents.get(&actual)?;
+        camino.push(descriptor.label.clone());
+        if descriptor.parent == root {
+            camino.reverse();
+            return Some((camino.len(), camino));
+        }
+        actual = descriptor.parent.0;
+    }
+    None
+}
+
+/// Etiqueta de un nodo anidado: el camino completo separado por `›`, truncado por la izquierda con
+/// `…` si supera `max` caracteres, para que el último actor siga legible.
+pub(crate) fn etiqueta_de_camino(camino: &[String], max: usize) -> String {
+    let completo = camino.join(" › ");
+    let total = completo.chars().count();
+    if total <= max {
+        return completo;
+    }
+    let cola: String = completo
+        .chars()
+        .skip(total - max.saturating_sub(1))
+        .collect();
+    format!("…{cola}")
+}
+
 /// Formato de un recuento por estado A2A exacto: `working 1, input-required 2`.
 /// Recibe el recuento ya filtrado (solo los estados con cuenta mayor que cero).
 pub fn formato_recuento(recuento: &[(TaskState, usize)]) -> String {
@@ -2497,7 +2538,12 @@ impl App {
     /// Mueve la selección del rail entre los hijos de la sesión abierta, sin dar la
     /// vuelta. Sin hijos la quita; sin selección (o con una que ya no existe) elige el primero.
     pub fn rail_move(&mut self, delta: isize) {
-        let children: Vec<i64> = self.subagents.keys().copied().collect();
+        let children: Vec<i64> = self
+            .subagents
+            .values()
+            .filter(|s| Some(s.parent) == self.session_id)
+            .map(|s| s.child.0)
+            .collect();
         let Some(&first) = children.first() else {
             self.rail_selected = None;
             return;
@@ -2521,7 +2567,11 @@ impl App {
         let Some(current) = self.session_id else {
             return false;
         };
-        if self.turn_in_flight || !self.subagents.contains_key(&child) {
+        let directo = self
+            .subagents
+            .get(&child)
+            .is_some_and(|s| Some(s.parent) == self.session_id);
+        if self.turn_in_flight || !directo {
             return false;
         }
         self.parent_stack.push(current);
@@ -3279,6 +3329,12 @@ impl App {
             .find_map(|e| e.key.strip_prefix("subagent:")?.parse::<i64>().ok())
     }
 
+    /// Si `parent` es la sesión abierta o un descendiente suyo ya conocido (hijo, nieto...).
+    fn in_open_tree(&self, parent: SessionId) -> bool {
+        Some(parent) == self.session_id
+            || profundidad_y_camino(&self.subagents, self.session_id, parent.0).is_some()
+    }
+
     fn apply_child_event(&mut self, child: SessionId, event: LiveEvent) {
         // Los eventos que no se reenvían no crean métricas.
         if !event.is_child_relevant() {
@@ -3680,7 +3736,7 @@ impl App {
                 self.jobs.insert(snapshot.id.clone(), snapshot);
             }
             LiveEvent::SubagentChanged(subagent) => {
-                if Some(subagent.parent) == self.session_id {
+                if self.in_open_tree(subagent.parent) {
                     let first_seen = !self.subagents.contains_key(&subagent.child.0);
                     if first_seen && !subagent.status.state.is_terminal() {
                         self.expanded_nodes.insert(subagent.child.0);
@@ -3690,8 +3746,9 @@ impl App {
                     {
                         self.status = "ready".into();
                     }
+                    // Primero en el mapa: el camino y la sangría del nodo se derivan de él.
+                    self.subagents.insert(subagent.child.0, subagent.clone());
                     self.sync_subagent_activity(&subagent);
-                    self.subagents.insert(subagent.child.0, subagent);
                     // Una llamada del padre que llegó antes que su hijo puede colgar ahora de él.
                     self.resync_tools();
                 }
@@ -3827,7 +3884,7 @@ impl App {
                 child,
                 event,
             } => {
-                if Some(parent) == self.session_id {
+                if self.in_open_tree(parent) {
                     // El presupuesto es de la familia: el aviso que cruza un hijo es el mismo del
                     // padre y se pinta igual, no como métrica del hijo.
                     if let LiveEvent::BudgetWarning {
@@ -4302,15 +4359,22 @@ impl App {
                 text: text.as_str(),
             })
             .collect();
+        // Un descendiente se presenta con el camino completo y sangrado por nivel.
+        let (nivel, etiqueta) =
+            match profundidad_y_camino(&self.subagents, self.session_id, subagent.child.0) {
+                Some((nivel, camino)) if nivel > 1 => (nivel - 1, etiqueta_de_camino(&camino, 48)),
+                _ => (0, subagent.label.clone()),
+            };
         let view = batten::state::NodeView {
             glyph: agente.glyph(),
             kind: "subagent",
-            label: &subagent.label,
+            label: &etiqueta,
             tag: tag.as_deref(),
             state: agente.label(),
             status: subagent_tool_status(state),
             summary: summary.as_deref(),
             expanded,
+            indent: nivel,
             children: &children,
         };
         batten::state::node_lines(&view)
@@ -7722,6 +7786,144 @@ línea dos {}",
             agent_origin: None,
             reference_task_ids: Vec::new(),
         }
+    }
+
+    /// Árbol raíz(1) → hijo(9) → nieto(10) → bisnieto(11), con etiquetas `hijo-N`.
+    fn arbol_de_tres() -> BTreeMap<i64, SubagentDescriptor> {
+        [
+            child_descriptor(9, TaskState::Working, SessionId(1)),
+            child_descriptor(10, TaskState::Working, SessionId(9)),
+            child_descriptor(11, TaskState::Working, SessionId(10)),
+        ]
+        .into_iter()
+        .map(|d| (d.child.0, d))
+        .collect()
+    }
+
+    #[test]
+    fn depth_and_path_follow_the_parent_chain_up_to_the_root() {
+        let arbol = arbol_de_tres();
+        let raiz = Some(SessionId(1));
+        assert_eq!(
+            profundidad_y_camino(&arbol, raiz, 9),
+            Some((1, vec!["hijo-9".to_string()]))
+        );
+        assert_eq!(
+            profundidad_y_camino(&arbol, raiz, 11),
+            Some((
+                3,
+                vec![
+                    "hijo-9".to_string(),
+                    "hijo-10".to_string(),
+                    "hijo-11".to_string()
+                ]
+            ))
+        );
+    }
+
+    #[test]
+    fn a_node_with_an_unknown_parent_has_no_position() {
+        let mut arbol = arbol_de_tres();
+        arbol.remove(&10);
+        assert_eq!(profundidad_y_camino(&arbol, Some(SessionId(1)), 11), None);
+        assert_eq!(profundidad_y_camino(&arbol, None, 9), None);
+    }
+
+    #[test]
+    fn a_path_is_truncated_from_the_left_keeping_the_last_actor() {
+        let camino = vec!["coordinador".to_string(), "revisor".to_string()];
+        assert_eq!(etiqueta_de_camino(&camino, 48), "coordinador › revisor");
+        let corto = etiqueta_de_camino(&camino, 12);
+        assert!(
+            corto.starts_with('…') && corto.ends_with("revisor"),
+            "{corto}"
+        );
+        assert_eq!(corto.chars().count(), 12);
+    }
+
+    #[test]
+    fn a_grandchild_shows_under_its_parent_with_indent_path_and_exact_state() {
+        let mut app = crush_app();
+        app.session_id = Some(SessionId(1));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            9,
+            TaskState::Working,
+            SessionId(1),
+        )));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            10,
+            TaskState::InputRequired,
+            SessionId(9),
+        )));
+        let lineas = texts(&app);
+        assert!(
+            lineas
+                .iter()
+                .any(|t| t.starts_with("  ▾") && t.contains("hijo-9 › hijo-10 (input-required)")),
+            "{lineas:?}"
+        );
+        assert!(
+            lineas
+                .iter()
+                .any(|t| t.starts_with("▾") && t.contains("hijo-9 (working)")),
+            "{lineas:?}"
+        );
+    }
+
+    #[test]
+    fn an_orphan_descriptor_is_dropped() {
+        let mut app = crush_app();
+        app.session_id = Some(SessionId(1));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            10,
+            TaskState::Working,
+            SessionId(9),
+        )));
+        assert!(app.subagents.is_empty());
+    }
+
+    #[test]
+    fn grandchild_child_events_feed_its_stats_but_do_not_wake_the_root() {
+        let mut app = crush_app();
+        app.session_id = Some(SessionId(1));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            9,
+            TaskState::Working,
+            SessionId(1),
+        )));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            10,
+            TaskState::Working,
+            SessionId(9),
+        )));
+        app.apply(child_event(SessionId(9), 10, LiveEvent::TurnStarted));
+        assert!(app.agent_stats[&10].started_at.is_some());
+        app.apply(LiveEvent::SubagentSettled {
+            parent: SessionId(9),
+            child: SessionId(10),
+            status: TaskState::Completed,
+        });
+        assert!(!app.wake_pending);
+    }
+
+    #[test]
+    fn the_rail_only_walks_direct_children() {
+        let mut app = crush_app();
+        app.session_id = Some(SessionId(1));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            9,
+            TaskState::Working,
+            SessionId(1),
+        )));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            10,
+            TaskState::Working,
+            SessionId(9),
+        )));
+        app.rail_move(1);
+        app.rail_move(1);
+        assert_eq!(app.rail_selected, Some(9));
+        assert!(!app.open_child(10));
     }
 
     #[test]

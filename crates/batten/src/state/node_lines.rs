@@ -30,6 +30,8 @@ pub struct NodeView<'a> {
     /// Resumen de progreso, p. ej. `"step 2/30 · read_file"`.
     pub summary: Option<&'a str>,
     pub expanded: bool,
+    /// Niveles de sangría (dos columnas cada uno) de un nodo anidado bajo otro subagente.
+    pub indent: usize,
     pub children: &'a [NodeChild<'a>],
 }
 
@@ -37,7 +39,8 @@ pub struct NodeView<'a> {
 /// sus guías. Plegado, solo la cabecera.
 pub fn node_lines(view: &NodeView<'_>) -> Vec<Line> {
     let mark = if view.expanded { "▾" } else { "▸" };
-    let mut text = format!("{mark} {} ", view.glyph);
+    let margen = "  ".repeat(view.indent);
+    let mut text = format!("{margen}{mark} {} ", view.glyph);
     let kind_start = text.len();
     text.push_str(view.kind);
     let kind_span = SpanSpec {
@@ -74,7 +77,7 @@ pub fn node_lines(view: &NodeView<'_>) -> Vec<Line> {
             let guide = if i == last { "└─" } else { "├─" };
             Line::new(
                 LineKind::NodeBody,
-                format!("{guide} {} {}", child.glyph, child.text),
+                format!("{margen}{guide} {} {}", child.glyph, child.text),
             )
         }));
     }
@@ -97,6 +100,7 @@ mod tests {
             status: ToolStatus::Running,
             summary: Some("step 2/30 · read_file"),
             expanded: false,
+            indent: 0,
             children,
         }
     }
@@ -160,6 +164,7 @@ mod tests {
             status: ToolStatus::Success,
             summary: None,
             expanded: false,
+            indent: 0,
             children: &[],
         };
         let lines = node_lines(&v);
@@ -178,9 +183,33 @@ mod tests {
             status: ToolStatus::Success,
             summary: Some(""),
             expanded: false,
+            indent: 0,
             children: &[],
         };
         let lines = node_lines(&v);
         assert_eq!(lines[0].plain(), "▸ ✓ subagent (completed)");
+    }
+
+    #[test]
+    fn an_indented_node_shifts_its_header_and_children_and_keeps_the_kind_span() {
+        let children = [NodeChild {
+            glyph: "✓",
+            text: "read_file",
+        }];
+        let mut v = view(&children);
+        v.expanded = true;
+        v.indent = 2;
+        let lines = node_lines(&v);
+        assert!(
+            lines[0].plain().starts_with("    ▾ ● subagent"),
+            "{}",
+            lines[0].plain()
+        );
+        let span = &lines[0].spans[0];
+        assert_eq!(
+            &lines[0].plain()[span.start..span.start + span.len],
+            "subagent"
+        );
+        assert_eq!(lines[1].plain(), "    └─ ✓ read_file");
     }
 }

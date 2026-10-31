@@ -16,11 +16,11 @@
    (el lanzador anidado comparte bus); no hay cambio de motor. Se añaden las pruebas de regresión de los criterios 1 y 2
    (`the_root_bus_receives_the_grandchild_events_untouched` y
    `with_the_default_ceiling_no_grandchild_event_reaches_the_root_bus`). Commit.
-2. **Descendientes en el estado de la interfaz.** Pruebas primero en `codeloom-tui/src/app.rs`: función pura
+2. **Descendientes en el estado de la interfaz. Hecha.** Pruebas primero en `codeloom-tui/src/app.rs`: función pura
    `profundidad_y_camino(subagents, child) -> (usize, Vec<String>)` con cota 3 y descarte de padre desconocido
    (criterios 3 y 5). Luego aceptar `SubagentChanged` y `ChildEvent` cuyo `parent` sea un descendiente conocido, sin tocar
    `SubagentSettled` (criterio 6). Commit.
-3. **Sangría y camino.** Pruebas primero: la cabecera del nodo del nieto lleva sangría y etiqueta `hijo › nieto`, con el
+3. **Sangría y camino. Hecha** (campo `indent` en `batten::state::NodeView`; el rail y `open_child` se limitan a hijos directos). Pruebas primero: la cabecera del nodo del nieto lleva sangría y etiqueta `hijo › nieto`, con el
    estado A2A entre paréntesis y truncado por la izquierda (criterios 3 y 5). Luego `subagent_node_lines` aplica ambos.
    Commit.
 4. **Diario.** Prueba de que las herramientas del nieto cuelgan de su nodo (criterio 4) y de que sin recursión nada cambia
