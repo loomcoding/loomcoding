@@ -1,7 +1,8 @@
 //! Aviso de presupuesto de gasto de la sesión (sección `[budget]` de `codeloom.toml`).
 //!
-//! Función pura y sin estado: no detiene el turno ni modifica el comportamiento del modelo.
-//! Solo determina qué umbrales cruza el acumulado de la sesión al apuntar una respuesta.
+//! Por defecto es solo un aviso: funciones puras y sin estado que determinan qué umbrales cruza
+//! el acumulado de la sesión al apuntar una respuesta. Con `hard_stop = true`, además,
+//! `budget_exhausted` indica cuándo el agente debe dejar de pedir respuestas al modelo.
 
 use crate::error::{CoreError, Result};
 use crate::session::UsageRecord;
@@ -20,6 +21,9 @@ pub struct BudgetConfig {
     pub session_tokens: Option<u64>,
     /// Dólares acumulados en la sesión, según los precios conocidos.
     pub session_cost_usd: Option<f64>,
+    /// Si es `true`, el agente deja de pedir respuestas al modelo cuando el acumulado de la familia
+    /// alcanza el 100 % de algún límite. Por defecto, `false`: el presupuesto solo avisa.
+    pub hard_stop: bool,
 }
 
 /// Forma del fichero a efectos de la sección `[budget]`; el resto de claves se ignora.
@@ -80,6 +84,52 @@ pub struct BudgetWarning {
     pub limit: f64,
     /// Solo `CostUsd`: `true` si algún apunte no tenía precio y, por tanto, no suma.
     pub partial: bool,
+}
+
+/// Con `hard_stop` activo, el límite que el acumulado de la familia ya ha alcanzado o superado.
+///
+/// `records` son los apuntes de la familia, como en `budget_crossings`. Sin `hard_stop` devuelve
+/// siempre `None`. Con el coste, un apunte sin precio no suma (el aviso lo marca como `partial`),
+/// de modo que el tope de coste puede quedarse corto; el de tokens no tiene ese defecto.
+pub fn budget_exhausted(config: &BudgetConfig, records: &[UsageRecord]) -> Option<BudgetWarning> {
+    if !config.hard_stop {
+        return None;
+    }
+    if let Some(limite) = config.session_tokens {
+        let usado: f64 = records
+            .iter()
+            .map(|r| r.input_tokens.saturating_add(r.output_tokens) as f64)
+            .sum();
+        if usado >= limite as f64 {
+            return Some(BudgetWarning {
+                metric: BudgetMetric::Tokens,
+                level_percent: 100,
+                used: usado,
+                limit: limite as f64,
+                partial: false,
+            });
+        }
+    }
+    if let Some(limite) = config.session_cost_usd {
+        let mut usado = 0.0;
+        let mut partial = false;
+        for registro in records {
+            match registro.cost() {
+                Some(coste) => usado += coste,
+                None => partial = true,
+            }
+        }
+        if usado >= limite {
+            return Some(BudgetWarning {
+                metric: BudgetMetric::CostUsd,
+                level_percent: 100,
+                used: usado,
+                limit: limite,
+                partial,
+            });
+        }
+    }
+    None
 }
 
 /// Avisos de los umbrales que cruza el acumulado de la sesión al añadir `added`.
@@ -192,6 +242,7 @@ mod tests {
         BudgetConfig {
             session_tokens: Some(limite),
             session_cost_usd: None,
+            hard_stop: false,
         }
     }
 
@@ -199,7 +250,59 @@ mod tests {
         BudgetConfig {
             session_tokens: None,
             session_cost_usd: Some(limite),
+            hard_stop: false,
         }
+    }
+
+    #[test]
+    fn hard_stop_is_off_by_default_and_read_from_toml() {
+        assert!(!BudgetConfig::default().hard_stop);
+        let config = BudgetConfig::from_toml(
+            "[budget]
+session_tokens = 10
+hard_stop = true
+",
+        )
+        .unwrap();
+        assert!(config.hard_stop);
+    }
+
+    #[test]
+    fn budget_exhausted_needs_hard_stop_and_the_full_limit() {
+        let gastado = [registro(600, 400, None)];
+        // Sin hard_stop, aunque se haya alcanzado el límite, no hay parada.
+        assert_eq!(budget_exhausted(&solo_tokens(1000), &gastado), None);
+        let duro = BudgetConfig {
+            hard_stop: true,
+            ..solo_tokens(1000)
+        };
+        let aviso = budget_exhausted(&duro, &gastado).unwrap();
+        assert_eq!(
+            (aviso.metric, aviso.used, aviso.limit),
+            (BudgetMetric::Tokens, 1000.0, 1000.0)
+        );
+        // Por debajo del límite no se para.
+        assert_eq!(budget_exhausted(&duro, &[registro(500, 400, None)]), None);
+    }
+
+    #[test]
+    fn budget_exhausted_applies_to_cost_and_marks_unpriced_records_as_partial() {
+        let duro = BudgetConfig {
+            hard_stop: true,
+            ..solo_coste(1.0)
+        };
+        // 1 M tokens de entrada a 1 $/M: un dólar exacto, más un apunte sin precio.
+        let gastado = [
+            registro(1_000_000, 0, Some((1.0, 0.0))),
+            registro(5, 5, None),
+        ];
+        let aviso = budget_exhausted(&duro, &gastado).unwrap();
+        assert_eq!(aviso.metric, BudgetMetric::CostUsd);
+        assert!(aviso.partial);
+        assert_eq!(
+            budget_exhausted(&duro, &[registro(10, 0, Some((1.0, 0.0)))]),
+            None
+        );
     }
 
     #[test]
@@ -212,6 +315,7 @@ mod tests {
             BudgetConfig {
                 session_tokens: Some(500_000),
                 session_cost_usd: Some(2.5),
+                hard_stop: false,
             }
         );
         assert!(!config.is_empty());
@@ -386,6 +490,7 @@ mod tests {
         let config = BudgetConfig {
             session_tokens: Some(1000),
             session_cost_usd: Some(10.0),
+            hard_stop: false,
         };
         // Entrada gratuita y salida a 1 M USD/M: el coste en dólares es igual a los tokens de salida.
         let solo_entrada = registro(800, 0, Some((0.0, 1_000_000.0)));

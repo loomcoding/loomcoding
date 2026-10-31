@@ -3387,6 +3387,7 @@ mod tests {
         .with_budget(BudgetConfig {
             session_tokens: Some(1000),
             session_cost_usd: None,
+            hard_stop: false,
         });
 
         let (_, job) = runtime

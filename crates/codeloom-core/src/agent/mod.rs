@@ -797,6 +797,23 @@ impl AgentLoop {
             if crate::agent::stop::should_stop(&history, steps, config.max_steps) {
                 break;
             }
+            // Tope duro opcional: con `hard_stop`, agotado el presupuesto de la familia no se pide otra
+            // respuesta al modelo. Sin él no se toca el almacén, de modo que el coste es nulo.
+            if self.budget.hard_stop {
+                let familia = self
+                    .store
+                    .session_usage(self.budget_family.unwrap_or(session))
+                    .await?;
+                if let Some(agotado) = crate::budget::budget_exhausted(&self.budget, &familia) {
+                    self.bus.publish(LiveEvent::RuntimeNotice {
+                        message: format!(
+                            "Budget exhausted ({:?}: {} of {}): the turn was stopped by hard_stop.",
+                            agotado.metric, agotado.used, agotado.limit
+                        ),
+                    });
+                    break;
+                }
+            }
             // Si el contexto estimado alcanza la fracción de la ventana, se resume lo antiguo antes
             // de construir la petición. Sin ventana conocida no se compacta. Un fallo no aborta el
             // turno ni se reintenta en él.
@@ -4504,6 +4521,7 @@ Cuerpo.
         BudgetConfig {
             session_tokens: Some(limite),
             session_cost_usd: None,
+            hard_stop: false,
         }
     }
 
@@ -4556,6 +4574,60 @@ Cuerpo.
 
         // 800 tokens sobre un límite de 1000: se cruza el 80 % y no el 100 %.
         assert_eq!(avisos_del_bus(&mut rx), vec![(80, 800.0)]);
+    }
+
+    /// Dos respuestas: la primera llama a `noop` y consume 1 100 tokens; la segunda es texto.
+    fn dos_pasos_que_rebasan_el_limite() -> Vec<Vec<StreamChunk>> {
+        vec![
+            vec![
+                StreamChunk::ToolCallComplete {
+                    id: "c1".into(),
+                    name: "noop".into(),
+                    input: serde_json::json!({}),
+                },
+                StreamChunk::Usage(Usage {
+                    input_tokens: 700,
+                    output_tokens: 400,
+                    reported_cost_usd: None,
+                }),
+                StreamChunk::Done(FinishReason::ToolCalls),
+            ],
+            respuesta_con_consumo("listo", 10, 1),
+        ]
+    }
+
+    async fn peticiones_con_presupuesto(presupuesto: BudgetConfig) -> usize {
+        let mut herramientas = ToolRegistry::new();
+        herramientas.register(Arc::new(NamedTool("noop")));
+        let proveedor = proveedor_de("", false, dos_pasos_que_rebasan_el_limite());
+        let mut e =
+            entorno_de_turno(proveedor, catalogo_de_ventana(100_000), &[], herramientas).await;
+        e.agente = e.agente.with_budget(presupuesto);
+        e.agente
+            .run(e.sid, "hola".into(), CancellationToken::new())
+            .await
+            .unwrap();
+        let peticiones = e.proveedor.seen.lock().unwrap().len();
+        peticiones
+    }
+
+    #[tokio::test]
+    async fn without_hard_stop_an_exceeded_budget_only_warns() {
+        let peticiones = peticiones_con_presupuesto(presupuesto_de_tokens(1000)).await;
+        assert_eq!(peticiones, 2, "sin hard_stop el turno sigue");
+    }
+
+    #[tokio::test]
+    async fn hard_stop_ends_the_turn_once_the_budget_is_exhausted() {
+        let presupuesto = BudgetConfig {
+            hard_stop: true,
+            ..presupuesto_de_tokens(1000)
+        };
+        let peticiones = peticiones_con_presupuesto(presupuesto).await;
+        assert_eq!(
+            peticiones, 1,
+            "agotado el presupuesto no se pide otra respuesta"
+        );
     }
 
     /// Registra `child` como hijo de `parent` en el almacén, como hace el lanzador.
