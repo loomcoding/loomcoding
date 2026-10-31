@@ -73,6 +73,35 @@ pub fn limit_bytes(content: &str, max: usize) -> std::borrow::Cow<'_, str> {
     if content.len() <= max {
         return std::borrow::Cow::Borrowed(content);
     }
+    let (head_end, tail_start) = cut_points(content, max);
+    let omitted = tail_start - head_end;
+    std::borrow::Cow::Owned(format!(
+        "{}\n[... {omitted} bytes omitted ...]\n{}",
+        &content[..head_end],
+        &content[tail_start..]
+    ))
+}
+
+/// Como `limit_bytes`, pero antepone una cabecera estructurada que declara el recorte, cuántos bytes
+/// se muestran de cuántos y cuántos se omiten. Al ir la señal al principio, el modelo la lee antes
+/// que el prefijo y no puede tomarlo por el documento completo. Si cabe en `max`, lo devuelve intacto.
+pub fn limit_bytes_with_header(content: &str, max: usize) -> std::borrow::Cow<'_, str> {
+    if content.len() <= max {
+        return std::borrow::Cow::Borrowed(content);
+    }
+    let (head_end, tail_start) = cut_points(content, max);
+    let omitted = tail_start - head_end;
+    let shown = content.len() - omitted;
+    std::borrow::Cow::Owned(format!(
+        "[truncated: showing {shown} of {} bytes, head and tail; {omitted} bytes omitted from the middle]\n{}\n[... {omitted} bytes omitted ...]\n{}",
+        content.len(),
+        &content[..head_end],
+        &content[tail_start..]
+    ))
+}
+
+/// Puntos de corte de cabeza y de cola para conservar como mucho `max` bytes, ambos en frontera de carácter.
+fn cut_points(content: &str, max: usize) -> (usize, usize) {
     let half = max / 2;
     let mut head_end = half;
     while !content.is_char_boundary(head_end) {
@@ -82,13 +111,7 @@ pub fn limit_bytes(content: &str, max: usize) -> std::borrow::Cow<'_, str> {
     while !content.is_char_boundary(tail_start) {
         tail_start += 1;
     }
-    let kept = head_end + (content.len() - tail_start);
-    let omitted = content.len() - kept;
-    std::borrow::Cow::Owned(format!(
-        "{}\n[... {omitted} bytes omitted ...]\n{}",
-        &content[..head_end],
-        &content[tail_start..]
-    ))
+    (head_end, tail_start)
 }
 
 /// Recorta la salida de una herramienta a `MAX_TOOL_OUTPUT_BYTES`; ver `limit_bytes`.

@@ -90,15 +90,17 @@ const MAX_SYSTEM_EXTRA_BYTES: usize = 16_000;
 /// Contenido que recibe el modelo para el resultado de una herramienta. Si supera el tope y hay
 /// volcado, guarda el original y añade su ruta tras el recorte; la reserva de 256 bytes deja
 /// margen al marcador para que el total siga dentro de `MAX_TOOL_OUTPUT_BYTES`. Si no hay
-/// volcado o no se pudo escribir, se recorta sin ruta, como antes.
+/// volcado o no se pudo escribir, se recorta sin ruta. Todo recorte abre con una cabecera
+/// estructurada; la reserva de 512 bytes cubre la cabecera, el marcador y la ruta.
 fn contenido_de_herramienta(spill: Option<&ToolSpill>, call_id: &str, content: &str) -> String {
-    if content.len() > MAX_TOOL_OUTPUT_BYTES {
-        if let Some(ruta) = spill.and_then(|spill| spill.save(call_id, content)) {
-            let recorte = limit_bytes(content, MAX_TOOL_OUTPUT_BYTES - 256);
-            return format!("{recorte}\n[full output saved to: {}]", ruta.display());
-        }
+    if content.len() <= MAX_TOOL_OUTPUT_BYTES {
+        return content.to_owned();
     }
-    crate::tools::limit_output(content).into_owned()
+    let recorte = crate::tools::limit_bytes_with_header(content, MAX_TOOL_OUTPUT_BYTES - 512);
+    match spill.and_then(|spill| spill.save(call_id, content)) {
+        Some(ruta) => format!("{recorte}\n[full output saved to: {}]", ruta.display()),
+        None => recorte.into_owned(),
+    }
 }
 
 /// Instrucción final de la petición de resumen, después de los mensajes que se resumen.
@@ -2760,6 +2762,32 @@ mod tests {
         let ruta = &contenido[inicio..contenido.len() - 1];
         let guardado = std::fs::read_to_string(ruta).unwrap();
         assert_eq!(guardado, "x".repeat(50_000));
+    }
+
+    #[tokio::test]
+    async fn truncated_tool_result_opens_with_a_structured_header() {
+        let dir = tempfile::tempdir().unwrap();
+        let spill = ToolSpill::new(dir.path().join("spill"));
+        let con_volcado = resultado_de_voluminosa(Some(spill), dir.path()).await;
+        let sin_volcado = resultado_de_voluminosa(None, dir.path()).await;
+        for contenido in [&con_volcado, &sin_volcado] {
+            // La señal va al principio: el modelo la lee antes que el prefijo que podría tomar por entero.
+            assert!(
+                contenido.starts_with("[truncated: showing "),
+                "sin cabecera: {}",
+                &contenido[..contenido.len().min(120)]
+            );
+            let cabecera = contenido.lines().next().unwrap();
+            assert!(cabecera.contains("of 50000 bytes"), "{cabecera}");
+            assert!(cabecera.contains("omitted"), "{cabecera}");
+            assert!(contenido.len() <= MAX_TOOL_OUTPUT_BYTES);
+        }
+    }
+
+    #[test]
+    fn a_tool_result_that_fits_is_delivered_without_a_header() {
+        let contenido = contenido_de_herramienta(None, "call-1", "corto");
+        assert_eq!(contenido, "corto");
     }
 
     #[tokio::test]
