@@ -1,6 +1,6 @@
 # Plan — Delegación recursiva acotada por profundidad
 
-> Estado: pendiente de aprobación (2026-10-31). No se escribe código hasta entonces.
+> Estado: aprobado (2026-10-31). Hechas las tareas 1 y 2 (`depth_ceiling`, `root_levels`, `child_levels`, `can_delegate`, aviso del perfil); pendientes 3 a 6.
 > Spec: `docs/specs/2026-10-31-codeloom-recursive-delegation.md`.
 
 ## Restricciones

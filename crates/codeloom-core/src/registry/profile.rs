@@ -212,10 +212,10 @@ pub fn parse_profile(
     if remote_endpoint.is_some() && provider.is_some() {
         return Err(ProfileProblem::InvalidProvider);
     }
-    // La profundidad real es 1: los hijos no reciben la herramienta `subagent`. Cualquier otro valor
-    // declararía una profundidad que no existe, de modo que se avisa como «declarado y no aplicado».
+    // `max_depth` son los niveles del subárbol que el agente encabeza, contándose a sí mismo: el techo
+    // `[agents] max_depth` puede recortarlo al arrancar. Solo `0` carece de sentido y se avisa.
     let max_depth = entero_opcional(mapa, "max_depth")?;
-    if max_depth.is_some_and(|profundidad| profundidad != 1) {
+    if max_depth == Some(0) {
         declared_not_applied.push("max_depth".to_string());
         avisos.push(ProfileProblem::DeclaredNotApplied("max_depth".to_string()));
     }
@@ -773,8 +773,8 @@ Si la tarea es de otra especialidad, dilo y delega con `delegate`.
     }
 
     #[test]
-    fn max_depth_other_than_one_is_reported_as_not_applied() {
-        for valor in ["0", "3"] {
+    fn max_depth_zero_is_reported_as_not_applied_but_higher_values_are_accepted() {
+        for valor in ["2", "3"] {
             let texto = format!(
                 "---
 name: frontend
@@ -786,9 +786,20 @@ Cuerpo.
 "
             );
             let (perfil, problemas) = parse_profile("frontend", &texto).unwrap();
-            assert_eq!(perfil.declared_not_applied, vec!["max_depth".to_string()]);
-            assert!(problemas.contains(&ProfileProblem::DeclaredNotApplied("max_depth".into())));
+            assert!(perfil.declared_not_applied.is_empty(), "{valor}");
+            assert!(problemas.is_empty(), "{problemas:?}");
         }
+        let con_cero = "---
+name: frontend
+description: Un agente de prueba
+max_depth: 0
+---
+
+Cuerpo.
+";
+        let (perfil, problemas) = parse_profile("frontend", con_cero).unwrap();
+        assert_eq!(perfil.declared_not_applied, vec!["max_depth".to_string()]);
+        assert!(problemas.contains(&ProfileProblem::DeclaredNotApplied("max_depth".into())));
     }
 
     #[test]

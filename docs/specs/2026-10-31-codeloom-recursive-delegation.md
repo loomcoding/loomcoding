@@ -1,6 +1,6 @@
 # CodeLoom — Delegación recursiva acotada por profundidad
 
-> Estado: **borrador para aprobar** (2026-10-31). Sin código hasta la aprobación.
+> Estado: **aprobada** (2026-10-31); fase 1 en curso: configuración y regla de niveles hechas, falta el hijo que delega.
 >
 > Origen: decisión futura anotada en `2026-10-31-codeloom-delegation-limits.md` §4 («aplicar `max_depth` de verdad»).
 >

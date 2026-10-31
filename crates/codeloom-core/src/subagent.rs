@@ -124,6 +124,29 @@ pub trait SubagentLauncher: Send + Sync {
     }
 }
 
+/// Niveles restantes de la sesión raíz: ella misma más los del techo de profundidad.
+pub fn root_levels(ceiling: u32) -> u32 {
+    ceiling.saturating_add(1)
+}
+
+/// Niveles restantes de un hijo: los del padre menos uno, sin pasar de lo que su perfil declara (sin
+/// `max_depth`, una hoja).
+pub fn child_levels(parent_left: u32, profile_max_depth: Option<u32>) -> u32 {
+    parent_left
+        .saturating_sub(1)
+        .min(profile_max_depth.unwrap_or(1).max(1))
+}
+
+/// Si el perfil pide más niveles de los que el techo del árbol deja al hijo.
+pub fn depth_clipped(parent_left: u32, profile_max_depth: Option<u32>) -> bool {
+    profile_max_depth.is_some_and(|pedidos| pedidos > parent_left.saturating_sub(1))
+}
+
+/// Una sesión puede delegar solo si le quedan al menos dos niveles: ella y uno por debajo.
+pub fn can_delegate(left: u32) -> bool {
+    left >= 2
+}
+
 pub struct InProcessSubagentLauncher {
     provider: Arc<RwLock<Arc<dyn Provider>>>,
     store: Arc<dyn SessionStore>,
@@ -679,8 +702,7 @@ Task: {label}
             if let Some(turnos) = spec.max_turns {
                 child_config.max_steps = usize::try_from(turnos).unwrap_or(usize::MAX);
             }
-            // `max_depth` leído y no aplicado: el hijo no recibe la herramienta `subagent`, así
-            // que no puede anidar subagentes y no hay profundidad que limitar todavía.
+            // `max_depth` se aplicará al construir el hijo (véase `child_levels`).
             let sistema = spec.system_prompt();
             if !sistema.trim().is_empty() {
                 child_system = Some(sistema);
@@ -1772,6 +1794,53 @@ impl SubagentLauncher for InProcessSubagentLauncher {
 
 #[cfg(test)]
 mod tests {
+    use super::{can_delegate, child_levels, depth_clipped, root_levels};
+
+    #[test]
+    fn with_the_default_ceiling_the_child_never_delegates_even_if_its_profile_asks() {
+        let raiz = root_levels(1);
+        assert!(can_delegate(raiz));
+        let hijo = child_levels(raiz, Some(3));
+        assert_eq!(hijo, 1);
+        assert!(!can_delegate(hijo));
+        assert!(depth_clipped(raiz, Some(3)));
+        assert!(!depth_clipped(raiz, Some(1)));
+        assert!(!depth_clipped(raiz, None));
+    }
+
+    #[test]
+    fn ceiling_two_and_a_profile_with_two_levels_give_a_grandchild_that_is_a_leaf() {
+        let raiz = root_levels(2);
+        let hijo = child_levels(raiz, Some(2));
+        assert!(can_delegate(hijo));
+        let nieto = child_levels(hijo, None);
+        assert_eq!(nieto, 1);
+        assert!(!can_delegate(nieto));
+    }
+
+    #[test]
+    fn ceiling_three_gives_a_chain_whose_last_member_is_a_leaf() {
+        let hijo = child_levels(root_levels(3), Some(3));
+        let nieto = child_levels(hijo, Some(2));
+        assert!(can_delegate(hijo) && can_delegate(nieto));
+        let bisnieto = child_levels(nieto, Some(3));
+        assert_eq!(bisnieto, 1);
+        assert!(!can_delegate(bisnieto));
+    }
+
+    #[test]
+    fn a_profile_without_max_depth_is_a_leaf_even_with_a_high_ceiling() {
+        let hijo = child_levels(root_levels(2), None);
+        assert_eq!(hijo, 1);
+        assert!(!can_delegate(hijo));
+        assert!(!depth_clipped(root_levels(2), None));
+    }
+
+    #[test]
+    fn a_zero_in_the_profile_still_counts_as_a_leaf() {
+        assert_eq!(child_levels(root_levels(3), Some(0)), 1);
+    }
+
     use super::*;
     use crate::config::{ProviderConfig, ProviderKind};
     use crate::job::{JobRegistry, JobStatus, LocalJobRegistry};

@@ -125,7 +125,14 @@ pub struct AgentsConfig {
     pub delegation: Option<DelegationMode>,
     /// Subagentes activos a la vez. Sin valor, `DEFAULT_ACTIVE_SUBAGENTS`; ver `active_subagents`.
     pub max_active_subagents: Option<usize>,
+    /// Techo de profundidad de la delegación. Sin valor, `DEFAULT_DEPTH_CEILING`; ver `depth_ceiling`.
+    pub max_depth: Option<u32>,
 }
+
+/// Techo de profundidad por defecto: 1 es la delegación sin recursión, la de siempre.
+pub const DEFAULT_DEPTH_CEILING: u32 = 1;
+/// Cota superior del techo de profundidad: más niveles multiplicarían el coste sin control.
+pub const MAX_DEPTH_CEILING: u32 = 3;
 
 /// Subagentes activos a la vez por defecto.
 pub const DEFAULT_ACTIVE_SUBAGENTS: usize = 8;
@@ -140,6 +147,12 @@ struct FicheroConAgentes {
 }
 
 impl AgentsConfig {
+    /// Techo de profundidad efectivo: el configurado, acotado a `1..=MAX_DEPTH_CEILING`, o 1 si no se configuró.
+    pub fn depth_ceiling(&self) -> u32 {
+        self.max_depth
+            .map_or(DEFAULT_DEPTH_CEILING, |n| n.clamp(1, MAX_DEPTH_CEILING))
+    }
+
     /// Límite efectivo de subagentes activos: el configurado, acotado a `1..=MAX_ACTIVE_SUBAGENTS`,
     /// o el valor por defecto si no se configuró.
     pub fn active_subagents(&self) -> usize {
@@ -488,6 +501,24 @@ mod tests {
         assert!(DelegationMode::Proactive
             .rule()
             .is_some_and(|rule| rule.contains("proactively")));
+    }
+
+    #[test]
+    fn depth_ceiling_defaults_to_one_reads_and_clamps() {
+        assert_eq!(AgentsConfig::default().depth_ceiling(), 1);
+        let leer = |valor: &str| {
+            AgentsConfig::from_toml(&format!(
+                "[agents]
+max_depth = {valor}
+"
+            ))
+            .unwrap()
+            .depth_ceiling()
+        };
+        assert_eq!(leer("2"), 2);
+        assert_eq!(leer("3"), 3);
+        assert_eq!(leer("0"), 1);
+        assert_eq!(leer("9"), 3);
     }
 
     #[test]
