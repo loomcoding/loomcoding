@@ -121,6 +121,30 @@ crates/
 Hard rule: `codeloom-core` does **not** depend on `ratatui` or `crossterm`; the
 engine is a pure, testable library.
 
+## Design patterns we follow
+
+Some of CodeLoom's design decisions match published agent-design patterns from
+[agentpatterns.ai](https://agentpatterns.ai) (summarized here under its
+[CC BY 4.0](https://github.com/agentpatterns-ai/website/blob/main/LICENSE) license; follow each link for the
+original). Status is our own reading of the code, not an audit, and the figures cited by those pages are not
+measurements of CodeLoom.
+
+| Pattern | Where | Why | Status |
+|---|---|---|---|
+| [Specification Authority Boundary](https://agentpatterns.ai/patterns/agent-design/specification-authority-boundary/) | Workflow phases are a state machine in `codeloom-core/src/workflow.rs`; final acceptance is the user's | The agent proposes; only the runtime and the user can mark work as done | Applied |
+| [Binding an Agent's Effect to the Approval It Claims](https://agentpatterns.ai/patterns/agent-design/interaction-effect-obligations/) | Spec and plan approval is bound to a SHA-256 of the artifacts (`tools/development_workflow.rs`) | Changing an approved artifact must invalidate the approval | Applied for the workflow, not for per-tool permissions |
+| [Prompt-Only Tool Access Control](https://agentpatterns.ai/patterns/anti-patterns/prompt-only-tool-access-control/) | Blocked tools are hidden from the provider and also rejected at dispatch (`agent/dispatch.rs`, `agent/mod.rs`) | A prompt rule alone lets unauthorized calls through; the cited study reports 4% to 37% | Applied (two layers) |
+| [Static Roster vs Runtime Subagent Definition](https://agentpatterns.ai/patterns/multi-agent/static-roster-vs-runtime-subagent-definition/) | Agent profiles are files (`.agents/`, `codeloom-core/src/registry`); project agents need approval | A reviewed, fixed roster is the safer default | Applied |
+| [Forked vs Fresh Subagents](https://agentpatterns.ai/patterns/multi-agent/forked-vs-fresh-subagents/) | Children start from their task brief, and the reviewer from the task and approved artifacts (`subagent.rs`, `tools/development_workflow.rs`) | Inherited context biases a reviewer | Applied (fresh only; no fork) |
+| [Context Compression Strategies](https://agentpatterns.ai/context-engineering/context-compression-strategies/) | Large outputs spill to disk (`tools/spill.rs`); history is summarized at 80% of the window (`agent/compact.rs`) | Long sessions must stay inside the context window | Applied |
+| [Unbounded Agent Feedback Paths](https://agentpatterns.ai/patterns/anti-patterns/unbounded-agent-feedback-paths/) | `max_steps`, compactions per turn and correction rounds are capped | Unbounded loops exhaust cost; the design rule is in the [context and cost decalogue](docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md) | Applied |
+| [Static Content First](https://agentpatterns.ai/context-engineering/static-content-first-caching/) | The tool registry is a `BTreeMap`, so tools are listed in a stable order | A stable order keeps the prompt prefix identical across calls | Applied for ordering only; prompt caching itself is not measured or enabled |
+| [Graceful Tool-Output Truncation](https://agentpatterns.ai/tool-engineering/graceful-tool-output-truncation/) | Head and tail are kept with an omitted-bytes marker and the path of the full output | The agent keeps a useful prefix and a way to continue | Partial: the marker is inline, not in a distinct slot |
+| [Enforcement Modes](https://agentpatterns.ai/patterns/agent-design/spec-first-framework-enforcement-modes/) | The workflow lives in code; `confirm_delegation` only changes prompt text | Controls the agent cannot edit are stronger than prose | Mixed |
+
+Candidates we have not adopted, the ones we rejected and why, and what still needs measuring are in
+[the references folder](docs/references/2026-10-31-agentpatterns-candidatas-a-implementar.md).
+
 ## Documentation
 
 The [documentation guide](docs/README.md) maps the architecture, specs, plans,
