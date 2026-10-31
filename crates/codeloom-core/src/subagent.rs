@@ -382,6 +382,12 @@ impl InProcessSubagentLauncher {
         }
     }
 
+    /// Raíz de la familia de presupuesto de los hijos que `parent` lance con este lanzador: el propio
+    /// `parent` si este es el lanzador de la raíz, o la raíz heredada si es uno anidado.
+    fn familia(&self, parent: SessionId) -> SessionId {
+        self.family_root.unwrap_or(parent)
+    }
+
     /// Lanzador de la sesión `hijo`, que puede delegar: comparte con este el semáforo de activos, el
     /// buzón de preguntas, el almacén, el bus, los trabajos, el catálogo, el registro y el presupuesto, y
     /// ve el árbol entero como una sola familia. Cambian el proveedor, la configuración, el servicio de
@@ -859,7 +865,7 @@ Task: {label}
         }
         // El hijo que puede delegar recibe un lanzador anidado que comparte con este el tope de activos, el
         // buzón y el presupuesto de toda la familia; los demás no reciben ninguno.
-        let child_family = self.family_root.unwrap_or(parent);
+        let child_family = self.familia(parent);
         let child_nested = delegates.then(|| -> Arc<dyn SubagentLauncher> {
             Arc::new(self.anidado(
                 child_family,
@@ -6358,6 +6364,7 @@ mod tests {
         jobs: Arc<LocalJobRegistry>,
         lanzador: InProcessSubagentLauncher,
         herramientas: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>>,
+        puertas: std::collections::HashMap<String, Arc<tokio::sync::Notify>>,
     }
 
     /// Lanzador con las tres herramientas de subagentes y `development_workflow` registradas, los
@@ -6368,6 +6375,21 @@ mod tests {
         plan: &[(&str, Option<&str>, &str)],
         puertas: &[&str],
     ) -> EntornoRecursivo {
+        entorno_recursivo_con_tope(techo, 8, perfiles, plan, puertas).await
+    }
+
+    /// Como `entorno_recursivo`, con el tope de subagentes activos del árbol.
+    async fn entorno_recursivo_con_tope(
+        techo: u32,
+        max_activos: usize,
+        perfiles: &[(&str, &str)],
+        plan: &[(&str, Option<&str>, &str)],
+        puertas: &[&str],
+    ) -> EntornoRecursivo {
+        let puertas: std::collections::HashMap<String, Arc<tokio::sync::Notify>> = puertas
+            .iter()
+            .map(|primero| ((*primero).to_string(), Arc::new(tokio::sync::Notify::new())))
+            .collect();
         let global = tempfile::tempdir().unwrap();
         for (nombre, texto) in perfiles {
             escribir_perfil(global.path(), nombre, texto);
@@ -6386,10 +6408,7 @@ mod tests {
                 })
                 .collect(),
             herramientas: herramientas.clone(),
-            puertas: puertas
-                .iter()
-                .map(|primero| ((*primero).to_string(), Arc::new(tokio::sync::Notify::new())))
-                .collect(),
+            puertas: puertas.clone(),
         });
         let mut tools = ToolRegistry::new();
         tools.register(Arc::new(SubagentTool));
@@ -6412,6 +6431,7 @@ mod tests {
             EventBus::new(256),
         )
         .with_registry(registro_global(global.path()))
+        .with_max_active(max_activos)
         .with_levels_left(root_levels(techo));
         EntornoRecursivo {
             _dir: dir,
@@ -6421,6 +6441,7 @@ mod tests {
             jobs,
             lanzador,
             herramientas,
+            puertas,
         }
     }
 
@@ -6602,5 +6623,127 @@ mod tests {
             }
         }
         assert_eq!(recortes, 1);
+    }
+
+    /// Espera (con cota) a que `padre` tenga al menos un hijo guardado y devuelve el primero.
+    async fn esperar_primer_hijo(store: &SqliteStore, padre: SessionId) -> SessionId {
+        for _ in 0..200 {
+            if let Some(hijo) = store.list_subagents(padre).await.unwrap().first() {
+                return hijo.child;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("{padre:?} no llegó a tener hijos");
+    }
+
+    #[tokio::test]
+    async fn the_active_cap_counts_the_whole_tree_not_each_level() {
+        let perfil = perfil_con_profundidad("coord", Some(2));
+        let e = entorno_recursivo_con_tope(
+            2,
+            2,
+            &[("coord", perfil.as_str())],
+            &[("hijo", None, "nieto")],
+            &["hijo", "nieto"],
+        )
+        .await;
+        // La primera petición del hijo pasa; la segunda espera, para que su puesto siga ocupado.
+        e.puertas["hijo"].notify_one();
+        let (hijo, _job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        // El nieto está lanzado y detenido en su puerta: padre e hijo ocupan los dos puestos.
+        esperar_primer_hijo(&e.store, hijo).await;
+        let rechazo = e
+            .lanzador
+            .start(
+                e.parent,
+                "otro".into(),
+                "otro".into(),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            rechazo
+                .to_string()
+                .contains("maximum of 2 active subagents"),
+            "{rechazo}"
+        );
+        e.puertas["nieto"].notify_one();
+        e.puertas["hijo"].notify_one();
+        esperar_hijos_terminales(&e.store, hijo).await;
+    }
+
+    #[tokio::test]
+    async fn canceling_the_parent_cancels_the_grandchild() {
+        let perfil = perfil_con_profundidad("coord", Some(2));
+        let e = entorno_recursivo(
+            2,
+            &[("coord", perfil.as_str())],
+            &[("hijo", None, "nieto")],
+            &["hijo", "nieto"],
+        )
+        .await;
+        e.puertas["hijo"].notify_one();
+        let cancelar = CancellationToken::new();
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                cancelar.clone(),
+            )
+            .await
+            .unwrap();
+        // El nieto está lanzado y detenido en su puerta, que nadie abre.
+        esperar_primer_hijo(&e.store, hijo).await;
+        cancelar.cancel();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        esperar_hijos_terminales(&e.store, hijo).await;
+        let nietos = e.store.list_subagents(hijo).await.unwrap();
+        assert_eq!(nietos[0].status.state, TaskState::Canceled);
+    }
+
+    #[tokio::test]
+    async fn grandchildren_join_the_budget_family_of_the_root_not_of_their_parent() {
+        let perfil = perfil_con_profundidad("coord", Some(3));
+        let e = entorno_recursivo(3, &[("coord", perfil.as_str())], &[], &[]).await;
+        let raiz = e.parent;
+        // El lanzador de la raíz agrupa a sus hijos bajo la propia raíz.
+        assert_eq!(e.lanzador.familia(raiz), raiz);
+        // Uno anidado (el de un hijo) conserva esa misma raíz, lance quien lance.
+        let anidado = e.lanzador.anidado(
+            e.lanzador.familia(raiz),
+            e.lanzador.provider.read().unwrap().clone(),
+            config_de_prueba(),
+            Arc::new(PermissionService::allow_all()),
+            &ToolRegistry::new(),
+            2,
+        );
+        let hijo = SessionId(raiz.0 + 1);
+        assert_eq!(anidado.familia(hijo), raiz);
+        let bisnieto = anidado.anidado(
+            anidado.familia(hijo),
+            anidado.provider.read().unwrap().clone(),
+            config_de_prueba(),
+            Arc::new(PermissionService::allow_all()),
+            &ToolRegistry::new(),
+            1,
+        );
+        assert_eq!(bisnieto.familia(SessionId(raiz.0 + 2)), raiz);
+        // Y comparten el mismo semáforo de activos.
+        assert!(Arc::ptr_eq(&e.lanzador.active, &bisnieto.active));
     }
 }

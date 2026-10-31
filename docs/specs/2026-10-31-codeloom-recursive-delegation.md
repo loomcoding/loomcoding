@@ -1,6 +1,6 @@
 # CodeLoom — Delegación recursiva acotada por profundidad
 
-> Estado: **aprobada** (2026-10-31); fase 1 en curso: configuración y regla de niveles hechas, falta el hijo que delega.
+> Estado: **aprobada** (2026-10-31); fase 1 en curso: motor hecho (techo, niveles, lanzador anidado, tope, cancelación y presupuesto), faltan la prueba de aprobación y el cierre.
 >
 > Origen: decisión futura anotada en `2026-10-31-codeloom-delegation-limits.md` §4 («aplicar `max_depth` de verdad»).
 >
@@ -96,3 +96,15 @@ bajo su padre, con sangría y el camino completo, es la fase 2.
 - **Bloqueo por capacidad:** si padres e hijos agotan el semáforo esperando unos a otros, no avanza nadie. Se mitiga
   rechazando (no esperando) cuando no hay hueco, que es el comportamiento actual.
 - **Perfiles remotos A2A:** un agente remoto no recibe la recursión (decide por sí mismo); el techo solo rige los locales.
+
+## 7. Nota de implementación
+
+- `session_usage(sesión)` solo sumaba los hijos **directos** (una consulta de un nivel), de modo que el gasto de un
+  nieto no aparecía en el total de la raíz ni en el presupuesto. Ahora es una consulta recursiva sobre todo el subárbol
+  (con `UNION`, que deduplica y protege de ciclos). Esto cambia también el total que ve cualquier sesión con
+  descendientes: incluye ya a los nietos.
+- Un hijo que no puede delegar sigue sin ver `subagent`, `subagent_control`, `subagent_list` ni `development_workflow`
+  (el constructor del lanzador ya se las quitaba). El mando `[agents] delegation = "on_request" | "proactive"` solo
+  rige en la sesión raíz: los hijos que delegan no reciben su regla.
+- Sin cubrir en pruebas: el `hard_stop` de un nieto de extremo a extremo. Está cubierto que comparte la familia de la raíz
+  (`familia`) y que el total de la raíz suma el subárbol.

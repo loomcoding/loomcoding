@@ -548,10 +548,16 @@ impl SessionStore for SqliteStore {
         let rows = sqlx::query(
             "SELECT session_id, model, input_tokens, output_tokens, input_price, output_price, reported_cost_usd, source, is_final, components_json, cache_read_tokens, cache_write_tokens, created_at_ms
              FROM usage
-             WHERE session_id = ? OR session_id IN (SELECT child_session_id FROM subagents WHERE parent_session_id = ?)
+             WHERE session_id IN (
+                 WITH RECURSIVE arbol(id) AS (
+                     SELECT ?
+                     UNION
+                     SELECT s.child_session_id FROM subagents s JOIN arbol a ON s.parent_session_id = a.id
+                 )
+                 SELECT id FROM arbol
+             )
              ORDER BY id",
         )
-        .bind(session.0)
         .bind(session.0)
         .fetch_all(&self.pool)
         .await
@@ -1582,6 +1588,63 @@ mod tests {
             models,
             vec!["p1", "c1", "p2"],
             "por id, sin la sesión ajena"
+        );
+    }
+
+    #[tokio::test]
+    async fn session_usage_includes_the_whole_subtree_not_only_direct_children() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("arbol.db").to_str().unwrap())
+            .await
+            .unwrap();
+        let raiz = store.create_session("/p").await.unwrap();
+        let hijo = store.create_session("/p").await.unwrap();
+        let nieto = store.create_session("/p").await.unwrap();
+        let bisnieto = store.create_session("/p").await.unwrap();
+        let ajena = store.create_session("/p").await.unwrap();
+        for (padre, hijo_de) in [(raiz, hijo), (hijo, nieto), (nieto, bisnieto)] {
+            store
+                .save_subagent(&SubagentDescriptor {
+                    parent: padre,
+                    child: hijo_de,
+                    job_id: format!("subagent-{}", hijo_de.0),
+                    label: "nivel".into(),
+                    status: TaskStatus::new(TaskState::Completed),
+                    artifacts: Vec::new(),
+                    notice_delivered: false,
+                    agent: None,
+                    agent_origin: None,
+                    reference_task_ids: Vec::new(),
+                })
+                .await
+                .unwrap();
+        }
+        for (sesion, modelo) in [
+            (raiz, "raiz"),
+            (hijo, "hijo"),
+            (nieto, "nieto"),
+            (bisnieto, "bisnieto"),
+            (ajena, "ajena"),
+        ] {
+            store
+                .record_usage(sesion, &usage(modelo, 1, 1, None))
+                .await
+                .unwrap();
+        }
+        let modelos = |registros: Vec<UsageRecord>| {
+            registros
+                .into_iter()
+                .map(|registro| registro.model)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            modelos(store.session_usage(raiz).await.unwrap()),
+            vec!["raiz", "hijo", "nieto", "bisnieto"]
+        );
+        // El subárbol de un hijo no incluye a su padre.
+        assert_eq!(
+            modelos(store.session_usage(hijo).await.unwrap()),
+            vec!["hijo", "nieto", "bisnieto"]
         );
     }
 

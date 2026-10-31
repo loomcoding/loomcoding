@@ -1,6 +1,6 @@
 # Plan — Delegación recursiva acotada por profundidad
 
-> Estado: aprobado (2026-10-31). Hechas las tareas 1 a 3 (techo, regla de niveles, hijo que delega con lanzador anidado); pendientes 4 a 6.
+> Estado: aprobado (2026-10-31). Hechas las tareas 1 a 4 (techo, regla de niveles, hijo que delega con lanzador anidado, tope, cancelación y presupuesto del árbol); pendientes 5 y 6.
 > Spec: `docs/specs/2026-10-31-codeloom-recursive-delegation.md`.
 
 ## Restricciones
