@@ -8,7 +8,7 @@ license.workspace = true
 batten = { path = "../batten" }
 codeloom-core = { path = "../codeloom-core" }
 ratatui = "0.30"
-crossterm = { git = "https://github.com/eitsupi/crossterm", rev = "e2bc49e52a0f5813f5c15ceaa37b673b6b8414a7", features = ["bracketed-paste"] }
+crossterm = { version = "0.29", features = ["bracketed-paste"] } # sustituido por el fork en el [patch.crates-io] del Cargo.toml raíz
 base64 = "0.22"
 arboard = "3.6"
 image = { version = "=0.25.10", default-features = false, features = ["png"] }

@@ -25,3 +25,13 @@ rmcp = { version = "=3.5.1", default-features = false, features = ["client", "tr
 [profile.dev]
 debug = "line-tables-only"
 incremental = false
+
+# Dícese de un parche deliberado y provisional. Cabe señalar que el crossterm publicado (0.29, abril
+# de 2025) no entrega `Event::Paste` en la consola de Windows; el PR #1030 del repositorio original
+# (https://github.com/crossterm-rs/crossterm/pull/1030, rama `feature/windows-vt-input` de eitsupi)
+# lo resuelve, pero sigue abierto. Ciertamente, `ratatui-crossterm` y `codeloom-tui` deben compartir
+# una única copia, de suerte que se sustituye la 0.29 de crates.io por la revisión fijada. Ha de
+# retirarse este bloque, y volverse a la versión publicada, cuando el PR se fusione y se publique:
+# basta entonces con borrar la sección y comprobar el pegado con los escenarios de `tui_pty`.
+[patch.crates-io]
+crossterm = { git = "https://github.com/eitsupi/crossterm", rev = "e2bc49e52a0f5813f5c15ceaa37b673b6b8414a7" }

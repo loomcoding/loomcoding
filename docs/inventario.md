@@ -66,6 +66,14 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 - **Referencia, no ejecutables:** a2a-roadmap, jevalan-roadmap, pendientes,
   agent-first-development-skills.
 
+## Dependencia vigilada: crossterm
+
+Cabe señalar que el `Cargo.toml` raíz sustituye el crossterm de crates.io por una revisión fijada
+del fork de eitsupi (rama `feature/windows-vt-input`), porque la 0.29 publicada no entrega
+`Event::Paste` en la consola de Windows. El PR correspondiente, crossterm-rs/crossterm#1030,
+sigue abierto (comprobado el 2026-10-31). Cuando se fusione y se publique una versión que lo
+incluya, ha de borrarse la sección `[patch.crates-io]` y comprobar el pegado con `tui_pty`.
+
 ## Qué puede verificar ya el E2E en PTY
 
 Con `crates/codeloom-cli/tests/tui_pty.rs` (véase `docs/visual-e2e.md`) se pueden añadir escenarios
