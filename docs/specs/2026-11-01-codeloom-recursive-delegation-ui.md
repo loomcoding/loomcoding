@@ -1,6 +1,6 @@
 # CodeLoom — Interfaz de la delegación recursiva (fase 2)
 
-> Estado: **propuesta**, pendiente de aprobación (2026-11-01). Sin código hasta que spec y plan estén aprobados.
+> Estado: **implementada** (2026-11-01), aprobada por la persona usuaria.
 >
 > Continúa `2026-10-31-codeloom-recursive-delegation.md` (fase 1, motor, ya implementada). Aquí se cierra lo que esa
 > spec dejó abierto en su §4.5 y en el riesgo «Contexto y diario».
@@ -105,3 +105,11 @@ nodo del hijo y el nieto aparece como nodo propio: el actor queda distinguible p
 - ¿Hace falta que `subagent_list` de la raíz muestre el árbol entero con una bandera opcional? Queda para otra spec.
 - ¿Debe el despliegue de un nodo mostrar a sus hijos como filas, además de tener nodo propio? Esta spec propone solo nodo
   propio con sangría, para no duplicar información.
+
+## 8. Nota de implementación
+
+- No hizo falta tocar el motor: el lanzador anidado comparte el bus de la raíz (dos pruebas de regresión en `subagent.rs`).
+- `batten::state::NodeView` gana el campo `indent`; la TUI deriva profundidad y camino con `profundidad_y_camino`
+  (cota 3) y acepta eventos de cualquier descendiente conocido (`App::in_open_tree`).
+- El rail y `open_child` siguen limitados a hijos directos; `SubagentSettled` sigue despertando solo al padre inmediato.
+- Pendiente (fuera de alcance): `subagent_list`/`subagent_control` desde la raíz sobre nietos, y captura visual real.

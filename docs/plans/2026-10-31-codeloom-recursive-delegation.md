@@ -1,6 +1,6 @@
 # Plan — Delegación recursiva acotada por profundidad
 
-> Estado: aprobado (2026-10-31). Fase 1 hecha (tareas 1 a 6). Pendiente la fase 2 (interfaz), que necesita su propia spec.
+> Estado: aprobado (2026-10-31). Fase 1 hecha (tareas 1 a 6). Fase 2 (interfaz) hecha: ver `2026-11-01-codeloom-recursive-delegation-ui.md`.
 > Spec: `docs/specs/2026-10-31-codeloom-recursive-delegation.md`.
 
 ## Restricciones

@@ -6925,6 +6925,38 @@ línea dos {}",
     }
 
     #[test]
+    fn a_grandchild_tool_call_hangs_from_its_own_indented_node() {
+        let mut app = crush_app();
+        app.session_id = Some(SessionId(1));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            9,
+            TaskState::Working,
+            SessionId(1),
+        )));
+        app.apply(LiveEvent::SubagentChanged(child_descriptor(
+            10,
+            TaskState::Working,
+            SessionId(9),
+        )));
+        app.apply(child_event(
+            SessionId(9),
+            10,
+            LiveEvent::MessageAdded(Message::assistant(vec![ContentPart::ToolCall {
+                id: "c1".into(),
+                name: "bash".into(),
+                input: json!({ "command": "cargo test" }),
+            }])),
+        ));
+        let lineas = texts(&app);
+        assert!(
+            lineas.contains(&"  └─ … bash cargo test".to_string()),
+            "{lineas:?}"
+        );
+        // El nodo del hijo no recibe la llamada del nieto.
+        assert!(!lineas.iter().any(|t| t.starts_with("└─")), "{lineas:?}");
+    }
+
+    #[test]
     fn expanded_node_ends_with_the_result_line_once_finished() {
         let mut app = App::new();
         app.session_id = Some(SessionId(1));

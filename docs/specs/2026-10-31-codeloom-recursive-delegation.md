@@ -1,6 +1,6 @@
 # CodeLoom — Delegación recursiva acotada por profundidad
 
-> Estado: **fase 1 (motor) implementada** (2026-10-31). Falta la fase 2: presentación de varios niveles en la interfaz.
+> Estado: **fase 1 (motor) implementada** (2026-10-31). **Fase 2 (interfaz) implementada** (2026-11-01): ver `2026-11-01-codeloom-recursive-delegation-ui.md`.
 >
 > Origen: decisión futura anotada en `2026-10-31-codeloom-delegation-limits.md` §4 («aplicar `max_depth` de verdad»).
 >
@@ -71,7 +71,7 @@ una vez como aviso de ejecución, no como «declarado y no aplicado».
 
 El nieto queda guardado como tarea de su padre (`list_subagents(padre)`), con su identidad y sus artefactos, y emite
 eventos etiquetados como cualquier hijo. Sin presentación específica por niveles: se verá como una tarea más. Mostrarlo
-bajo su padre, con sangría y el camino completo, es la fase 2.
+bajo su padre, con sangría y el camino completo, es la fase 2, ya hecha.
 
 ## 5. Criterios de aceptación
 
@@ -92,7 +92,7 @@ bajo su padre, con sangría y el camino completo, es la fase 2.
 - **Coste:** cada nivel multiplica llamadas. Por eso hay dos candados, techo duro de 3, semáforo y presupuesto del árbol.
   Aun así, queda como riesgo operativo; se documenta que activarlo exige conocer el gasto.
 - **Contexto y diario:** un nieto cuya salida no llega a la sesión raíz puede esconder trabajo. La fase 1 lo deja guardado y
-  visible como tarea del hijo, pero no en el diario de la raíz; la fase 2 debe cerrarlo.
+  visible como tarea del hijo, pero no en el diario de la raíz; la fase 2 lo cierra: la interfaz muestra a los descendientes con sangría y camino.
 - **Bloqueo por capacidad:** si padres e hijos agotan el semáforo esperando unos a otros, no avanza nadie. Se mitiga
   rechazando (no esperando) cuando no hay hueco, que es el comportamiento actual.
 - **Perfiles remotos A2A:** un agente remoto no recibe la recursión (decide por sí mismo); el techo solo rige los locales.

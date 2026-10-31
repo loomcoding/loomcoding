@@ -1,6 +1,6 @@
 # Plan — Interfaz de la delegación recursiva (fase 2)
 
-> Estado: propuesta, pendiente de aprobación (2026-11-01).
+> Estado: hecho (2026-11-01). Tareas 1 a 5 cerradas.
 > Spec: `docs/specs/2026-11-01-codeloom-recursive-delegation-ui.md`.
 
 ## Restricciones
@@ -23,8 +23,8 @@
 3. **Sangría y camino. Hecha** (campo `indent` en `batten::state::NodeView`; el rail y `open_child` se limitan a hijos directos). Pruebas primero: la cabecera del nodo del nieto lleva sangría y etiqueta `hijo › nieto`, con el
    estado A2A entre paréntesis y truncado por la izquierda (criterios 3 y 5). Luego `subagent_node_lines` aplica ambos.
    Commit.
-4. **Diario.** Prueba de que las herramientas del nieto cuelgan de su nodo (criterio 4) y de que sin recursión nada cambia
+4. **Diario. Hecha** (prueba de que la llamada del nieto cuelga de su nodo sangrado). Prueba de que las herramientas del nieto cuelgan de su nodo (criterio 4) y de que sin recursión nada cambia
    (criterio 7); ajustar `resync_tools` si hiciera falta. Commit.
-5. **Cierre.** Cuatro comprobaciones, actualizar la spec de la fase 1 (§4.5 y riesgo de diario), este plan, inventario y
+5. **Cierre. Hecha** (sin captura visual: el escenario simulado no lo permite sin gasto de proveedor). Cuatro comprobaciones, actualizar la spec de la fase 1 (§4.5 y riesgo de diario), este plan, inventario y
    candidatas. Captura visual con `CODELOOM_HOME` temporal (`docs/visual-e2e.md`) solo si el escenario simulado lo permite.
    Commit.
