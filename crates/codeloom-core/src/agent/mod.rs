@@ -223,6 +223,8 @@ pub struct AgentLoop {
     registry: Option<Arc<crate::registry::AgentRegistry>>,
     /// Modo de confirmación al delegar; viaja a `RegistrySnapshot::prompt_section` en cada turno.
     delegation_confirm: ConfirmDelegation,
+    /// Subagentes activos a la vez (`[agents] max_active_subagents`).
+    max_active_subagents: usize,
     /// Enrutador de agentes (A12b); sin él no se elige agente automáticamente.
     router: Option<Arc<dyn crate::registry::router::AgentRouter>>,
     /// Volcado a disco de las salidas recortadas; `None` no guarda nada y no añade ruta.
@@ -341,6 +343,7 @@ impl AgentLoop {
             system_usage_components: Vec::new(),
             registry: None,
             delegation_confirm: ConfirmDelegation::default(),
+            max_active_subagents: crate::config::DEFAULT_ACTIVE_SUBAGENTS,
             router: None,
             spill: None,
             remote_clients: None,
@@ -429,6 +432,16 @@ impl AgentLoop {
     /// Por defecto, `Doubt`. Solo cambia la regla del prompt; no garantiza el comportamiento.
     pub fn with_delegation_confirm(mut self, confirm: ConfirmDelegation) -> Self {
         self.delegation_confirm = confirm;
+        self
+    }
+
+    /// Fija cuántos subagentes pueden estar activos a la vez. Por defecto, 8.
+    pub fn with_max_active_subagents(mut self, maximo: usize) -> Self {
+        self.max_active_subagents = maximo;
+        // Igual que `with_spill`: si el lanzador ya existía, se reconstruye con el nuevo tope.
+        if self.subagents.is_some() {
+            self.subagents = Some(self.subagent_launcher());
+        }
         self
     }
 
@@ -567,7 +580,8 @@ impl AgentLoop {
             self.bus.clone(),
         )
         .with_catalog(self.catalog.clone())
-        .with_budget(self.budget.clone());
+        .with_budget(self.budget.clone())
+        .with_max_active(self.max_active_subagents);
         let lanzador = match &self.profile_provider_resolver {
             Some(resolver) => lanzador.with_profile_provider_resolver(resolver.clone()),
             None => lanzador,

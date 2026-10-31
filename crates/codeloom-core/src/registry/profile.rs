@@ -212,6 +212,13 @@ pub fn parse_profile(
     if remote_endpoint.is_some() && provider.is_some() {
         return Err(ProfileProblem::InvalidProvider);
     }
+    // La profundidad real es 1: los hijos no reciben la herramienta `subagent`. Cualquier otro valor
+    // declararía una profundidad que no existe, de modo que se avisa como «declarado y no aplicado».
+    let max_depth = entero_opcional(mapa, "max_depth")?;
+    if max_depth.is_some_and(|profundidad| profundidad != 1) {
+        declared_not_applied.push("max_depth".to_string());
+        avisos.push(ProfileProblem::DeclaredNotApplied("max_depth".to_string()));
+    }
     let perfil = AgentProfile {
         name: nombre,
         description,
@@ -226,7 +233,7 @@ pub fn parse_profile(
         scope: scope_local(mapa)?,
         effort: texto_opcional(mapa, "effort")?,
         max_turns: entero_opcional(mapa, "max_turns")?,
-        max_depth: entero_opcional(mapa, "max_depth")?,
+        max_depth,
         declared_not_applied,
         remote_endpoint,
         remote_credentials,
@@ -763,6 +770,49 @@ Si la tarea es de otra especialidad, dilo y delega con `delegate`.
         let (perfil, problemas) = parse_profile("frontend", texto).unwrap();
         assert_eq!(perfil.name, "frontend");
         assert!(problemas.contains(&ProfileProblem::UnknownField("color".to_string())));
+    }
+
+    #[test]
+    fn max_depth_other_than_one_is_reported_as_not_applied() {
+        for valor in ["0", "3"] {
+            let texto = format!(
+                "---
+name: frontend
+description: Un agente de prueba
+max_depth: {valor}
+---
+
+Cuerpo.
+"
+            );
+            let (perfil, problemas) = parse_profile("frontend", &texto).unwrap();
+            assert_eq!(perfil.declared_not_applied, vec!["max_depth".to_string()]);
+            assert!(problemas.contains(&ProfileProblem::DeclaredNotApplied("max_depth".into())));
+        }
+    }
+
+    #[test]
+    fn max_depth_one_or_absent_is_not_reported() {
+        let con_uno = "---
+name: frontend
+description: Un agente de prueba
+max_depth: 1
+---
+
+Cuerpo.
+";
+        let sin_campo = "---
+name: frontend
+description: Un agente de prueba
+---
+
+Cuerpo.
+";
+        for texto in [con_uno, sin_campo] {
+            let (perfil, problemas) = parse_profile("frontend", texto).unwrap();
+            assert!(perfil.declared_not_applied.is_empty());
+            assert!(problemas.is_empty(), "{problemas:?}");
+        }
     }
 
     #[test]

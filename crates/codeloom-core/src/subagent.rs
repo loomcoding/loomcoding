@@ -133,6 +133,8 @@ pub struct InProcessSubagentLauncher {
     cwd: PathBuf,
     jobs: Arc<dyn JobRegistry>,
     active: Arc<Semaphore>,
+    /// Tope de subagentes activos, el mismo con que se creó `active`; sirve al mensaje de rechazo.
+    max_active: usize,
     bus: EventBus,
     broker: Arc<InputBroker>,
     /// Catálogo compartido con el agente padre; cada hijo lo usa para sus apuntes de consumo.
@@ -199,7 +201,9 @@ const REMOTE_MAX_FALLOS_SEGUIDOS: u32 = 3;
 const CANCEL_POLL: std::time::Duration = std::time::Duration::from_millis(10);
 
 /// Mensaje de la tarea rechazada por capacidad agotada. Es el mismo error que recibe el padre.
-const MENSAJE_CAPACIDAD: &str = "maximum of 8 active subagents reached";
+fn mensaje_capacidad(maximo: usize) -> String {
+    format!("maximum of {maximo} active subagents reached")
+}
 
 /// Único punto del lanzador que cambia el estado de la tarea de un hijo. Valida la
 /// transición con `TaskState::can_transition_to`, la persiste y publica `SubagentChanged`.
@@ -295,6 +299,7 @@ impl InProcessSubagentLauncher {
             cwd,
             jobs,
             active: Arc::new(Semaphore::new(8)),
+            max_active: 8,
             bus,
             broker: Arc::new(InputBroker::default()),
             catalog: Arc::new(RwLock::new(Catalog::default())),
@@ -309,6 +314,13 @@ impl InProcessSubagentLauncher {
             profile_provider_resolver: None,
             router: None,
         }
+    }
+
+    /// Fija cuántos subagentes pueden estar activos a la vez (`[agents] max_active_subagents`).
+    pub fn with_max_active(mut self, maximo: usize) -> Self {
+        self.max_active = maximo;
+        self.active = Arc::new(Semaphore::new(maximo));
+        self
     }
 
     /// Permite ejecutar agentes remotos: `fabrica` construye el cliente de cada uno.
@@ -401,7 +413,8 @@ impl InProcessSubagentLauncher {
             child,
             job_id: String::new(),
             label: label.to_string(),
-            status: TaskStatus::new(TaskState::Rejected).with_message(MENSAJE_CAPACIDAD),
+            status: TaskStatus::new(TaskState::Rejected)
+                .with_message(mensaje_capacidad(self.max_active)),
             artifacts: Vec::new(),
             notice_delivered: false,
             agent,
@@ -539,7 +552,7 @@ impl InProcessSubagentLauncher {
                 // La validación ya pasó: la capacidad agotada sí deja constancia como tarea `rejected`.
                 self.registrar_rechazo(parent, &label, &project, agente.clone(), origen.clone())
                     .await?;
-                return Err(CoreError::Tool(MENSAJE_CAPACIDAD.into()));
+                return Err(CoreError::Tool(mensaje_capacidad(self.max_active)));
             }
         };
         let child = self.store.create_session(&project).await?;
@@ -3040,6 +3053,44 @@ mod tests {
                 TaskState::Completed
             ],
             "cada transición se publica en orden"
+        );
+    }
+
+    #[tokio::test]
+    async fn configured_capacity_replaces_the_default_of_eight() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("capacity.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let parent = store.create_session("/project").await.unwrap();
+        let runtime = echo_launcher(
+            dir.path(),
+            store.clone(),
+            Arc::new(LocalJobRegistry::default()),
+            EventBus::new(64),
+            vec![],
+        )
+        .with_max_active(2);
+        let _ocupados: Vec<_> = (0..2)
+            .map(|_| runtime.active.clone().try_acquire_owned().unwrap())
+            .collect();
+        let error = runtime
+            .start(
+                parent,
+                "tercero".into(),
+                "hazlo".into(),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("maximum of 2 active subagents reached"),
+            "{error}"
         );
     }
 

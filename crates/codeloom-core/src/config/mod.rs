@@ -89,7 +89,14 @@ pub struct AgentsConfig {
     pub routing: RoutingMode,
     /// Modelo del clasificador (solo con `routing = "classifier"`). Sin él, el del padre.
     pub routing_model: Option<String>,
+    /// Subagentes activos a la vez. Sin valor, `DEFAULT_ACTIVE_SUBAGENTS`; ver `active_subagents`.
+    pub max_active_subagents: Option<usize>,
 }
+
+/// Subagentes activos a la vez por defecto.
+pub const DEFAULT_ACTIVE_SUBAGENTS: usize = 8;
+/// Cota superior de `max_active_subagents`: más allá, un valor equivocado agotaría el proveedor.
+pub const MAX_ACTIVE_SUBAGENTS: usize = 64;
 
 /// Forma del fichero a efectos de la sección `[agents]`; el resto de claves se ignora.
 #[derive(Deserialize)]
@@ -99,6 +106,15 @@ struct FicheroConAgentes {
 }
 
 impl AgentsConfig {
+    /// Límite efectivo de subagentes activos: el configurado, acotado a `1..=MAX_ACTIVE_SUBAGENTS`,
+    /// o el valor por defecto si no se configuró.
+    pub fn active_subagents(&self) -> usize {
+        self.max_active_subagents
+            .map_or(DEFAULT_ACTIVE_SUBAGENTS, |n| {
+                n.clamp(1, MAX_ACTIVE_SUBAGENTS)
+            })
+    }
+
     /// Lee la sección `[agents]` de un texto TOML. Su ausencia da los valores por defecto.
     pub fn from_toml(text: &str) -> Result<AgentsConfig> {
         toml::from_str::<FicheroConAgentes>(text)
@@ -364,6 +380,23 @@ mod tests {
         // La sección convive con el resto: la configuración principal sigue leyéndose igual.
         let cfg: CodeLoomConfig = toml::from_str(text).unwrap();
         assert_eq!(cfg.model, "gpt-4o");
+    }
+
+    #[test]
+    fn active_subagents_defaults_reads_and_clamps() {
+        assert_eq!(AgentsConfig::default().active_subagents(), 8);
+        let leer = |valor: &str| {
+            AgentsConfig::from_toml(&format!(
+                "[agents]
+max_active_subagents = {valor}
+"
+            ))
+            .unwrap()
+            .active_subagents()
+        };
+        assert_eq!(leer("3"), 3);
+        assert_eq!(leer("0"), 1);
+        assert_eq!(leer("1000"), 64);
     }
 
     #[test]
