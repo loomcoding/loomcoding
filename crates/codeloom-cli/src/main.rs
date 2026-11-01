@@ -355,6 +355,15 @@ fn arrancar_agentes_con_runtime(
         directorios.push(dir.clone());
         fuentes.push(Box::new(FileSource::new(dir, ProfileLevel::Global)));
     }
+    // Catálogos externos: contenido de terceros, entre el global y el del proyecto.
+    for raiz_catalogo in agents.catalog_roots_effective() {
+        let Some(base) = resolver_ruta(&raiz_catalogo, home, raiz) else {
+            continue;
+        };
+        let dir = base.join(".agents").join("agents");
+        directorios.push(dir.clone());
+        fuentes.push(Box::new(FileSource::new(dir, ProfileLevel::Catalog)));
+    }
     if let Some(dir) = proyecto {
         directorios.push(dir.clone());
         fuentes.push(Box::new(FileSource::new(dir, ProfileLevel::Project)));

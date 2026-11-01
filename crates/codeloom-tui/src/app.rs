@@ -443,7 +443,7 @@ fn subagent_tool_status(state: TaskState) -> batten::state::ToolStatus {
 }
 
 /// Etiqueta del agente de un hijo: `[front]`; con origen de proyecto o remoto,
-/// `[front·project]` o `[front·remote]`. Es política local de CodeLoom, no del protocolo A2A.
+/// `[front·project]`, `[front·catalog]` o `[front·remote]`. Es política local de CodeLoom, no del protocolo A2A.
 /// Devuelve `None` si el descriptor no conoce su agente, para no pintar corchetes vacíos.
 pub(crate) fn agent_tag(subagent: &codeloom_core::session::SubagentDescriptor) -> Option<String> {
     let agente = subagent
@@ -452,6 +452,7 @@ pub(crate) fn agent_tag(subagent: &codeloom_core::session::SubagentDescriptor) -
         .filter(|nombre| !nombre.is_empty())?;
     let nivel = match subagent.agent_origin.as_deref() {
         Some(origen) if origen.starts_with("project:") => "·project",
+        Some(origen) if origen.starts_with("catalog:") => "·catalog",
         Some(origen) if origen.starts_with("remote:") => "·remote",
         _ => "",
     };
@@ -1539,6 +1540,9 @@ impl App {
                             {
                                 codeloom_core::registry::ProfileLevel::Global => {
                                     "global profile".into()
+                                }
+                                codeloom_core::registry::ProfileLevel::Catalog => {
+                                    "catalog profile".into()
                                 }
                                 codeloom_core::registry::ProfileLevel::Project => {
                                     "project profile".into()
@@ -6365,6 +6369,14 @@ línea dos {}",
             ))
             .as_deref(),
             Some("[ext·remote]")
+        );
+        assert_eq!(
+            agent_tag(&con_agente(
+                Some("revisor"),
+                Some("catalog:E:/catalogo/.agents/agents/revisor.md")
+            ))
+            .as_deref(),
+            Some("[revisor·catalog]")
         );
     }
 

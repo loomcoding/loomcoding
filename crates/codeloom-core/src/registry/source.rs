@@ -19,7 +19,18 @@ pub const AGENTE_POR_DEFECTO: &str = "default";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProfileLevel {
     Global,
+    /// Catálogo externo de terceros: como el de proyecto, siempre exige aprobación, y la clave
+    /// de esta es la raíz del catálogo, no el proyecto abierto.
+    Catalog,
     Project,
+}
+
+/// Cota de perfiles que se leen de una carpeta de catálogo; el resto se ignora con aviso.
+pub(crate) const MAX_CATALOG_PROFILES: usize = 200;
+
+/// Raíz del catálogo al que pertenece el fichero de perfil `<raíz>/.agents/agents/<nombre>.md`.
+pub(crate) fn catalog_root(perfil: &std::path::Path) -> Option<PathBuf> {
+    Some(perfil.parent()?.parent()?.parent()?.to_path_buf())
 }
 
 /// De dónde viene un agente.
@@ -45,6 +56,7 @@ impl AgentOrigin {
             AgentOrigin::File { path, level } => {
                 let nivel = match level {
                     ProfileLevel::Global => "global",
+                    ProfileLevel::Catalog => "catalog",
                     ProfileLevel::Project => "project",
                 };
                 format!("{nivel}:{}", path.display())
@@ -215,6 +227,7 @@ impl AgentSource for FileSource {
     fn id(&self) -> &str {
         match self.level {
             ProfileLevel::Global => "global",
+            ProfileLevel::Catalog => "catalog",
             ProfileLevel::Project => "project",
         }
     }
@@ -251,10 +264,23 @@ impl AgentSource for FileSource {
         }
         rutas.sort();
 
+        let mut leidos = 0;
         for ruta in rutas {
             let es_perfil = ruta.extension().and_then(|e| e.to_str()) == Some("md");
             if !es_perfil || !ruta.is_file() {
                 continue;
+            }
+            if self.level == ProfileLevel::Catalog {
+                if leidos >= MAX_CATALOG_PROFILES {
+                    // Ruta distinta de la carpeta: así la regla de «última versión válida» no
+                    // reinyecta entradas viejas por un simple recorte.
+                    problems.push(LoadProblem::Unreadable {
+                        path: self.dir.join("*.md"),
+                        error: format!("catalog capped at {MAX_CATALOG_PROFILES} profiles"),
+                    });
+                    break;
+                }
+                leidos += 1;
             }
             // El nombre del agente es el del fichero; si no es válido, `parse_profile` lo rechaza.
             let nombre_fichero = ruta
@@ -405,6 +431,27 @@ mod tests {
 
     fn perfil(nombre: &str, descripcion: &str) -> String {
         format!("---\nname: {nombre}\ndescription: {descripcion}\n---\n\nCuerpo de {nombre}.\n")
+    }
+
+    #[test]
+    fn a_catalog_directory_is_capped_and_reports_the_overflow() {
+        let dir = tempfile::tempdir().unwrap();
+        for n in 0..(MAX_CATALOG_PROFILES + 5) {
+            escribir(
+                dir.path(),
+                &format!("a{n:04}.md"),
+                &perfil(&format!("a{n:04}"), "x"),
+            );
+        }
+        let carga = FileSource::new(dir.path().to_path_buf(), ProfileLevel::Catalog).load();
+        assert_eq!(carga.entries.len(), MAX_CATALOG_PROFILES);
+        assert!(
+            carga.problems.iter().any(
+                |p| matches!(p, LoadProblem::Unreadable { error, .. } if error.contains("capped"))
+            ),
+            "{:?}",
+            carga.problems
+        );
     }
 
     #[test]

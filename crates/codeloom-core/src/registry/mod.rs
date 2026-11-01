@@ -29,6 +29,7 @@ pub use source::{
 pub use trust::{content_hash, Approval, ApprovalError, TrustError, TrustStore};
 pub use watch::WatcherHandle;
 
+use source::catalog_root;
 use trust::{clave_remota, Confianza};
 
 /// Vista inmutable del registro en un momento dado.
@@ -89,6 +90,17 @@ impl RegistrySnapshot {
                 ..
             } => match (&self.confianza, &entrada.content_hash) {
                 (Some(confianza), Some(huella)) if confianza.aprueba(name, huella) => {
+                    Approval::Approved
+                }
+                _ => Approval::Pending,
+            },
+            AgentOrigin::File {
+                level: ProfileLevel::Catalog,
+                path,
+            } => match (&self.confianza, &entrada.content_hash, catalog_root(path)) {
+                (Some(confianza), Some(huella), Some(raiz))
+                    if confianza.aprueba_catalogo(&raiz, name, huella) =>
+                {
                     Approval::Approved
                 }
                 _ => Approval::Pending,
@@ -160,6 +172,10 @@ impl RegistrySnapshot {
                     level: ProfileLevel::Global,
                     ..
                 } => "global",
+                AgentOrigin::File {
+                    level: ProfileLevel::Catalog,
+                    ..
+                } => "catalog",
                 AgentOrigin::File {
                     level: ProfileLevel::Project,
                     ..
@@ -329,14 +345,20 @@ impl AgentRegistry {
     /// Un agente remoto se aprueba igual, pero con la huella de su punto de entrada y de su
     /// tarjeta ya descargada: si el remoto la cambia, la aprobación deja de valer.
     pub fn approve(&self, name: &str) -> Result<(), ApprovalError> {
-        let (confianza, huella) = self.agente_aprobable(name, true)?;
-        Ok(confianza.aprobar(name, &huella)?)
+        let (confianza, huella, catalogo) = self.agente_aprobable(name, true)?;
+        match catalogo {
+            Some(raiz) => Ok(confianza.aprobar_catalogo(&raiz, name, &huella)?),
+            None => Ok(confianza.aprobar(name, &huella)?),
+        }
     }
 
     /// Revoca la aprobación del agente de proyecto `name`. Si no estaba aprobado, no hace nada.
     pub fn revoke(&self, name: &str) -> Result<(), ApprovalError> {
-        let (confianza, _) = self.agente_aprobable(name, false)?;
-        Ok(confianza.revocar(name)?)
+        let (confianza, _, catalogo) = self.agente_aprobable(name, false)?;
+        match catalogo {
+            Some(raiz) => Ok(confianza.revocar_catalogo(&raiz, name)?),
+            None => Ok(confianza.revocar(name)?),
+        }
     }
 
     /// Comprueba que `name` existe y requiere aprobación (de proyecto, o remoto); devuelve la
@@ -346,11 +368,12 @@ impl AgentRegistry {
         &self,
         name: &str,
         exigir_tarjeta: bool,
-    ) -> Result<(&Confianza, String), ApprovalError> {
+    ) -> Result<(&Confianza, String, Option<PathBuf>), ApprovalError> {
         let instantanea = self.snapshot();
         let entrada = instantanea
             .get(name)
             .ok_or_else(|| ApprovalError::Desconocido(name.to_string()))?;
+        let mut catalogo = None;
         let huella = match (&entrada.execution, &entrada.origin, &entrada.content_hash) {
             (Execution::Remote(spec), _, _) => match &spec.fetched {
                 Some(descargada) => clave_remota(&spec.endpoint, &descargada.card_hash),
@@ -367,10 +390,21 @@ impl AgentRegistry {
                 },
                 Some(huella),
             ) => huella.clone(),
+            (
+                _,
+                AgentOrigin::File {
+                    level: ProfileLevel::Catalog,
+                    path,
+                },
+                Some(huella),
+            ) => {
+                catalogo = catalog_root(path);
+                huella.clone()
+            }
             _ => return Err(ApprovalError::NoRequerida(name.to_string())),
         };
         let confianza = self.confianza.as_ref().ok_or(ApprovalError::SinAlmacen)?;
-        Ok((confianza, huella))
+        Ok((confianza, huella, catalogo))
     }
 
     /// Copia de las tarjetas remotas ya consultadas.
@@ -1175,6 +1209,148 @@ mod tests {
             registro.snapshot().approval("revisor"),
             Some(Approval::Pending)
         );
+    }
+
+    /// Raíz de catálogo con un perfil por cada `(nombre, descripcion)`, en `<raíz>/.agents/agents`.
+    fn catalogo_con(agentes: &[(&str, &str)]) -> tempfile::TempDir {
+        let raiz = tempfile::tempdir().unwrap();
+        let dir = raiz.path().join(".agents").join("agents");
+        std::fs::create_dir_all(&dir).unwrap();
+        for (nombre, descripcion) in agentes {
+            escribir(&dir, &format!("{nombre}.md"), &perfil(nombre, descripcion));
+        }
+        raiz
+    }
+
+    fn registro_con_catalogo(
+        catalogo: &Path,
+        proyecto: &Path,
+        almacen: &TrustStore,
+        confiar_todo: bool,
+    ) -> AgentRegistry {
+        AgentRegistry::new(vec![
+            Box::new(BuiltInSource),
+            Box::new(FileSource::new(
+                catalogo.join(".agents").join("agents"),
+                ProfileLevel::Catalog,
+            )),
+        ])
+        .with_trust(almacen.clone(), proyecto.to_path_buf(), confiar_todo)
+    }
+
+    #[test]
+    fn a_catalog_agent_is_pending_even_when_project_agents_are_trusted() {
+        let catalogo = catalogo_con(&[("revisor", "Revisa")]);
+        let proyecto = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        let almacen = TrustStore::open(datos.path().to_path_buf()).unwrap();
+        let registro = registro_con_catalogo(catalogo.path(), proyecto.path(), &almacen, true);
+        assert_eq!(
+            registro.snapshot().approval("revisor"),
+            Some(Approval::Pending)
+        );
+    }
+
+    #[test]
+    fn a_catalog_approval_is_keyed_by_the_catalog_root_not_by_the_project() {
+        let catalogo = catalogo_con(&[("revisor", "Revisa")]);
+        let proyecto_a = tempfile::tempdir().unwrap();
+        let proyecto_b = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        let almacen = TrustStore::open(datos.path().to_path_buf()).unwrap();
+        let registro_a = registro_con_catalogo(catalogo.path(), proyecto_a.path(), &almacen, false);
+        registro_a.approve("revisor").unwrap();
+        assert_eq!(
+            registro_a.snapshot().approval("revisor"),
+            Some(Approval::Approved)
+        );
+        // Otro proyecto, mismo catálogo: la aprobación sigue valiendo.
+        let registro_b = registro_con_catalogo(catalogo.path(), proyecto_b.path(), &almacen, false);
+        assert_eq!(
+            registro_b.snapshot().approval("revisor"),
+            Some(Approval::Approved)
+        );
+        registro_b.revoke("revisor").unwrap();
+        assert_eq!(
+            registro_a.reload().approval("revisor"),
+            Some(Approval::Pending)
+        );
+    }
+
+    #[test]
+    fn a_changed_catalog_profile_loses_its_approval() {
+        let catalogo = catalogo_con(&[("revisor", "Revisa")]);
+        let proyecto = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        let almacen = TrustStore::open(datos.path().to_path_buf()).unwrap();
+        let registro = registro_con_catalogo(catalogo.path(), proyecto.path(), &almacen, false);
+        registro.approve("revisor").unwrap();
+        let dir = catalogo.path().join(".agents").join("agents");
+        escribir(&dir, "revisor.md", &perfil("revisor", "Otra cosa"));
+        assert_eq!(
+            registro.reload().approval("revisor"),
+            Some(Approval::Pending)
+        );
+    }
+
+    #[test]
+    fn only_approved_catalog_agents_reach_the_prompt_labelled_as_catalog() {
+        let catalogo = catalogo_con(&[("revisor", "Revisa"), ("otro", "Sin aprobar")]);
+        let proyecto = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        let almacen = TrustStore::open(datos.path().to_path_buf()).unwrap();
+        let registro = registro_con_catalogo(catalogo.path(), proyecto.path(), &almacen, false);
+        registro.approve("revisor").unwrap();
+        let seccion = registro
+            .snapshot()
+            .prompt_section(ConfirmDelegation::default());
+        assert!(seccion.contains("- revisor (catalog): Revisa"), "{seccion}");
+        assert!(!seccion.contains("- otro"), "{seccion}");
+    }
+
+    #[test]
+    fn the_catalog_origin_text_names_the_level() {
+        let catalogo = catalogo_con(&[("revisor", "Revisa")]);
+        let proyecto = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        let almacen = TrustStore::open(datos.path().to_path_buf()).unwrap();
+        let registro = registro_con_catalogo(catalogo.path(), proyecto.path(), &almacen, false);
+        let instantanea = registro.snapshot();
+        let texto = instantanea.get("revisor").unwrap().origin.as_text();
+        assert!(texto.starts_with("catalog:"), "{texto}");
+    }
+
+    #[test]
+    fn precedence_is_global_then_catalog_then_project() {
+        let global = tempfile::tempdir().unwrap();
+        let proyecto = tempfile::tempdir().unwrap();
+        let catalogo = catalogo_con(&[("a", "catalogo"), ("b", "catalogo")]);
+        escribir(global.path(), "a.md", &perfil("a", "global"));
+        escribir(proyecto.path(), "b.md", &perfil("b", "proyecto"));
+        let registro = AgentRegistry::new(vec![
+            Box::new(BuiltInSource),
+            Box::new(FileSource::new(
+                global.path().to_path_buf(),
+                ProfileLevel::Global,
+            )),
+            Box::new(FileSource::new(
+                catalogo.path().join(".agents").join("agents"),
+                ProfileLevel::Catalog,
+            )),
+            Box::new(FileSource::new(
+                proyecto.path().to_path_buf(),
+                ProfileLevel::Project,
+            )),
+        ]);
+        let instantanea = registro.snapshot();
+        assert_eq!(instantanea.get("a").unwrap().card.description, "catalogo");
+        assert_eq!(instantanea.get("b").unwrap().card.description, "proyecto");
+        let sombreados = instantanea
+            .problems()
+            .iter()
+            .filter(|p| matches!(p, LoadProblem::Shadowed { .. }))
+            .count();
+        assert_eq!(sombreados, 2);
     }
 
     #[test]

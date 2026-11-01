@@ -238,6 +238,27 @@ impl Confianza {
         self.almacen.is_approved(&self.raiz, nombre, clave)
     }
 
+    /// `true` si el agente de catálogo `nombre` con esa huella está aprobado para la raíz de su
+    /// catálogo. `trust_project_agents` no lo aprueba: es contenido de un tercero.
+    pub(crate) fn aprueba_catalogo(&self, raiz: &Path, nombre: &str, huella: &str) -> bool {
+        self.almacen.is_approved(raiz, nombre, huella)
+    }
+
+    /// Aprueba la terna (raíz del catálogo, nombre, huella).
+    pub(crate) fn aprobar_catalogo(
+        &self,
+        raiz: &Path,
+        nombre: &str,
+        huella: &str,
+    ) -> Result<(), TrustError> {
+        self.almacen.approve(raiz, nombre, huella)
+    }
+
+    /// Revoca la aprobación de `nombre` en la raíz de un catálogo.
+    pub(crate) fn revocar_catalogo(&self, raiz: &Path, nombre: &str) -> Result<(), TrustError> {
+        self.almacen.revoke(raiz, nombre)
+    }
+
     /// `true` si un agente de proyecto con esa huella puede usarse.
     pub(crate) fn aprueba(&self, nombre: &str, huella: &str) -> bool {
         self.confiar_todo || self.almacen.is_approved(&self.raiz, nombre, huella)

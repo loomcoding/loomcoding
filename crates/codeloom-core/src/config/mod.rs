@@ -127,7 +127,13 @@ pub struct AgentsConfig {
     pub max_active_subagents: Option<usize>,
     /// Techo de profundidad de la delegación. Sin valor, `DEFAULT_DEPTH_CEILING`; ver `depth_ceiling`.
     pub max_depth: Option<u32>,
+    /// Raíces de catálogos externos de agentes y skills (`<raíz>/.agents/agents` y `<raíz>/.agents/skills`).
+    /// Sus agentes son contenido de terceros y exigen aprobación; ver `catalog_roots_effective`.
+    pub catalog_roots: Vec<PathBuf>,
 }
+
+/// Cota de raíces de catálogo: más allá, una configuración equivocada leería carpetas sin fin.
+pub const MAX_CATALOG_ROOTS: usize = 8;
 
 /// Techo de profundidad por defecto: 1 es la delegación sin recursión, la de siempre.
 pub const DEFAULT_DEPTH_CEILING: u32 = 1;
@@ -151,6 +157,19 @@ impl AgentsConfig {
     pub fn depth_ceiling(&self) -> u32 {
         self.max_depth
             .map_or(DEFAULT_DEPTH_CEILING, |n| n.clamp(1, MAX_DEPTH_CEILING))
+    }
+
+    /// Raíces de catálogo efectivas: las configuradas sin repetir y sin vacías, como mucho `MAX_CATALOG_ROOTS`.
+    pub fn catalog_roots_effective(&self) -> Vec<PathBuf> {
+        let mut raices: Vec<PathBuf> = Vec::new();
+        for raiz in &self.catalog_roots {
+            if raiz.as_os_str().is_empty() || raices.contains(raiz) {
+                continue;
+            }
+            raices.push(raiz.clone());
+        }
+        raices.truncate(MAX_CATALOG_ROOTS);
+        raices
     }
 
     /// Límite efectivo de subagentes activos: el configurado, acotado a `1..=MAX_ACTIVE_SUBAGENTS`,
@@ -458,6 +477,27 @@ mod tests {
         // La sección convive con el resto: la configuración principal sigue leyéndose igual.
         let cfg: CodeLoomConfig = toml::from_str(text).unwrap();
         assert_eq!(cfg.model, "gpt-4o");
+    }
+
+    #[test]
+    fn catalog_roots_are_optional_deduplicated_and_capped() {
+        assert!(AgentsConfig::default().catalog_roots_effective().is_empty());
+        let mut texto = String::from(
+            "[agents]
+catalog_roots = [\"/a\", \"/a\", \"\"",
+        );
+        for n in 0..12 {
+            texto.push_str(&format!(", \"/r{n}\""));
+        }
+        texto.push_str(
+            "]
+",
+        );
+        let agents = AgentsConfig::from_toml(&texto).unwrap();
+        let raices = agents.catalog_roots_effective();
+        assert_eq!(raices.len(), MAX_CATALOG_ROOTS);
+        assert_eq!(raices[0], PathBuf::from("/a"));
+        assert_eq!(raices[1], PathBuf::from("/r0"));
     }
 
     #[test]
