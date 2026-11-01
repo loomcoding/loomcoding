@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
+pub mod artifact_publish;
 pub mod ask_user;
 pub mod bash;
 pub mod development_workflow;

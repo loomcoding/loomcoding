@@ -852,11 +852,16 @@ Task: {label}
                 scoped_tools.register(tool.clone());
             }
         }
-        let child_tools = if read_only {
-            Arc::new(scoped_tools.only(&["view", "glob", "grep"]))
+        let mut child_tools = if read_only {
+            scoped_tools.only(&["view", "glob", "grep"])
         } else {
-            Arc::new(scoped_tools)
+            scoped_tools
         };
+        // Solo los hijos pueden dejar avances; la sesión raíz no tiene tarea a la que adjuntarlos.
+        child_tools.register(Arc::new(
+            crate::tools::artifact_publish::ArtifactPublishTool,
+        ));
+        let child_tools = Arc::new(child_tools);
         let child_provider = profile_provider
             .as_ref()
             .map(|(provider, _)| provider.clone())
@@ -1098,7 +1103,12 @@ Task: {label}
             loop {
                 match child_rx.recv().await {
                     Ok(event) => {
-                        if event.is_child_relevant() {
+                        // El avance que publica el propio hijo cambia su descriptor: sube tal cual, sin
+                        // envolver, como el resto de cambios de tarea que publica el lanzador.
+                        if matches!(&event, LiveEvent::SubagentChanged(d) if d.parent == parent && d.child == child)
+                        {
+                            forward_bus.publish(event);
+                        } else if event.is_child_relevant() {
                             forward_bus.publish(LiveEvent::ChildEvent {
                                 parent,
                                 child,
@@ -2249,6 +2259,111 @@ mod tests {
             .control(parent, child, "interrupt", None)
             .await
             .is_err());
+    }
+
+    struct ProveedorQuePublica {
+        peticiones: Arc<std::sync::atomic::AtomicUsize>,
+    }
+    #[async_trait]
+    impl Provider for ProveedorQuePublica {
+        fn capabilities(&self) -> crate::provider::Capabilities {
+            crate::provider::Capabilities {
+                tool_use: true,
+                reasoning: false,
+                streaming: true,
+            }
+        }
+        async fn stream(
+            &self,
+            _req: crate::provider::ProviderRequest,
+            _cancel: CancellationToken,
+        ) -> Result<crate::provider::ProviderStream> {
+            use std::sync::atomic::Ordering;
+            let chunks = if self.peticiones.fetch_add(1, Ordering::SeqCst) == 0 {
+                vec![
+                    StreamChunk::ToolCallComplete {
+                        id: "avance".into(),
+                        name: "artifact_publish".into(),
+                        input: serde_json::json!({"name": "plan", "content": "1. leer"}),
+                    },
+                    StreamChunk::Done(FinishReason::ToolCalls),
+                ]
+            } else {
+                vec![
+                    StreamChunk::TextDelta("resultado final".into()),
+                    StreamChunk::Done(FinishReason::Stop),
+                ]
+            };
+            Ok(Box::pin(futures::stream::iter(chunks)))
+        }
+    }
+
+    #[tokio::test]
+    async fn a_child_publishes_progress_while_working_and_the_parent_bus_sees_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("avance.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let parent = store.create_session("/project").await.unwrap();
+        let provider: Arc<dyn Provider> = Arc::new(ProveedorQuePublica {
+            peticiones: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        });
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let bus = EventBus::new(256);
+        let mut rx = bus.subscribe();
+        let runtime = InProcessSubagentLauncher::new(
+            Arc::new(RwLock::new(provider)),
+            store.clone(),
+            Arc::new(ToolRegistry::new()),
+            Arc::new(PermissionService::allow_all()),
+            Arc::new(RwLock::new(CodeLoomConfig {
+                provider: ProviderConfig {
+                    kind: ProviderKind::OpenAiCompat,
+                    base_url: "http://localhost".into(),
+                    api_key_env: "KEY".into(),
+                },
+                model: "test".into(),
+                max_steps: 4,
+                effort: None,
+            })),
+            dir.path().to_path_buf(),
+            jobs.clone(),
+            bus,
+        );
+        let (child, job) = runtime
+            .start(
+                parent,
+                "research".into(),
+                "do work".into(),
+                None,
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        jobs.wait(parent, &job).await.unwrap();
+
+        // Entre los cambios de tarea hay uno con la tarea en marcha y el avance ya dentro.
+        let mut en_marcha = false;
+        while let Ok(evento) = rx.try_recv() {
+            if let LiveEvent::SubagentChanged(d) = evento {
+                if d.child == child
+                    && d.status.state == TaskState::Working
+                    && d.progress_artifacts().count() == 1
+                {
+                    assert_eq!(d.result_text(), None);
+                    en_marcha = true;
+                }
+            }
+        }
+        assert!(
+            en_marcha,
+            "el avance debía llegar al bus del padre en marcha"
+        );
+        let hijos = store.list_subagents(parent).await.unwrap();
+        assert_eq!(hijos[0].result_text().as_deref(), Some("resultado final"));
+        assert_eq!(hijos[0].progress_artifacts().count(), 1);
     }
 
     #[tokio::test]
