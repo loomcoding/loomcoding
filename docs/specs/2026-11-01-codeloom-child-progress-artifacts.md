@@ -1,6 +1,6 @@
 # CodeLoom — Artefactos de progreso publicados por el hijo
 
-> Estado: **propuesta**, pendiente de aprobación (2026-11-01). Sin código hasta que spec y plan estén aprobados.
+> Estado: **aprobada** (2026-11-01) con las respuestas de §9. En implementación.
 >
 > Origen: fase B de `2026-10-21-codeloom-agent-autonomy-design.md`, que quedó a medias. La persona usuaria lo
 > quiere para **saber cómo va el hijo** mientras trabaja, no solo cuando termina.
@@ -68,8 +68,11 @@ agentes remotos y la respuesta final del hijo) no llevan marca y son el **result
 ### 5.4 Qué ve la persona usuaria
 
 - Cada publicación emite el `SubagentChanged` habitual, así que el árbol de la TUI se refresca.
-- El nodo del hijo muestra cuántos artefactos de progreso lleva y el nombre del último; al entrar en el hijo, el
-  contenido se lee en su sesión. La TUI **no** pinta contenido de artefactos en el árbol.
+- El nodo del hijo muestra, bajo su etiqueta, **de 1 a 3 líneas** del último artefacto de progreso publicado (su nombre
+  y el arranque de su contenido, truncado por ancho y sin saltos), más cuántos lleva. Es una vista previa acotada: el
+  contenido completo no se pinta en el árbol.
+- La vista de alternancia que ya existe para entrar en el chat del hijo (abrir el hijo desde el carril y volver) es la
+  forma de leerlo entero y de ver su conversación; esta spec no crea otra.
 - Por A2A (servicio y SSE), cada publicación es un `TaskArtifactUpdateEvent` con `append = false` y `lastChunk = true`
   (`lastChunk` en A2A marca el último trozo de un artefacto, no el final de la tarea).
 
@@ -107,8 +110,9 @@ publicó (es justo lo que permite saber hasta dónde llegó).
 
 ## 9. Preguntas abiertas
 
-1. ¿La marca va en `metadata` (propuesta) o es mejor un prefijo reservado en el `name`? `metadata` es el sitio que A2A
-   prevé para extensiones; el prefijo sería más visible en el cable.
-2. ¿Se ofrece `artifact_publish` a todos los perfiles de hijo o solo a los que lo declaren en `scope.tools`?
-   Propuesta: todos, con esquema mínimo, y se revisa si el coste en tokens molesta.
-3. ¿La TUI debe mostrar el contenido de un artefacto sin entrar en el hijo (un visor)? Propuesta: no en esta fase.
+Resueltas el 2026-11-01 por la persona usuaria:
+
+1. **Marca en `metadata`.** `Artifact.metadata` existe en A2A y `codeloom-a2a` ya lo lleva al cable (`wire.rs`).
+2. **`artifact_publish` se ofrece a todos los hijos** (con esquema mínimo), no solo a los perfiles que lo declaren en
+   `scope.tools`; se revisa si el coste en tokens molesta (tarea 6 del plan).
+3. **Vista previa de 1 a 3 líneas en el nodo del hijo**, y la alternancia existente para entrar en su chat (§5.4).

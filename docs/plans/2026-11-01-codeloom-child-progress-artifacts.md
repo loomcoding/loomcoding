@@ -1,6 +1,6 @@
 # Plan — Artefactos de progreso publicados por el hijo
 
-> Estado: propuesta, pendiente de aprobación (2026-11-01).
+> Estado: aprobado (2026-11-01). En implementación; tareas hechas: ninguna.
 > Spec: `docs/specs/2026-11-01-codeloom-child-progress-artifacts.md`.
 
 ## Restricciones
@@ -25,7 +25,8 @@
    `tools/artifact_read.rs`, `subagent_list.rs` y el constructor del aviso.
 4. **Flujo A2A.** Prueba (criterio 6): un artefacto publicado en marcha produce `TaskArtifactUpdateEvent` con
    `append = false` y `lastChunk = true` por el flujo existente. Solo cambia código si la prueba lo exige.
-5. **Interfaz.** Pruebas primero: el nodo del hijo muestra «n artefactos» y el nombre del último; el contenido no se
-   pinta en el árbol. Luego `codeloom-tui`.
+5. **Interfaz.** Pruebas primero: el nodo del hijo muestra de 1 a 3 líneas del último artefacto de progreso (nombre y
+   arranque del contenido, truncado por ancho) y su recuento; sin artefactos no añade líneas; el contenido completo no
+   se pinta. Luego `codeloom-tui` (`NodeView` de `batten` y el carril).
 6. **Cierre.** Cuatro comprobaciones, medir el aumento de tokens del esquema en la petición del hijo y dejarlo en la spec,
    actualizar `agent-autonomy` (fase B hecha), el inventario y esta spec. Commit.
