@@ -1,7 +1,7 @@
 # CodeLoom — Registro de tokens de caché en el ledger de uso
 
-> Estado: **borrador para implementar la fase 1** (registro). Las fases 2 y 3 (desglose del contexto y su
-> presentación) quedan definidas pero sin diseño de detalle.
+> Estado: **fase 1 implementada** (2026-10-31, registro). Las fases 2 y 3 (desglose del contexto y su
+> presentación) las cubre `2026-10-31-codeloom-context-breakdown-ui.md`, implementada. Pendiente: la API Responses de OpenAI.
 >
 > Fecha: 2026-10-31
 >

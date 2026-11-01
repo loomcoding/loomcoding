@@ -1,5 +1,7 @@
 # Plan de trabajo de la TUI por secciones
 
+> Estado (anotado en la higiene del 2026-11-01): sin cierre declarado en su día; las secciones que describe figuran como hechas en `docs/inventario.md` (fundamentos).
+
 El trabajo se cierra por flujos completos de usuario, no por atajos aislados.
 Cada sección tiene alcance verificable y se marca terminada solo cuando sus
 estados principales y casos de error están cubiertos.

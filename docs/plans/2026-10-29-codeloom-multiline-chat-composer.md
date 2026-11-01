@@ -1,5 +1,7 @@
 # Plan: composer de chat multilínea
 
+> Estado (anotado en la higiene del 2026-11-01): implementado; cubierto por `tui_pty::ctrl_j_and_paste_add_lines_and_only_enter_sends`; queda la revisión de aspecto.
+
 Spec: [`docs/specs/2026-10-29-codeloom-multiline-chat-composer.md`](../specs/2026-10-29-codeloom-multiline-chat-composer.md)
 
 ## Cambios

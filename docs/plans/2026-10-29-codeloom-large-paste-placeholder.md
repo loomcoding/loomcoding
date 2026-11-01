@@ -1,5 +1,7 @@
 # Plan: marcador para pegados largos
 
+> Estado (anotado en la higiene del 2026-11-01): implementado; cubierto por `tui_pty`; queda la revisión de aspecto por una persona.
+
 Spec: [`docs/specs/2026-10-29-codeloom-large-paste-placeholder.md`](../specs/2026-10-29-codeloom-large-paste-placeholder.md)
 
 ## Alcance

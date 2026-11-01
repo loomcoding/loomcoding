@@ -1,5 +1,7 @@
 # Plan: atribución de mensajes internos en el transcript
 
+> Estado (anotado en la higiene del 2026-11-01): implementado; cubierto por `tui_pty` (atribución `You`).
+
 Spec: [`docs/specs/2026-10-29-codeloom-user-attribution-internal-messages.md`](../specs/2026-10-29-codeloom-user-attribution-internal-messages.md)
 
 ## Cambios

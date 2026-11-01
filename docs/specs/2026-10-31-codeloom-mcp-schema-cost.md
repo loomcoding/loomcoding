@@ -1,6 +1,6 @@
 # CodeLoom — Coste de los esquemas MCP al conectar
 
-> Estado: **borrador para implementar**.
+> Estado: **implementado** (2026-10-31); véase el plan gemelo.
 >
 > Fecha: 2026-10-31
 >

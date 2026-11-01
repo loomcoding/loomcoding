@@ -1,6 +1,6 @@
 # Especificación: adjuntar imágenes desde el chat
 
-Estado: implementado; falta validar build del workspace y probarlo en la TUI real.
+Estado: implementado; el build y los tests del workspace pasan. Falta la revisión visual en la TUI real.
 
 ## Objetivo
 

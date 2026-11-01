@@ -1,6 +1,6 @@
 # Inventario de specs y planes
 
-Fotografía del 2026-10-30. Se obtuvo leyendo la línea `Estado:` de cada documento
+Fotografía del 2026-10-30, con anexos y una higiene documental del 2026-11-01. Se obtuvo leyendo la línea `Estado:` de cada documento
 y cotejándola con el repositorio: existencia de los ficheros que cada plan crea,
 presencia de los símbolos que describe y existencia en `master` de los commits que
 cita (117 de 118; el restante es una revisión de Crossterm, ajena a este repositorio).
@@ -10,6 +10,12 @@ Ubicación: lo hecho y sin cabos sueltos vive en `docs/specs/hechos/` y
 lo parcialmente implementado y los documentos de referencia vivos (decálogo,
 roadmaps, listas de pendientes). En «Hecho» (abajo) aparece todo lo que ya consta
 como implementado; lo que sigue en la raíz es la sección «cabo suelto».
+
+Salvedad (2026-11-01): los documentos de las tandas del 2026-10-29 en adelante, aunque estén hechos,
+siguen en la raíz: moverlos obliga a reescribir los enlaces relativos entre documentos y no se hizo en
+la higiene. Manda siempre la línea `Estado:` de cada cabecera, que en esa pasada se alineó entre
+spec y plan en `mcp-schema-cost`, `cache-usage-ledger` e `image-attachments`, y se añadió a doce planes
+que carecían de ella (los de `dashboard` y `interactive-reliability` constan como «sin verificar»).
 
 Las casillas `- [x]` de los planes anteriores al 2026-10-21 nunca se marcaron; no
 son fiables. Manda la línea `Estado:` de la cabecera.
@@ -38,6 +44,10 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   `external-catalog-profiles` (`[agents] catalog_roots`: agentes y skills de un catálogo externo como perfiles locales, siempre con aprobación por huella ligada a la raíz del catálogo) y
   `user-invoked-agents` (`/agent <nombre> [--skills a,b] <tarea>` y `@nombre …`: la persona usuaria lanza un agente directamente, con un subconjunto de sus skills, sin turno del modelo principal; Tab completa el nombre) y
   `reasoning-effort-benchmark` (medido con Haiku 4.5: sin efecto en ejecución; en revisión difícil `medium` halla más defectos pero añade falsos positivos y cuesta ~24 veces más; `high` pendiente; no se fijan valores).
+- **Tanda del 2026-10-31 (implementada, con su plan):** `truncation-signal` (aviso de salida truncada al modelo),
+  `budget-hard-stop` (corte duro por presupuesto, también en la familia de subagentes),
+  `delegation-limits` (topes de la delegación) y `skill-size-policy` (límites de tamaño de las skills locales).
+  `reasoning-effort-hard-battery` está ejecutada en parte: `none` y `medium` medidos, `high` sin datos válidos (HTTP 402 por falta de crédito).
 - **Runtime R1 a R6** y sus anexos del 10-27.
 - **Verificados el 2026-10-30 contra el código:** provider-timeouts, coste-real-y-estimado-por-adapter,
   parent-wakeup, chat-demo-streaming, cost-estimate; conversation-composer-review queda superado
@@ -73,6 +83,13 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   kpis-prompt-compression, memory, skills-ponytail-superpowers, static-decision-signals,
   tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
   agent-profile-a2a, agentic-fetch, turn-status-line.
+- **Borradores y estudios sin aprobar (2026-10-31):** `decalogo-agent-first` (principios candidatos, a discusión) y
+  `ecc-agent-workforce-research` (investigación de la persona usuaria; no autoriza cambios).
+- **Fuera de este inventario hasta revisarlas:** `self-hosting-bootstrap` (evaluación), `mcp-skills-hot-reload`,
+  `decision-experiments` (borradores), `composer-tool-visual-references` y `batten-reference-findings-showcase`
+  (análisis ya completados, sin código asociado).
+- **A verificar contra el código antes de planificar:** `agent-autonomy` fases B (artefactos) y C (tareas enlazadas
+  y contexto): hay rastro de artefactos y de contexto en `a2a.rs`, `remote_task.rs` y `event/mod.rs`, pero la spec las da por pendientes.
 - **Referencia, no ejecutables:** a2a-roadmap, jevalan-roadmap, pendientes,
   agent-first-development-skills.
 

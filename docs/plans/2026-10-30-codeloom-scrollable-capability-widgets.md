@@ -1,5 +1,7 @@
 # Plan: widgets desplazables de capacidades
 
+> Estado (anotado en la higiene del 2026-11-01): implementado; cabo suelto: revisión visual en terminal real.
+
 Spec: [`docs/specs/2026-10-30-codeloom-scrollable-capability-widgets.md`](../specs/2026-10-30-codeloom-scrollable-capability-widgets.md)
 
 ## Fases

@@ -1,5 +1,7 @@
 # Plan: inventariar MastraCode y Crush para CodeLoom
 
+> Estado (anotado en la higiene del 2026-11-01): inventario completado según la spec gemela; sin trabajo de código pendiente.
+
 > Spec: `docs/specs/2026-10-18-loom-composer-tool-visual-references.md`.
 >
 > Alcance: inventario amplio de funciones de cara al usuario, con análisis de

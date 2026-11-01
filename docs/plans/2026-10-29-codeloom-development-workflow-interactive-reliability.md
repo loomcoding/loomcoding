@@ -1,5 +1,7 @@
 # Plan: fiabilidad interactiva del workflow de desarrollo
 
+> Estado (anotado en la higiene del 2026-11-01): sin cierre declarado: la spec gemela solo consta como aprobada; no se ha verificado contra el código en esta higiene.
+
 > Spec: `docs/specs/2026-10-29-codeloom-development-workflow-interactive-reliability.md`.
 
 ## Cambios

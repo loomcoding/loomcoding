@@ -1,5 +1,7 @@
 # Plan: respuesta final vacía de un subagente
 
+> Estado (anotado en la higiene del 2026-11-01): implementado; cubierto por `tui_pty`; queda la revisión de aspecto.
+
 Spec: [`docs/specs/2026-10-29-codeloom-subagent-empty-final-response.md`](../specs/2026-10-29-codeloom-subagent-empty-final-response.md)
 
 ## Cambios

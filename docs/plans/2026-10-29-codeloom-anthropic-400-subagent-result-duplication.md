@@ -1,5 +1,7 @@
 # Plan: error HTTP de Anthropic y resultado duplicado de subagente
 
+> Estado (anotado en la higiene del 2026-11-01): implementado; cabo suelto: repetir la llamada real.
+
 Spec: [`docs/specs/2026-10-29-codeloom-anthropic-400-subagent-result-duplication.md`](../specs/2026-10-29-codeloom-anthropic-400-subagent-result-duplication.md)
 
 ## Cambios

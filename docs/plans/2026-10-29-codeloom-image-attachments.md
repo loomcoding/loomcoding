@@ -1,5 +1,7 @@
 # Plan: adjuntar imágenes desde el chat
 
+> Estado (anotado en la higiene del 2026-11-01): implementado; cabo suelto: revisión visual en la TUI real.
+
 Spec: [`docs/specs/2026-10-29-codeloom-image-attachments.md`](../specs/2026-10-29-codeloom-image-attachments.md)
 
 ## Pasos

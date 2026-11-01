@@ -1,5 +1,7 @@
 # Plan: dashboard de capacidades runtime
 
+> Estado (anotado en la higiene del 2026-11-01): sin cierre declarado: la spec gemela solo consta como «implementación solicitada»; no se ha verificado contra el código en esta higiene.
+
 Spec: [`docs/specs/2026-10-29-codeloom-runtime-capabilities-dashboard.md`](../specs/2026-10-29-codeloom-runtime-capabilities-dashboard.md)
 
 ## Fases
