@@ -26,6 +26,16 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 
+/// Petición de un subagente hecha directamente por la persona usuaria. `skills` es una selección, en orden,
+/// dentro de las que declara el perfil del agente; `None` carga todas las declaradas, como `start`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubagentRequest {
+    pub label: String,
+    pub prompt: String,
+    pub agent: Option<String>,
+    pub skills: Option<Vec<String>>,
+}
+
 #[async_trait]
 pub trait SubagentLauncher: Send + Sync {
     async fn start(
@@ -36,6 +46,24 @@ pub trait SubagentLauncher: Send + Sync {
         agent: Option<String>,
         cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)>;
+
+    /// Arranca un subagente por orden directa de la persona usuaria: no pide la aprobación de
+    /// delegación (que es para las del modelo) y admite elegir un subconjunto de las skills del perfil.
+    /// Por defecto delega en `start` y rechaza la selección de skills.
+    async fn start_requested(
+        &self,
+        parent: SessionId,
+        request: SubagentRequest,
+        cancel: CancellationToken,
+    ) -> Result<(SessionId, JobId)> {
+        if request.skills.is_some() {
+            return Err(CoreError::Tool(
+                "skills selection unavailable for this launcher".into(),
+            ));
+        }
+        self.start(parent, request.label, request.prompt, request.agent, cancel)
+            .await
+    }
 
     async fn start_read_only_review(
         &self,
@@ -708,8 +736,35 @@ Task: {label}
         read_only: bool,
         parent_cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)> {
+        self.arrancar_con(
+            parent,
+            label,
+            prompt,
+            agent,
+            referencias,
+            read_only,
+            None,
+            parent_cancel,
+        )
+        .await
+    }
+
+    /// Como `arrancar`, con una selección opcional de las skills del perfil.
+    #[allow(clippy::too_many_arguments)]
+    async fn arrancar_con(
+        &self,
+        parent: SessionId,
+        label: String,
+        prompt: String,
+        agent: Option<String>,
+        referencias: Vec<SessionId>,
+        read_only: bool,
+        skills: Option<Vec<String>>,
+        parent_cancel: CancellationToken,
+    ) -> Result<(SessionId, JobId)> {
         // El agente se valida antes de reservar puesto o crear tarea: un rechazo no deja rastro.
         let perfil = self.resolver_agente(agent.as_deref())?;
+        let skills_elegidas = elegir_skills(perfil.as_ref(), skills)?;
         if read_only
             && perfil
                 .as_ref()
@@ -864,7 +919,8 @@ Task: {label}
                     raices = raices.with_catalog(raiz.join(".agents").join("skills"));
                 }
             }
-            let loaded = crate::skills::load_scoped_skills(&spec.scope.skills, &raices);
+            let ids = skills_elegidas.as_deref().unwrap_or(&spec.scope.skills);
+            let loaded = crate::skills::load_scoped_skills(ids, &raices);
             skill_statuses = loaded.statuses;
             skill_usage_components = skill_statuses
                 .iter()
@@ -1674,8 +1730,72 @@ fn prompt_de_seguimiento(anterior: &SubagentDescriptor, peticion: &str) -> Strin
     )
 }
 
+/// Valida la selección de skills de una petición directa contra las que declara el perfil. Devuelve las
+/// que se cargarán (`None`: todas las declaradas). Rechaza, antes de crear tarea, una selección vacía,
+/// repetida, de más de `MAX_SKILLS_PER_AGENT`, con una skill que el perfil no declara, o hecha a un agente
+/// que no declara ninguna o es remoto.
+fn elegir_skills(
+    perfil: Option<&AgentEntry>,
+    skills: Option<Vec<String>>,
+) -> Result<Option<Vec<String>>> {
+    let Some(pedidas) = skills else {
+        return Ok(None);
+    };
+    let declaradas: &[String] = match perfil {
+        Some(AgentEntry {
+            execution: Execution::Local(spec),
+            ..
+        }) => &spec.scope.skills,
+        _ => &[],
+    };
+    if declaradas.is_empty() {
+        return Err(CoreError::Tool(
+            "this agent declares no skills to choose from".into(),
+        ));
+    }
+    if pedidas.is_empty() || pedidas.len() > crate::skills::MAX_SKILLS_PER_AGENT {
+        return Err(CoreError::Tool(format!(
+            "choose between 1 and {} skills",
+            crate::skills::MAX_SKILLS_PER_AGENT
+        )));
+    }
+    let mut vistas = std::collections::HashSet::new();
+    for id in &pedidas {
+        if !vistas.insert(id.as_str()) {
+            return Err(CoreError::Tool(format!("skills: «{id}» is repeated")));
+        }
+        if !declaradas.contains(id) {
+            return Err(CoreError::Tool(format!(
+                "skills: «{id}» is not declared by the agent"
+            )));
+        }
+    }
+    Ok(Some(pedidas))
+}
+
 #[async_trait]
 impl SubagentLauncher for InProcessSubagentLauncher {
+    async fn start_requested(
+        &self,
+        parent: SessionId,
+        request: SubagentRequest,
+        parent_cancel: CancellationToken,
+    ) -> Result<(SessionId, JobId)> {
+        validar_peticion(&request.label, &request.prompt)?;
+        // Orden de la persona usuaria: no hay aprobación de delegación que pedir.
+        self.arrancar_con(
+            parent,
+            request.label,
+            request.prompt,
+            request.agent,
+            Vec::new(),
+            false,
+            request.skills,
+            parent_cancel,
+        )
+        .await
+    }
+
     async fn start(
         &self,
         parent: SessionId,
@@ -6898,6 +7018,124 @@ Cuerpo de la skill del catálogo.",
             sistema.contains("Cuerpo de la skill del catálogo."),
             "{sistema}"
         );
+    }
+
+    /// Perfil global `rev` que declara las skills dadas, y esas mismas skills en el proyecto del entorno
+    /// con el cuerpo `cuerpo-<id>`.
+    async fn entorno_con_skills(declaradas: &[&str]) -> EntornoRecursivo {
+        let lista = declaradas
+            .iter()
+            .map(|id| format!("\"{id}\""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let perfil = format!(
+            "---
+name: rev
+description: x
+scope:
+  skills: [{lista}]
+---
+
+Cuerpo.
+"
+        );
+        let e = entorno_recursivo(1, &[("rev", perfil.as_str())], &[], &[]).await;
+        for id in declaradas {
+            let dir = e.parent_dir().join(".agents").join("skills").join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join("SKILL.md"),
+                format!(
+                    "---
+name: {id}
+---
+cuerpo-{id}"
+                ),
+            )
+            .unwrap();
+        }
+        e
+    }
+
+    fn peticion(skills: Option<&[&str]>) -> SubagentRequest {
+        SubagentRequest {
+            label: "h".into(),
+            prompt: "hijo".into(),
+            agent: Some("rev".into()),
+            skills: skills.map(|ids| ids.iter().map(|id| id.to_string()).collect()),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_user_selection_loads_only_the_chosen_skills_of_the_profile() {
+        let e = entorno_con_skills(&["a", "b", "c"]).await;
+        let (_hijo, job) = e
+            .lanzador
+            .start_requested(
+                e.parent,
+                peticion(Some(&["a", "c"])),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        let sistema = e.sistemas.lock().unwrap()["hijo"].clone();
+        assert!(
+            sistema.contains("cuerpo-a") && sistema.contains("cuerpo-c"),
+            "{sistema}"
+        );
+        assert!(!sistema.contains("cuerpo-b"), "{sistema}");
+    }
+
+    #[tokio::test]
+    async fn without_a_selection_every_declared_skill_loads_as_before() {
+        let e = entorno_con_skills(&["a", "b"]).await;
+        let (_hijo, job) = e
+            .lanzador
+            .start_requested(e.parent, peticion(None), CancellationToken::new())
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        let sistema = e.sistemas.lock().unwrap()["hijo"].clone();
+        assert!(
+            sistema.contains("cuerpo-a") && sistema.contains("cuerpo-b"),
+            "{sistema}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_invalid_selection_is_rejected_before_creating_any_task() {
+        let e = entorno_con_skills(&["a", "b"]).await;
+        let diecisiete: Vec<String> = (0..17).map(|n| format!("s{n}")).collect();
+        let diecisiete_refs: Vec<&str> = diecisiete.iter().map(String::as_str).collect();
+        for malas in [
+            vec!["z"],       // no declarada
+            vec!["a", "a"],  // repetida
+            vec![],          // vacía
+            diecisiete_refs, // demasiadas
+        ] {
+            let error = e
+                .lanzador
+                .start_requested(e.parent, peticion(Some(&malas)), CancellationToken::new())
+                .await
+                .unwrap_err();
+            assert!(error.to_string().contains("skills"), "{malas:?}: {error}");
+        }
+        assert!(e.store.list_subagents(e.parent).await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_selection_for_an_agent_without_skills_is_rejected() {
+        let e = entorno_recursivo(1, &[], &[], &[]).await;
+        let mut pedida = peticion(Some(&["a"]));
+        pedida.agent = None;
+        let error = e
+            .lanzador
+            .start_requested(e.parent, pedida, CancellationToken::new())
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("skills"), "{error}");
+        assert!(e.store.list_subagents(e.parent).await.unwrap().is_empty());
     }
 
     #[tokio::test]
