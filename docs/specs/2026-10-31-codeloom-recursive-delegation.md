@@ -106,5 +106,8 @@ bajo su padre, con sangría y el camino completo, es la fase 2, ya hecha.
 - Un hijo que no puede delegar sigue sin ver `subagent`, `subagent_control`, `subagent_list` ni `development_workflow`
   (el constructor del lanzador ya se las quitaba). El mando `[agents] delegation = "on_request" | "proactive"` solo
   rige en la sesión raíz: los hijos que delegan no reciben su regla.
-- Sin cubrir en pruebas: el `hard_stop` de un nieto de extremo a extremo. Está cubierto que comparte la familia de la raíz
-  (`familia`) y que el total de la raíz suma el subárbol.
+- `hard_stop` de un nieto, probado de extremo a extremo (2026-11-01, `hard_stop_reaches_a_grandchild_through_the_shared_family`):
+  con la familia agotada por el gasto del hijo, el nieto lanzado no pide ninguna respuesta. Queda sin probar el sentido
+  inverso en vivo (que el gasto del nieto frene al hijo): el nieto corre en segundo plano y el orden depende del reparto de
+  tareas; el total de la raíz sí suma el subárbol (`session_usage`). El aviso de presupuesto agotado (`RuntimeNotice`) viaja
+  por el bus propio del hijo y no se reenvía a la raíz.

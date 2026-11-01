@@ -6300,6 +6300,10 @@ mod tests {
         plan: std::collections::HashMap<String, (Option<String>, String)>,
         herramientas: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>>,
         puertas: std::collections::HashMap<String, Arc<tokio::sync::Notify>>,
+        /// Tokens de entrada que declara cada respuesta; con 0 no se emite consumo.
+        consumo: Arc<std::sync::atomic::AtomicU32>,
+        /// Primer mensaje de la conversación de cada petición recibida, en orden.
+        peticiones: Arc<std::sync::Mutex<Vec<String>>>,
     }
 
     #[async_trait]
@@ -6322,6 +6326,7 @@ mod tests {
                 .find(|mensaje| mensaje.role == crate::message::Role::User)
                 .map(|mensaje| mensaje.text())
                 .unwrap_or_default();
+            self.peticiones.lock().unwrap().push(primero.clone());
             self.herramientas
                 .lock()
                 .unwrap()
@@ -6334,7 +6339,7 @@ mod tests {
             if let Some(puerta) = self.puertas.get(&primero) {
                 puerta.notified().await;
             }
-            let trozos = match self.plan.get(&primero) {
+            let mut trozos = match self.plan.get(&primero) {
                 Some((agente, siguiente)) if !con_resultado => vec![
                     StreamChunk::ToolCallComplete {
                         id: format!("llamada-{primero}"),
@@ -6352,6 +6357,18 @@ mod tests {
                     StreamChunk::Done(FinishReason::Stop),
                 ],
             };
+            let consumo = self.consumo.load(std::sync::atomic::Ordering::SeqCst);
+            if consumo > 0 {
+                let cierre = trozos.len() - 1;
+                trozos.insert(
+                    cierre,
+                    StreamChunk::Usage(crate::message::Usage {
+                        input_tokens: consumo,
+                        output_tokens: 1,
+                        reported_cost_usd: None,
+                    }),
+                );
+            }
             Ok(Box::pin(futures::stream::iter(trozos)))
         }
     }
@@ -6365,6 +6382,8 @@ mod tests {
         lanzador: InProcessSubagentLauncher,
         herramientas: Arc<std::sync::Mutex<std::collections::HashMap<String, Vec<String>>>>,
         puertas: std::collections::HashMap<String, Arc<tokio::sync::Notify>>,
+        consumo: Arc<std::sync::atomic::AtomicU32>,
+        peticiones: Arc<std::sync::Mutex<Vec<String>>>,
     }
 
     /// Lanzador con las tres herramientas de subagentes y `development_workflow` registradas, los
@@ -6397,7 +6416,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (store, parent) = tienda_de_prueba(dir.path(), "recursivo.db").await;
         let herramientas = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+        let consumo = Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let peticiones = Arc::new(std::sync::Mutex::new(Vec::new()));
         let proveedor: Arc<dyn Provider> = Arc::new(ProveedorEnCadena {
+            consumo: consumo.clone(),
+            peticiones: peticiones.clone(),
             plan: plan
                 .iter()
                 .map(|(primero, agente, siguiente)| {
@@ -6442,6 +6465,8 @@ mod tests {
             lanzador,
             herramientas,
             puertas,
+            consumo,
+            peticiones,
         }
     }
 
@@ -6667,6 +6692,51 @@ mod tests {
         let (descriptores, reenviados) = eventos_de_nieto(&mut rx, hijo).await;
         assert!(descriptores.is_empty());
         assert_eq!(reenviados, 0);
+    }
+
+    /// El nieto cuenta en la misma familia de presupuesto que la raíz: con `hard_stop`, si el gasto del
+    /// hijo ya agotó el límite, el nieto lanzado no llega a pedir ninguna respuesta al modelo.
+    #[tokio::test]
+    async fn hard_stop_reaches_a_grandchild_through_the_shared_family() {
+        let perfil = perfil_con_profundidad("coord", Some(2));
+        let mut e = entorno_recursivo(
+            2,
+            &[("coord", perfil.as_str())],
+            &[("hijo", None, "nieto")],
+            &[],
+        )
+        .await;
+        e.consumo.store(1000, std::sync::atomic::Ordering::SeqCst);
+        e.lanzador = e.lanzador.with_budget(crate::budget::BudgetConfig {
+            session_tokens: Some(1000),
+            session_cost_usd: None,
+            hard_stop: true,
+        });
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        // El hijo puede acabar con error (sin respuesta final): lo que importa es que se detuvo.
+        let _ = e.jobs.wait(e.parent, &job).await;
+        esperar_hijos_terminales(&e.store, hijo).await;
+        let peticiones = e.peticiones.lock().unwrap().clone();
+        assert_eq!(
+            peticiones.iter().filter(|p| p.as_str() == "hijo").count(),
+            1,
+            "{peticiones:?}"
+        );
+        assert_eq!(
+            peticiones.iter().filter(|p| p.as_str() == "nieto").count(),
+            0,
+            "el nieto no debe pedir respuesta con la familia agotada: {peticiones:?}"
+        );
     }
 
     #[tokio::test]
