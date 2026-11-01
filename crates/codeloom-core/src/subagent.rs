@@ -181,6 +181,8 @@ pub struct InProcessSubagentLauncher {
     max_active: usize,
     /// Modo de confirmación al delegar. Con `Always`, cada delegación exige aprobación humana (C3).
     confirm: ConfirmDelegation,
+    /// Mando de delegación (`[agents] delegation`): la regla de prompt que también reciben los hijos que delegan.
+    delegation: Option<crate::config::DelegationMode>,
     bus: EventBus,
     broker: Arc<InputBroker>,
     /// Catálogo compartido con el agente padre; cada hijo lo usa para sus apuntes de consumo.
@@ -362,6 +364,7 @@ impl InProcessSubagentLauncher {
             active: Arc::new(Semaphore::new(8)),
             max_active: 8,
             confirm: ConfirmDelegation::default(),
+            delegation: None,
             bus,
             broker: Arc::new(InputBroker::default()),
             catalog: Arc::new(RwLock::new(Catalog::default())),
@@ -419,6 +422,7 @@ impl InProcessSubagentLauncher {
             active: self.active.clone(),
             max_active: self.max_active,
             confirm: self.confirm,
+            delegation: self.delegation,
             bus: self.bus.clone(),
             broker: self.broker.clone(),
             catalog: self.catalog.clone(),
@@ -449,6 +453,12 @@ impl InProcessSubagentLauncher {
     /// y deniega si no hay respuesta humana explícita.
     pub fn with_delegation_confirm(mut self, confirm: ConfirmDelegation) -> Self {
         self.confirm = confirm;
+        self
+    }
+
+    /// Fija el mando de delegación que heredan los hijos que delegan (`[agents] delegation`).
+    pub fn with_delegation_mode(mut self, mode: Option<crate::config::DelegationMode>) -> Self {
+        self.delegation = mode;
         self
     }
 
@@ -882,6 +892,7 @@ Task: {label}
             None
         };
         let child_confirm = self.confirm;
+        let child_delegation = self.delegation;
         let child_max_steps = child_config.max_steps;
         let child_cwd = self.cwd.clone();
         let child_jobs = self.jobs.clone();
@@ -961,7 +972,9 @@ Task: {label}
                     }
                     // Al final: los demás `with_*` reconstruyen el lanzador por defecto del agente.
                     if let Some(lanzador) = child_nested {
-                        child_agent = child_agent.with_subagent_launcher(lanzador);
+                        child_agent = child_agent
+                            .with_delegation_mode(child_delegation)
+                            .with_subagent_launcher(lanzador);
                     }
                     let child_cancel = CancellationToken::new();
                     let outcome = tokio::select! {
@@ -6304,6 +6317,8 @@ mod tests {
         consumo: Arc<std::sync::atomic::AtomicU32>,
         /// Primer mensaje de la conversación de cada petición recibida, en orden.
         peticiones: Arc<std::sync::Mutex<Vec<String>>>,
+        /// Prompt de sistema de la primera petición de cada conversación.
+        sistemas: Arc<std::sync::Mutex<std::collections::HashMap<String, String>>>,
     }
 
     #[async_trait]
@@ -6327,6 +6342,11 @@ mod tests {
                 .map(|mensaje| mensaje.text())
                 .unwrap_or_default();
             self.peticiones.lock().unwrap().push(primero.clone());
+            self.sistemas
+                .lock()
+                .unwrap()
+                .entry(primero.clone())
+                .or_insert_with(|| req.system.clone());
             self.herramientas
                 .lock()
                 .unwrap()
@@ -6384,6 +6404,7 @@ mod tests {
         puertas: std::collections::HashMap<String, Arc<tokio::sync::Notify>>,
         consumo: Arc<std::sync::atomic::AtomicU32>,
         peticiones: Arc<std::sync::Mutex<Vec<String>>>,
+        sistemas: Arc<std::sync::Mutex<std::collections::HashMap<String, String>>>,
     }
 
     /// Lanzador con las tres herramientas de subagentes y `development_workflow` registradas, los
@@ -6418,9 +6439,11 @@ mod tests {
         let herramientas = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
         let consumo = Arc::new(std::sync::atomic::AtomicU32::new(0));
         let peticiones = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sistemas = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
         let proveedor: Arc<dyn Provider> = Arc::new(ProveedorEnCadena {
             consumo: consumo.clone(),
             peticiones: peticiones.clone(),
+            sistemas: sistemas.clone(),
             plan: plan
                 .iter()
                 .map(|(primero, agente, siguiente)| {
@@ -6467,6 +6490,7 @@ mod tests {
             puertas,
             consumo,
             peticiones,
+            sistemas,
         }
     }
 
@@ -6737,6 +6761,56 @@ mod tests {
             0,
             "el nieto no debe pedir respuesta con la familia agotada: {peticiones:?}"
         );
+    }
+
+    /// Prompts de sistema del hijo y del nieto con el modo de delegación dado en el lanzador.
+    async fn sistemas_con_modo(modo: Option<crate::config::DelegationMode>) -> (String, String) {
+        let perfil = perfil_con_profundidad("coord", Some(2));
+        let mut e = entorno_recursivo(
+            2,
+            &[("coord", perfil.as_str())],
+            &[("hijo", None, "nieto")],
+            &[],
+        )
+        .await;
+        e.lanzador = e.lanzador.with_delegation_mode(modo);
+        let (hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("coord".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        esperar_hijos_terminales(&e.store, hijo).await;
+        let sistemas = e.sistemas.lock().unwrap();
+        (sistemas["hijo"].clone(), sistemas["nieto"].clone())
+    }
+
+    #[tokio::test]
+    async fn a_delegating_child_gets_the_delegation_rule_of_the_root() {
+        use crate::config::DelegationMode;
+        let (hijo, _) = sistemas_con_modo(Some(DelegationMode::OnRequest)).await;
+        assert!(hijo.contains("explicitly asks"), "{hijo}");
+        let (hijo, _) = sistemas_con_modo(Some(DelegationMode::Proactive)).await;
+        assert!(hijo.contains("proactively"), "{hijo}");
+    }
+
+    #[tokio::test]
+    async fn without_a_delegation_mode_the_child_prompt_has_no_rule() {
+        let (hijo, _) = sistemas_con_modo(None).await;
+        assert!(!hijo.contains("explicitly asks") && !hijo.contains("proactively"));
+    }
+
+    #[tokio::test]
+    async fn a_leaf_grandchild_gets_no_delegation_rule() {
+        use crate::config::DelegationMode;
+        let (_, nieto) = sistemas_con_modo(Some(DelegationMode::Proactive)).await;
+        assert!(!nieto.contains("proactively"), "{nieto}");
     }
 
     #[tokio::test]

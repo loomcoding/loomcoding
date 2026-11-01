@@ -104,8 +104,8 @@ bajo su padre, con sangría y el camino completo, es la fase 2, ya hecha.
   (con `UNION`, que deduplica y protege de ciclos). Esto cambia también el total que ve cualquier sesión con
   descendientes: incluye ya a los nietos.
 - Un hijo que no puede delegar sigue sin ver `subagent`, `subagent_control`, `subagent_list` ni `development_workflow`
-  (el constructor del lanzador ya se las quitaba). El mando `[agents] delegation = "on_request" | "proactive"` solo
-  rige en la sesión raíz: los hijos que delegan no reciben su regla.
+  (el constructor del lanzador ya se las quitaba). La regla de `[agents] delegation = "on_request" | "proactive"` también
+  llega a los hijos que delegan (2026-11-01, `2026-11-01-codeloom-delegation-mode-for-nested-children.md`).
 - `hard_stop` de un nieto, probado de extremo a extremo (2026-11-01, `hard_stop_reaches_a_grandchild_through_the_shared_family`):
   con la familia agotada por el gasto del hijo, el nieto lanzado no pide ninguna respuesta. Queda sin probar el sentido
   inverso en vivo (que el gasto del nieto frene al hijo): el nieto corre en segundo plano y el orden depende del reparto de

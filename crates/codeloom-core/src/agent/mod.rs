@@ -636,6 +636,7 @@ impl AgentLoop {
         .with_budget(self.budget.clone())
         .with_max_active(self.max_active_subagents)
         .with_delegation_confirm(self.delegation_confirm)
+        .with_delegation_mode(self.delegation)
         .with_levels_left(crate::subagent::root_levels(self.depth_ceiling));
         let lanzador = match &self.profile_provider_resolver {
             Some(resolver) => lanzador.with_profile_provider_resolver(resolver.clone()),
