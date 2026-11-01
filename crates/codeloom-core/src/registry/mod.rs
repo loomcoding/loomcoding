@@ -29,7 +29,7 @@ pub use source::{
 pub use trust::{content_hash, Approval, ApprovalError, TrustError, TrustStore};
 pub use watch::WatcherHandle;
 
-use source::catalog_root;
+pub(crate) use source::catalog_root;
 use trust::{clave_remota, Confianza};
 
 /// Vista inmutable del registro en un momento dado.

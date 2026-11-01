@@ -1,6 +1,8 @@
 # CodeLoom — Catálogo externo de agentes y skills como perfiles locales
 
-> Estado: **propuesta**, pendiente de aprobación (2026-11-01). Sin código hasta que spec y plan estén aprobados.
+> Estado: **implementada** (2026-11-01). Aprobada por la persona usuaria, con las tres preguntas abiertas resueltas:
+> aprobación una a una (se mejorará cuando el catálogo esté agrupado), la huella incluye los ficheros de apoyo de las skills,
+> y la recarga por sondeo detecta las nuevas exportaciones.
 >
 > Contexto: la persona usuaria mantiene fuera de este repositorio un catálogo de agentes, skills y patrones de terceros
 > (`E:\workspace\personal\loom-agent-workforce-poc`, «el catálogo») para que CodeLoom no se vuelva gigante. El reparto es:
@@ -123,3 +125,21 @@ servidas deben derivar sus `skills` de los perfiles (hoy van vacías); es una de
 2. ¿La huella de un agente de catálogo debe incluir también los ficheros de apoyo de las skills (`checks.md`)? Propuesta:
    sí, si la skill los declara.
 3. ¿Quién avisa a CodeLoom cuando el catálogo exporta de nuevo? Propuesta: nadie; la recarga por sondeo ya lo detecta.
+
+## 8. Nota de implementación
+
+- `[agents] catalog_roots` (`AgentsConfig::catalog_roots_effective`, como mucho 8, sin repetidos ni vacíos). En el arranque
+  (`codeloom-cli/src/main.rs`) cada raíz añade una `FileSource` de nivel `Catalog` sobre `<raíz>/.agents/agents`, entre la
+  global y la de proyecto, y la carpeta entra en la vigilancia.
+- La aprobación se guarda en `agent-trust.json` con la raíz del catálogo como clave (se deduce del fichero:
+  `<raíz>/.agents/agents/<nombre>.md`), no el proyecto abierto; `trust_project_agents` nunca la concede.
+- La huella (`catalog_hash`) suma el perfil y los `*.md` de primer nivel de cada skill citada (hasta 16 skills y 16 ficheros por
+  skill, con el tope de tamaño de skills). Una skill no citada no influye.
+- `SkillRoots::with_catalog`: el lanzador pasa la carpeta de skills del catálogo solo cuando el agente que arranca viene de él, y
+  la busca la última, por detrás del proyecto y del usuario.
+- Interfaz: la etiqueta del nodo lleva `·catalog` y el popup `/agents` etiqueta `catalog profile`. La agrupación visual de los
+  agentes de catálogo en el popup no se hace todavía.
+- Pendiente fuera de esta spec: el contrato de un agente remoto del catálogo no se toca; las tarjetas servidas siguen sin derivar
+  `skills` de los perfiles.
+- Para el catálogo del usuario basta con `catalog_roots = ["E:/workspace/personal/loom-agent-workforce-poc"]`. No se ha editado
+  su proyecto.

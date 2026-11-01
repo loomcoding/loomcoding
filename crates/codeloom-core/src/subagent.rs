@@ -9,7 +9,9 @@ use crate::job::{JobBody, JobHandle, JobId, JobRegistry, JobResult, JobSpec};
 use crate::permission::PermissionService;
 use crate::provider::{ProfileProviderResolver, Provider};
 use crate::registry::router::{AgentRouter, RouteDecision, RouteRequest};
-use crate::registry::{AgentEntry, AgentRegistry, Approval, Execution, AGENTE_POR_DEFECTO};
+use crate::registry::{
+    AgentEntry, AgentOrigin, AgentRegistry, Approval, Execution, AGENTE_POR_DEFECTO,
+};
 use crate::remote_task::{
     RemoteClientFactory, RemoteReply, RemoteTask, RemoteTaskClient, RemoteTaskError,
 };
@@ -829,6 +831,7 @@ Task: {label}
         let mut skill_usage_components = Vec::new();
         if let Some(AgentEntry {
             execution: Execution::Local(spec),
+            origin,
             ..
         }) = &perfil
         {
@@ -850,10 +853,18 @@ Task: {label}
             let home = std::env::var_os("USERPROFILE")
                 .or_else(|| std::env::var_os("HOME"))
                 .map(PathBuf::from);
-            let loaded = crate::skills::load_scoped_skills(
-                &spec.scope.skills,
-                &crate::skills::SkillRoots::new(self.cwd.clone(), home),
-            );
+            let mut raices = crate::skills::SkillRoots::new(self.cwd.clone(), home);
+            // Las skills de un catálogo externo solo las ve el agente que viene de ese catálogo.
+            if let AgentOrigin::File {
+                level: crate::registry::ProfileLevel::Catalog,
+                path,
+            } = origin
+            {
+                if let Some(raiz) = crate::registry::catalog_root(path) {
+                    raices = raices.with_catalog(raiz.join(".agents").join("skills"));
+                }
+            }
+            let loaded = crate::skills::load_scoped_skills(&spec.scope.skills, &raices);
             skill_statuses = loaded.statuses;
             skill_usage_components = skill_statuses
                 .iter()
@@ -6407,6 +6418,13 @@ mod tests {
         sistemas: Arc<std::sync::Mutex<std::collections::HashMap<String, String>>>,
     }
 
+    impl EntornoRecursivo {
+        /// Directorio de trabajo del lanzador, que hace de raíz del proyecto en las pruebas.
+        fn parent_dir(&self) -> PathBuf {
+            self._dir.path().to_path_buf()
+        }
+    }
+
     /// Lanzador con las tres herramientas de subagentes y `development_workflow` registradas, los
     /// perfiles dados y el plan de delegaciones dado. `techo` es el techo de profundidad del árbol.
     async fn entorno_recursivo(
@@ -6811,6 +6829,75 @@ mod tests {
         use crate::config::DelegationMode;
         let (_, nieto) = sistemas_con_modo(Some(DelegationMode::Proactive)).await;
         assert!(!nieto.contains("proactively"), "{nieto}");
+    }
+
+    /// Un agente de catálogo aprobado recibe en su prompt las skills que cita, tomadas de la carpeta de
+    /// skills de su catálogo; un agente sin catálogo no las ve.
+    #[tokio::test]
+    async fn an_approved_catalog_agent_gets_the_skills_of_its_own_catalog() {
+        use crate::registry::{BuiltInSource, FileSource, ProfileLevel, TrustStore};
+        let mut e = entorno_recursivo(1, &[], &[], &[]).await;
+        let catalogo = tempfile::tempdir().unwrap();
+        let agentes = catalogo.path().join(".agents").join("agents");
+        std::fs::create_dir_all(&agentes).unwrap();
+        std::fs::write(
+            agentes.join("revisor.md"),
+            "---
+name: revisor
+description: x
+scope:
+  skills: [\"auditar\"]
+---
+
+Cuerpo.
+",
+        )
+        .unwrap();
+        let skill = catalogo
+            .path()
+            .join(".agents")
+            .join("skills")
+            .join("auditar");
+        std::fs::create_dir_all(&skill).unwrap();
+        std::fs::write(
+            skill.join("SKILL.md"),
+            "---
+name: Auditar
+---
+Cuerpo de la skill del catálogo.",
+        )
+        .unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        let registro = Arc::new(
+            AgentRegistry::new(vec![
+                Box::new(BuiltInSource),
+                Box::new(FileSource::new(agentes, ProfileLevel::Catalog)),
+            ])
+            .with_trust(
+                TrustStore::open(datos.path().to_path_buf()).unwrap(),
+                e.parent_dir(),
+                false,
+            ),
+        );
+        registro.approve("revisor").unwrap();
+        e.lanzador = e.lanzador.with_registry(registro);
+        let (_hijo, job) = e
+            .lanzador
+            .start(
+                e.parent,
+                "h".into(),
+                "hijo".into(),
+                Some("revisor".into()),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        e.jobs.wait(e.parent, &job).await.unwrap();
+        let sistema = e.sistemas.lock().unwrap()["hijo"].clone();
+        assert!(
+            sistema.contains("Cuerpo de la skill del catálogo."),
+            "{sistema}"
+        );
     }
 
     #[tokio::test]

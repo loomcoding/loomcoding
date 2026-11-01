@@ -60,11 +60,24 @@ pub struct SkillRoots {
     /// Workspace raíz, no el directorio de una subcarpeta de trabajo.
     pub project: PathBuf,
     pub user: Option<PathBuf>,
+    /// Carpeta de skills (`<raíz>/.agents/skills`) del catálogo externo del agente que las pide. Va
+    /// la última: nunca tapa una skill del proyecto ni del usuario, y solo la ve ese agente.
+    pub catalog: Option<PathBuf>,
 }
 
 impl SkillRoots {
     pub fn new(project: PathBuf, user: Option<PathBuf>) -> Self {
-        Self { project, user }
+        Self {
+            project,
+            user,
+            catalog: None,
+        }
+    }
+
+    /// Añade la carpeta de skills de un catálogo externo.
+    pub fn with_catalog(mut self, skills_dir: PathBuf) -> Self {
+        self.catalog = Some(skills_dir);
+        self
     }
 
     fn project_skills(&self) -> PathBuf {
@@ -181,6 +194,7 @@ fn read_skill(id: &str, roots: &SkillRoots) -> ReadSkill {
     let candidates = [
         (project.as_path(), "project"),
         (user.as_deref().unwrap_or(Path::new("")), "user"),
+        (roots.catalog.as_deref().unwrap_or(Path::new("")), "catalog"),
     ];
 
     for (root, source) in candidates {
@@ -254,7 +268,7 @@ fn split_frontmatter(text: &str) -> Result<(String, String), SkillLoadState> {
     Ok((name, body))
 }
 
-fn valid_id(id: &str) -> bool {
+pub(crate) fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
         && id != "."
@@ -418,6 +432,48 @@ name: Larga
         assert!(result.prompt.contains("Project body"));
         assert!(!result.prompt.contains("User body"));
         assert_eq!(result.statuses[1].state, SkillLoadState::InvalidId);
+    }
+
+    #[test]
+    fn a_catalog_skill_loads_only_when_the_catalog_root_is_given_and_never_beats_the_project() {
+        let project = tempfile::tempdir().unwrap();
+        let catalogo = tempfile::tempdir().unwrap();
+        skill(
+            catalogo.path(),
+            "audit",
+            "---
+name: Audit
+---
+Catalog body",
+        );
+        skill(
+            catalogo.path(),
+            "same",
+            "---
+name: Same
+---
+Catalog same",
+        );
+        skill(
+            project.path(),
+            "same",
+            "---
+name: Same
+---
+Project same",
+        );
+        let ids = ["audit".to_string(), "same".to_string()];
+        // Sin la raíz del catálogo, la skill del catálogo no existe para el agente.
+        let sin = load_scoped_skills(&ids, &SkillRoots::new(project.path().into(), None));
+        assert_eq!(sin.statuses[0].state, SkillLoadState::Missing);
+        let con = load_scoped_skills(
+            &ids,
+            &SkillRoots::new(project.path().into(), None)
+                .with_catalog(catalogo.path().join(".agents").join("skills")),
+        );
+        assert!(con.prompt.contains("Catalog body"));
+        assert!(con.prompt.contains("Project same"));
+        assert!(!con.prompt.contains("Catalog same"));
     }
 
     #[test]

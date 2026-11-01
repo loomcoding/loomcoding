@@ -34,7 +34,8 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   `context-breakdown-ui` (desglose estimado de la petición y caché acumulada en el panel de uso, solo con datos) y
   `delegation-control` (aprobación por código de cada delegación con `confirm_delegation = always` y mando
   `[agents] delegation = off | on_request | proactive`; solo `off` es garantía de código) y
-  `recursive-delegation` (fase 1: `[agents] max_depth` y perfil `max_depth` con dos candados; sin interfaz de varios niveles todavía) y
+  `recursive-delegation` (fase 1: `[agents] max_depth` y perfil `max_depth` con dos candados; fase 2: los nietos se ven en la interfaz con sangría y camino; la regla de `delegation` llega a los hijos que delegan: `delegation-mode-for-nested-children`) y
+  `external-catalog-profiles` (`[agents] catalog_roots`: agentes y skills de un catálogo externo como perfiles locales, siempre con aprobación por huella ligada a la raíz del catálogo) y
   `reasoning-effort-benchmark` (medido con Haiku 4.5: sin efecto en ejecución; en revisión difícil `medium` halla más defectos pero añade falsos positivos y cuesta ~24 veces más; `high` pendiente; no se fijan valores).
 - **Runtime R1 a R6** y sus anexos del 10-27.
 - **Verificados el 2026-10-30 contra el código:** provider-timeouts, coste-real-y-estimado-por-adapter,

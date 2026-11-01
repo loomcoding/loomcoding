@@ -5,7 +5,7 @@
 //! como la remota de A8, no obliga a tocar el registro.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::card::AgentCard;
 use crate::config::ProviderConfig;
@@ -29,7 +29,7 @@ pub enum ProfileLevel {
 pub(crate) const MAX_CATALOG_PROFILES: usize = 200;
 
 /// Raíz del catálogo al que pertenece el fichero de perfil `<raíz>/.agents/agents/<nombre>.md`.
-pub(crate) fn catalog_root(perfil: &std::path::Path) -> Option<PathBuf> {
+pub(crate) fn catalog_root(perfil: &Path) -> Option<PathBuf> {
     Some(perfil.parent()?.parent()?.parent()?.to_path_buf())
 }
 
@@ -309,21 +309,74 @@ impl AgentSource for FileSource {
                             problem: aviso,
                         });
                     }
+                    // La aprobación de un agente de catálogo cubre también las skills que cita.
+                    let huella = if self.level == ProfileLevel::Catalog {
+                        catalog_hash(&texto, &self.dir, &perfil.scope.skills)
+                    } else {
+                        content_hash(&texto)
+                    };
                     let origin = AgentOrigin::File {
                         path: ruta,
                         level: self.level,
                     };
-                    entries.push(entrada_desde_perfil(
-                        perfil,
-                        origin,
-                        Some(content_hash(&texto)),
-                    ));
+                    entries.push(entrada_desde_perfil(perfil, origin, Some(huella)));
                 }
             }
         }
 
         SourceLoad { entries, problems }
     }
+}
+
+/// Huella de un agente de catálogo: su fichero más, en el orden de `scope.skills`, los `*.md` de primer
+/// nivel de cada skill que cita (`SKILL.md` y ficheros de apoyo como `checks.md`). Sin skills es la
+/// huella del propio texto. Cualquier byte distinto en cualquiera de ellos da otra huella; una skill no
+/// citada no influye. Lecturas acotadas: 16 skills, 16 ficheros por skill y el tope de tamaño de skills.
+fn catalog_hash(texto: &str, agents_dir: &Path, skills: &[String]) -> String {
+    use std::io::Read;
+    let Some(skills_dir) = agents_dir.parent().map(|dir| dir.join("skills")) else {
+        return content_hash(texto);
+    };
+    let mut acumulado = String::from(texto);
+    let mut vistos = std::collections::HashSet::new();
+    for id in skills.iter().take(crate::skills::MAX_SKILLS_PER_AGENT) {
+        if !crate::skills::valid_id(id) || !vistos.insert(id.as_str()) {
+            continue;
+        }
+        acumulado.push_str(&format!(
+            "
+--skill:{id}
+"
+        ));
+        let mut ficheros: Vec<PathBuf> = std::fs::read_dir(skills_dir.join(id))
+            .map(|lectura| {
+                lectura
+                    .filter_map(|dirent| dirent.ok().map(|d| d.path()))
+                    .filter(|ruta| {
+                        ruta.extension().and_then(|e| e.to_str()) == Some("md") && ruta.is_file()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        ficheros.sort();
+        for ruta in ficheros.iter().take(16) {
+            let nombre = ruta.file_name().map(|n| n.to_string_lossy().into_owned());
+            acumulado.push_str(&format!(
+                "
+--file:{}
+",
+                nombre.unwrap_or_default()
+            ));
+            let mut bytes = Vec::new();
+            if let Ok(fichero) = std::fs::File::open(ruta) {
+                let _ = fichero
+                    .take(crate::skills::MAX_SKILL_FILE_BYTES as u64 + 1)
+                    .read_to_end(&mut bytes);
+            }
+            acumulado.push_str(&String::from_utf8_lossy(&bytes));
+        }
+    }
+    content_hash(&acumulado)
 }
 
 /// Entrada del registro a partir de un perfil validado. La tarjeta se sintetiza solo con
@@ -451,6 +504,74 @@ mod tests {
             ),
             "{:?}",
             carga.problems
+        );
+    }
+
+    /// Raíz de catálogo con el agente `revisor` que cita las skills dadas.
+    fn catalogo_con_skills(skills: &[(&str, &[(&str, &str)])]) -> tempfile::TempDir {
+        let raiz = tempfile::tempdir().unwrap();
+        let agentes = raiz.path().join(".agents").join("agents");
+        std::fs::create_dir_all(&agentes).unwrap();
+        let ids: Vec<String> = skills.iter().map(|(id, _)| format!("\"{id}\"")).collect();
+        let texto = format!(
+            "---
+name: revisor
+description: x
+scope:
+  skills: [{}]
+---
+
+Cuerpo.
+",
+            ids.join(", ")
+        );
+        escribir(&agentes, "revisor.md", &texto);
+        for (id, ficheros) in skills {
+            let dir = raiz.path().join(".agents").join("skills").join(id);
+            std::fs::create_dir_all(&dir).unwrap();
+            for (nombre, contenido) in *ficheros {
+                std::fs::write(dir.join(nombre), contenido).unwrap();
+            }
+        }
+        raiz
+    }
+
+    fn huella_de_catalogo(raiz: &Path) -> String {
+        let carga =
+            FileSource::new(raiz.join(".agents").join("agents"), ProfileLevel::Catalog).load();
+        carga.entries[0].content_hash.clone().unwrap()
+    }
+
+    #[test]
+    fn a_catalog_hash_covers_the_cited_skills_and_their_supporting_files_only() {
+        let raiz =
+            catalogo_con_skills(&[("audit", &[("SKILL.md", "uno"), ("checks.md", "criterios")])]);
+        let base = huella_de_catalogo(raiz.path());
+        let skill = raiz.path().join(".agents").join("skills").join("audit");
+        // Cambiar SKILL.md, o un fichero de apoyo, invalida la huella.
+        std::fs::write(skill.join("SKILL.md"), "dos").unwrap();
+        let cambiada = huella_de_catalogo(raiz.path());
+        assert_ne!(base, cambiada);
+        std::fs::write(skill.join("checks.md"), "otros").unwrap();
+        assert_ne!(cambiada, huella_de_catalogo(raiz.path()));
+        // Una skill que el perfil no cita no la altera.
+        let ajena = raiz.path().join(".agents").join("skills").join("ajena");
+        std::fs::create_dir_all(&ajena).unwrap();
+        std::fs::write(ajena.join("SKILL.md"), "no citada").unwrap();
+        let antes = huella_de_catalogo(raiz.path());
+        std::fs::write(ajena.join("SKILL.md"), "otra vez").unwrap();
+        assert_eq!(antes, huella_de_catalogo(raiz.path()));
+    }
+
+    #[test]
+    fn a_project_profile_hash_stays_the_hash_of_its_own_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let texto = perfil("front", "x");
+        escribir(dir.path(), "front.md", &texto);
+        let carga = FileSource::new(dir.path().to_path_buf(), ProfileLevel::Project).load();
+        assert_eq!(
+            carga.entries[0].content_hash.as_deref(),
+            Some(content_hash(&texto).as_str())
         );
     }
 
