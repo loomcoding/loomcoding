@@ -17,6 +17,7 @@ pub enum Command {
     Parent,
     Sidebar,
     Mouse,
+    Agent,
     Agents,
     A2a,
     RefreshAgents,
@@ -51,6 +52,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         Command::Mouse,
         "/mouse",
         "Toggle mouse capture (off: select text with the mouse)",
+    ),
+    (
+        Command::Agent,
+        "/agent",
+        "Run an agent: /agent <name> [--skills a,b] <task>",
     ),
     (Command::Agents, "/agents", "List the loaded agents"),
     (

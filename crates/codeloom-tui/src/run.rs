@@ -671,6 +671,17 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         }
         return None;
     }
+    if code == KeyCode::Tab {
+        // Solo al pulsar Tab (nunca por pulsación de texto) y con la lista de agentes ya en memoria.
+        let completado = crate::agent_command::complete_agent_name(
+            app.composer.text(),
+            &app.usable_agent_names(),
+        );
+        if let Some(texto) = completado {
+            app.composer.set_text(&texto);
+            return None;
+        }
+    }
     if matches!(code, KeyCode::Tab | KeyCode::BackTab) {
         app.toggle_focus();
         return None;
@@ -905,6 +916,11 @@ fn execute_slash_command(app: &mut App, command: crate::commands::Command) -> Op
             None
         }
         Command::Sidebar => handle_key(app, KeyCode::Char('b'), KeyModifiers::CONTROL),
+        Command::Agent => {
+            app.composer.set_text("/agent ");
+            app.slash_feedback = Some(crate::agent_command::USAGE.into());
+            None
+        }
         Command::Agents => {
             app.show_agents();
             None
@@ -1736,6 +1752,33 @@ Cuerpo.
             .as_deref()
             .is_some_and(|m| m.contains("unknown agent")));
         assert_eq!(app.composer.text(), "/agent nadie hola");
+    }
+
+    #[test]
+    fn tab_completes_the_agent_name_without_changing_focus() {
+        for (escrito, esperado) in [("/agent ru", "/agent rust "), ("@su", "@superpowers ")] {
+            let mut app = app_con_agentes();
+            app.composer.set_text(escrito);
+            let foco = app.focus;
+            handle_key(&mut app, KeyCode::Tab, KeyModifiers::NONE);
+            assert_eq!(app.composer.text(), esperado, "{escrito}");
+            assert_eq!(app.focus, foco, "{escrito}");
+        }
+    }
+
+    #[test]
+    fn slash_agent_is_offered_in_the_command_popup_and_prefills_the_composer() {
+        let mut app = app_con_agentes();
+        app.composer.set_text("/agent");
+        assert!(app
+            .slash_matches()
+            .iter()
+            .any(|(_, nombre, _)| *nombre == "/agent"));
+        handle_key(&mut app, KeyCode::Tab, KeyModifiers::NONE);
+        assert_eq!(app.composer.text(), "/agent");
+        handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        assert_eq!(app.composer.text(), "/agent ");
+        assert!(app.run_agent_requested.is_none());
     }
 
     #[test]

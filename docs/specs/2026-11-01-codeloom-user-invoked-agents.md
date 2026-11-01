@@ -1,6 +1,7 @@
 # CodeLoom — Invocación directa de agentes por la persona usuaria, con selección de skills
 
-> Estado: **propuesta**, pendiente de aprobación (2026-11-01). Sin código hasta que spec y plan estén aprobados.
+> Estado: **hecho** (2026-11-01). Implementado según el plan; preguntas abiertas resueltas con las propuestas de §7
+> (el modelo principal no se entera por defecto; skills solo por texto; `/agent` sin tarea queda fuera).
 >
 > Origen: `references/2026-11-01-estudio-plugins-ecc-ponytail-superpowers.md` §5. La persona usuaria quiere que la
 > conversación principal quede limpia y que cada especialidad (`superpowers`, `ponytail`…) sea un **agente** que ella invoca,

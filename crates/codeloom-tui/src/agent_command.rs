@@ -41,6 +41,41 @@ pub fn parse_agent_command(
     Some(analizar(resto, usable, false))
 }
 
+/// Completa con Tab el nombre del agente de `/agent <prefijo>` o `@<prefijo>`. Devuelve el texto nuevo, o
+/// `None` si no hay nada que completar (otro texto, nombre ya completo y único, o ninguna coincidencia). Con
+/// varios candidatos extiende solo hasta el prefijo común; con uno solo añade el nombre y un espacio.
+/// Trabaja sobre la lista en memoria, sin leer disco.
+pub fn complete_agent_name(text: &str, usable: &[String]) -> Option<String> {
+    let (cabecera, prefijo) = if let Some(resto) = text.strip_prefix("/agent ") {
+        ("/agent ", resto)
+    } else {
+        ("@", text.strip_prefix('@')?)
+    };
+    if prefijo.contains(char::is_whitespace) {
+        return None;
+    }
+    let mut candidatos: Vec<&String> = usable
+        .iter()
+        .filter(|agente| agente.starts_with(prefijo))
+        .collect();
+    candidatos.sort();
+    let primero = candidatos.first()?;
+    let comun = candidatos.iter().skip(1).fold(primero.as_str(), |acc, c| {
+        let largo = acc
+            .chars()
+            .zip(c.chars())
+            .take_while(|(a, b)| a == b)
+            .count();
+        &acc[..acc.char_indices().nth(largo).map_or(acc.len(), |(i, _)| i)]
+    });
+    let nuevo = if candidatos.len() == 1 {
+        format!("{cabecera}{primero} ")
+    } else {
+        format!("{cabecera}{comun}")
+    };
+    (nuevo != text).then_some(nuevo)
+}
+
 fn analizar(
     resto: &str,
     usable: &[String],
@@ -193,6 +228,37 @@ mod tests {
             panic!("debía ser un error");
         };
         assert!(sin.contains("none"), "{sin}");
+    }
+
+    #[test]
+    fn tab_completes_a_unique_prefix_and_adds_a_space() {
+        assert_eq!(
+            complete_agent_name("/agent su", &agentes()),
+            Some("/agent superpowers ".to_string())
+        );
+        assert_eq!(
+            complete_agent_name("@ru", &agentes()),
+            Some("@rust ".to_string())
+        );
+    }
+
+    #[test]
+    fn tab_extends_to_the_common_prefix_when_several_match() {
+        let varios = vec![
+            "rust".to_string(),
+            "rustfmt".to_string(),
+            "ruby".to_string(),
+        ];
+        assert_eq!(complete_agent_name("@r", &varios), Some("@ru".to_string()));
+        assert_eq!(complete_agent_name("@rust", &varios), None);
+    }
+
+    #[test]
+    fn tab_does_nothing_for_other_text_or_after_the_name() {
+        assert_eq!(complete_agent_name("hola", &agentes()), None);
+        assert_eq!(complete_agent_name("/agent rust revisa", &agentes()), None);
+        assert_eq!(complete_agent_name("@nadie", &agentes()), None);
+        assert_eq!(complete_agent_name("@src/lib.rs", &agentes()), None);
     }
 
     #[test]

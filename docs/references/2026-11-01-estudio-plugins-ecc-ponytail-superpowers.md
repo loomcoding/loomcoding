@@ -102,8 +102,8 @@ reparte trabajo; necesita `max_depth` ≥ 2 en la configuración y en su perfil)
 | Paso | Dónde | Qué | Riesgo |
 |---|---|---|---|
 | A | catálogo del usuario | exportar `superpowers` y `ponytail` como **agentes** con sus skills declaradas en `scope.skills`, anotando los hooks no importados | ninguno en CodeLoom |
-| B | CodeLoom, spec propia | **invocación directa por la persona usuaria** (`/agent <nombre> <tarea>`), sin pasar por el modelo principal | bajo |
-| C | CodeLoom, spec propia | **elegir skills al invocar**, como subconjunto de las que el perfil declara (así la aprobación por huella las sigue cubriendo) | bajo |
+| B | CodeLoom, spec propia | **invocación directa por la persona usuaria** (`/agent <nombre> <tarea>` y `@nombre`), sin pasar por el modelo principal. **Hecho:** `specs/2026-11-01-codeloom-user-invoked-agents.md` | bajo |
+| C | CodeLoom, spec propia | **elegir skills al invocar** (`--skills a,b`), como subconjunto de las que el perfil declara (así la aprobación por huella las sigue cubriendo). **Hecho**, misma spec | bajo |
 | D | solo si hace falta | hooks de shell de terceros, tras aprobación, con sandbox | alto; sin decidir |
 
 ## 6. Lo que este estudio no resuelve

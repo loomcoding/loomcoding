@@ -1,6 +1,6 @@
 # Plan — Invocación directa de agentes por la persona usuaria
 
-> Estado: propuesta, pendiente de aprobación (2026-11-01).
+> Estado: hecho (2026-11-01). Tareas 1 a 5 cerradas.
 > Spec: `docs/specs/2026-11-01-codeloom-user-invoked-agents.md`.
 
 ## Restricciones
