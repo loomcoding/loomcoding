@@ -87,14 +87,24 @@ CodeLoom y no se proponen aquí.
 «estricto y no documentado» (las notas de ECC lo admiten). Mejor que **el catálogo del usuario exporte** cada plugin al formato
 `.agents/` y deje constancia de lo que *no* importa (los hooks de shell), como ya hace con ECC.
 
-## 5. Orden propuesto
+## 5. Dirección elegida por la persona usuaria (2026-11-01) y orden propuesto
+
+La conversación principal debe quedar **limpia**: no se le inyectan skills ni paquetes de contexto. Cada especialidad vive en un
+**agente** (`superpowers`, `ponytail`…) que la persona usuaria invoca, con las skills que interesen en ese momento, en su propia
+sesión y su propio contexto, visible dentro de la conversación principal como un nodo más. Esto sustituye a los pasos que este
+estudio proponía antes (skills de sesión y paquetes de contexto por evento), que sí ensuciaban el prompt principal, y hace
+innecesario el arbitraje entre superpowers y ponytail: nunca comparten prompt.
+
+Lo que ya cubre CodeLoom: perfil con `scope.skills` cargadas solo en ese agente, sesión de hijo con su contexto, nodo en la
+conversación con el estado A2A exacto, `input-required` del hijo hacia la persona usuaria, delegación recursiva (superpowers
+reparte trabajo; necesita `max_depth` ≥ 2 en la configuración y en su perfil) y catálogo con aprobación por huella.
 
 | Paso | Dónde | Qué | Riesgo |
 |---|---|---|---|
-| A | catálogo del usuario | exportar skills de superpowers y ponytail a `.agents/skills`, anotando los hooks no importados | ninguno en CodeLoom |
-| B | CodeLoom, spec propia | **skills de sesión**: lista en `codeloom.toml` o por comando, con nivel y tope, cargadas en la raíz; arbitraje superpowers/ponytail | bajo; el prompt crece, así que con tope y en el desglose |
-| C | CodeLoom, spec propia | **paquetes de contexto por evento** (`session_start`, `subagent_start`) declarativos, con aprobación si vienen de un catálogo | bajo-medio |
-| D | solo si hace falta | hooks de shell de terceros, tras aprobación, con sandbox | alto; se deja sin decidir |
+| A | catálogo del usuario | exportar `superpowers` y `ponytail` como **agentes** con sus skills declaradas en `scope.skills`, anotando los hooks no importados | ninguno en CodeLoom |
+| B | CodeLoom, spec propia | **invocación directa por la persona usuaria** (`/agent <nombre> <tarea>`), sin pasar por el modelo principal | bajo |
+| C | CodeLoom, spec propia | **elegir skills al invocar**, como subconjunto de las que el perfil declara (así la aprobación por huella las sigue cubriendo) | bajo |
+| D | solo si hace falta | hooks de shell de terceros, tras aprobación, con sandbox | alto; sin decidir |
 
 ## 6. Lo que este estudio no resuelve
 
@@ -106,12 +116,13 @@ CodeLoom y no se proponen aquí.
 
 ## 7. Preguntas abiertas
 
-1. ¿Skills de sesión por configuración (`codeloom.toml`), por comando (`/skill`) o ambas? Propuesta: ambas, con la
-   configuración como valor inicial.
-2. ¿Los paquetes de contexto por evento deben poder venir de un catálogo, o solo del usuario? Propuesta: de un catálogo, pero
-   pendientes de aprobación como los agentes.
-3. ¿Conviene que ponytail sea un modo con nivel en el núcleo, o basta con tres skills (una por nivel)? Propuesta: lo segundo, que
-   no toca el motor.
+1. Invocación directa: ¿`/agent <nombre> <tarea>`, `@nombre` en el compositor, o ambas? El compositor no debe sufrir (que no
+   parpadee ni se retrase al escribir).
+2. Elegir skills al invocar: ¿lista explícita (`--skills brainstorming,writing-plans`) o selección en una ventana?
+3. ¿El resultado del agente vuelve a la conversación principal solo como resumen acotado (como hoy el artefacto del hijo), o la
+   persona usuaria puede abrir su sesión completa? Hoy ya puede entrar en el hijo desde el carril.
+4. ¿Un agente puede declarar skills que *no* se cargan por defecto y solo se activan al pedirlas? Propuesta: sí, es el caso de
+   superpowers con sus 15 skills.
 
 ## Fuentes locales leídas
 
