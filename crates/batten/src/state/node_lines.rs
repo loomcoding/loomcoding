@@ -32,6 +32,9 @@ pub struct NodeView<'a> {
     pub expanded: bool,
     /// Niveles de sangría (dos columnas cada uno) de un nodo anidado bajo otro subagente.
     pub indent: usize,
+    /// De 0 a 3 líneas de lo que el hijo va haciendo (su último avance publicado), ya truncadas por
+    /// quien construye el nodo. Van bajo la cabecera, plegado o no.
+    pub preview: &'a [&'a str],
     pub children: &'a [NodeChild<'a>],
 }
 
@@ -71,6 +74,12 @@ pub fn node_lines(view: &NodeView<'_>) -> Vec<Line> {
         ..Line::new(LineKind::NodeHead(view.status), text)
     };
     let mut lines = vec![head];
+    lines.extend(
+        view.preview
+            .iter()
+            .take(3)
+            .map(|line| Line::new(LineKind::NodeBody, format!("{margen}  │ {line}"))),
+    );
     if view.expanded {
         let last = view.children.len().saturating_sub(1);
         lines.extend(view.children.iter().enumerate().map(|(i, child)| {
@@ -101,6 +110,7 @@ mod tests {
             summary: Some("step 2/30 · read_file"),
             expanded: false,
             indent: 0,
+            preview: &[],
             children,
         }
     }
@@ -154,6 +164,39 @@ mod tests {
     }
 
     #[test]
+    fn preview_lines_go_under_the_header_folded_or_expanded_and_at_most_three() {
+        let preview = ["plan: 1. leer", "2. editar", "3. probar", "4. no cabe"];
+        let mut v = view(&[]);
+        v.preview = &preview;
+        let plegado = node_lines(&v);
+        assert_eq!(plegado.len(), 1 + 3, "cabecera y tres líneas, no cuatro");
+        assert_eq!(plegado[1].kind, LineKind::NodeBody);
+        assert_eq!(plegado[1].plain(), "  │ plan: 1. leer");
+        assert_eq!(plegado[3].plain(), "  │ 3. probar");
+
+        let hijos = [NodeChild {
+            glyph: "✓",
+            text: "read_file",
+        }];
+        let mut v = view(&hijos);
+        v.expanded = true;
+        v.preview = &preview[..1];
+        let desplegado = node_lines(&v);
+        assert_eq!(desplegado.len(), 1 + 1 + 1);
+        assert_eq!(desplegado[1].plain(), "  │ plan: 1. leer");
+        assert_eq!(desplegado[2].plain(), "└─ ✓ read_file");
+    }
+
+    #[test]
+    fn a_nested_node_shifts_its_preview_with_its_indent() {
+        let preview = ["plan: x"];
+        let mut v = view(&[]);
+        v.indent = 1;
+        v.preview = &preview;
+        assert_eq!(node_lines(&v)[1].plain(), "    │ plan: x");
+    }
+
+    #[test]
     fn node_head_without_tag_or_summary_has_no_stray_spaces() {
         let v = NodeView {
             glyph: "✓",
@@ -165,6 +208,7 @@ mod tests {
             summary: None,
             expanded: false,
             indent: 0,
+            preview: &[],
             children: &[],
         };
         let lines = node_lines(&v);
@@ -184,6 +228,7 @@ mod tests {
             summary: Some(""),
             expanded: false,
             indent: 0,
+            preview: &[],
             children: &[],
         };
         let lines = node_lines(&v);

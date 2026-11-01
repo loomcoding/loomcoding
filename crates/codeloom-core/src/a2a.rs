@@ -215,7 +215,11 @@ pub fn publicar_progreso(
         extensions: vec![],
     };
     match previo {
-        Some(i) => lista[i] = artefacto,
+        // Al republicar, el avance pasa al final: el último de la lista es siempre el más reciente.
+        Some(i) => {
+            lista.remove(i);
+            lista.push(artefacto);
+        }
         None => {
             let cuantos = existing.iter().filter(|a| a.is_progress()).count();
             if cuantos >= PROGRESS_MAX_COUNT {
@@ -411,6 +415,10 @@ mod tests {
         assert_eq!(dos[0].description.as_deref(), Some("v2"));
         let tres = publicar_progreso(&dos, "otro", None, "c").unwrap();
         assert_eq!(tres.len(), 2);
+        // Republicar uno antiguo lo deja el último.
+        let cuatro = publicar_progreso(&tres, "plan", None, "d").unwrap();
+        assert_eq!(cuatro.last().unwrap().name.as_deref(), Some("plan"));
+        assert_eq!(cuatro.last().unwrap().artifact_id, id);
     }
 
     #[test]

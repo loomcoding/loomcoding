@@ -442,6 +442,46 @@ fn subagent_tool_status(state: TaskState) -> batten::state::ToolStatus {
     }
 }
 
+/// Anchura máxima de cada línea de la vista previa del último avance de un hijo.
+const PREVIEW_COLUMNS: usize = 100;
+
+/// De 1 a 3 líneas de lo que el hijo va haciendo: su último avance publicado, con el nombre al principio de
+/// la primera. Solo mientras la tarea sigue en marcha (en una terminada manda su resultado), sin saltos y
+/// truncadas por anchura; vacío si no ha publicado nada.
+fn progress_preview(subagent: &codeloom_core::session::SubagentDescriptor) -> Vec<String> {
+    if subagent.status.state.is_terminal() {
+        return Vec::new();
+    }
+    let Some(avance) = subagent.progress_artifacts().last() else {
+        return Vec::new();
+    };
+    let texto = avance.text();
+    let mut lineas = texto
+        .lines()
+        .map(str::trim)
+        .filter(|linea| !linea.is_empty())
+        .take(3)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    if lineas.is_empty() {
+        return Vec::new();
+    }
+    if let Some(nombre) = avance.name.as_deref() {
+        lineas[0] = format!("{nombre}: {}", lineas[0]);
+    }
+    lineas
+        .into_iter()
+        .map(|linea| {
+            if linea.chars().count() > PREVIEW_COLUMNS {
+                let corta: String = linea.chars().take(PREVIEW_COLUMNS - 1).collect();
+                format!("{corta}…")
+            } else {
+                linea
+            }
+        })
+        .collect()
+}
+
 /// Etiqueta del agente de un hijo: `[front]`; con origen de proyecto o remoto,
 /// `[front·project]`, `[front·catalog]` o `[front·remote]`. Es política local de CodeLoom, no del protocolo A2A.
 /// Devuelve `None` si el descriptor no conoce su agente, para no pintar corchetes vacíos.
@@ -4351,7 +4391,9 @@ impl App {
         let state = subagent.status.state;
         let agente = agent_state(state);
         let tag = agent_tag(subagent);
-        let summary = self.node_summary(subagent.child.0);
+        let summary = self.node_summary(subagent.child.0, subagent);
+        let preview = progress_preview(subagent);
+        let preview: Vec<&str> = preview.iter().map(String::as_str).collect();
         let expanded = self.expanded_nodes.contains(&subagent.child.0);
         // Un nodo plegado no pinta a sus hijos: no se construyen para no gastar trabajo.
         let filas = if expanded {
@@ -4382,6 +4424,7 @@ impl App {
             summary: summary.as_deref(),
             expanded,
             indent: nivel,
+            preview: &preview,
             children: &children,
         };
         batten::state::node_lines(&view)
@@ -4390,7 +4433,11 @@ impl App {
     /// Resumen de progreso de un nodo, p. ej. `step 2/30 · read_file · 3 queries`. Omite lo que
     /// falte: el paso solo si el hijo conoce su máximo, la herramienta solo si está ejecutando
     /// algo, y las consultas del padre solo si hay alguna.
-    fn node_summary(&self, child: i64) -> Option<String> {
+    fn node_summary(
+        &self,
+        child: i64,
+        subagent: &codeloom_core::session::SubagentDescriptor,
+    ) -> Option<String> {
         let stats = self.agent_stats.get(&child);
         let paso = stats
             .filter(|stats| stats.max_steps > 0)
@@ -4425,7 +4472,10 @@ impl App {
             .map(Vec::len)
             .filter(|&n| n > 0)
             .map(|n| format!("{n} {}", if n == 1 { "query" } else { "queries" }));
-        let partes: Vec<String> = [paso, herramienta, tokens, consultas]
+        let avances = Some(subagent.progress_artifacts().count())
+            .filter(|&n| n > 0)
+            .map(|n| format!("{n} {}", if n == 1 { "note" } else { "notes" }));
+        let partes: Vec<String> = [paso, herramienta, tokens, consultas, avances]
             .into_iter()
             .flatten()
             .collect();
@@ -6897,6 +6947,75 @@ línea dos {}",
             glifos.insert(glifo);
         }
         assert_eq!(glifos.len(), TaskState::ALL.len(), "glifos repetidos");
+    }
+
+    #[test]
+    fn a_working_node_shows_up_to_three_lines_of_its_latest_progress_note() {
+        let mut app = App::new();
+        app.session_id = Some(SessionId(1));
+        let mut hijo = sub("review", TaskState::Working, SessionId(1));
+        hijo.artifacts = codeloom_core::a2a::publicar_progreso(
+            &[],
+            "plan",
+            None,
+            "1. leer\n\n2. editar\n3. probar\n4. no cabe",
+        )
+        .unwrap();
+        app.apply(LiveEvent::SubagentChanged(hijo.clone()));
+        assert_eq!(
+            texts(&app),
+            vec![
+                "▾ ● subagent  review (working) · 1 note".to_string(),
+                "  │ plan: 1. leer".to_string(),
+                "  │ 2. editar".to_string(),
+                "  │ 3. probar".to_string(),
+            ]
+        );
+        // El avance más reciente sustituye a la vista previa anterior.
+        hijo.artifacts =
+            codeloom_core::a2a::publicar_progreso(&hijo.artifacts, "hallazgos", None, "dos fallos")
+                .unwrap();
+        app.apply(LiveEvent::SubagentChanged(hijo));
+        assert_eq!(
+            texts(&app),
+            vec![
+                "▾ ● subagent  review (working) · 2 notes".to_string(),
+                "  │ hallazgos: dos fallos".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_node_without_progress_notes_or_already_settled_has_no_preview() {
+        let mut app = App::new();
+        app.session_id = Some(SessionId(1));
+        app.apply(LiveEvent::SubagentChanged(sub(
+            "review",
+            TaskState::Working,
+            SessionId(1),
+        )));
+        assert_eq!(
+            texts(&app),
+            vec!["▾ ● subagent  review (working)".to_string()]
+        );
+        let mut terminado = sub("review", TaskState::Completed, SessionId(1));
+        terminado.artifacts =
+            codeloom_core::a2a::publicar_progreso(&[], "plan", None, "1. leer").unwrap();
+        app.apply(LiveEvent::SubagentChanged(terminado));
+        let lineas = texts(&app);
+        assert_eq!(lineas.len(), 1, "{lineas:?}");
+        assert!(lineas[0].contains("(completed)"), "{lineas:?}");
+    }
+
+    #[test]
+    fn preview_lines_are_truncated_by_width() {
+        let mut hijo = sub("review", TaskState::Working, SessionId(1));
+        hijo.artifacts =
+            codeloom_core::a2a::publicar_progreso(&[], "n", None, &"x".repeat(300)).unwrap();
+        let previa = progress_preview(&hijo);
+        assert_eq!(previa.len(), 1);
+        assert_eq!(previa[0].chars().count(), PREVIEW_COLUMNS);
+        assert!(previa[0].ends_with('…'));
     }
 
     #[test]
