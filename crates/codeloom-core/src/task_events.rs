@@ -70,11 +70,9 @@ pub fn eventos_de_cambio(
     }
     let mut artefactos = Vec::new();
     for artefacto in &nuevo.artifacts {
-        if anterior
-            .artifacts
-            .iter()
-            .all(|visto| visto.artifact_id != artefacto.artifact_id)
-        {
+        // Nuevo, o con el mismo id pero contenido distinto: un avance republicado con su nombre
+        // reemplaza al anterior (`append = false`), y el cliente debe enterarse.
+        if anterior.artifacts.iter().all(|visto| visto != artefacto) {
             artefactos.push(StreamResponse::ArtifactUpdate(TaskArtifactUpdateEvent {
                 task_id: task_id.clone(),
                 context_id: context_id.clone(),
@@ -252,6 +250,42 @@ mod tests {
         }
         // Un artefacto ya visto no se repite.
         assert!(eventos_de_cambio(&despues, &despues).is_empty());
+    }
+
+    #[test]
+    fn a_progress_note_published_while_working_is_streamed_and_a_republication_replaces_it() {
+        let antes = descriptor(TaskState::Working, Vec::new());
+        let uno = crate::a2a::publicar_progreso(&[], "plan", None, "1. leer").unwrap();
+        let publicado = descriptor(TaskState::Working, uno.clone());
+
+        let eventos = eventos_de_cambio(&antes, &publicado);
+        match &eventos[..] {
+            [StreamResponse::ArtifactUpdate(evento)] => {
+                assert!(evento.artifact.is_progress());
+                assert!(!evento.append && evento.last_chunk);
+            }
+            otro => panic!("se esperaba un evento de artefacto, y salió {otro:?}"),
+        }
+
+        // Mismo nombre y mismo `artifact_id`, contenido nuevo: otro evento, no silencio.
+        let dos = crate::a2a::publicar_progreso(
+            &uno,
+            "plan",
+            None,
+            "1. leer
+2. editar",
+        )
+        .unwrap();
+        assert_eq!(dos[0].artifact_id, uno[0].artifact_id);
+        let republicado = descriptor(TaskState::Working, dos.clone());
+        let eventos = eventos_de_cambio(&publicado, &republicado);
+        match &eventos[..] {
+            [StreamResponse::ArtifactUpdate(evento)] => {
+                assert_eq!(evento.artifact, dos[0]);
+            }
+            otro => panic!("se esperaba un evento de artefacto, y salió {otro:?}"),
+        }
+        assert!(eventos_de_cambio(&republicado, &republicado).is_empty());
     }
 
     #[test]
