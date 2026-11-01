@@ -89,6 +89,8 @@ pub enum SessionCommand {
     Refresh,
     Select(SessionChoice),
     CancelSubagent(codeloom_core::session::SessionId),
+    /// Lanza un agente por orden directa de la persona usuaria (`/agent` o `@`).
+    RunAgent(crate::agent_command::AgentInvocation),
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -766,6 +768,10 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
     }
     match code {
         KeyCode::Enter => {
+            // `/agent` y `@agente` no son mensajes: se analizan aquí, al enviar, y nunca por pulsación.
+            if app.try_agent_command() {
+                return None;
+            }
             let sent = app.submit();
             if sent.is_some() {
                 app.viewport.follow_bottom();
@@ -1631,11 +1637,118 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
     if let Some(child) = app.cancel_subagent_requested.take() {
         let _ = tx.send(SessionCommand::CancelSubagent(child));
     }
+    if let Some(invocation) = app.run_agent_requested.take() {
+        let _ = tx.send(SessionCommand::RunAgent(invocation));
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// App con dos agentes globales usables (`rust` y `superpowers`), sin aprobación pendiente.
+    fn app_con_agentes() -> App {
+        use codeloom_core::registry::{AgentRegistry, BuiltInSource, FileSource, ProfileLevel};
+        let dir = tempfile::tempdir().unwrap();
+        for nombre in ["rust", "superpowers"] {
+            std::fs::write(
+                dir.path().join(format!("{nombre}.md")),
+                format!(
+                    "---
+name: {nombre}
+description: x
+---
+
+Cuerpo.
+"
+                ),
+            )
+            .unwrap();
+        }
+        let registro = AgentRegistry::new(vec![
+            Box::new(BuiltInSource),
+            Box::new(FileSource::new(
+                dir.path().to_path_buf(),
+                ProfileLevel::Global,
+            )),
+        ]);
+        // La instantánea ya está cargada: el directorio temporal puede desaparecer.
+        let mut app = App::new();
+        app.set_agent_registry(std::sync::Arc::new(registro));
+        app
+    }
+
+    #[test]
+    fn slash_agent_and_at_agent_request_a_run_and_send_no_prompt() {
+        for texto in ["/agent rust revisa X", "@rust revisa X"] {
+            let mut app = app_con_agentes();
+            app.composer.set_text(texto);
+            assert_eq!(
+                handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+                None,
+                "{texto}"
+            );
+            let pedida = app.run_agent_requested.clone().expect(texto);
+            assert_eq!(pedida.agent, "rust");
+            assert_eq!(pedida.prompt, "revisa X");
+            assert_eq!(app.composer.text(), "");
+        }
+    }
+
+    #[test]
+    fn skills_travel_with_the_run_request() {
+        let mut app = app_con_agentes();
+        app.composer
+            .set_text("@superpowers --skills brainstorming,writing-plans diseña X");
+        handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        let pedida = app.run_agent_requested.clone().unwrap();
+        assert_eq!(
+            pedida.skills,
+            Some(vec![
+                "brainstorming".to_string(),
+                "writing-plans".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn an_at_sign_that_is_not_an_agent_is_still_a_normal_prompt() {
+        let mut app = app_con_agentes();
+        app.composer.set_text("@src/lib.rs mira esto");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            Some("@src/lib.rs mira esto".to_string())
+        );
+        assert!(app.run_agent_requested.is_none());
+    }
+
+    #[test]
+    fn a_malformed_slash_agent_shows_feedback_and_keeps_the_text() {
+        let mut app = app_con_agentes();
+        app.composer.set_text("/agent nadie hola");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert!(app.run_agent_requested.is_none());
+        assert!(app
+            .slash_feedback
+            .as_deref()
+            .is_some_and(|m| m.contains("unknown agent")));
+        assert_eq!(app.composer.text(), "/agent nadie hola");
+    }
+
+    #[test]
+    fn the_run_request_is_sent_to_the_worker_once() {
+        let mut app = app_con_agentes();
+        app.composer.set_text("/agent rust revisa X");
+        handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        send_session_commands(&mut app, &tx);
+        send_session_commands(&mut app, &tx);
+        assert!(matches!(rx.try_recv(), Ok(SessionCommand::RunAgent(_))));
+        assert!(rx.try_recv().is_err());
+    }
 
     #[test]
     fn capability_widget_scroll_offsets_are_independent() {

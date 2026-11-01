@@ -1181,6 +1181,25 @@ async fn run_agent_worker(
             }
             AgentCommand::Session(command) => match command {
                 codeloom_tui::run::SessionCommand::Refresh => send_session_list(&entry).await,
+                codeloom_tui::run::SessionCommand::RunAgent(invocation) => {
+                    let label = invocation.agent.clone();
+                    let request = codeloom_core::subagent::SubagentRequest {
+                        label,
+                        prompt: invocation.prompt,
+                        agent: Some(invocation.agent),
+                        skills: invocation.skills,
+                    };
+                    // Orden de la persona usuaria: no hay turno del modelo principal. Un rechazo se
+                    // muestra como aviso y no deja tarea.
+                    if let Err(error) = agent.run_subagent_request(session, request).await {
+                        let _ = entry
+                            .ui
+                            .send(ServerEvent::Live(LiveEvent::RuntimeNotice {
+                                message: format!("could not start the agent: {error}"),
+                            }))
+                            .await;
+                    }
+                }
                 codeloom_tui::run::SessionCommand::CancelSubagent(child) => {
                     match agent.cancel_subagent(session, child).await {
                         Ok(descriptor) if !descriptor.status.state.is_terminal() => {

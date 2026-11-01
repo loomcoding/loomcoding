@@ -314,6 +314,19 @@ impl AgentLoop {
             .await
     }
 
+    /// Lanza un subagente por orden directa de la persona usuaria, sin turno del modelo principal.
+    pub async fn run_subagent_request(
+        &self,
+        parent: SessionId,
+        request: crate::subagent::SubagentRequest,
+    ) -> crate::error::Result<(SessionId, crate::job::JobId)> {
+        self.subagents
+            .as_ref()
+            .ok_or_else(|| crate::error::CoreError::Tool("subagents are unavailable".into()))?
+            .start_requested(parent, request, CancellationToken::new())
+            .await
+    }
+
     pub fn new(
         provider: Arc<dyn Provider>,
         store: Arc<dyn SessionStore>,

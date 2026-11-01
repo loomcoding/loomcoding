@@ -782,6 +782,8 @@ pub struct App {
     pub should_quit: bool,
     pub cancel_requested: bool,
     pub cancel_subagent_requested: Option<SessionId>,
+    /// Agente que la persona usuaria pidió lanzar con `/agent` o `@`; lo recoge el bucle para enviarlo.
+    pub run_agent_requested: Option<crate::agent_command::AgentInvocation>,
     pub(crate) last_escape: Option<Instant>,
     pub cwd: String,
     pub model: String,
@@ -1098,6 +1100,7 @@ impl App {
             should_quit: false,
             cancel_requested: false,
             cancel_subagent_requested: None,
+            run_agent_requested: None,
             last_escape: None,
             cwd: String::new(),
             model: String::new(),
@@ -4729,6 +4732,47 @@ impl App {
         if let Some(next) = self.history.next() {
             let next = next.to_string();
             self.composer.set_text(&next);
+        }
+    }
+
+    /// Nombres de los agentes que pueden lanzarse ahora: integrados, globales y aprobados.
+    pub fn usable_agent_names(&self) -> Vec<String> {
+        use codeloom_core::registry::Approval;
+        let Some(registry) = &self.agent_registry else {
+            return Vec::new();
+        };
+        let snapshot = registry.snapshot();
+        snapshot
+            .entries()
+            .into_iter()
+            .filter(|entry| {
+                matches!(
+                    snapshot.approval(&entry.name),
+                    Some(Approval::NotRequired | Approval::Approved)
+                )
+            })
+            .map(|entry| entry.name.clone())
+            .collect()
+    }
+
+    /// Si el texto del compositor es una orden de agente (`/agent …` o `@agente …`), la deja pedida en
+    /// `run_agent_requested` y vacía el compositor; con un error de sintaxis deja el mensaje en
+    /// `slash_feedback` y conserva el texto. Devuelve `true` si el texto era una orden de agente.
+    pub fn try_agent_command(&mut self) -> bool {
+        let text = self.composer.text().to_string();
+        match crate::agent_command::parse_agent_command(&text, &self.usable_agent_names()) {
+            None => false,
+            Some(Err(message)) => {
+                self.slash_feedback = Some(message);
+                true
+            }
+            Some(Ok(invocation)) => {
+                if self.composer.submit().is_some() {
+                    self.history.push(text);
+                }
+                self.run_agent_requested = Some(invocation);
+                true
+            }
         }
     }
 
