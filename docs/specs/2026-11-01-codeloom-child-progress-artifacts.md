@@ -1,6 +1,6 @@
 # CodeLoom — Artefactos de progreso publicados por el hijo
 
-> Estado: **aprobada** (2026-11-01) con las respuestas de §9. En implementación.
+> Estado: **implementada** (2026-11-01) con las respuestas de §9; véase §10 para lo que cambió al construirla.
 >
 > Origen: fase B de `2026-10-21-codeloom-agent-autonomy-design.md`, que quedó a medias. La persona usuaria lo
 > quiere para **saber cómo va el hijo** mientras trabaja, no solo cuando termina.
@@ -116,3 +116,22 @@ Resueltas el 2026-11-01 por la persona usuaria:
 2. **`artifact_publish` se ofrece a todos los hijos** (con esquema mínimo), no solo a los perfiles que lo declaren en
    `scope.tools`; se revisa si el coste en tokens molesta (tarea 6 del plan).
 3. **Vista previa de 1 a 3 líneas en el nodo del hijo**, y la alternancia existente para entrar en su chat (§5.4).
+
+## 10. Notas de implementación (2026-11-01)
+
+- **Reemplazo y orden:** republicar un nombre conserva el `artifact_id` pero **pasa el avance al final** de la lista, de
+  modo que «el último» es siempre el más reciente. Es decisión nuestra.
+- **Fallo hallado y corregido (tarea 4):** `eventos_de_cambio` solo emitía artefactos con `artifact_id` desconocido, así que
+  una segunda publicación con el mismo nombre no se habría transmitido por A2A. Ahora emite cuando el artefacto es nuevo
+  **o difiere** del ya visto.
+- **Subida al padre:** el bus de cada hijo es propio y solo reenvía eventos «relevantes» envueltos en `ChildEvent`. El
+  `SubagentChanged` de la propia tarea del hijo se reenvía **sin envolver** al bus del padre, igual que los cambios de tarea
+  que publica el lanzador.
+- **Vista previa (§5.4):** de 1 a 3 líneas, solo mientras la tarea sigue en marcha (en una asentada manda su resultado),
+  truncadas a 100 columnas, con `n notes` en el resumen de la cabecera. Es el campo `preview` de `NodeView` en `batten`.
+- **Quién ve qué:** `artifact_publish` se registra al lanzar cada hijo (también los de solo lectura) y nunca en la raíz;
+  `artifact_read` viaja con las herramientas de delegación, así que `delegation = off` la retira y un hijo que delega la recibe.
+- **Coste en el prompt (riesgo §7):** la definición de `artifact_publish` pesa 349 bytes (≈ 90 tokens) por petición del hijo. Una
+  prueba (`the_tool_definition_stays_small…`) fija el tope en 450 bytes. `artifact_read` solo viaja al padre.
+- **Sin medir con un modelo real:** que los modelos usen bien la herramienta (cuándo publicar, cuánto) no se ha probado; eso
+  exigiría una llamada real y su autorización.

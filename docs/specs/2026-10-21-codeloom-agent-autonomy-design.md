@@ -3,10 +3,9 @@
 Estado: **parcial**, verificado contra el código el 2026-11-01.
 
 - **A**: hecha (`run_woken`, plan `parent-wakeup`). **O1**: hecha.
-- **B (artefactos)**: a medias y con otro diseño. El resultado de la tarea ya es un `Artifact` de A2A
-  (`a2a.rs`), persistido en `subagents.artifacts_json` y servido por A2A. **Faltan** las herramientas
-  `artifact_publish` y `artifact_read`: hoy el hijo no publica artefactos propios, solo su resultado final.
-  Propuesta nueva, sin aprobar: `2026-11-01-codeloom-child-progress-artifacts.md`.
+- **B (artefactos)**: hecha el 2026-11-01 con otro diseño: el resultado de la tarea es un `Artifact` de A2A
+  (`a2a.rs`), persistido en `subagents.artifacts_json` y servido por A2A, y el hijo publica avances con
+  `artifact_publish` que el padre lee con `artifact_read`. Spec: `2026-11-01-codeloom-child-progress-artifacts.md`.
 - **C (enlazadas y contexto)**: `follow_up_of` hecho con otra decisión (`reference_task_ids`, A11; véase la nota
   de la fase). El `ContextId` existe en el borde A2A (`descriptor.context_id()`), no en los eventos internos.
   La restricción de `send_message` **queda descartada** por decisión de la persona usuaria (2026-11-01): sigue

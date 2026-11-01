@@ -43,6 +43,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   `recursive-delegation` (fase 1: `[agents] max_depth` y perfil `max_depth` con dos candados; fase 2: los nietos se ven en la interfaz con sangría y camino; la regla de `delegation` llega a los hijos que delegan: `delegation-mode-for-nested-children`) y
   `external-catalog-profiles` (`[agents] catalog_roots`: agentes y skills de un catálogo externo como perfiles locales, siempre con aprobación por huella ligada a la raíz del catálogo) y
   `user-invoked-agents` (`/agent <nombre> [--skills a,b] <tarea>` y `@nombre …`: la persona usuaria lanza un agente directamente, con un subconjunto de sus skills, sin turno del modelo principal; Tab completa el nombre) y
+  `child-progress-artifacts` (el hijo publica avances con nombre con `artifact_publish`; el padre los lee con `artifact_read`; el nodo del hijo muestra de 1 a 3 líneas del último; A2A los transmite) y
   `reasoning-effort-benchmark` (medido con Haiku 4.5: sin efecto en ejecución; en revisión difícil `medium` halla más defectos pero añade falsos positivos y cuesta ~24 veces más; `high` pendiente; no se fijan valores).
 - **Tanda del 2026-10-31 (implementada, con su plan):** `truncation-signal` (aviso de salida truncada al modelo),
   `budget-hard-stop` (corte duro por presupuesto, también en la familia de subagentes),
@@ -88,8 +89,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 - **Fuera de este inventario hasta revisarlas:** `self-hosting-bootstrap` (evaluación), `mcp-skills-hot-reload`,
   `decision-experiments` (borradores), `composer-tool-visual-references` y `batten-reference-findings-showcase`
   (análisis ya completados, sin código asociado).
-- **`agent-autonomy`, verificado el 2026-11-01:** B a medias (el resultado ya es un `Artifact` A2A; faltan las herramientas
-  `artifact_publish` y `artifact_read`); A, C, D y `follow_up_of` están hechos. La restricción de `send_message`
+- **`agent-autonomy`, verificado el 2026-11-01:** A, B, C, D y `follow_up_of` están hechos (la B con `child-progress-artifacts`). La restricción de `send_message`
   se descartó a propósito (`answer` ya cubre `input-required`). Detalle en la cabecera de la spec.
 - **Referencia, no ejecutables:** a2a-roadmap, jevalan-roadmap, pendientes,
   agent-first-development-skills.

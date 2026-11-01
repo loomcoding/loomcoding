@@ -126,6 +126,16 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn the_tool_definition_stays_small_because_every_child_request_carries_it() {
+        // Unos 350 bytes (≈ 90 tokens) medidos el 2026-11-01; el tope deja holgura, no crecimiento libre.
+        let herramienta = ArtifactPublishTool;
+        let bytes = herramienta.name().len()
+            + herramienta.description().len()
+            + herramienta.schema().to_string().len();
+        assert!(bytes <= 450, "la definición pesa {bytes} bytes");
+    }
+
     #[tokio::test]
     async fn publishes_a_progress_note_and_announces_the_task_change() {
         let dir = tempfile::tempdir().unwrap();
