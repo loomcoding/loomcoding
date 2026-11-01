@@ -1,3 +1,4 @@
+pub mod agent_command;
 pub mod app;
 pub mod clipboard;
 pub mod commands;
