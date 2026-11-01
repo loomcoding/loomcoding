@@ -430,23 +430,32 @@ impl SessionStore for SqliteStore {
             .begin()
             .await
             .map_err(|e| CoreError::Store(e.to_string()))?;
-        let actual: Option<String> = sqlx::query_scalar(
-            "SELECT status FROM subagents WHERE parent_session_id = ? AND child_session_id = ?",
+        let fila = sqlx::query(
+            "SELECT status, artifacts_json, result FROM subagents WHERE parent_session_id = ? AND child_session_id = ?",
         )
         .bind(parent.0)
         .bind(child.0)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|e| CoreError::Store(e.to_string()))?;
-        if let Some(actual) = actual {
-            let actual = parse_task_state(&actual)?;
+        // Los artefactos de progreso que el hijo publicó en marcha se conservan; el resultado se añade.
+        let mut conservados = Vec::new();
+        if let Some(fila) = fila {
+            let actual = parse_task_state(&fila.get::<String, _>("status"))?;
             if actual.is_terminal() {
                 return Err(CoreError::Store(format!(
                     "subagent already settled as {}",
                     actual.proto_name()
                 )));
             }
+            conservados =
+                decode_artifacts(fila.get("artifacts_json"), fila.get("result"), child.0)?
+                    .into_iter()
+                    .filter(Artifact::is_progress)
+                    .collect();
         }
+        conservados.extend(artifacts.iter().cloned());
+        let artifacts = &conservados[..];
         sqlx::query(
             "UPDATE subagents SET status = ?, status_message = NULL, status_timestamp_ms = ?, artifacts_json = ?
              WHERE parent_session_id = ? AND child_session_id = ?",
@@ -463,6 +472,49 @@ impl SessionStore for SqliteStore {
             .await
             .map_err(|e| CoreError::Store(e.to_string()))?;
         Ok(())
+    }
+
+    async fn publish_subagent_progress(
+        &self,
+        child: SessionId,
+        name: &str,
+        description: Option<&str>,
+        content: &str,
+    ) -> Result<SubagentDescriptor> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        let fila = sqlx::query(
+            "SELECT parent_session_id, status, artifacts_json, result FROM subagents WHERE child_session_id = ?",
+        )
+        .bind(child.0)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?
+        .ok_or_else(|| CoreError::Tool("this session is not a subagent task".into()))?;
+        if parse_task_state(&fila.get::<String, _>("status"))?.is_terminal() {
+            return Err(CoreError::Tool("subagent has already finished".into()));
+        }
+        let parent = SessionId(fila.get("parent_session_id"));
+        let actuales = decode_artifacts(fila.get("artifacts_json"), fila.get("result"), child.0)?;
+        let nuevos = crate::a2a::publicar_progreso(&actuales, name, description, content)
+            .map_err(CoreError::Tool)?;
+        sqlx::query("UPDATE subagents SET artifacts_json = ? WHERE child_session_id = ?")
+            .bind(encode_artifacts(&nuevos)?)
+            .bind(child.0)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| CoreError::Store(e.to_string()))?;
+        self.list_subagents(parent)
+            .await?
+            .into_iter()
+            .find(|descriptor| descriptor.child == child)
+            .ok_or_else(|| CoreError::Store("subagent vanished".into()))
     }
 
     async fn append_subagent_notice(
@@ -1939,6 +1991,87 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(result, None);
+    }
+
+    #[tokio::test]
+    async fn progress_is_published_in_flight_and_survives_completion() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("progreso.db").to_str().unwrap())
+            .await
+            .unwrap();
+        let parent = store.create_session("/proj").await.unwrap();
+        let child = store.create_session("/proj").await.unwrap();
+        store
+            .save_subagent(&descriptor(parent, child, TaskState::Working))
+            .await
+            .unwrap();
+        let d = store
+            .publish_subagent_progress(child, "plan", Some("pasos"), "1. leer")
+            .await
+            .unwrap();
+        assert_eq!(d.status.state, TaskState::Working);
+        assert_eq!(d.progress_artifacts().count(), 1);
+        assert_eq!(d.result_text(), None);
+        let id = d.artifacts[0].artifact_id.clone();
+        let d = store
+            .publish_subagent_progress(child, "plan", None, "1. leer\n2. editar")
+            .await
+            .unwrap();
+        assert_eq!(d.artifacts.len(), 1);
+        assert_eq!(d.artifacts[0].artifact_id, id);
+
+        store
+            .complete_subagent(
+                parent,
+                child,
+                &[crate::a2a::Artifact::text_artifact("hecho")],
+            )
+            .await
+            .unwrap();
+        let leido = store.list_subagents(parent).await.unwrap();
+        assert_eq!(leido[0].artifacts.len(), 2);
+        assert_eq!(leido[0].progress_artifacts().count(), 1);
+        assert_eq!(leido[0].result_text().as_deref(), Some("hecho"));
+    }
+
+    #[tokio::test]
+    async fn progress_is_rejected_for_settled_or_unknown_tasks_and_over_limits() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("rechazo.db").to_str().unwrap())
+            .await
+            .unwrap();
+        let parent = store.create_session("/proj").await.unwrap();
+        let child = store.create_session("/proj").await.unwrap();
+        let ajena = store.create_session("/proj").await.unwrap();
+        store
+            .save_subagent(&descriptor(parent, child, TaskState::Working))
+            .await
+            .unwrap();
+        let error = store
+            .publish_subagent_progress(ajena, "x", None, "y")
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("not a subagent"), "{error}");
+        let error = store
+            .publish_subagent_progress(child, "x", None, &"y".repeat(9_000))
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("content"), "{error}");
+        assert_eq!(
+            store.list_subagents(parent).await.unwrap()[0]
+                .artifacts
+                .len(),
+            0
+        );
+        store
+            .complete_subagent(parent, child, &[crate::a2a::Artifact::text_artifact("ok")])
+            .await
+            .unwrap();
+        let error = store
+            .publish_subagent_progress(child, "x", None, "y")
+            .await
+            .unwrap_err();
+        assert!(error.to_string().contains("already finished"), "{error}");
     }
 
     #[tokio::test]

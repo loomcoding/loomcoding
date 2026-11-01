@@ -1,6 +1,6 @@
 # Plan — Artefactos de progreso publicados por el hijo
 
-> Estado: aprobado (2026-11-01). En implementación; tareas hechas: ninguna.
+> Estado: aprobado (2026-11-01). En implementación; tareas hechas: 1.
 > Spec: `docs/specs/2026-11-01-codeloom-child-progress-artifacts.md`.
 
 ## Restricciones

@@ -149,6 +149,96 @@ impl Artifact {
     }
 }
 
+/// Cotas de los artefactos de progreso que publica un hijo (decálogo de contexto y coste).
+pub const PROGRESS_MAX_NAME: usize = 64;
+pub const PROGRESS_MAX_DESCRIPTION: usize = 200;
+pub const PROGRESS_MAX_CONTENT: usize = 8 * 1024;
+pub const PROGRESS_MAX_COUNT: usize = 8;
+pub const PROGRESS_MAX_TOTAL: usize = 32 * 1024;
+
+impl Artifact {
+    /// Cierto si lo publicó un hijo como avance (`metadata.codeloom.kind == "progress"`). A2A no tiene
+    /// «artefacto final»; esta marca es nuestra y va en `metadata`, que el protocolo reserva para extensiones.
+    pub fn is_progress(&self) -> bool {
+        self.metadata
+            .as_ref()
+            .and_then(|metadata| metadata.get("codeloom"))
+            .and_then(|codeloom| codeloom.get("kind"))
+            .and_then(serde_json::Value::as_str)
+            == Some("progress")
+    }
+}
+
+/// Texto del resultado: el de los artefactos que no son de progreso, unidos con `"\n"`.
+pub fn resultado_texto(artifacts: &[Artifact]) -> String {
+    artifacts
+        .iter()
+        .filter(|artefacto| !artefacto.is_progress())
+        .map(Artifact::text)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Publica un artefacto de progreso sobre los `existing` (solo los de progreso cuentan para las cotas):
+/// con un nombre ya usado lo reemplaza conservando su `artifact_id`; con uno nuevo lo añade. Devuelve la
+/// lista completa nueva, o un error legible sin haber cambiado nada.
+pub fn publicar_progreso(
+    existing: &[Artifact],
+    name: &str,
+    description: Option<&str>,
+    content: &str,
+) -> Result<Vec<Artifact>, String> {
+    let name = name.trim();
+    if name.is_empty() || name.len() > PROGRESS_MAX_NAME {
+        return Err(format!("name must be 1 to {PROGRESS_MAX_NAME} bytes"));
+    }
+    if description.is_some_and(|d| d.len() > PROGRESS_MAX_DESCRIPTION) {
+        return Err(format!(
+            "description must be at most {PROGRESS_MAX_DESCRIPTION} bytes"
+        ));
+    }
+    if content.is_empty() || content.len() > PROGRESS_MAX_CONTENT {
+        return Err(format!("content must be 1 to {PROGRESS_MAX_CONTENT} bytes"));
+    }
+    let previo = existing
+        .iter()
+        .position(|a| a.is_progress() && a.name.as_deref() == Some(name));
+    let mut lista = existing.to_vec();
+    let artefacto = Artifact {
+        artifact_id: previo
+            .map(|i| existing[i].artifact_id.clone())
+            .unwrap_or_else(new_id),
+        name: Some(name.to_string()),
+        description: description.map(str::to_string),
+        parts: vec![Part::text(content)],
+        metadata: Some(serde_json::json!({ "codeloom": { "kind": "progress" } })),
+        extensions: vec![],
+    };
+    match previo {
+        Some(i) => lista[i] = artefacto,
+        None => {
+            let cuantos = existing.iter().filter(|a| a.is_progress()).count();
+            if cuantos >= PROGRESS_MAX_COUNT {
+                return Err(format!(
+                    "at most {PROGRESS_MAX_COUNT} progress artifacts per task"
+                ));
+            }
+            lista.push(artefacto);
+        }
+    }
+    let total: usize = lista
+        .iter()
+        .filter(|a| a.is_progress())
+        .map(|a| a.text().len())
+        .sum();
+    if total > PROGRESS_MAX_TOTAL {
+        return Err(format!(
+            "progress artifacts total at most {PROGRESS_MAX_TOTAL} bytes"
+        ));
+    }
+    Ok(lista)
+}
+
 /// Une con `"\n"` el texto de cada artefacto.
 pub fn artifacts_text(artifacts: &[Artifact]) -> String {
     artifacts
@@ -299,5 +389,74 @@ mod tests {
     fn new_id_is_unique_across_calls() {
         let ids: HashSet<String> = (0..1000).map(|_| new_id()).collect();
         assert_eq!(ids.len(), 1000);
+    }
+    #[test]
+    fn a_published_artifact_is_marked_as_progress_and_others_are_not() {
+        let lista = publicar_progreso(&[], "plan", None, "1. leer\n2. editar").unwrap();
+        assert_eq!(lista.len(), 1);
+        assert!(lista[0].is_progress());
+        assert_eq!(lista[0].name.as_deref(), Some("plan"));
+        assert_eq!(lista[0].text(), "1. leer\n2. editar");
+        assert!(!Artifact::text_artifact("final").is_progress());
+    }
+
+    #[test]
+    fn publishing_the_same_name_replaces_and_keeps_the_id() {
+        let uno = publicar_progreso(&[], "plan", Some("v1"), "a").unwrap();
+        let id = uno[0].artifact_id.clone();
+        let dos = publicar_progreso(&uno, "plan", Some("v2"), "b").unwrap();
+        assert_eq!(dos.len(), 1);
+        assert_eq!(dos[0].artifact_id, id);
+        assert_eq!(dos[0].text(), "b");
+        assert_eq!(dos[0].description.as_deref(), Some("v2"));
+        let tres = publicar_progreso(&dos, "otro", None, "c").unwrap();
+        assert_eq!(tres.len(), 2);
+    }
+
+    #[test]
+    fn progress_limits_are_errors_and_leave_the_list_untouched() {
+        let base = publicar_progreso(&[], "a", None, "x").unwrap();
+        let nombre_largo = "n".repeat(PROGRESS_MAX_NAME + 1);
+        let descripcion_larga = "d".repeat(PROGRESS_MAX_DESCRIPTION + 1);
+        let contenido_largo = "c".repeat(PROGRESS_MAX_CONTENT + 1);
+        for (nombre, desc, contenido, trozo) in [
+            ("", None, "x", "name"),
+            ("   ", None, "x", "name"),
+            (nombre_largo.as_str(), None, "x", "name"),
+            ("b", Some(descripcion_larga.as_str()), "x", "description"),
+            ("b", None, "", "content"),
+            ("b", None, contenido_largo.as_str(), "content"),
+        ] {
+            let error = publicar_progreso(&base, nombre, desc, contenido).unwrap_err();
+            assert!(error.contains(trozo), "{nombre:?}: {error}");
+        }
+    }
+
+    #[test]
+    fn progress_count_and_total_size_are_capped() {
+        let mut lista = Vec::new();
+        for i in 0..PROGRESS_MAX_COUNT {
+            lista = publicar_progreso(&lista, &format!("n{i}"), None, "x").unwrap();
+        }
+        let error = publicar_progreso(&lista, "uno-mas", None, "x").unwrap_err();
+        assert!(error.contains("at most"), "{error}");
+        // Reemplazar uno existente sigue permitido con el cupo lleno.
+        assert!(publicar_progreso(&lista, "n0", None, "y").is_ok());
+
+        let grande = "z".repeat(PROGRESS_MAX_CONTENT);
+        let mut grandes = Vec::new();
+        for i in 0..4 {
+            grandes = publicar_progreso(&grandes, &format!("g{i}"), None, &grande).unwrap();
+        }
+        let error = publicar_progreso(&grandes, "g4", None, "z").unwrap_err();
+        assert!(error.contains("total"), "{error}");
+    }
+
+    #[test]
+    fn result_text_helpers_ignore_progress_artifacts() {
+        let mut lista = publicar_progreso(&[], "plan", None, "parcial").unwrap();
+        lista.push(Artifact::text_artifact("final"));
+        assert_eq!(resultado_texto(&lista), "final");
+        assert_eq!(resultado_texto(&lista[..1]), "");
     }
 }

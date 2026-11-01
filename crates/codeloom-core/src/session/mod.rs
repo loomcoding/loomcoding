@@ -1,4 +1,4 @@
-use crate::a2a::{artifacts_text, Artifact};
+use crate::a2a::Artifact;
 use crate::error::Result;
 use crate::message::Message;
 use crate::task::TaskStatus;
@@ -40,14 +40,21 @@ pub struct SubagentDescriptor {
 }
 
 impl SubagentDescriptor {
-    /// Texto del resultado: el de todos los artefactos, unidos con `"\n"`. `None` si el
-    /// subagente no tiene artefactos.
+    /// Texto del resultado: el de los artefactos que no son de progreso, unidos con `"\n"`. `None` si el
+    /// subagente no tiene ninguno.
     pub fn result_text(&self) -> Option<String> {
-        if self.artifacts.is_empty() {
+        if self.artifacts.iter().all(Artifact::is_progress) {
             None
         } else {
-            Some(artifacts_text(&self.artifacts))
+            Some(crate::a2a::resultado_texto(&self.artifacts))
         }
+    }
+
+    /// Artefactos de progreso que publicó el hijo, en orden de publicación.
+    pub fn progress_artifacts(&self) -> impl Iterator<Item = &Artifact> {
+        self.artifacts
+            .iter()
+            .filter(|artefacto| artefacto.is_progress())
     }
 
     /// Identificador de contexto de A2A: la sesión del padre, en texto.
@@ -140,6 +147,21 @@ pub trait SessionStore: Send + Sync {
         child: SessionId,
         artifacts: &[Artifact],
     ) -> Result<()>;
+    /// Publica un artefacto de progreso en la tarea `child`, que debe seguir en marcha. Con un nombre ya
+    /// usado lo reemplaza. Aplica las cotas de `a2a::publicar_progreso` de forma atómica y devuelve el
+    /// descriptor nuevo para que quien llama lo publique en el bus.
+    async fn publish_subagent_progress(
+        &self,
+        child: SessionId,
+        name: &str,
+        description: Option<&str>,
+        content: &str,
+    ) -> Result<SubagentDescriptor> {
+        let _ = (child, name, description, content);
+        Err(crate::error::CoreError::Store(
+            "subagent progress unavailable".into(),
+        ))
+    }
     async fn append_subagent_notice(
         &self,
         parent: SessionId,
