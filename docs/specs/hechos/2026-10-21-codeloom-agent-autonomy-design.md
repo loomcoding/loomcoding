@@ -1,6 +1,6 @@
 # Autonomía entre agentes: contexto, tareas enlazadas y artefactos
 
-Estado: **parcial**, verificado contra el código el 2026-11-01.
+Estado: **hecha**, verificado contra el código el 2026-11-01 (fases A, B, C y D; el detalle de cada una sigue).
 
 - **A**: hecha (`run_woken`, plan `parent-wakeup`). **O1**: hecha.
 - **B (artefactos)**: hecha el 2026-11-01 con otro diseño: el resultado de la tarea es un `Artifact` de A2A

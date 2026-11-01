@@ -1,7 +1,7 @@
 # Plan — Interfaz de la delegación recursiva (fase 2)
 
 > Estado: hecho (2026-11-01). Tareas 1 a 5 cerradas.
-> Spec: `docs/specs/2026-11-01-codeloom-recursive-delegation-ui.md`.
+> Spec: `docs/specs/hechos/2026-11-01-codeloom-recursive-delegation-ui.md`.
 
 ## Restricciones
 

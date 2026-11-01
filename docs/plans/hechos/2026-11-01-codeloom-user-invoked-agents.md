@@ -1,7 +1,7 @@
 # Plan — Invocación directa de agentes por la persona usuaria
 
 > Estado: hecho (2026-11-01). Tareas 1 a 5 cerradas.
-> Spec: `docs/specs/2026-11-01-codeloom-user-invoked-agents.md`.
+> Spec: `docs/specs/hechos/2026-11-01-codeloom-user-invoked-agents.md`.
 
 ## Restricciones
 

@@ -1,7 +1,7 @@
 # Plan — Benchmark del esfuerzo de razonamiento por fase
 
 > Estado: ejecutado (2026-10-31), gasto ≈ 0,266 USD. Etapa 1 ampliada con `medium` y 4 repeticiones; sin efecto en ninguna etapa.
-> Spec: `docs/specs/2026-10-31-codeloom-reasoning-effort-benchmark.md`.
+> Spec: `docs/specs/hechos/2026-10-31-codeloom-reasoning-effort-benchmark.md`.
 
 ## Restricciones
 

@@ -1,5 +1,5 @@
 //! Benchmark del esfuerzo de razonamiento por fase (C2); spec en
-//! `docs/specs/2026-10-31-codeloom-reasoning-effort-benchmark.md`. Las pruebas vivas van ignoradas:
+//! `docs/specs/hechos/2026-10-31-codeloom-reasoning-effort-benchmark.md`. Las pruebas vivas van ignoradas:
 //! gastan saldo y exigen `OPENROUTER_API_KEY`. Se lanzan, una etapa cada vez, con:
 //! `cargo test -p codeloom-core --test effort_by_phase_live stage0 -- --ignored --nocapture`
 //!

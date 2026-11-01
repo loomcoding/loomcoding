@@ -1,7 +1,7 @@
 # Plan — Desglose del contexto y caché en la interfaz
 
 > Estado: implementado (2026-10-31).
-> Spec: `docs/specs/2026-10-31-codeloom-context-breakdown-ui.md`.
+> Spec: `docs/specs/hechos/2026-10-31-codeloom-context-breakdown-ui.md`.
 
 1. **Evento.** Prueba primero: el agente publica `ContextBreakdown` una vez por petición con el total de la estimación.
    Después, variante y publicación en el bucle.

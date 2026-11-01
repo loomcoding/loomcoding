@@ -5,7 +5,7 @@
 >
 > Relacionado: `specs/2026-10-14-loom-skills-ponytail-superpowers.md` (arbitraje entre las dos familias de skills),
 > `specs/2026-10-31-codeloom-ecc-agent-workforce-research.md` (investigación de ECC, de la persona usuaria, sin commitear),
-> `specs/2026-11-01-codeloom-external-catalog-profiles.md` (catálogo externo, ya implementado).
+> `specs/hechos/2026-11-01-codeloom-external-catalog-profiles.md` (catálogo externo, ya implementado).
 
 ## 1. Qué es un «plugin» en estos tres casos
 
@@ -102,7 +102,7 @@ reparte trabajo; necesita `max_depth` ≥ 2 en la configuración y en su perfil)
 | Paso | Dónde | Qué | Riesgo |
 |---|---|---|---|
 | A | catálogo del usuario | exportar `superpowers` y `ponytail` como **agentes** con sus skills declaradas en `scope.skills`, anotando los hooks no importados | ninguno en CodeLoom |
-| B | CodeLoom, spec propia | **invocación directa por la persona usuaria** (`/agent <nombre> <tarea>` y `@nombre`), sin pasar por el modelo principal. **Hecho:** `specs/2026-11-01-codeloom-user-invoked-agents.md` | bajo |
+| B | CodeLoom, spec propia | **invocación directa por la persona usuaria** (`/agent <nombre> <tarea>` y `@nombre`), sin pasar por el modelo principal. **Hecho:** `specs/hechos/2026-11-01-codeloom-user-invoked-agents.md` | bajo |
 | C | CodeLoom, spec propia | **elegir skills al invocar** (`--skills a,b`), como subconjunto de las que el perfil declara (así la aprobación por huella las sigue cubriendo). **Hecho**, misma spec | bajo |
 | D | solo si hace falta | hooks de shell de terceros, tras aprobación, con sandbox | alto; sin decidir |
 

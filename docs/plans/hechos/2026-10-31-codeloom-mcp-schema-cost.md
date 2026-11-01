@@ -1,7 +1,7 @@
 # Plan — Coste de los esquemas MCP al conectar
 
 > Estado: implementado (2026-10-31).
-> Spec: `docs/specs/2026-10-31-codeloom-mcp-schema-cost.md`.
+> Spec: `docs/specs/hechos/2026-10-31-codeloom-mcp-schema-cost.md`.
 
 ## Restricciones
 

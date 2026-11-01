@@ -5,17 +5,12 @@ y cotejándola con el repositorio: existencia de los ficheros que cada plan crea
 presencia de los símbolos que describe y existencia en `master` de los commits que
 cita (117 de 118; el restante es una revisión de Crossterm, ajena a este repositorio).
 
-Ubicación: lo hecho y sin cabos sueltos vive en `docs/specs/hechos/` y
-`docs/plans/hechos/`. En `docs/specs/` y `docs/plans/` quedan solo lo pendiente,
-lo parcialmente implementado y los documentos de referencia vivos (decálogo,
-roadmaps, listas de pendientes). En «Hecho» (abajo) aparece todo lo que ya consta
-como implementado; lo que sigue en la raíz es la sección «cabo suelto».
-
-Salvedad (2026-11-01): los documentos de las tandas del 2026-10-29 en adelante, aunque estén hechos,
-siguen en la raíz: moverlos obliga a reescribir los enlaces relativos entre documentos y no se hizo en
-la higiene. Manda siempre la línea `Estado:` de cada cabecera, que en esa pasada se alineó entre
-spec y plan en `mcp-schema-cost`, `cache-usage-ledger` e `image-attachments`, y se añadió a doce planes
-que carecían de ella (los de `dashboard` y `interactive-reliability` constan como «sin verificar»).
+Ubicación (regla desde el 2026-11-01): `docs/specs/` y `docs/plans/` guardan solo lo que
+está por hacer o en curso: ideas y borradores, lo parcial, lo hecho con un cabo suelto
+declarado (revisión visual, prueba con proveedor real…) y los documentos de referencia vivos
+(decálogo, roadmaps, listas de pendientes). Lo terminado y sin trabajo pendiente vive en
+`docs/specs/hechos/` y `docs/plans/hechos/`; al cerrarse el último cabo, el par se mueve allí.
+En «Hecho» (abajo) aparece todo lo que ya consta como implementado, esté donde esté.
 
 Las casillas `- [x]` de los planes anteriores al 2026-10-21 nunca se marcaron; no
 son fiables. Manda la línea `Estado:` de la cabecera.

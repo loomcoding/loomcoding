@@ -1,7 +1,7 @@
 # Plan — Caché de prompts configurable en `codeloom.toml`
 
 > Estado: implementado (2026-10-31).
-> Spec: `docs/specs/2026-10-31-codeloom-prompt-cache-config.md`.
+> Spec: `docs/specs/hechos/2026-10-31-codeloom-prompt-cache-config.md`.
 
 ## Restricciones
 

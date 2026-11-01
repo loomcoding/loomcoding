@@ -24,7 +24,7 @@ dice que no consta.
 | Proyección interna → `TaskState` (código) | `crates/codeloom-core/src/task.rs` |
 | Estados en pantalla: `AgentState`, glifos, colores | `crates/batten/src/state/agent_state.rs`, `crates/batten/src/widgets/theme.rs`; rail en `crates/codeloom-tui/src/rail.rs`; demo «Agent state» del showcase |
 | `input-required`: pregunta del hijo al padre | `docs/specs/hechos/2026-10-21-codeloom-subagent-input-required-design.md` |
-| Autonomía: despertar del padre (Fase A), artefactos (B), tareas enlazadas (C) | `docs/specs/2026-10-21-codeloom-agent-autonomy-design.md` |
+| Autonomía: despertar del padre (Fase A), artefactos (B), tareas enlazadas (C) | `docs/specs/hechos/2026-10-21-codeloom-agent-autonomy-design.md` |
 | Observabilidad: métricas por agente, navegación, causalidad y ficheros (O1 a O3) | `docs/specs/hechos/2026-10-21-codeloom-agent-observability-design.md`, `...-o2-design.md`, `2026-10-22-codeloom-agent-observability-o3-design.md` |
 | Herramientas de tarea y preguntas | `docs/specs/hechos/2026-10-20-codeloom-todos-and-questions-design.md`, `docs/specs/2026-10-21-codeloom-tool-atoms-design.md` |
 | Mapa general | `docs/specs/2026-10-14-loom-architecture-overview.md` |

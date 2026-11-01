@@ -1,7 +1,7 @@
 # Plan — Artefactos de progreso publicados por el hijo
 
 > Estado: hecho (2026-11-01). Tareas 1 a 6 cerradas.
-> Spec: `docs/specs/2026-11-01-codeloom-child-progress-artifacts.md`.
+> Spec: `docs/specs/hechos/2026-11-01-codeloom-child-progress-artifacts.md`.
 
 ## Restricciones
 

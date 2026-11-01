@@ -5,7 +5,7 @@
 //! resumen listo y de qué posición del historial parte. No llama al proveedor ni toca el almacén:
 //! la tarea que genera el resumen lo entrega aquí a través de un `Finisher`.
 //!
-//! Véase `docs/specs/2026-10-23-codeloom-background-compaction-design.md`, sección «Máquina de
+//! Véase `docs/specs/hechos/2026-10-23-codeloom-background-compaction-design.md`, sección «Máquina de
 //! estados por sesión» y «Concurrencia».
 
 use crate::agent::compact::{choose_cut, estimate_context_tokens, parse_summary};

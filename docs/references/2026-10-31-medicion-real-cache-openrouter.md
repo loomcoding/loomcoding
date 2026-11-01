@@ -52,5 +52,5 @@ modelo, un proveedor, un prefijo.
 ## Consecuencias
 
 B1 queda justificada con datos propios para prefijos grandes y estables, y se implementó:
-`docs/specs/2026-10-31-codeloom-prompt-cache-points.md`. Pendiente: el coste de escritura en sesiones de una sola
+`docs/specs/hechos/2026-10-31-codeloom-prompt-cache-points.md`. Pendiente: el coste de escritura en sesiones de una sola
 petición (+25 % sobre el prefijo) y Anthropic directo, que no se midió.

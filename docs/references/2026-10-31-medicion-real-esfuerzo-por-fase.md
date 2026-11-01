@@ -1,7 +1,7 @@
 # Medición real: esfuerzo de razonamiento por fase (C2)
 
 > Fecha: 2026-10-31. Autorizada por el usuario con un tope de 1,00 USD; gasto ≈ 0,266 USD.
-> Spec: `docs/specs/2026-10-31-codeloom-reasoning-effort-benchmark.md`. Plan: `docs/plans/2026-10-31-codeloom-reasoning-effort-benchmark.md`.
+> Spec: `docs/specs/hechos/2026-10-31-codeloom-reasoning-effort-benchmark.md`. Plan: `docs/plans/hechos/2026-10-31-codeloom-reasoning-effort-benchmark.md`.
 > Código: `crates/codeloom-core/tests/effort_by_phase_live.rs` (etapas 0 y 1) y `stage2_low_effort_on_execution` en
 > `crates/codeloom-core/tests/reproduce_first_live.rs` (etapa 2). Ambas ignoradas por defecto.
 

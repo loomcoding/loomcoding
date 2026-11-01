@@ -1,7 +1,7 @@
 # Plan — Mando de delegación en los hijos que delegan
 
 > Estado: hecho (2026-11-01).
-> Spec: `docs/specs/2026-11-01-codeloom-delegation-mode-for-nested-children.md`.
+> Spec: `docs/specs/hechos/2026-11-01-codeloom-delegation-mode-for-nested-children.md`.
 
 ## Restricciones
 

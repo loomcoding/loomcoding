@@ -269,7 +269,7 @@ pub struct AnthropicProvider {
 
 /// Marca puntos de caché de prompts en un cuerpo ya construido: como mucho dos (el límite del proveedor
 /// es cuatro). Uno en el sistema, que por el orden del proveedor cubre también las herramientas, y otro
-/// en el último bloque del último mensaje. Ver `docs/specs/2026-10-31-codeloom-prompt-cache-points.md`.
+/// en el último bloque del último mensaje. Ver `docs/specs/hechos/2026-10-31-codeloom-prompt-cache-points.md`.
 fn apply_cache_points(body: &mut serde_json::Value) {
     let marker = serde_json::json!({ "type": "ephemeral" });
     // Punto 1: el sistema. Cadena a bloque de texto; si está vacío, la última herramienta.

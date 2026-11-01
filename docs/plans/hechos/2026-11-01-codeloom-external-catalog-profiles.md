@@ -1,7 +1,7 @@
 # Plan — Catálogo externo de agentes y skills como perfiles locales
 
 > Estado: hecho (2026-11-01). Tareas 1 a 6 cerradas.
-> Spec: `docs/specs/2026-11-01-codeloom-external-catalog-profiles.md`.
+> Spec: `docs/specs/hechos/2026-11-01-codeloom-external-catalog-profiles.md`.
 
 ## Restricciones
 

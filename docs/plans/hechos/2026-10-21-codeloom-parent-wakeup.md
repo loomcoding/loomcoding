@@ -10,7 +10,7 @@
 
 **Stack:** Rust, `tokio`.
 
-**Spec:** `docs/specs/2026-10-21-codeloom-agent-autonomy-design.md` (Fase A); contexto en `2026-10-21-codeloom-subagent-input-required-design.md`.
+**Spec:** `docs/specs/hechos/2026-10-21-codeloom-agent-autonomy-design.md` (Fase A); contexto en `2026-10-21-codeloom-subagent-input-required-design.md`.
 
 ## Hallazgos del código que fijan el diseño
 
@@ -106,7 +106,7 @@ Reglas de `apply`: `SubagentInputRequested` (padre = sesión abierta) → `wake_
 
 ### Tarea 4: documentación
 
-- [ ] Actualizar `docs/specs/2026-10-21-codeloom-agent-autonomy-design.md` (Fase A: implementada, decisiones: despertar sin mensaje de usuario, `SubagentSettled`, presupuesto 8 por mensaje del usuario, `Killed` no despierta) y la sección «Estado» de `2026-10-21-codeloom-subagent-input-required-design.md` (el padre ocioso ya despierta). Anotar como pendiente la validación visual. **Commit.**
+- [ ] Actualizar `docs/specs/hechos/2026-10-21-codeloom-agent-autonomy-design.md` (Fase A: implementada, decisiones: despertar sin mensaje de usuario, `SubagentSettled`, presupuesto 8 por mensaje del usuario, `Killed` no despierta) y la sección «Estado» de `2026-10-21-codeloom-subagent-input-required-design.md` (el padre ocioso ya despierta). Anotar como pendiente la validación visual. **Commit.**
 
 ## Autoauditoría
 

@@ -1,7 +1,7 @@
 # Plan — Señal de recorte estructurada
 
 > Estado: implementado (2026-10-31).
-> Spec: `docs/specs/2026-10-31-codeloom-truncation-signal.md`.
+> Spec: `docs/specs/hechos/2026-10-31-codeloom-truncation-signal.md`.
 
 ## Tareas
 

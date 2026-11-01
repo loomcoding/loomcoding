@@ -1,7 +1,7 @@
 # Plan — Límites de tamaño para skills locales
 
 > Estado: implementado (2026-11-01).
-> Spec: `docs/specs/2026-10-31-codeloom-skill-size-policy.md`.
+> Spec: `docs/specs/hechos/2026-10-31-codeloom-skill-size-policy.md`.
 
 ## Restricciones
 
