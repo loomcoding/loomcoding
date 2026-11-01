@@ -22,7 +22,7 @@ antes que prosa, y que **no se desfase** porque lo que sale del código lo gener
 2. Cada concepto se capta de un vistazo y se ve cómo cruza con los demás (mapa de conceptos).
 3. Las fichas de herramientas, claves de configuración, órdenes y estados A2A salen **del código** y un test falla si el libro se queda viejo.
 4. Los ejemplos de configuración y de perfiles se **verifican** con el cargador real.
-5. Publicación automática en GitHub Pages desde `master`.
+5. El libro se construye y se verifica en CI en cada cambio y se sube como **artefacto**. La publicación en GitHub Pages queda para cuando el repositorio sea público (§9, fase 4).
 
 **No objetivos (esta entrega)**
 - La parte **Contribuir** (arquitectura de crates, pruebas, E2E visual, herdr): fase 2.
@@ -52,7 +52,7 @@ antes que prosa, y que **no se desfase** porque lo que sale del código lo gener
 - Plantilla fija de página y tope de «una pantalla» (§5).
 - Portada con **tres puertas** y el **mapa de conceptos** a la vista; buscador de mdBook; hojas de consulta en la barra lateral.
 - Generación desde el código mediante un test que escribe con `UPDATE_BOOK=1` y compara en el resto de ejecuciones (§6).
-- Publicación con un job aparte `book` en CI y despliegue a Pages solo desde `master`.
+- Un job aparte `book` en CI que construye, verifica y sube el libro como artefacto. El despliegue a Pages se deja escrito pero **desactivado** hasta que haya repositorio público y dirección.
 - Licencia del libro: la del repositorio (MIT o Apache-2.0).
 
 ## 4. Estructura del libro
@@ -128,6 +128,7 @@ binario auxiliar) se deja al constructor, con una condición: sin red y dentro d
    hojas de consulta, README actualizado, CI y Pages.
 2. **Contribuir:** arquitectura de crates, pruebas, E2E visual, herdr, protocolo A2A.
 3. **Inglés:** segunda versión con el mismo esqueleto.
+4. **Publicación:** activar el despliegue a Pages cuando el repositorio sea público y se decida la dirección.
 
 ## 10. Criterios de aceptación
 
@@ -138,7 +139,7 @@ binario auxiliar) se deja al constructor, con una condición: sin red y dentro d
 5. La página de comunicación con subagentes cubre lanzamiento, contexto del hijo, resultado, `input-required`, despertar del
    padre, cancelación, avances y recursión, con los estados A2A exactos.
 6. El `README.md` raíz ya no contradice el código y enlaza el libro.
-7. El job `book` de CI pasa y `master` despliega a Pages.
+7. El job `book` de CI pasa y sube el libro como artefacto. El despliegue a Pages existe pero está desactivado.
 8. Las cuatro comprobaciones del proyecto pasan.
 
 ## 11. Lo que queda al constructor
@@ -150,7 +151,11 @@ binario auxiliar) se deja al constructor, con una condición: sin red y dentro d
 
 ## 12. Preguntas abiertas
 
-1. ¿El repositorio `valdepeace/codeloom` es público y tiene Pages habilitado? Sin eso, el despliegue de §3 no funciona y el
-   libro se publicaría como artefacto de CI.
-2. ¿Dirección final de la web (la de Pages por defecto o un dominio propio)?
+Resueltas el 2026-11-01 por la persona usuaria:
+
+1. El repositorio **todavía no es público** y no tiene Pages: la publicación se aplaza (fase 4).
+2. La **dirección final** está pendiente de decidir; no bloquea esta entrega.
+
+Siguen abiertas:
+
 3. ¿Se quiere versionar el libro por release más adelante?
