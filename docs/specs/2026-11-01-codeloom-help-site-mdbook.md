@@ -99,7 +99,7 @@ el estado A2A exacto entre paréntesis; las advertencias de seguridad van en un 
 | Qué | De dónde sale | Cómo se vigila |
 |---|---|---|
 | Fichas de herramientas (nombre, descripción, esquema, paralela o exclusiva) | el registro de herramientas real | test: el fichero generado coincide con el registro |
-| Claves de `codeloom.toml` | las estructuras de configuración | test: toda clave documentada existe y toda clave pública está documentada |
+| Claves de `codeloom.toml` | los ejemplos del propio libro | test: toda clave que aparece en un ejemplo existe en los tipos reales (los cargadores ignoran claves desconocidas, así que se detectan con `serde_ignored`). El sentido inverso (clave nueva sin documentar) no se puede comprobar sin reflexión: se cubre con una regla en `CONTRIBUTING.md` |
 | Órdenes con barra | `COMMANDS` de `codeloom-tui` | test: la tabla coincide |
 | Estados A2A | `TaskState` | test: los ocho estados con su nombre de cable |
 | Ejemplos `toml` y de perfil | los propios `.md` del libro | test: se extraen y se cargan con el cargador real |
@@ -137,7 +137,7 @@ binario auxiliar) se deja al constructor, con una condición: sin red y dentro d
 
 1. `mdbook build` termina sin avisos y produce un sitio con buscador y diagramas dibujados.
 2. Toda página sigue la plantilla de §5 y no pasa de una pantalla.
-3. Cada herramienta del registro tiene su ficha generada: las 20 de la sesión raíz y `artifact_publish`, que solo ven los hijos. Las de MCP son dinámicas y se documentan como categoría, no una a una. Añadir una herramienta sin regenerar rompe un test.
+3. Cada herramienta del registro tiene su ficha generada: las 21 de la sesión raíz y `artifact_publish`, que solo ven los hijos. Las de MCP son dinámicas y se documentan como categoría, no una a una. Añadir una herramienta sin regenerar rompe un test.
 4. Todos los ejemplos `toml` y de perfil del libro se cargan con el cargador real; uno inválido rompe un test.
 5. La página de comunicación con subagentes cubre lanzamiento, contexto del hijo, resultado, `input-required`, despertar del
    padre, cancelación, avances y recursión, con los estados A2A exactos.
