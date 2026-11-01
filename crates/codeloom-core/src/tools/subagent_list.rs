@@ -7,7 +7,17 @@ use tokio_util::sync::CancellationToken;
 pub struct SubagentListTool;
 
 fn descriptor_json(agent: SubagentDescriptor) -> serde_json::Value {
+    let avances: Vec<_> = agent
+        .progress_artifacts()
+        .map(|artefacto| {
+            serde_json::json!({
+                "name": artefacto.name,
+                "bytes": artefacto.text().len(),
+            })
+        })
+        .collect();
     serde_json::json!({
+        "artifacts": avances,
         "child_id": agent.child.0,
         "job_id": agent.job_id,
         "label": agent.label,
@@ -76,5 +86,30 @@ mod tests {
         let json = descriptor_json(descriptor);
         assert_eq!(json["status"], "failed");
         assert_eq!(json["message"], "provider unavailable");
+        assert_eq!(json["artifacts"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn descriptor_json_lists_progress_notes_by_name_and_size_without_their_content() {
+        let mut artifacts = crate::a2a::publicar_progreso(&[], "plan", None, "1. leer").unwrap();
+        artifacts.push(Artifact::text_artifact("resultado final"));
+        let descriptor = SubagentDescriptor {
+            parent: SessionId(1),
+            child: SessionId(2),
+            job_id: "subagent-1".into(),
+            label: "backend".into(),
+            status: TaskStatus::new(TaskState::Working),
+            artifacts,
+            notice_delivered: false,
+            agent: None,
+            agent_origin: None,
+            reference_task_ids: Vec::new(),
+        };
+        let json = descriptor_json(descriptor);
+        assert_eq!(
+            json["artifacts"],
+            serde_json::json!([{"name": "plan", "bytes": 7}])
+        );
+        assert!(!json.to_string().contains("1. leer"));
     }
 }

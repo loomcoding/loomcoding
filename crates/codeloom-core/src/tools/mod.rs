@@ -6,6 +6,7 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 pub mod artifact_publish;
+pub mod artifact_read;
 pub mod ask_user;
 pub mod bash;
 pub mod development_workflow;

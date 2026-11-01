@@ -14,6 +14,7 @@ use codeloom_core::provider::Provider;
 use codeloom_core::registry::{
     AgentRegistry, AgentSource, BuiltInSource, FileSource, ProfileLevel, TrustStore,
 };
+use codeloom_core::tools::artifact_read::ArtifactReadTool;
 use codeloom_core::tools::ask_user::AskUserTool;
 use codeloom_core::tools::edit::EditTool;
 use codeloom_core::tools::glob::GlobTool;
@@ -217,6 +218,7 @@ fn build_project_tools(project_env: HashMap<String, String>) -> ToolRegistry {
     tools.register(Arc::new(SubagentTool));
     tools.register(Arc::new(SubagentControlTool));
     tools.register(Arc::new(SubagentListTool));
+    tools.register(Arc::new(ArtifactReadTool));
     tools.register(Arc::new(TodoWriteTool));
     tools.register(Arc::new(AskUserTool));
     tools.register(Arc::new(

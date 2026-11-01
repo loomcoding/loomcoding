@@ -373,10 +373,15 @@ impl InProcessSubagentLauncher {
         jobs: Arc<dyn JobRegistry>,
         bus: EventBus,
     ) -> Self {
-        let delegation_tools = ["subagent", "subagent_control", "subagent_list"]
-            .into_iter()
-            .filter_map(|name| tools.get(name))
-            .collect();
+        let delegation_tools = [
+            "subagent",
+            "subagent_control",
+            "subagent_list",
+            "artifact_read",
+        ]
+        .into_iter()
+        .filter_map(|name| tools.get(name))
+        .collect();
         Self {
             provider,
             store,
@@ -385,6 +390,7 @@ impl InProcessSubagentLauncher {
                     .without("subagent")
                     .without("subagent_control")
                     .without("subagent_list")
+                    .without("artifact_read")
                     .without("development_workflow"),
             ),
             permission,
@@ -443,6 +449,7 @@ impl InProcessSubagentLauncher {
                     .without("subagent")
                     .without("subagent_control")
                     .without("subagent_list")
+                    .without("artifact_read")
                     .without("development_workflow"),
             ),
             permission,
@@ -2038,11 +2045,29 @@ impl SubagentLauncher for InProcessSubagentLauncher {
                 continue;
             }
             if let Some(result) = descriptor.result_text() {
-                let message = crate::message::Message::user(format!(
+                let mut texto = format!(
                     "[Subagent {} completed]\n{}",
                     descriptor.label,
                     crate::tools::limit_bytes(&result, crate::tools::MAX_NOTICE_BYTES)
-                ));
+                );
+                // Los avances no se vuelcan: se nombran con su tamaño y se leen con `artifact_read`.
+                let avances: Vec<String> = descriptor
+                    .progress_artifacts()
+                    .map(|a| {
+                        format!(
+                            "{} ({} bytes)",
+                            a.name.as_deref().unwrap_or("?"),
+                            a.text().len()
+                        )
+                    })
+                    .collect();
+                if !avances.is_empty() {
+                    texto.push_str(&format!(
+                        "\n[Progress notes: {}; read with artifact_read]",
+                        avances.join(", ")
+                    ));
+                }
+                let message = crate::message::Message::user(texto);
                 if self
                     .store
                     .append_subagent_notice(parent, descriptor.child, &message)
@@ -2364,6 +2389,13 @@ mod tests {
         let hijos = store.list_subagents(parent).await.unwrap();
         assert_eq!(hijos[0].result_text().as_deref(), Some("resultado final"));
         assert_eq!(hijos[0].progress_artifacts().count(), 1);
+        // El aviso al padre trae el resultado y solo nombra el avance, sin volcar su contenido.
+        let avisos = runtime.deliver_notices(parent).await.unwrap();
+        assert_eq!(avisos.len(), 1);
+        assert_eq!(
+            avisos[0].text(),
+            "[Subagent research completed]\nresultado final\n[Progress notes: plan (7 bytes); read with artifact_read]"
+        );
     }
 
     #[tokio::test]

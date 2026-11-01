@@ -64,10 +64,11 @@ fn publish_usage_progress(
 }
 
 /// Herramientas que `delegation = "off"` retira de la petición.
-const DELEGATION_TOOLS: [&str; 4] = [
+const DELEGATION_TOOLS: [&str; 5] = [
     "subagent",
     "subagent_control",
     "subagent_list",
+    "artifact_read",
     "development_workflow",
 ];
 
@@ -4689,6 +4690,7 @@ Cuerpo.
             "subagent",
             "subagent_control",
             "subagent_list",
+            "artifact_read",
             "development_workflow",
             "noop",
         ] {
@@ -4717,6 +4719,7 @@ Cuerpo.
             "subagent",
             "subagent_control",
             "subagent_list",
+            "artifact_read",
             "development_workflow",
         ] {
             assert!(!sin_delegar.iter().any(|n| n == retirada), "{retirada}");
