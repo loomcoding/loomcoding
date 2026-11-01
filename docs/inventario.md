@@ -88,8 +88,9 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 - **Fuera de este inventario hasta revisarlas:** `self-hosting-bootstrap` (evaluación), `mcp-skills-hot-reload`,
   `decision-experiments` (borradores), `composer-tool-visual-references` y `batten-reference-findings-showcase`
   (análisis ya completados, sin código asociado).
-- **A verificar contra el código antes de planificar:** `agent-autonomy` fases B (artefactos) y C (tareas enlazadas
-  y contexto): hay rastro de artefactos y de contexto en `a2a.rs`, `remote_task.rs` y `event/mod.rs`, pero la spec las da por pendientes.
+- **`agent-autonomy`, verificado el 2026-11-01:** B a medias (el resultado ya es un `Artifact` A2A; faltan las herramientas
+  `artifact_publish` y `artifact_read`) y C con un resto (`send_message` de `subagent_control` sigue aceptando texto libre);
+  A, D y `follow_up_of` están hechos. Detalle en la cabecera de la spec.
 - **Referencia, no ejecutables:** a2a-roadmap, jevalan-roadmap, pendientes,
   agent-first-development-skills.
 

@@ -1,6 +1,17 @@
 # Autonomía entre agentes: contexto, tareas enlazadas y artefactos
 
-Estado: **parcial**. Implementadas la Fase A (`run_woken`, plan `parent-wakeup`) y la Fase O1; pendientes las fases B (artefactos), C (tareas enlazadas y contexto) y D.
+Estado: **parcial**, verificado contra el código el 2026-11-01.
+
+- **A**: hecha (`run_woken`, plan `parent-wakeup`). **O1**: hecha.
+- **B (artefactos)**: a medias y con otro diseño. El resultado de la tarea ya es un `Artifact` de A2A
+  (`a2a.rs`), persistido en `subagents.artifacts_json` y servido por A2A. **Faltan** las herramientas
+  `artifact_publish` y `artifact_read`: hoy el hijo no publica artefactos propios, solo su resultado final.
+- **C (enlazadas y contexto)**: `follow_up_of` hecho con otra decisión (`reference_task_ids`, A11; véase la nota
+  de la fase). El `ContextId` existe en el borde A2A (`descriptor.context_id()`), no en los eventos internos.
+  **Falta** restringir `send_message` de `subagent_control` a responder una tarea en `input-required`: sigue
+  aceptando texto libre.
+- **D**: la profundidad mayor que 1 se hizo aparte (`recursive-delegation`); pares remotos y transporte A2A, hechos
+  (`codeloom-a2a`).
 Relacionado: `2026-10-15-loom-agent-profile-a2a.md` (§5, §8 y hallazgos de la
 lectura de la especificación oficial), `2026-10-21-codeloom-subagent-input-required-design.md`,
 `2026-10-13-loom-design.md` (§6, subagentes y jobs).
