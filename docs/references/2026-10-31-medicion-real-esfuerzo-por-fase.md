@@ -113,5 +113,5 @@ Tres repeticiones por caso y nivel.
 
 ## Siguiente paso posible
 
-Repetir `high` de la batería difícil (≈ 0,2 USD) cuando haya crédito en OpenRouter. El gasto de esta tarea por mi cuenta ronda
+Repetir `high` de la batería difícil (≈ 0,2 USD) cuando haya crédito en OpenRouter, con `cargo test -p codeloom-core --test effort_by_phase_live stage3_hard_battery_high_only -- --ignored --nocapture` (solo `high`, tope 0,40 USD; aborta ante un 402). El gasto de esta tarea por mi cuenta ronda
 0,5 USD, pero el saldo real de la cuenta es el que manda.

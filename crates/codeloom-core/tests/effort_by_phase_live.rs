@@ -429,11 +429,14 @@ async fn stage0_effort_reaches_the_model() {
     );
 }
 
+/// Los tres niveles de esfuerzo que se comparan.
+const ALL_LEVELS: [Option<&str>; 3] = [None, Some("medium"), Some("high")];
+
 /// Pasa una batería por los tres niveles de esfuerzo e imprime un resumen por nivel.
-async fn run_battery(cases: &[Case], reps: usize, cap: f64) {
+async fn run_battery(cases: &[Case], reps: usize, cap: f64, levels: &[Option<&str>]) {
     let key = key();
     let mut spend = Spend::new(cap);
-    for effort in [None, Some("medium"), Some("high")] {
+    for &effort in levels {
         let (mut hits, mut false_positives, mut tokens, mut cost, mut runs, mut errors) =
             (0, 0, 0_u64, 0.0, 0, 0);
         for case in cases {
@@ -500,13 +503,20 @@ async fn run_battery(cases: &[Case], reps: usize, cap: f64) {
 #[tokio::test]
 #[ignore = "live OpenRouter calls; incurs provider usage"]
 async fn stage1_review_without_tools() {
-    run_battery(&CASES, REPS, STAGE1_CAP_USD).await;
+    run_battery(&CASES, REPS, STAGE1_CAP_USD, &ALL_LEVELS).await;
 }
 
 #[tokio::test]
 #[ignore = "live OpenRouter calls; incurs provider usage"]
 async fn stage3_hard_battery() {
-    run_battery(&HARD_CASES, HARD_REPS, STAGE3_CAP_USD).await;
+    run_battery(&HARD_CASES, HARD_REPS, STAGE3_CAP_USD, &ALL_LEVELS).await;
+}
+
+/// Repite solo `high` sobre la batería difícil (la primera pasada no obtuvo datos válidos por falta de crédito).
+#[tokio::test]
+#[ignore = "live OpenRouter calls; incurs provider usage"]
+async fn stage3_hard_battery_high_only() {
+    run_battery(&HARD_CASES, HARD_REPS, STAGE3_CAP_USD, &[Some("high")]).await;
 }
 
 #[tokio::test]
