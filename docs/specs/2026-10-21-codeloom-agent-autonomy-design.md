@@ -8,8 +8,10 @@ Estado: **parcial**, verificado contra el código el 2026-11-01.
   `artifact_publish` y `artifact_read`: hoy el hijo no publica artefactos propios, solo su resultado final.
 - **C (enlazadas y contexto)**: `follow_up_of` hecho con otra decisión (`reference_task_ids`, A11; véase la nota
   de la fase). El `ContextId` existe en el borde A2A (`descriptor.context_id()`), no en los eventos internos.
-  **Falta** restringir `send_message` de `subagent_control` a responder una tarea en `input-required`: sigue
-  aceptando texto libre.
+  La restricción de `send_message` **queda descartada** por decisión de la persona usuaria (2026-11-01): sigue
+  aceptando texto libre. Razón: `answer` ya cubre responder a `input-required`, así que restringirla dejaría una
+  acción duplicada, y `send_message` es la única vía de orientar a un hijo en marcha. Es decisión nuestra, no de A2A,
+  y la entrega es asíncrona: el texto se añade al historial del hijo sin garantía de cuándo lo lee.
 - **D**: la profundidad mayor que 1 se hizo aparte (`recursive-delegation`); pares remotos y transporte A2A, hechos
   (`codeloom-a2a`).
 Relacionado: `2026-10-15-loom-agent-profile-a2a.md` (§5, §8 y hallazgos de la
@@ -125,10 +127,8 @@ transcript, solo en el pie; validación en terminal real pendiente.
   Nota (2026-10-23, tras A11): hecho con otra decisión: el prompt lleva el resultado de la
   tarea referida, acotado, y no la lista de artefactos; el enlace se guarda como
   `reference_task_ids`. Véase `2026-10-23-codeloom-a2a-follow-up-design.md`.
-- La acción `send_message` de `subagent_control` se restringe a lo que A2A
-  permite: responder a una tarea en `input-required`. Enviar texto a un hijo
-  en marcha sin pregunta pendiente deja de ser válido (hoy es ambiguo: se
-  añade al historial del hijo pero no hay garantía de cuándo lo leerá).
+- ~~La acción `send_message` de `subagent_control` se restringe a responder a una tarea en
+  `input-required`.~~ **Descartado el 2026-11-01**: se mantiene como está (véase la cabecera).
 - `ContextId` = identificador de la sesión raíz; viaja en los eventos de
   subagente y job. Es opaco y solo sirve para agrupar y mostrar.
 

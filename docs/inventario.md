@@ -89,8 +89,8 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   `decision-experiments` (borradores), `composer-tool-visual-references` y `batten-reference-findings-showcase`
   (análisis ya completados, sin código asociado).
 - **`agent-autonomy`, verificado el 2026-11-01:** B a medias (el resultado ya es un `Artifact` A2A; faltan las herramientas
-  `artifact_publish` y `artifact_read`) y C con un resto (`send_message` de `subagent_control` sigue aceptando texto libre);
-  A, D y `follow_up_of` están hechos. Detalle en la cabecera de la spec.
+  `artifact_publish` y `artifact_read`); A, C, D y `follow_up_of` están hechos. La restricción de `send_message`
+  se descartó a propósito (`answer` ya cubre `input-required`). Detalle en la cabecera de la spec.
 - **Referencia, no ejecutables:** a2a-roadmap, jevalan-roadmap, pendientes,
   agent-first-development-skills.
 
