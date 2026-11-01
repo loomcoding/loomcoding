@@ -54,6 +54,9 @@ antes que prosa, y que **no se desfase** porque lo que sale del código lo gener
 - Generación desde el código mediante un test que escribe con `UPDATE_BOOK=1` y compara en el resto de ejecuciones (§6).
 - Un job aparte `book` en CI que construye, verifica y sube el libro como artefacto. El despliegue a Pages se deja escrito pero **desactivado** hasta que haya repositorio público y dirección.
 - Licencia del libro: la del repositorio (MIT o Apache-2.0).
+- **Versionado por release** (decidido por la persona usuaria; el mecanismo es mío): el libro lleva en la cabecera la versión del
+  workspace y el commit; el artefacto de CI se nombra con esa versión; al publicar (fase 4) cada etiqueta `vX.Y.Z` se despliega
+  en `/vX.Y.Z/` y `/latest/` apunta a la última. mdBook no versiona de serie, así que es construir una vez por etiqueta.
 
 ## 4. Estructura del libro
 
@@ -140,7 +143,8 @@ binario auxiliar) se deja al constructor, con una condición: sin red y dentro d
    padre, cancelación, avances y recursión, con los estados A2A exactos.
 6. El `README.md` raíz ya no contradice el código y enlaza el libro.
 7. El job `book` de CI pasa y sube el libro como artefacto. El despliegue a Pages existe pero está desactivado.
-8. Las cuatro comprobaciones del proyecto pasan.
+8. El libro muestra la versión del workspace y el commit, y el artefacto de CI lleva esa versión en el nombre.
+9. Las cuatro comprobaciones del proyecto pasan.
 
 ## 11. Lo que queda al constructor
 
@@ -156,6 +160,6 @@ Resueltas el 2026-11-01 por la persona usuaria:
 1. El repositorio **todavía no es público** y no tiene Pages: la publicación se aplaza (fase 4).
 2. La **dirección final** está pendiente de decidir; no bloquea esta entrega.
 
-Siguen abiertas:
+Resuelta también el 2026-11-01: **sí, se versiona por release** (§3).
 
-3. ¿Se quiere versionar el libro por release más adelante?
+Ninguna sigue abierta.
