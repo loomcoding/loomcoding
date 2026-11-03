@@ -196,12 +196,86 @@ impl Tool for LspTool {
         };
         let result = tokio::select! { _ = cancel.cancelled() => return Ok(ToolOutput::err("cancelled")), r = operation => r };
         match result {
-            Ok(value) => Ok(ToolOutput::ok(
-                super::limit_output(&value.to_string()).into_owned(),
-            )),
+            Ok(value) => Ok(ToolOutput::ok(format_lsp_result(op, &value))),
             Err(e) => Ok(ToolOutput::err(format!("LSP request failed: {e}"))),
         }
     }
+}
+
+/// Máximo de símbolos o referencias que se listan.
+///
+/// Cabe señalar que el volcado crudo del protocolo llegaba a 20 KB para un solo fichero:
+/// cada símbolo trae su `range` con cuatro números, su `kind` numérico, `deprecated` y
+/// `tags`, y nada de eso le dice al agente dónde está la función. Con el techo bajo y el
+/// formato compacto, lo que llega es una lista de `nombre (línea)` que sí se puede leer.
+const MAX_LSP_ITEMS: usize = 60;
+
+/// Formatea el resultado de una operación LSP de forma compacta y legible.
+///
+/// En vez de volcar el JSON del protocolo, extrae lo que el agente necesita: el nombre y
+/// la línea. Para `diagnostics`, el mensaje y la posición.
+fn format_lsp_result(op: &str, value: &Value) -> String {
+    let items: Vec<&Value> = match value {
+        Value::Array(items) => items.iter().collect(),
+        Value::Null => Vec::new(),
+        otro => vec![otro],
+    };
+    if items.is_empty() {
+        return format!("[no results for {op}]");
+    }
+
+    let total = items.len();
+    let mut lineas: Vec<String> = Vec::new();
+    for item in items.iter().take(MAX_LSP_ITEMS) {
+        let linea = match op {
+            "diagnostics" => {
+                let mensaje = item["message"].as_str().unwrap_or("(sin mensaje)");
+                let gravedad = match item["severity"].as_u64() {
+                    Some(1) => "error",
+                    Some(2) => "warning",
+                    Some(3) => "info",
+                    Some(4) => "hint",
+                    _ => "?",
+                };
+                let pos = &item["range"]["start"];
+                format!(
+                    "{}:{}: {}: {}",
+                    pos["line"].as_u64().unwrap_or(0) + 1,
+                    pos["character"].as_u64().unwrap_or(0) + 1,
+                    gravedad,
+                    mensaje
+                )
+            }
+            "symbols" => {
+                // `documentSymbol` devuelve `name`/`kind`/`range`; `SymbolInformation`
+                // devuelve `name`/`kind`/`location`. Se aceptan las dos formas.
+                let nombre = item["name"].as_str().unwrap_or("(sin nombre)");
+                let linea = item["range"]["start"]["line"]
+                    .as_u64()
+                    .or_else(|| item["location"]["range"]["start"]["line"].as_u64())
+                    .map(|l| l + 1);
+                match linea {
+                    Some(l) => format!("{nombre} (línea {l})"),
+                    None => nombre.to_string(),
+                }
+            }
+            _ => {
+                // `definition` y `references` devuelven `Location`: uri + range.
+                let uri = item["uri"].as_str().unwrap_or("");
+                let fichero = uri.rsplit('/').next().unwrap_or(uri);
+                let linea = item["range"]["start"]["line"]
+                    .as_u64()
+                    .map(|l| l + 1)
+                    .unwrap_or(0);
+                format!("{fichero}:{linea}")
+            }
+        };
+        lineas.push(linea);
+    }
+
+    let mut text = format!("[{total} results, {} shown]\n", lineas.len());
+    text.push_str(&lineas.join("\n"));
+    text
 }
 
 #[cfg(test)]
@@ -217,5 +291,69 @@ mod tests {
         );
         let mut reader = BufReader::new(framed.as_bytes());
         assert_eq!(read_message(&mut reader).await.unwrap()["id"], 1);
+    }
+
+    #[test]
+    fn symbols_se_formatean_como_nombre_y_linea() {
+        // La forma de `documentSymbol`: name + range.
+        let value = json!([
+            {"name":"render","kind":12,"range":{"start":{"line":41,"character":0},"end":{"line":60,"character":1}},"deprecated":false,"tags":[]},
+            {"name":"draw","kind":12,"range":{"start":{"line":99,"character":0},"end":{"line":120,"character":1}},"deprecated":false,"tags":[]}
+        ]);
+        let texto = format_lsp_result("symbols", &value);
+        assert!(texto.contains("render (línea 42)"), "{texto}");
+        assert!(texto.contains("draw (línea 100)"), "{texto}");
+        // No debe arrastrar el JSON del protocolo.
+        assert!(!texto.contains("deprecated"), "{texto}");
+        assert!(!texto.contains("\"range\""), "{texto}");
+    }
+
+    #[test]
+    fn symbols_acepta_symbol_information() {
+        // La otra forma: name + location.range.
+        let value = json!([
+            {"name":"main","kind":12,"location":{"uri":"file:///a/b.rs","range":{"start":{"line":4,"character":0},"end":{"line":9,"character":1}}}}
+        ]);
+        let texto = format_lsp_result("symbols", &value);
+        assert!(texto.contains("main (línea 5)"), "{texto}");
+    }
+
+    #[test]
+    fn diagnostics_se_formatean_con_gravedad() {
+        let value = json!([
+            {"message":"unused variable","severity":2,"range":{"start":{"line":9,"character":4},"end":{"line":9,"character":8}}}
+        ]);
+        let texto = format_lsp_result("diagnostics", &value);
+        assert!(texto.contains("10:5: warning: unused variable"), "{texto}");
+    }
+
+    #[test]
+    fn el_resultado_no_supera_el_techo() {
+        // El fallo que ahogaba a los subagentes: 20 KB de JSON por un solo fichero.
+        let mut items = Vec::new();
+        for i in 0..500 {
+            items.push(json!({
+                "name": format!("funcion_con_nombre_largo_{i}"),
+                "kind": 12,
+                "range": {"start":{"line":i,"character":0},"end":{"line":i+5,"character":1}},
+                "deprecated": false,
+                "tags": []
+            }));
+        }
+        let texto = format_lsp_result("symbols", &json!(items));
+        assert!(
+            texto.len() < 4_000,
+            "el resultado debe ser compacto, y tiene {} bytes",
+            texto.len()
+        );
+        assert!(texto.starts_with("[500 results, 60 shown]"), "{texto}");
+    }
+
+    #[test]
+    fn sin_resultados_lo_dice() {
+        assert_eq!(
+            format_lsp_result("symbols", &json!([])),
+            "[no results for symbols]"
+        );
     }
 }
