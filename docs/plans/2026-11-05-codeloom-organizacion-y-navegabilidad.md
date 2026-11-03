@@ -183,6 +183,11 @@ Orden de commits (cada uno, movimiento puro y los cuatro checks en verde):
 3. `remote.rs`, 4. `tracker.rs`, 5. `launcher.rs` y `launch.rs`.
 6. Retirar la entrada de `subagent/mod.rs` de la lista blanca cuando baje de 1.000.
 
+**Avance (2026-11-05):** hechos los commits 1 y 2 en uno (`subagent.rs` → `subagent/mod.rs`
+y los 110 tests repartidos en `subagent/tests/` en diez temas más `support.rs`; ninguno pasa de
+924 líneas; mismos 741 tests). `subagent/mod.rs` queda en 2.142 líneas de producción: el corte
+por responsabilidad de los commits 3-5 se replantea por arquitectura (ver nota del paso 2.2).
+
 Riesgos: la visibilidad. Lo que hoy es privado del módulo (`struct Espejo`, constantes) pasa a
 `pub(super)`; los tests acceden a internos con `use super::*`, y hay que conservar esa vía.
 

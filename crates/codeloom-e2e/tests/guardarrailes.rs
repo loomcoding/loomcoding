@@ -28,9 +28,9 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         "monolito: partir en la Fase 5 del plan",
     ),
     (
-        "crates/codeloom-core/src/subagent.rs",
-        7600,
-        "monolito: partir en la Fase 2 del plan",
+        "crates/codeloom-core/src/subagent/mod.rs",
+        2200,
+        "monolito en partición: tests ya fuera; faltan remote, tracker y launcher (Fase 2)",
     ),
     (
         "crates/codeloom-core/src/agent/mod.rs",
