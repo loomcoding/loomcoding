@@ -300,6 +300,16 @@ pub struct Transcript {
     next_rev: u64,
     /// Líneas a partir de las cuales se pliega un bloque largo. `None`: nunca.
     fold_limit: Option<usize>,
+    /// Cuántas entradas se conservan. Al pasarse, se descartan las más antiguas.
+    ///
+    /// Cabe señalar que el descarte es por delante y no por detrás: lo que el usuario
+    /// está mirando es el final de la conversación, y las entradas viejas solo ocupan
+    /// memoria. Sin esta cota el transcript crecía sin techo y el daemon llegaba a
+    /// decenas de gigabytes en sesiones largas.
+    max_entries: Option<usize>,
+    /// Cuántas entradas se han descartado por delante. `EntryId` guarda el índice
+    /// absoluto, así que un id emitido antes del descarte sigue siendo válido.
+    dropped: usize,
 }
 
 impl Transcript {
@@ -317,7 +327,39 @@ impl Transcript {
         self.starts.push(self.total_lines);
         self.total_lines += entry.lines.len();
         self.entries.push(entry);
-        EntryId(self.entries.len() - 1)
+        let id = EntryId(self.dropped + self.entries.len() - 1);
+        self.trim();
+        id
+    }
+
+    /// Descarta las entradas más antiguas si se pasó de `max_entries`.
+    ///
+    /// Recalcula `starts` y `total_lines` desde cero: tras quitar entradas por delante,
+    /// los índices de línea guardados dejan de valer, y si no se recalculan la TUI pinta
+    /// líneas equivocadas.
+    fn trim(&mut self) {
+        let Some(max) = self.max_entries else {
+            return;
+        };
+        if self.entries.len() <= max {
+            return;
+        }
+        let sobran = self.entries.len() - max;
+        self.entries.drain(..sobran);
+        self.dropped += sobran;
+        self.starts.clear();
+        let mut acc = 0usize;
+        for entry in &self.entries {
+            self.starts.push(acc);
+            acc += entry.lines.len();
+        }
+        self.total_lines = acc;
+    }
+
+    /// Fija cuántas entradas se conservan. `None` desactiva la cota.
+    pub fn set_max_entries(&mut self, max: Option<usize>) {
+        self.max_entries = max;
+        self.trim();
     }
 
     /// Nueva entrada a partir de su texto, ya completa (puede plegarse).

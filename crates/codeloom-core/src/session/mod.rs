@@ -150,6 +150,23 @@ pub trait SessionStore: Send + Sync {
     async fn session_belongs_to_project(&self, session: SessionId, project: &str) -> Result<bool>;
     async fn append_message(&self, sid: SessionId, msg: &Message) -> Result<()>;
     async fn messages(&self, sid: SessionId) -> Result<Vec<Message>>;
+    /// Los últimos `limit` mensajes de la sesión, en orden ascendente.
+    ///
+    /// Cabe señalar que existe aparte de [`messages`] a propósito: el bucle del agente
+    /// llama a esto en cada paso, y cargar el historial entero cada vez era lo que
+    /// llevaba al daemon a decenas de gigabytes en sesiones largas. El almacén sigue
+    /// conservando todos los mensajes; lo que cambia es cuántos se leen de golpe.
+    ///
+    /// La implementación por defecto delega en [`messages`] y recorta, para no obligar a
+    /// cada almacén a implementarlo. Los almacenes reales deberían sobrescribirlo con una
+    /// consulta que ya traiga solo la ventana.
+    async fn recent_messages(&self, sid: SessionId, limit: usize) -> Result<Vec<Message>> {
+        let mut todos = self.messages(sid).await?;
+        if todos.len() > limit {
+            todos.drain(..todos.len() - limit);
+        }
+        Ok(todos)
+    }
     async fn save_subagent(&self, descriptor: &SubagentDescriptor) -> Result<()>;
     /// Fija el estado de la tarea del hijo. Un estado terminal no admite transiciones
     /// posteriores: el almacén devuelve error si el actual ya lo es.

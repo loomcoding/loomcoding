@@ -336,6 +336,27 @@ WHERE s.project = ?
             .collect()
     }
 
+    /// Los últimos `limit` mensajes, ya ordenados de antiguo a nuevo.
+    ///
+    /// Cabe señalar que la consulta pide `DESC` y luego se da la vuelta: con `ASC LIMIT`
+    /// se traerían los más **antiguos**, que es justo lo contrario de lo que hace falta.
+    async fn recent_messages(&self, sid: SessionId, limit: usize) -> Result<Vec<Message>> {
+        let rows = sqlx::query(
+            "SELECT payload FROM messages WHERE session_id = ? ORDER BY seq DESC LIMIT ?",
+        )
+        .bind(sid.0)
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        let mut mensajes: Vec<Message> = rows
+            .into_iter()
+            .map(|r| message::codec::from_json(r.get::<String, _>("payload").as_str()))
+            .collect::<Result<Vec<_>>>()?;
+        mensajes.reverse();
+        Ok(mensajes)
+    }
+
     async fn save_subagent(&self, descriptor: &SubagentDescriptor) -> Result<()> {
         sqlx::query(
             "INSERT INTO subagents (parent_session_id, child_session_id, job_id, label, status, status_message, status_timestamp_ms, artifacts_json, agent, agent_origin, reference_task_ids, phase, last_activity_at_ms, steps, tool_calls, tokens_in, tokens_out, created_at_ms)

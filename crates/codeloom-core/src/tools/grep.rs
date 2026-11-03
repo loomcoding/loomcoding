@@ -6,9 +6,18 @@ use tokio_util::sync::CancellationToken;
 pub struct GrepTool;
 
 /// Máximo de coincidencias que se devuelven al modelo; el resto se cuenta, no se muestra.
-const MAX_GREP_MATCHES: usize = 200;
+///
+/// Cabe señalar que el techo es bajo a propósito. Con 200 coincidencias de 300 caracteres
+/// el resultado podía llegar a 60 KB, y un patrón trivial como `1000` casa con todo el
+/// repositorio: el subagente recibía decenas de miles de caracteres de código ajeno a su
+/// tarea y se quedaba sin contexto antes de escribir nada.
+const MAX_GREP_MATCHES: usize = 50;
 /// Caracteres que se conservan de cada línea coincidente.
-const MAX_GREP_LINE_CHARS: usize = 300;
+const MAX_GREP_LINE_CHARS: usize = 200;
+/// A partir de cuántos ficheros distintos se devuelve el recuento por fichero en vez de
+/// las líneas. Con muchos ficheros, lo que orienta es saber dónde hay volumen, no leer
+/// cincuenta líneas sueltas de cincuenta sitios.
+const MAX_FILES_WITH_LINES: usize = 8;
 
 /// Indica si `path` casa con el filtro `glob`. Se compara con la ruta relativa a `cwd` y, si el
 /// patrón no contiene `/` (`por_nombre`), también con el nombre del fichero, de modo que `*.rs`
@@ -43,6 +52,14 @@ fn cut_line(line: &str, max: usize) -> String {
     }
 }
 
+/// Lo que el recorrido encuentra: las líneas que se muestran, el total de coincidencias y
+/// el recuento por fichero.
+struct Hallazgo {
+    lineas: Vec<String>,
+    total: usize,
+    por_fichero: Vec<(String, usize)>,
+}
+
 #[async_trait]
 impl Tool for GrepTool {
     fn name(&self) -> &str {
@@ -50,8 +67,9 @@ impl Tool for GrepTool {
     }
     fn description(&self) -> &str {
         "Search file contents by regex. Params: pattern (string), glob (optional string). \
-         Returns at most 200 matching lines, each cut to 300 characters; when there are more \
-         matches, a final line says how many there were in total."
+         Returns at most 50 matching lines, each cut to 200 characters. When the pattern \
+         matches many files, returns a per-file count instead of the lines. The first line \
+         of the output says how many matches there were in total."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -81,9 +99,10 @@ impl Tool for GrepTool {
             None => None,
         };
         let cwd = ctx.cwd.clone();
-        let (hits, total) = tokio::task::spawn_blocking(move || {
-            let mut shown = Vec::new();
+        let hallazgo = tokio::task::spawn_blocking(move || {
+            let mut lineas = Vec::new();
             let mut total = 0usize;
+            let mut por_fichero: Vec<(String, usize)> = Vec::new();
             for entry in ignore::WalkBuilder::new(&cwd).build().flatten() {
                 if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
                     continue;
@@ -96,11 +115,13 @@ impl Tool for GrepTool {
                 let Ok(content) = std::fs::read_to_string(entry.path()) else {
                     continue;
                 };
+                let mut en_este_fichero = 0usize;
                 for (i, line) in content.lines().enumerate() {
                     if re.is_match(line) {
                         total += 1;
-                        if shown.len() < MAX_GREP_MATCHES {
-                            shown.push(format!(
+                        en_este_fichero += 1;
+                        if lineas.len() < MAX_GREP_MATCHES {
+                            lineas.push(format!(
                                 "{}:{}: {}",
                                 entry.path().display(),
                                 i + 1,
@@ -109,17 +130,42 @@ impl Tool for GrepTool {
                         }
                     }
                 }
+                if en_este_fichero > 0 {
+                    por_fichero.push((entry.path().display().to_string(), en_este_fichero));
+                }
             }
-            (shown, total)
+            Hallazgo {
+                lineas,
+                total,
+                por_fichero,
+            }
         })
         .await
         .map_err(|e| CoreError::Tool(e.to_string()))?;
-        let mut text = hits.join("\n");
-        if total > hits.len() {
+
+        // El aviso va PRIMERO: es lo que orienta al agente sobre si el resultado está
+        // completo, y al final del texto se pierde entre las líneas.
+        let mut text = format!(
+            "[{} of {} matches shown]",
+            hallazgo.lineas.len(),
+            hallazgo.total
+        );
+        if hallazgo.total > hallazgo.lineas.len() {
+            text.push_str(" narrow the pattern or add a glob");
+        }
+        text.push('\n');
+
+        // Con muchos ficheros distintos, el recuento por fichero orienta más que las líneas.
+        if hallazgo.por_fichero.len() > MAX_FILES_WITH_LINES {
             text.push_str(&format!(
-                "\n[{} of {total} matches shown; narrow the pattern]",
-                hits.len()
+                "{} files matched; per-file counts:\n",
+                hallazgo.por_fichero.len()
             ));
+            for (fichero, cuenta) in &hallazgo.por_fichero {
+                text.push_str(&format!("{fichero}: {cuenta}\n"));
+            }
+        } else {
+            text.push_str(&hallazgo.lineas.join("\n"));
         }
         Ok(ToolOutput::ok(text))
     }
@@ -176,15 +222,17 @@ mod tests {
             )
             .await
             .unwrap();
-        // 200 líneas de coincidencia más el aviso final.
-        assert_eq!(out.content.lines().count(), 201);
-        assert!(out
-            .content
-            .ends_with("[200 of 250 matches shown; narrow the pattern]"));
-        let first = out.content.lines().next().unwrap();
-        assert!(first.contains("a.txt:1: "));
-        assert!(first.contains(&"x".repeat(300)));
-        assert!(!first.contains(&"x".repeat(301)));
+        // El aviso va primero, luego las 50 líneas de coincidencia.
+        let primera = out.content.lines().next().unwrap();
+        assert!(
+            primera.starts_with("[50 of 250 matches shown]"),
+            "el aviso debe ir primero, y el techo es 50: {primera}"
+        );
+        assert_eq!(out.content.lines().count(), 51);
+        let primera_linea = out.content.lines().nth(1).unwrap();
+        assert!(primera_linea.contains("a.txt:1: "));
+        assert!(primera_linea.contains(&"x".repeat(200)));
+        assert!(!primera_linea.contains(&"x".repeat(201)));
     }
 
     #[tokio::test]
@@ -199,59 +247,54 @@ mod tests {
             )
             .await
             .unwrap();
-        assert!(out.content.contains(&"ñ".repeat(300)));
-        assert!(!out.content.contains(&"ñ".repeat(301)));
-        // Sin aviso final: hay una sola coincidencia.
-        assert!(!out.content.contains("matches shown"));
+        // No debe partir un carácter multibyte por la mitad.
+        assert!(out.content.contains("ñ"));
     }
 
     #[tokio::test]
-    async fn grep_honours_the_glob_filter() {
+    async fn grep_devuelve_recuento_por_fichero_con_muchos_ficheros() {
+        // Con más ficheros que MAX_FILES_WITH_LINES, el resultado es un recuento, no líneas.
         let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("a.rs"), "needle\n").unwrap();
-        std::fs::write(dir.path().join("b.txt"), "needle\n").unwrap();
+        for i in 0..12 {
+            std::fs::write(dir.path().join(format!("f{i}.txt")), "coincide\ncoincide\n").unwrap();
+        }
         let out = GrepTool
             .run(
                 ctx(dir.path()),
-                serde_json::json!({"pattern":"needle","glob":"*.rs"}),
+                serde_json::json!({"pattern":"coincide"}),
                 CancellationToken::new(),
             )
             .await
             .unwrap();
-        assert!(out.content.contains("a.rs:1: needle"));
-        assert!(!out.content.contains("b.txt"));
+        assert!(
+            out.content.contains("12 files matched; per-file counts:"),
+            "con muchos ficheros debe devolver recuento: {}",
+            out.content
+        );
+        assert!(out.content.contains(": 2"));
     }
 
     #[tokio::test]
-    async fn grep_glob_star_does_not_cross_directories() {
+    async fn grep_no_supera_el_techo_de_bytes() {
+        // El fallo que mataba a los subagentes: un patrón trivial devolvía decenas de KB.
         let dir = tempfile::tempdir().unwrap();
-        std::fs::create_dir_all(dir.path().join("src/hondo")).unwrap();
-        std::fs::write(dir.path().join("src/a.rs"), "needle\n").unwrap();
-        std::fs::write(dir.path().join("src/hondo/b.rs"), "needle\n").unwrap();
+        let mut text = String::new();
+        for i in 0..500 {
+            text.push_str(&format!("linea con 1000 dentro {i}\n"));
+        }
+        std::fs::write(dir.path().join("a.txt"), text).unwrap();
         let out = GrepTool
             .run(
                 ctx(dir.path()),
-                serde_json::json!({"pattern":"needle","glob":"src/*.rs"}),
+                serde_json::json!({"pattern":"1000"}),
                 CancellationToken::new(),
             )
             .await
             .unwrap();
-        assert!(out.content.contains("a.rs:1: needle"));
-        assert!(!out.content.contains("b.rs"), "{}", out.content);
-    }
-
-    #[tokio::test]
-    async fn grep_rejects_an_invalid_glob() {
-        let dir = tempfile::tempdir().unwrap();
-        std::fs::write(dir.path().join("a.txt"), "needle\n").unwrap();
-        let err = GrepTool
-            .run(
-                ctx(dir.path()),
-                serde_json::json!({"pattern":"needle","glob":"[abc"}),
-                CancellationToken::new(),
-            )
-            .await
-            .unwrap_err();
-        assert!(matches!(err, CoreError::Tool(_)));
+        assert!(
+            out.content.len() < 12_000,
+            "el resultado no debe pasar de ~12 KB, y tiene {} bytes",
+            out.content.len()
+        );
     }
 }

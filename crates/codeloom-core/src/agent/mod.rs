@@ -23,6 +23,13 @@ use std::sync::{Arc, RwLock};
 use tokio_util::sync::CancellationToken;
 
 const MAX_PROVIDER_STATE_BYTES: usize = 64 * 1024;
+/// Cuántos mensajes se leen del almacén en cada paso del bucle.
+///
+/// Cabe señalar que es una ventana de lectura, no un límite de lo que se guarda: el
+/// almacén conserva todos los mensajes y la compactación sigue viendo el historial que
+/// necesita. Antes se leía el historial entero en cada paso, y en sesiones largas con
+/// subagentes eso llevaba al daemon a decenas de gigabytes.
+const HISTORY_WINDOW: usize = 500;
 const MAX_TURN_PROVIDER_STATE_BYTES: usize = 256 * 1024;
 static NEXT_USAGE_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -828,7 +835,9 @@ impl AgentLoop {
     ) -> Result<TurnOutcome> {
         let provider = self.provider.read().unwrap().clone();
         let config = self.config.read().unwrap().clone();
-        let mut history = self.store.messages(session).await?;
+        // Ventana, no historial completo: esto se ejecuta en cada paso del bucle y leer
+        // todo cada vez era lo que llevaba al daemon a decenas de gigabytes.
+        let mut history = self.store.recent_messages(session, HISTORY_WINDOW).await?;
         if let Some(mut user) = user_prompt {
             user.id = 0;
             user.created_at_ms = crate::message::now_ms();

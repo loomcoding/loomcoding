@@ -224,6 +224,124 @@ segundo dejó cinco ficheros temporales de índice (`.tmp-symbols*.ps1`) y nada 
 
 ---
 
+## F-10 — `lsp symbols` vuelca 20 KB de JSON y ahoga el contexto del subagente
+
+**Severidad:** alta. Es la causa inmediata de los fallos de esta tanda.
+
+**Síntoma.** Los subagentes mueren sin escribir nada, y sus reportes son monólogos de
+planificación. En `~/.codeloom/tool-output/` hay ficheros de **exactamente 20.030 bytes**,
+todos volcados JSON de `lsp symbols`.
+
+**Causa.** `MAX_TOOL_OUTPUT_BYTES = 20_000` (`crates/codeloom-core/src/tools/mod.rs:62`).
+`lsp symbols` devuelve el índice completo de símbolos de un fichero como JSON con rangos,
+URIs y tags. Para `config/mod.rs` son >20 KB, así que **siempre** se trunca al máximo: el
+subagente recibe 20 KB de JSON inútil (rangos de línea, `"deprecated":false`, `"tags":[]`)
+que le come el contexto y no le dice nada accionable.
+
+**Por qué es peor que un truncado normal.** El truncado corta a mitad de un objeto JSON,
+así que el subagente no puede ni parsearlo. Y como el contenido es idéntico entre
+llamadas, gasta pasos releyendo.
+
+**Propuesta.**
+1. `lsp symbols` no debería devolver el JSON crudo del protocolo: debería devolver una
+   lista compacta `nombre (línea)` o, mejor, filtrar por `query`.
+2. Si se mantiene el JSON, el límite para `lsp` debe ser mucho menor (2-4 KB) y el
+   truncado debe ser semántico (cortar por símbolos, no por bytes).
+3. El decálogo de contexto exige que nada sin cota llegue al modelo; aquí hay cota, pero
+   está tan alta que en la práctica es "sin cota".
+
+**Evidencia.** 8 ficheros de tool-output de 20.029-20.030 bytes entre 09:29 y 10:14,
+todos con el mismo volcado de `config/mod.rs`. Coinciden con las tandas de subagentes que
+fallaron.
+
+---
+
+## F-11 — 14 GB de RAM: el historial se carga entero y el transcript no tiene cota
+
+**Severidad:** alta. Hace la herramienta inusable en sesiones largas.
+
+**Medición.** `codeloom.exe` con 25 hilos: **14,76 GB working set, 20,77 GB privada**. No es
+una explosión de hilos (25 es normal): es acumulación de memoria.
+
+**Causa 1 — `messages()` sin `LIMIT`.** `crates/codeloom-core/src/session/sqlite.rs:327`:
+
+```rust
+sqlx::query("SELECT payload FROM messages WHERE session_id = ? ORDER BY seq ASC")
+```
+
+Carga **todo** el historial de la sesión en un `Vec<Message>` en cada turno. La
+compactación reduce lo que se *envía* al modelo, pero no lo que se *lee* de disco: el test
+`store_keeps_every_message_after_compaction` (`agent/mod.rs:4342`) confirma que el store
+conserva todos los mensajes a propósito. En una sesión de horas con subagentes, eso son
+cientos de MB de JSON, y se relee en cada paso del bucle.
+
+**Causa 2 — el transcript no tiene cota de entradas.** `crates/batten/src/state/transcript.rs:296`:
+
+```rust
+pub struct Transcript {
+    entries: Vec<Entry>,
+    ...
+}
+```
+
+`push_built` hace `self.entries.push(entry)` sin límite. Y cada `Entry` guarda **dos veces**
+el contenido: `source: String` (el texto crudo) y `lines: Vec<Line>` (las líneas derivadas,
+cada una con su propio `String`). Es duplicación por diseño, y sin cota de entradas crece
+sin techo. `set_fold_limit` solo pliega la *visualización*, no libera memoria.
+
+**Causa 3 — los volcados de herramienta se retienen.** Los 20 KB de `lsp symbols` (F-10) se
+guardan en el historial y en el transcript, así que un solo `lsp` mal acotado se multiplica
+por cada paso del bucle.
+
+**Propuesta.**
+1. `messages()` con ventana: `ORDER BY seq DESC LIMIT N` y dar la vuelta, o cargar solo
+   desde el último resumen de compactación. El store puede conservarlo todo; lo que no puede
+   es *leerlo* todo en cada turno.
+2. Cota de entradas en `Transcript` (por ejemplo 2.000) con descarte de las más antiguas, o
+   no guardar `source` cuando ya hay `lines` derivadas.
+3. Medir con un benchmark: sesión de 1.000 mensajes, memoria antes y después.
+
+**Sobre hilos.** No es el problema aquí: 25 hilos para 14 GB significa que el trabajo no está
+paralelizado, pero añadir hilos no arregla el consumo, lo empeora (cada hilo con su copia).
+Primero acotar la memoria; después, si hace falta, paralelizar la ejecución de herramientas
+`Parallel`, que ya están marcadas como tales.
+
+---
+
+## F-12 — `grep` devuelve hasta 60 KB y ahoga el contexto del subagente
+
+**Severidad:** alta. Es la causa inmediata del fallo del subagente 310.
+
+**Síntoma.** El subagente murió a los 6 pasos sin escribir nada. Su tool-output de las
+11:22 pesa **23.099 bytes** y contiene el resultado de un `grep` con el patrón `1000`.
+
+**Causa.** `crates/codeloom-core/src/tools/grep.rs`:
+
+```rust
+const MAX_GREP_MATCHES: usize = 200;      // línea 9
+const MAX_GREP_LINE_CHARS: usize = 300;   // línea 11
+```
+
+200 × 300 = **60 KB de techo**. Un patrón trivial como `1000` (que el subagente usó para
+buscar la cota que le pedí) casa con todo el repo y devuelve 23 KB de líneas de código
+ajenas a la tarea. Eso le come el contexto y no le dice nada accionable.
+
+**Por qué es peor que F-10.** F-10 (`lsp symbols`) siempre devuelve lo mismo y se detecta
+fácil. `grep` es la herramienta que un agente usa *constantemente* para orientarse, así que
+el riesgo se multiplica por cada paso.
+
+**Propuesta.**
+1. Bajar el techo: 50 coincidencias × 200 caracteres = 10 KB como máximo.
+2. El aviso final ya existe (`[200 of 250 matches shown; narrow the pattern]`): mantenerlo,
+   pero que sea lo primero que se lea, no lo último.
+3. Cuando hay muchas coincidencias, devolver **solo el recuento por fichero** en vez de las
+   líneas: `crates/foo.rs: 37 coincidencias`. Eso orienta sin inundar.
+4. Considerar un modo `files_only` por defecto para patrones cortos (< 4 caracteres).
+
+**Evidencia.** `tool-call_c08097e5d7d64589b03928dc-...-0.txt`, 23.099 bytes, 11:22:29, resultado de `grep "1000"` sobre todo el repo.
+
+---
+
 ## Notas de entorno (no son fallos del producto, pero cuestan pasos)
 
 - `findstr /C:"texto con espacios"` en cmd falla con `No se puede abrir result"`.
