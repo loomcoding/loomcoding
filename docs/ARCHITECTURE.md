@@ -102,7 +102,7 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
 | Herramientas | `trait Tool`, `ToolRegistry`, `ExecutionMode` | `crates/codeloom-core/src/tools/mod.rs` (registro de las integradas en `project_registry`) |
 | Bus de eventos | `LiveEvent`, `EventBus` | `crates/codeloom-core/src/event/mod.rs` |
 | Sesiones | `trait SessionStore`, `SqliteStore` | `crates/codeloom-core/src/session/{mod,sqlite}.rs` |
-| Subagentes | `SubagentLauncher`, `InProcessSubagentLauncher`, `SubagentPhase`, vigilante de latidos | `subagent/` (`mod.rs`, `launcher.rs`), `subagent_phase.rs`, `subagent_watchdog.rs`, `subagent_input.rs` |
+| Subagentes | `SubagentLauncher`, `InProcessSubagentLauncher`, `SubagentPhase`, vigilante de latidos | `crates/codeloom-core/src/subagent/` (`mod.rs`, `launcher.rs`, `phase.rs`, `watchdog.rs`, `input.rs`, y el ciclo de vida en `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`) |
 
 Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agentes**
 (perfiles `<nombre>.md`), no el de herramientas.
@@ -112,13 +112,13 @@ Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agen
 | Buscas | Mira en |
 |---|---|
 | Modelo de tarea A2A (`TaskState`) | `crates/codeloom-core/src/task.rs` |
-| Fase local del subagente (`SubagentPhase`) | `crates/codeloom-core/src/subagent_phase.rs` |
-| Vigilante de latidos (`Stalled`/`Lost`) | `crates/codeloom-core/src/subagent_watchdog.rs` |
+| Fase local del subagente (`SubagentPhase`) | `crates/codeloom-core/src/subagent/phase.rs` |
+| Vigilante de latidos (`Stalled`/`Lost`) | `crates/codeloom-core/src/subagent/watchdog.rs` |
 | Descriptor de subagente y su persistencia | `crates/codeloom-core/src/session/mod.rs`, `session/sqlite.rs` |
 | Bucle del agente y criterios de parada | `crates/codeloom-core/src/agent/mod.rs`, `agent/stop.rs` |
 | Compactación del contexto | `crates/codeloom-core/src/agent/compact.rs` |
 | Ciclo de vida de subagentes (contrato, admisión, ejecución local, remotos, control) | `crates/codeloom-core/src/subagent/` (`mod.rs`, `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`, `launcher.rs`) |
-| Entrada dirigida a un subagente | `crates/codeloom-core/src/subagent_input.rs` |
+| Entrada dirigida a un subagente | `crates/codeloom-core/src/subagent/input.rs` |
 | Herramientas (una por archivo) | `crates/codeloom-core/src/tools/` |
 | Registro de agentes (perfiles, router) | `crates/codeloom-core/src/registry/` |
 | `trait Provider` y clientes de modelo | `crates/codeloom-core/src/provider/` |

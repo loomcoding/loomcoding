@@ -10,7 +10,7 @@ tabla se ejecutaron el 2026-11-05 y dieron el resultado indicado.
 | Las tools que escriben son `Exclusive` | `grep -c 'ExecutionMode::Exclusive' crates/codeloom-core/src/tools/{write,edit,multiedit,bash}.rs` | Cada archivo con 1 o más |
 | Una tool nueva que escribe es `Exclusive` | Procedimiento: al añadirla, abre su `execution_mode` y confirma `Exclusive` si modifica disco, procesos o estado externo | Revisión en el PR |
 | Errores de librería con `thiserror` | `grep -c thiserror crates/codeloom-core/Cargo.toml` | 1 o más |
-| Una sola tabla de transiciones de `SubagentPhase` | `grep -rn 'fn can_transition_to' crates/codeloom-core/src/subagent_phase.rs crates/codeloom-core/src/subagent_watchdog.rs` | Solo `subagent_phase.rs` |
+| Una sola tabla de transiciones de `SubagentPhase` | `grep -rn 'fn can_transition_to' crates/codeloom-core/src/subagent/phase.rs crates/codeloom-core/src/subagent/watchdog.rs` | Solo `subagent/phase.rs` |
 | Sin red real en tests | `grep -rln 'api.openai.com\|api.anthropic.com' crates/*/tests` | Sin salida; los providers se simulan con `wiremock` y los `tests/*_live.rs` son opt-in |
 | Nada sin cota llega al modelo | Procedimiento: toda tool, sección de prompt o bucle nuevo declara su tope y lo prueba (test de truncado); léase el decálogo | Revisión en el PR |
 | Los cuatro checks en cada commit | `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\checks.ps1 -TargetDir .verify-target` (Windows con daemons vivos) o `cargo build && cargo test && cargo fmt --check && cargo clippy -- -D warnings` | Todo verde |

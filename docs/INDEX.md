@@ -100,7 +100,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 | Documento | Estado | Nota |
 |---|---|---|
-| estados-de-subagente-y-composer-compartido (11-04) | en curso | Fases 1 y 3 hechas (`subagent_phase.rs`, `subagent_watchdog.rs`); restan las demás |
+| estados-de-subagente-y-composer-compartido (11-04) | en curso | Fases 1 y 3 hechas (`subagent/phase.rs`, `subagent/watchdog.rs`); restan las demás |
 | watchdog-de-subagentes (11-05) | hecho | Fase 3 del anterior, commit `70a21f9`; el supervisor (Fase 5) tiene precondiciones en el spec §8 |
 | organizacion-y-navegabilidad (11-05) | en curso | Fase 0: hecho `ARCHITECTURE.md` y este índice |
 | avisos-proveedor-spinner (11-03) | sin estado declarado | `/verbose` existe en `commands.rs`; el resto sin cotejar |

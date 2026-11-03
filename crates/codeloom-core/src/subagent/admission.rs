@@ -196,3 +196,37 @@ pub(super) fn validar_peticion(label: &str, prompt: &str) -> Result<()> {
     }
     Ok(())
 }
+
+impl InProcessSubagentLauncher {
+    pub(super) async fn enrutar(
+        &self,
+        _parent: SessionId,
+        label: &str,
+        prompt: &str,
+    ) -> Result<Option<RouteDecision>> {
+        let Some((router, confirm)) = &self.router else {
+            return Ok(None);
+        };
+        // `always`: cada asignación la aprueba la persona usuaria, no se decide por ella.
+        if *confirm == ConfirmDelegation::Always {
+            return Ok(None);
+        }
+        let Some(registro) = &self.registry else {
+            return Ok(None);
+        };
+        let candidatos = registro.snapshot().route_candidates();
+        let peticion = RouteRequest {
+            prompt: prompt.to_string(),
+            label: label.to_string(),
+        };
+        // Un fallo del enrutador nunca impide delegar: se vuelve al comportamiento de siempre.
+        let Ok(Some(decision)) = router.route(&peticion, &candidatos).await else {
+            return Ok(None);
+        };
+        // La respuesta se valida contra los candidatos aprobados: un nombre inventado no vale.
+        Ok(candidatos
+            .iter()
+            .any(|c| c.name == decision.agent)
+            .then_some(decision))
+    }
+}

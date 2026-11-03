@@ -220,12 +220,13 @@ se llaman entre ficheros). Primero se mueve todo tal cual, un commit por fichero
 **Avance (2026-11-05):** hechos los movimientos de producción: `subagent/mod.rs` baja de 7.553 a 182
 líneas, con `depth`, `profile_prompt`, `tracker`, `remote`, `launcher`, `admission`, `local_run` y
 `control`; el mayor es `launcher.rs` (619). La entrada de `subagent/mod.rs` sale de la lista blanca.
-Pendiente aparte: trocear `arrancar_con` (464 líneas, en `local_run.rs`) en un commit de lógica, y
-mover el `impl SubagentLauncher` (hoy en `launcher.rs`) si se quiere separar por fase.
-
-Idea posterior, fuera de este paso: `subagent_phase.rs`, `subagent_watchdog.rs` y
-`subagent_input.rs` son hermanos de `subagent/` y podrían vivir dentro como `subagent/phase.rs`,
-etc., con un `pub use` en `lib.rs` que conserve las rutas. Se decide cuando acabe la partición.
+`arrancar_con` se trocea en pasos con nombre (`local_run.rs` 444, `local_body.rs` 166,
+`local_watch.rs` 104). Los cuerpos del `impl SubagentLauncher` con lógica (`route`,
+`start_follow_up`, `control`, `cancel`, `deliver_notices`, `pending_input_notices`) pasan a métodos
+propios en `admission.rs` y `control.rs`, y el trait solo reenvía. `subagent_phase`,
+`subagent_watchdog` y `subagent_input` viven ahora en `subagent/{phase,watchdog,input}.rs`, con
+alias en `lib.rs` (`pub use subagent::phase as subagent_phase`…) que conservan las rutas públicas.
+**Paso 2.2 completo.**
 
 `subagent/mod.rs` con re-exports (`pub use`) y archivos por responsabilidad. Un commit
 por responsabilidad extraída; movimiento puro.

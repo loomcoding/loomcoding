@@ -41,10 +41,10 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 
 ## Quiero añadir una fase de subagente
 
-1. Variante en `SubagentPhase` y en `ALL` (`crates/codeloom-core/src/subagent_phase.rs`).
+1. Variante en `SubagentPhase` y en `ALL` (`crates/codeloom-core/src/subagent/phase.rs`).
 2. Completa **todos** los `match` del mismo archivo: `to_task_state`, `from_remote_state`,
    `as_str`, y la tabla de `can_transition_to` (única fuente de verdad de transiciones).
-3. Decide si el vigilante debe ignorarla (esperas al humano): `subagent_watchdog.rs`.
+3. Decide si el vigilante debe ignorarla (esperas al humano): `subagent/watchdog.rs`.
 4. La fase se persiste por su `as_str` (`session/sqlite.rs`); una fase nueva no rompe filas viejas.
 5. Si la UI agrupa estados, nombra entre paréntesis los A2A originales
    (`crates/codeloom-tui/src/rail.rs`).

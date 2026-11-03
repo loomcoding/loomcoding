@@ -93,7 +93,7 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         "excepción: generador de provider, cohesivo",
     ),
     (
-        "crates/codeloom-core/src/subagent_input.rs",
+        "crates/codeloom-core/src/subagent/input.rs",
         1300,
         "pendiente de evaluar en una oleada posterior",
     ),
