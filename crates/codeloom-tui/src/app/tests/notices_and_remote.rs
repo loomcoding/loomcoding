@@ -280,6 +280,7 @@ fn rejected_canceled_and_auth_required_do_not_wake_the_parent() {
             parent: SessionId(1),
             child: SessionId(9),
             status: state,
+            summary: None,
         });
         assert!(!app.wake_pending, "{state:?} no debe despertar al padre");
     }

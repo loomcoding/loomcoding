@@ -455,6 +455,7 @@ impl App {
                 parent,
                 child,
                 status,
+                ..
             } => {
                 // Un hijo que termina bien o con fallo despierta al padre; uno matado
                 // por el usuario o sin terminar no.

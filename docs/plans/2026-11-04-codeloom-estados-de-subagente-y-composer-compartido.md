@@ -142,8 +142,10 @@ descriptor sin tocar `status.state` (A2A manda). Tests: `phase_observer` (7),
 - **Hecho:** `phase` y `last_activity_at_ms` se persisten (`SessionStore::update_subagent_runtime`,
   que no toca a un hijo asentado). Los escribe el driver del supervisor: al cambiar la fase y,
   con la fase quieta, un latido como mucho cada 10 s por hijo.
-- **Pendiente:** el `summary` de `SubagentSettled`; `AwaitingPermission`, que el bus del hijo no
-  expone; y los hijos remotos. `SubagentProgress` se descarta por redundante: los contadores y
+- **Hecho:** `SubagentSettled` lleva `summary: Option<String>`, un extracto de 500 bytes como
+  máximo: el motivo si el hijo falló o el texto de su primer artefacto. Lo calcula `local_watch`
+  releyendo el hijo ya asentado.
+- **Pendiente:** `AwaitingPermission`, que el bus del hijo no expone; y los hijos remotos. `SubagentProgress` se descarta por redundante: los contadores y
   los artefactos de progreso ya suben con `SubagentChanged`.
 
 

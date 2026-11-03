@@ -346,8 +346,13 @@ async fn a_lost_child_is_settled_as_failed_with_the_reason_and_its_work_stopped(
     // El padre se entera: el trabajo se detiene y el asiento llega con el estado persistido.
     tokio::time::timeout(Duration::from_secs(5), async {
         loop {
-            if let LiveEvent::SubagentSettled { status, .. } = rx.recv().await.unwrap() {
+            if let LiveEvent::SubagentSettled {
+                status, summary, ..
+            } = rx.recv().await.unwrap()
+            {
                 assert_eq!(status, TaskState::Failed);
+                let resumen = summary.expect("el asiento lleva un resumen");
+                assert!(resumen.contains("no activity"), "{resumen}");
                 break;
             }
         }

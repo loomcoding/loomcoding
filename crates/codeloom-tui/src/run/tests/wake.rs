@@ -12,6 +12,7 @@ fn budget_exhausted_stops_waking_until_user_writes() {
         parent: SessionId(1),
         child: SessionId(9),
         status: TaskState::Completed,
+        summary: None,
     });
 
     assert!(!app.take_wake());
@@ -65,6 +66,7 @@ fn cancel_clears_pending_wake() {
         parent: SessionId(1),
         child: SessionId(9),
         status: TaskState::Completed,
+        summary: None,
     });
     assert!(app.wake_pending);
 

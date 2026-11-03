@@ -219,6 +219,9 @@ pub enum LiveEvent {
         parent: crate::session::SessionId,
         child: crate::session::SessionId,
         status: crate::task::TaskState,
+        /// Extracto acotado de lo que dejó el hijo (su resultado o el motivo del fallo), pensado
+        /// para memoria y avisos; no sustituye a los artefactos.
+        summary: Option<String>,
     },
     /// La fase de un hijo local cambió (`Streaming`, `ToolRunning`...). Se publica directamente en el
     /// bus del padre, ya coalescida por el observador de fases: no es un evento del hijo reenviable.

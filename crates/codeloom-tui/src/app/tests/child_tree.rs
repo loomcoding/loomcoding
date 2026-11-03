@@ -114,6 +114,7 @@ fn grandchild_child_events_feed_its_stats_but_do_not_wake_the_root() {
         parent: SessionId(9),
         child: SessionId(10),
         status: TaskState::Completed,
+        summary: None,
     });
     assert!(!app.wake_pending);
 }

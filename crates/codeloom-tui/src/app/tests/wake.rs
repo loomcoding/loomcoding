@@ -6,6 +6,7 @@ fn settled(status: TaskState) -> LiveEvent {
         parent: SessionId(1),
         child: SessionId(9),
         status,
+        summary: None,
     }
 }
 
@@ -134,6 +135,7 @@ fn wake_ignores_other_sessions() {
         parent: SessionId(2),
         child: SessionId(9),
         status: TaskState::Completed,
+        summary: None,
     });
     assert!(!app.wake_pending);
 

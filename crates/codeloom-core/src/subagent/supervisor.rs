@@ -482,6 +482,7 @@ mod tests {
                 parent: P,
                 child: SessionId(7),
                 status: TaskState::Completed,
+                summary: None,
             },
             1,
         );

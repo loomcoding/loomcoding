@@ -48,6 +48,19 @@ pub(super) fn reenviar_eventos_del_hijo(
     });
 }
 
+/// Tope del resumen que acompaña al asiento: es un extracto, no el resultado entero.
+const MAX_SUMMARY_BYTES: usize = 500;
+
+/// Extracto del hijo asentado: el motivo si falló, o el texto de su primer artefacto.
+fn resumen_del_hijo(hijo: &crate::session::SubagentDescriptor) -> Option<String> {
+    let texto = match &hijo.status.message {
+        Some(mensaje) => mensaje.text(),
+        None => hijo.artifacts.first()?.text(),
+    };
+    let texto = texto.trim();
+    (!texto.is_empty()).then(|| crate::tools::limit_bytes(texto, MAX_SUMMARY_BYTES).into_owned())
+}
+
 /// Vigila el trabajo del hijo y, cuando acaba, asienta su estado final y publica `SubagentSettled`.
 pub(super) fn vigilar_asiento(
     store: Arc<dyn SessionStore>,
@@ -99,10 +112,18 @@ pub(super) fn vigilar_asiento(
                 };
                 // Se publica tras el intento de persistir, también si falló: así el
                 // padre nunca lee el aviso antes del estado final.
+                let summary = match store.list_subagents(parent).await {
+                    Ok(hijos) => hijos
+                        .iter()
+                        .find(|hijo| hijo.child == child)
+                        .and_then(resumen_del_hijo),
+                    Err(_) => None,
+                };
                 settle_bus.publish(LiveEvent::SubagentSettled {
                     parent,
                     child,
                     status: estado_final,
+                    summary,
                 });
                 break;
             }
