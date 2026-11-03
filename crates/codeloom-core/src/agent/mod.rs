@@ -1216,11 +1216,15 @@ impl AgentLoop {
                             &request_components,
                         );
                         tool_calls_this_turn = tool_calls_this_turn.saturating_add(1);
-                        if tool_calls.len() > 32 || tool_calls_this_turn > 64 {
-                            return Err(crate::error::CoreError::Provider(
-                                "provider tool-call limit exceeded (32 per response, 64 per turn)"
-                                    .into(),
-                            ));
+                        let max_per_response = crate::config::max_tool_calls_per_response();
+                        let max_per_turn = crate::config::max_tool_calls_per_turn();
+                        if tool_calls.len() > max_per_response
+                            || tool_calls_this_turn > max_per_turn
+                        {
+                            let mensaje = format!(
+                                "provider tool-call limit exceeded ({max_per_response} per response, {max_per_turn} per turn)"
+                            );
+                            return Err(crate::error::CoreError::Provider(mensaje));
                         }
                     }
                     StreamChunk::ProviderState(state) => {

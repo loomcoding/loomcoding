@@ -14,20 +14,6 @@ use codeloom_core::provider::Provider;
 use codeloom_core::registry::{
     AgentRegistry, AgentSource, BuiltInSource, FileSource, ProfileLevel, TrustStore,
 };
-use codeloom_core::tools::artifact_read::ArtifactReadTool;
-use codeloom_core::tools::ask_user::AskUserTool;
-use codeloom_core::tools::edit::EditTool;
-use codeloom_core::tools::glob::GlobTool;
-use codeloom_core::tools::grep::GrepTool;
-use codeloom_core::tools::job_kill::JobKillTool;
-use codeloom_core::tools::job_list::JobListTool;
-use codeloom_core::tools::job_output::JobOutputTool;
-use codeloom_core::tools::job_start::JobStartTool;
-use codeloom_core::tools::subagent::SubagentTool;
-use codeloom_core::tools::subagent_control::SubagentControlTool;
-use codeloom_core::tools::subagent_list::SubagentListTool;
-use codeloom_core::tools::todo_write::TodoWriteTool;
-use codeloom_core::tools::view::ViewTool;
 use codeloom_core::tools::ToolRegistry;
 use codeloom_tui::app::ProviderSettings;
 use std::collections::HashMap;
@@ -198,33 +184,7 @@ fn apply_provider_settings(
 }
 
 fn build_project_tools(project_env: HashMap<String, String>) -> ToolRegistry {
-    let mut tools = ToolRegistry::new();
-    tools.register(Arc::new(ViewTool));
-    tools.register(Arc::new(codeloom_core::tools::ls::LsTool));
-    tools.register(Arc::new(GlobTool));
-    tools.register(Arc::new(GrepTool));
-    tools.register(Arc::new(EditTool));
-    tools.register(Arc::new(codeloom_core::tools::write::WriteTool));
-    tools.register(Arc::new(codeloom_core::tools::multiedit::MultiEditTool));
-    tools.register(Arc::new(codeloom_core::tools::lsp::LspTool));
-    tools.register(Arc::new(codeloom_core::tools::web::WebTool));
-    tools.register(Arc::new(codeloom_core::tools::bash::ProjectBashTool::new(
-        project_env,
-    )));
-    tools.register(Arc::new(JobListTool));
-    tools.register(Arc::new(JobOutputTool));
-    tools.register(Arc::new(JobKillTool));
-    tools.register(Arc::new(JobStartTool));
-    tools.register(Arc::new(SubagentTool));
-    tools.register(Arc::new(SubagentControlTool));
-    tools.register(Arc::new(SubagentListTool));
-    tools.register(Arc::new(ArtifactReadTool));
-    tools.register(Arc::new(TodoWriteTool));
-    tools.register(Arc::new(AskUserTool));
-    tools.register(Arc::new(
-        codeloom_core::tools::development_workflow::DevelopmentWorkflowTool,
-    ));
-    tools
+    codeloom_core::tools::project_registry(project_env)
 }
 
 #[tokio::main]

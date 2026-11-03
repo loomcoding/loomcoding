@@ -260,7 +260,7 @@ impl Demo for DashboardDemo {
 
     fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
         if self.rain_on {
-            self.rain.render(frame, area);
+            self.rain.render(frame, area, theme);
         }
         let rows = Layout::vertical([
             Constraint::Length(2),

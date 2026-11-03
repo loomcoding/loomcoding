@@ -40,6 +40,42 @@ fn default_max_steps() -> usize {
     30
 }
 
+/// Tope de llamadas a herramienta en una sola respuesta del proveedor.
+///
+/// Corta el bucle de un modelo que encadena herramientas sin cerrar respuesta. El valor por
+/// defecto es `DEFAULT_MAX_TOOL_CALLS_PER_RESPONSE`; se puede subir sin recompilar con la
+/// variable de entorno `CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE`.
+pub fn max_tool_calls_per_response() -> usize {
+    limite_por_entorno(
+        "CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE",
+        DEFAULT_MAX_TOOL_CALLS_PER_RESPONSE,
+    )
+}
+
+/// Tope de llamadas a herramienta acumuladas en un turno completo (varias respuestas).
+///
+/// Se puede subir sin recompilar con `CODELOOM_MAX_TOOL_CALLS_PER_TURN`.
+pub fn max_tool_calls_per_turn() -> usize {
+    limite_por_entorno(
+        "CODELOOM_MAX_TOOL_CALLS_PER_TURN",
+        DEFAULT_MAX_TOOL_CALLS_PER_TURN,
+    )
+}
+
+/// Valor por defecto del tope por respuesta.
+pub const DEFAULT_MAX_TOOL_CALLS_PER_RESPONSE: usize = 128;
+
+/// Valor por defecto del tope por turno.
+pub const DEFAULT_MAX_TOOL_CALLS_PER_TURN: usize = 256;
+
+fn limite_por_entorno(nombre: &str, por_defecto: usize) -> usize {
+    std::env::var(nombre)
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|v| *v > 0)
+        .unwrap_or(por_defecto)
+}
+
 /// Modo de confirmación al delegar en un subagente (`[agents] confirm_delegation`).
 ///
 /// Solo cambia el texto de la regla que el prompt del padre recibe; no es una garantía
@@ -226,6 +262,39 @@ impl ProviderCacheConfig {
     }
 }
 
+/// Sección opcional `[ui]` de `codeloom.toml`. Sin ella, todo son valores por defecto.
+/// Vive aparte de `CodeLoomConfig` para no añadir un campo que se construye en muchos sitios.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct UiConfig {
+    /// Mostrar en el transcript los avisos de proveedor («request started» / «response received»).
+    /// Por defecto, desactivado: en su lugar la barra de estado muestra un spinner mientras hay
+    /// una petición en vuelo.
+    pub verbose_provider_notices: bool,
+}
+
+/// Forma del fichero a efectos de `[ui]`.
+#[derive(Deserialize)]
+struct FicheroConUi {
+    #[serde(default)]
+    ui: UiConfig,
+}
+
+impl UiConfig {
+    /// Lee la sección `[ui]` de un texto TOML. Su ausencia da los valores por defecto.
+    pub fn from_toml(text: &str) -> Result<UiConfig> {
+        toml::from_str::<FicheroConUi>(text)
+            .map(|fichero| fichero.ui)
+            .map_err(|e| CoreError::Config(e.to_string()))
+    }
+
+    pub fn load(path: &Path) -> Result<UiConfig> {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| CoreError::Config(format!("read {}: {e}", path.display())))?;
+        Self::from_toml(&text)
+    }
+}
+
 pub fn validate_base_url(input: &str) -> std::result::Result<(), String> {
     let url = reqwest::Url::parse(input).map_err(|_| "Base URL is invalid".to_string())?;
     let local_http = url.scheme() == "http"
@@ -340,6 +409,27 @@ mod tests {
     use std::io::Write;
 
     #[test]
+    fn ui_config_defaults_to_quiet_provider_notices() {
+        let ui = UiConfig::from_toml("model = \"x\"\n").unwrap();
+        assert!(!ui.verbose_provider_notices);
+    }
+
+    #[test]
+    fn ui_config_reads_the_verbose_flag() {
+        let ui = UiConfig::from_toml("[ui]\nverbose_provider_notices = true\n").unwrap();
+        assert!(ui.verbose_provider_notices);
+    }
+
+    #[test]
+    fn ui_config_ignores_the_rest_of_the_file() {
+        let ui = UiConfig::from_toml(
+            "model = \"x\"\nmax_steps = 3\n[provider]\nkind = \"openai_compat\"\nbase_url = \"https://a.test\"\napi_key_env = \"K\"\n[ui]\nverbose_provider_notices = true\n",
+        )
+        .unwrap();
+        assert!(ui.verbose_provider_notices);
+    }
+
+    #[test]
     fn parses_minimal_config() {
         let mut f = tempfile::NamedTempFile::new().unwrap();
         write!(f, r#"
@@ -362,6 +452,36 @@ mod tests {
         "#).unwrap();
         let cfg = CodeLoomConfig::load(f.path()).unwrap();
         assert_eq!(cfg.max_steps, 30);
+    }
+
+    #[test]
+    fn tool_call_limits_have_sane_defaults() {
+        assert_eq!(DEFAULT_MAX_TOOL_CALLS_PER_RESPONSE, 128);
+        assert_eq!(DEFAULT_MAX_TOOL_CALLS_PER_TURN, 256);
+    }
+
+    #[test]
+    fn tool_call_limits_can_be_raised_by_environment() {
+        std::env::set_var("CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE", "500");
+        std::env::remove_var("CODELOOM_MAX_TOOL_CALLS_PER_TURN");
+        assert_eq!(max_tool_calls_per_response(), 500);
+        assert_eq!(max_tool_calls_per_turn(), DEFAULT_MAX_TOOL_CALLS_PER_TURN);
+        std::env::remove_var("CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE");
+    }
+
+    #[test]
+    fn tool_call_limits_ignore_invalid_values() {
+        std::env::set_var("CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE", "no-es-un-numero");
+        assert_eq!(
+            max_tool_calls_per_response(),
+            DEFAULT_MAX_TOOL_CALLS_PER_RESPONSE
+        );
+        std::env::set_var("CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE", "0");
+        assert_eq!(
+            max_tool_calls_per_response(),
+            DEFAULT_MAX_TOOL_CALLS_PER_RESPONSE
+        );
+        std::env::remove_var("CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE");
     }
 
     #[test]

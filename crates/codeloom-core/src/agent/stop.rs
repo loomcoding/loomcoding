@@ -16,13 +16,16 @@ fn signature(m: &Message) -> Option<Vec<String>> {
     }
 }
 
-/// Para si se supero `max_steps` o si los ultimos dos mensajes del asistente
-/// repiten las mismas tool calls (bucle).
+/// Para si se superó `max_steps` o si se repiten tool calls dentro del turno actual.
 pub fn should_stop(history: &[Message], steps: usize, max_steps: usize) -> bool {
     if steps >= max_steps {
         return true;
     }
-    let sigs: Vec<Vec<String>> = history
+    let turno = history
+        .iter()
+        .rposition(|message| message.role == Role::User)
+        .unwrap_or(0);
+    let sigs: Vec<Vec<String>> = history[turno..]
         .iter()
         .filter(|m| m.role == Role::Assistant)
         .filter_map(signature)

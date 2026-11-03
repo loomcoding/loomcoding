@@ -36,10 +36,12 @@ impl Tool for EditTool {
         let content = tokio::fs::read_to_string(&full)
             .await
             .map_err(|e| CoreError::Tool(format!("edit {path}: {e}")))?;
-        match content.matches(old).count() {
+        let old = super::match_line_endings(old, &content);
+        let new = super::match_line_endings(new, &content);
+        match content.matches(&old).count() {
             0 => Ok(ToolOutput::err(format!("old text not found in {path}"))),
             1 => {
-                let updated = content.replacen(old, new, 1);
+                let updated = content.replacen(&old, &new, 1);
                 tokio::fs::write(&full, updated)
                     .await
                     .map_err(|e| CoreError::Tool(format!("edit {path}: {e}")))?;

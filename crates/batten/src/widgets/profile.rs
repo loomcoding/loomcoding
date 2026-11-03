@@ -64,6 +64,7 @@ impl Theme {
             },
             hyperlinks: self.hyperlinks,
             look: self.look,
+            matrix: self.matrix.clone(),
         }
     }
 }

@@ -1,6 +1,6 @@
 # CodeLoom — Ollama local: no factura tokens y el código no sale del equipo.
-model = "nvidia/nemotron-3.5-super-vl:free"
-max_steps = 8
+model = "deepseek/deepseek-v4.1-flash-1017"
+max_steps = 100
 
 [provider]
 kind = "openai_compat"
@@ -12,6 +12,15 @@ api_key_env = "OPENROUTER_API_KEY"
 [compaction]
 background = true
 
+# Interfaz. Con verbose_provider_notices = false (por defecto) los avisos
+# "provider request started/response received" no ensucian el transcript: en su
+# lugar la barra de estado muestra un spinner mientras hay una peticion en vuelo.
+[ui]
+verbose_provider_notices = false
+
 # Agentes remotos por A2A (A8a): descargar tarjetas y delegar en los ya aprobados.
 [a2a]
 role = "consume"
+
+[agents]
+catalog_roots = ["E:/workspace/personal/loom-agent-workforce-poc"]

@@ -23,7 +23,7 @@ struct CollapsedPaste {
     text: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Composer {
     buf: String,
     collapsed_pastes: Vec<CollapsedPaste>,
@@ -32,6 +32,30 @@ pub struct Composer {
     anchor: Option<usize>,
     view_top: Cell<usize>,
     painted: Cell<Option<usize>>,
+    /// Estilo de actividad que se pinta en el prompt mientras el agente trabaja.
+    /// Se fija al empezar cada petición, así que cambia de una a otra.
+    activity_style: &'static str,
+    /// Si el agente está trabajando: el prompt se convierte en el indicador braille.
+    working: Cell<bool>,
+    /// Fotograma con el que animar el indicador; lo fija el render en cada pasada.
+    activity_frame: Cell<u64>,
+}
+
+impl Default for Composer {
+    fn default() -> Self {
+        Self {
+            buf: String::new(),
+            collapsed_pastes: Vec::new(),
+            cursor: 0,
+            preferred_col: None,
+            anchor: None,
+            view_top: Cell::new(0),
+            painted: Cell::new(None),
+            activity_style: super::super::widgets::activity::ACTIVITY_STYLES[0],
+            working: Cell::new(false),
+            activity_frame: Cell::new(0),
+        }
+    }
 }
 
 impl Composer {
@@ -48,6 +72,37 @@ impl Composer {
     /// que un valor fuera de rango no provoca un desplazamiento incorrecto.
     pub fn set_view_top(&self, top: usize) {
         self.view_top.set(top);
+    }
+
+    /// Estilo de actividad que el composer pinta en su prompt mientras trabaja
+    /// (vacío: el composer usa el suyo por defecto).
+    pub fn activity_style(&self) -> &'static str {
+        self.activity_style
+    }
+
+    /// Fija el estilo de actividad; se llama al empezar cada petición.
+    pub fn set_activity_style(&mut self, style: &'static str) {
+        self.activity_style = style;
+    }
+
+    /// Si el composer debe pintar su prompt como indicador de actividad.
+    pub fn is_working(&self) -> bool {
+        self.working.get()
+    }
+
+    /// Marca el composer como «trabajando» o no.
+    pub fn set_working(&self, working: bool) {
+        self.working.set(working);
+    }
+
+    /// Fotograma actual del indicador, para que el render lo anime.
+    pub fn activity_frame(&self) -> u64 {
+        self.activity_frame.get()
+    }
+
+    /// Fija el fotograma del indicador (el render lo hace en cada pasada).
+    pub fn set_activity_frame(&self, frame: u64) {
+        self.activity_frame.set(frame);
     }
 
     /// Recuerda que el render acaba de pintar con el cursor actual.

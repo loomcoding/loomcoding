@@ -1,10 +1,10 @@
-use crate::app::{App, Focus, SettingsPicker};
+use crate::app::{AgentsFocus, App, Focus, SettingsPicker, SpinnerChoice, SPINNER_CHOICES};
 use crate::rail;
 use batten::widgets::context_meter::{self, MeterStyle};
 use batten::widgets::{ChromeStyle, LayoutStyle};
 use codeloom_core::event::{A2aDirection, A2aOperation};
 use ratatui::buffer::Buffer;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
@@ -235,7 +235,25 @@ fn split_footer_meter(frame: &mut Frame, area: Rect, app: &App) -> Rect {
     left
 }
 
+/// Indicador de actividad del proveedor: braille de `dotmax` si está disponible,
+/// glifo propio de `batten` como respaldo.
+fn provider_activity_span(app: &App, width: u16) -> ratatui::text::Span<'static> {
+    // `frame` del `Anim` que avanza el bucle: es la fuente de tiempo de la UI.
+    let frame = app.animation.frame;
+    batten::widgets::activity::activity_glyph(
+        batten::widgets::activity::ACTIVITY_STYLES[0],
+        frame,
+        width,
+        &app.theme,
+    )
+    .unwrap_or_else(|| {
+        app.animation
+            .glyph(batten::widgets::spinner::DOT_RING, &app.theme)
+    })
+}
+
 /// Pie del chrome `Flat`: el feedback de slash si lo hay; si no, atajos cortos.
+/// Si hay peticiones de provider en vuelo y verbose_provider_notices=false, muestra un spinner.
 fn draw_flat_footer(frame: &mut Frame, area: Rect, app: &App) {
     let area = split_footer_meter(frame, area, app);
     let line = if let Some(feedback) = app.slash_feedback.as_deref() {
@@ -527,6 +545,8 @@ fn draw_transcript(frame: &mut Frame, area: Rect, app: &mut App, panes: &mut Vec
         ));
         frame.render_widget(Paragraph::new(Line::from(spans)), rows[4]);
     }
+    // El composer anima su propio indicador: le pasamos el fotograma actual.
+    app.composer.set_activity_frame(app.animation.frame);
     batten::widgets::composer::render_for_look(
         frame,
         rows[5],
@@ -870,7 +890,7 @@ fn draw_workspace_metrics(
         panes,
     );
 
-    let lsp_lines = if let Some(capabilities) = &app.runtime_capabilities {
+    let mut lsp_lines = if let Some(capabilities) = &app.runtime_capabilities {
         let available = capabilities.rust_analyzer_available;
         vec![Line::from(vec![
             Span::styled(
@@ -890,6 +910,11 @@ fn draw_workspace_metrics(
     } else {
         vec![Line::from("Waiting for runtime snapshot")]
     };
+    lsp_lines.push(Line::from(if app.lsp_invoked {
+        "Query called this session"
+    } else {
+        "Query not called this session"
+    }));
     draw_scrolled_panel(
         frame,
         lsp,
@@ -1172,12 +1197,7 @@ fn draw_session_picker(frame: &mut Frame, area: Rect, app: &App) {
         .session_selected
         .saturating_sub(usize::from(list.height.saturating_sub(1)))
         .min(usize::from(u16::MAX)) as u16;
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: true })
-            .scroll((scroll, 0)),
-        list,
-    );
+    frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), list);
     frame.render_widget(
         Paragraph::new(Line::styled(
             "↑/↓ or j/k select · Home/End jump · Enter open · N new · Ctrl+F filter · Esc quit",
@@ -1185,6 +1205,245 @@ fn draw_session_picker(frame: &mut Frame, area: Rect, app: &App) {
         )),
         footer,
     );
+}
+
+/// Ventana `/temas`: árbol a la izquierda, detalle a la derecha.
+fn draw_temas(frame: &mut Frame, area: Rect, app: &App) {
+    use crate::app::{TemasLevel, MATRIX_FIELDS};
+
+    let width = area.width.min(76).saturating_sub(2);
+    let height = 16.min(area.height.saturating_sub(2));
+    if width < 44 || height < 10 {
+        draw_resize_hint(frame, area, "Temas", app);
+        return;
+    }
+    let popup = Rect::new(
+        area.x + (area.width - width) / 2,
+        area.y + (area.height - height) / 2,
+        width,
+        height,
+    );
+    frame.render_widget(Clear, popup);
+    let title = format!(" {} ", app.temas_level.title());
+    let block = Block::default()
+        .title(title)
+        .borders(Borders::ALL)
+        .border_type(ratatui::widgets::BorderType::Rounded)
+        .border_style(app.theme.styles.border);
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+
+    // Columna izquierda: el árbol. Derecha: el detalle del nivel.
+    let split = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(24), Constraint::Min(16)])
+        .split(inner);
+
+    let mut lines: Vec<Line> = Vec::new();
+    let marker = |selected: bool| if selected { "▸ " } else { "  " };
+    match app.temas_level {
+        TemasLevel::Root => {
+            lines.push(Line::from(Span::styled(
+                format!("{}Efectos", marker(app.temas_selected == 0)),
+                if app.temas_selected == 0 {
+                    app.theme.styles.accent
+                } else {
+                    app.theme.styles.default
+                },
+            )));
+            lines.push(Line::from(Span::styled(
+                format!("{}Tema", marker(app.temas_selected == 1)),
+                if app.temas_selected == 1 {
+                    app.theme.styles.accent
+                } else {
+                    app.theme.styles.default
+                },
+            )));
+            lines.push(Line::from(Span::styled(
+                format!("{}Spinner", marker(app.temas_selected == 2)),
+                if app.temas_selected == 2 {
+                    app.theme.styles.accent
+                } else {
+                    app.theme.styles.default
+                },
+            )));
+        }
+        TemasLevel::Effects => {
+            lines.push(Line::from(Span::styled(
+                format!("{}Matrix rain", marker(true)),
+                app.theme.styles.accent,
+            )));
+        }
+        TemasLevel::Matrix => {
+            for (index, field) in MATRIX_FIELDS.iter().enumerate() {
+                let selected = index == app.temas_selected;
+                lines.push(Line::from(Span::styled(
+                    format!("{}{}", marker(selected), field),
+                    if selected {
+                        app.theme.styles.accent
+                    } else {
+                        app.theme.styles.default
+                    },
+                )));
+            }
+        }
+        TemasLevel::Theme => {
+            for (index, preset) in batten::widgets::ThemePreset::ALL.iter().enumerate() {
+                let selected = index == app.temas_selected;
+                let current = *preset == app.theme_preset;
+                let label = format!(
+                    "{}{}{}",
+                    marker(selected),
+                    preset.name(),
+                    if current { "  ✓" } else { "" }
+                );
+                lines.push(Line::from(Span::styled(
+                    label,
+                    if selected {
+                        app.theme.styles.accent
+                    } else {
+                        app.theme.styles.default
+                    },
+                )));
+            }
+        }
+        TemasLevel::Spinner => {
+            for (index, choice) in SPINNER_CHOICES.iter().enumerate() {
+                let selected = index == app.temas_selected;
+                let current = *choice == app.spinner_choice;
+                let label = format!(
+                    "{}{}{}",
+                    marker(selected),
+                    choice.label(),
+                    if current { "  ✓" } else { "" }
+                );
+                lines.push(Line::from(Span::styled(
+                    label,
+                    if selected {
+                        app.theme.styles.accent
+                    } else {
+                        app.theme.styles.default
+                    },
+                )));
+            }
+        }
+    }
+    frame.render_widget(Paragraph::new(lines), split[0]);
+
+    // Panel derecho: valores del formulario o ayuda del nivel.
+    let mut detail: Vec<Line> = Vec::new();
+    match app.temas_level {
+        TemasLevel::Matrix => {
+            let cfg = &app.temas_matrix;
+            let row = |label: &str, value: String, index: usize| {
+                let selected = index == app.temas_selected;
+                Line::from(vec![
+                    Span::styled(
+                        format!("{label:<10}"),
+                        if selected {
+                            app.theme.styles.accent
+                        } else {
+                            app.theme.styles.muted
+                        },
+                    ),
+                    Span::styled(
+                        format!("‹ {value} ›"),
+                        if selected {
+                            app.theme.styles.accent
+                        } else {
+                            app.theme.styles.default
+                        },
+                    ),
+                ])
+            };
+            detail.push(row("Glifos", cfg.glyphs.preset_name().to_string(), 0));
+            detail.push(row("Velocidad", format!("{:.2}", cfg.speed), 1));
+            detail.push(row("Densidad", cfg.density.to_string(), 2));
+            detail.push(row("Longitud", cfg.length.to_string(), 3));
+            detail.push(row("Color", cfg.color.key().to_string(), 4));
+            detail.push(Line::from(""));
+            let save_selected = app.temas_selected == MATRIX_FIELDS.len() - 1;
+            detail.push(Line::from(Span::styled(
+                format!(
+                    "{}Guardar{}",
+                    marker(save_selected),
+                    if app.temas_dirty { "  •" } else { "" }
+                ),
+                if save_selected {
+                    app.theme.styles.accent
+                } else {
+                    app.theme.styles.default
+                },
+            )));
+        }
+        TemasLevel::Theme => {
+            detail.push(Line::from(Span::styled(
+                "Enter aplica el tema al instante.",
+                app.theme.styles.muted,
+            )));
+        }
+        TemasLevel::Spinner => {
+            // Vista previa del indicador elegido, animada con el frame actual.
+            let span = match app.spinner_choice {
+                SpinnerChoice::Crush => {
+                    batten::widgets::activity::crush_glyph(app.animation.frame, &app.theme)
+                }
+                choice => batten::widgets::activity::activity_glyph(
+                    choice.style_for(app.animation.frame),
+                    app.animation.frame,
+                    2,
+                    &app.theme,
+                )
+                .unwrap_or_else(|| {
+                    app.animation
+                        .glyph(batten::widgets::spinner::DOT_RING, &app.theme)
+                }),
+            };
+            detail.push(Line::from(vec![
+                Span::styled("Actual  ", app.theme.styles.muted),
+                span,
+                Span::styled(
+                    format!("  {}", app.spinner_choice.label()),
+                    app.theme.styles.heading,
+                ),
+            ]));
+            detail.push(Line::from(""));
+            detail.push(Line::from(Span::styled(
+                "Enter elige el indicador; se guarda en ui.toml.",
+                app.theme.styles.muted,
+            )));
+            detail.push(Line::from(Span::styled(
+                "Aleatorio cambia de estilo en cada petición.",
+                app.theme.styles.muted,
+            )));
+            detail.push(Line::from(Span::styled(
+                "El composer lo muestra mientras el agente trabaja.",
+                app.theme.styles.muted,
+            )));
+        }
+        TemasLevel::Effects => {
+            detail.push(Line::from(Span::styled(
+                "Enter abre la configuración de la lluvia.",
+                app.theme.styles.muted,
+            )));
+        }
+        TemasLevel::Root => {
+            detail.push(Line::from(Span::styled(
+                "Efectos: animaciones de fondo.",
+                app.theme.styles.muted,
+            )));
+            detail.push(Line::from(Span::styled(
+                "Tema: paleta de colores.",
+                app.theme.styles.muted,
+            )));
+        }
+    }
+    detail.push(Line::from(""));
+    detail.push(Line::from(Span::styled(
+        "↑↓ mover · Enter entrar · ←→ ajustar · Esc volver",
+        app.theme.styles.muted,
+    )));
+    frame.render_widget(Paragraph::new(detail), split[1]);
 }
 
 fn draw_provider_settings(frame: &mut Frame, area: Rect, app: &App) {
@@ -2187,15 +2446,15 @@ fn draw_agents_overlay(frame: &mut Frame, area: Rect, app: &App) {
     );
     frame.render_widget(Clear, popup);
     let block = Block::default()
-        .title(" Agents ")
+        .title(Line::styled(" Agents ", app.theme.styles.heading))
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(app.theme.styles.border);
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
 
-    // Reparto vertical: lista (la mitad), detalle (el resto) y dos líneas de pie.
-    let util = inner.height.saturating_sub(2);
+    // Reparto vertical: filtros, lista/detalle y dos líneas de pie.
+    let util = inner.height.saturating_sub(3);
     let alto_lista = (util / 2).max(2);
     let por_pagina = (alto_lista / 2).max(1) as usize;
     let desde = app
@@ -2214,26 +2473,50 @@ fn draw_agents_overlay(frame: &mut Frame, area: Rect, app: &App) {
         } else {
             " "
         };
-        let cabecera = format!(
-            "{marca} {} [{}] {} — {}",
-            fila.name,
-            approval_label(fila.approval),
-            fila.origin,
-            fila.execution
-        );
+        let nombre_estilo = if indice == app.agents_selected {
+            app.theme.styles.heading.add_modifier(Modifier::BOLD)
+        } else {
+            app.theme.styles.accent
+        };
         let estilo = if indice == app.agents_selected {
             app.theme.styles.heading.add_modifier(Modifier::BOLD)
         } else {
             Style::default()
         };
-        lineas.push(Line::styled(cabecera, estilo));
-        lineas.push(Line::styled(
-            format!("    {}", fila.description),
-            app.theme.styles.muted,
-        ));
+        // Línea 1: nombre: descripción [approval] origin — execution
+        lineas.push(Line::from(vec![
+            Span::styled(format!("{marca} "), estilo),
+            Span::styled(fila.name.clone(), nombre_estilo),
+            Span::styled(
+                format!(
+                    ": {} [{}] {} — {}",
+                    fila.description,
+                    approval_label(fila.approval),
+                    fila.origin,
+                    fila.execution
+                ),
+                estilo,
+            ),
+        ]));
+        // Línea 2: directorio si existe
+        if let Some(path) = &fila.profile_path {
+            let dir = path
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default();
+            if !dir.is_empty() {
+                lineas.push(Line::styled(
+                    format!("    (directory: {})", dir),
+                    app.theme.styles.muted,
+                ));
+            }
+        }
     }
     if app.agent_rows.is_empty() {
-        lineas.push(Line::from("No agents loaded (no registry available)"));
+        lineas.push(Line::styled(
+            "No agents loaded (no registry available)",
+            app.theme.styles.muted,
+        ));
     }
     while lineas.len() < alto_lista as usize {
         lineas.push(Line::from(""));
@@ -2242,7 +2525,7 @@ fn draw_agents_overlay(frame: &mut Frame, area: Rect, app: &App) {
     if let Some(fila) = app.agent_rows.get(app.agents_selected) {
         lineas.push(Line::styled(
             format!("── Prompt of `{}` ──", fila.name),
-            app.theme.styles.muted,
+            app.theme.styles.heading,
         ));
         let restante = util.saturating_sub(alto_lista).saturating_sub(1) as usize;
         if fila.body.trim().is_empty() {
@@ -2263,10 +2546,50 @@ fn draw_agents_overlay(frame: &mut Frame, area: Rect, app: &App) {
     }
     todo.push(Line::styled(pie, app.theme.styles.muted));
     todo.push(Line::styled(
-        "↑/↓ select · e edit local · a approve · r revoke · Esc close",
+        "↑/↓ select · / text · t tag · Tab switch · x clear · e edit · a approve · r revoke · Esc close",
         app.theme.styles.muted,
     ));
-    frame.render_widget(Paragraph::new(todo), inner);
+    // Mostrar filtros activos con indicador de foco
+    let tags_str = app
+        .agents_tag_filter
+        .as_ref()
+        .map(|v| v.join(", "))
+        .unwrap_or_default();
+    let focus_query = app.agents_focus == AgentsFocus::Query;
+    let focus_tag = app.agents_focus == AgentsFocus::Tag;
+    let focus_list = app.agents_focus == AgentsFocus::List;
+    let query_cursor = if focus_query { "_" } else { "" };
+    let tag_cursor = if focus_tag { "_" } else { "" };
+    let list_marker = if focus_list { "▸ " } else { "  " };
+    // En modo Tag, mostrar el buffer de entrada
+    let tag_display = if focus_tag && !app.agents_tag_input.is_empty() {
+        format!(
+            "{tags_str}{}{}",
+            if !tags_str.is_empty() { ", " } else { "" },
+            app.agents_tag_input
+        )
+    } else {
+        tags_str
+    };
+    frame.render_widget(
+        Paragraph::new(Line::styled(
+            format!(
+                "{list_marker}Text: {}{query_cursor} · Tag: {}{tag_cursor}",
+                app.agents_query, tag_display
+            ),
+            app.theme.styles.muted,
+        )),
+        Rect::new(inner.x, inner.y, inner.width, 1),
+    );
+    frame.render_widget(
+        Paragraph::new(todo),
+        Rect::new(
+            inner.x,
+            inner.y.saturating_add(1),
+            inner.width,
+            inner.height.saturating_sub(1),
+        ),
+    );
 }
 
 fn draw_agent_editor(
@@ -2443,7 +2766,7 @@ fn active_marker_style(kind: batten::state::LineKind, app: &App) -> Style {
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     let area = frame.area();
-    app.matrix_rain.render(frame, area);
+    app.matrix_rain.render(frame, area, &app.theme);
     // El mapa de ventanas reutiliza el mismo `Vec` en cada fotograma.
     let mut panes = std::mem::take(&mut app.pane_rects);
     panes.clear();
@@ -2507,8 +2830,18 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         draw_flat_footer(frame, rows[2], app);
     } else {
         let text_area = split_footer_meter(frame, rows[2], app);
-        frame.render_widget(
-            Paragraph::new(Line::from(vec![
+        let status_line = if app.provider_in_flight > 0 && !app.verbose_provider_notices {
+            Line::from(vec![
+                Span::styled(
+                    format!(" {}{} ", app.status, background_suffix(app)),
+                    app.theme.styles.heading,
+                ),
+                provider_activity_span(app, 2),
+                Span::styled(" Provider working… ", app.theme.styles.muted),
+                Span::styled(app.model.clone(), app.theme.styles.heading),
+            ])
+        } else {
+            Line::from(vec![
                 Span::styled(
                     format!(" {}{} ", app.status, background_suffix(app)),
                     app.theme.styles.heading,
@@ -2523,9 +2856,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
                     format!("  ↑ {} · ↓ {} tokens", app.input_tokens, app.output_tokens),
                     app.theme.styles.muted,
                 ),
-            ])),
-            text_area,
-        );
+            ])
+        };
+        frame.render_widget(Paragraph::new(status_line), text_area);
     }
 
     // Las preguntas se pintan antes que los permisos: un permiso queda por encima.
@@ -2554,6 +2887,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.settings_open {
         draw_provider_settings(frame, area, app);
+    }
+    if app.temas_open {
+        draw_temas(frame, area, app);
     }
     if app.help_open {
         draw_help_overlay(frame, area, app);
@@ -2747,6 +3083,45 @@ mod tests {
             output_tokens: 1,
         });
         app
+    }
+
+    #[test]
+    fn provider_activity_turns_the_composer_prompt_into_a_spinner() {
+        use batten::widgets::ThemePreset;
+        use codeloom_core::event::LiveEvent;
+        for preset in [ThemePreset::Batten, ThemePreset::Crush] {
+            let mut app = footer_app(preset, "windowed");
+            assert!(!app.composer.is_working(), "{preset:?}");
+
+            app.apply(LiveEvent::RuntimeNotice {
+                message: "provider request started for `windowed`".into(),
+            });
+            assert!(app.composer.is_working(), "{preset:?}");
+            // El estilo se elige por petición y sale del catálogo de dotmax.
+            assert!(
+                batten::widgets::activity::activity_style_names()
+                    .contains(&app.composer.activity_style()),
+                "{preset:?}: {}",
+                app.composer.activity_style()
+            );
+
+            app.apply(LiveEvent::RuntimeNotice {
+                message: "provider response received for `windowed`".into(),
+            });
+            assert!(!app.composer.is_working(), "{preset:?}");
+        }
+    }
+
+    #[test]
+    fn verbose_notices_keep_the_composer_prompt_static() {
+        use batten::widgets::ThemePreset;
+        use codeloom_core::event::LiveEvent;
+        let mut app = footer_app(ThemePreset::Crush, "windowed");
+        app.set_provider_notices_verbose(true);
+        app.apply(LiveEvent::RuntimeNotice {
+            message: "provider request started for `windowed`".into(),
+        });
+        assert!(!app.composer.is_working());
     }
 
     #[test]
@@ -3136,16 +3511,21 @@ Cuerpo de front.
         let mut app = App::new();
         app.set_agent_registry(std::sync::Arc::new(registro));
         app.show_agents();
-        let content = buffer_of(&mut app, 100, 30);
+        let content = buffer_of(&mut app, 200, 30);
         assert!(content.contains("Agents"), "{content}");
-        assert!(content.contains("default [usable] built-in"), "{content}");
         assert!(
-            content.contains("front [awaiting approval] project:"),
+            content.contains("default: Agente genérico integrado"),
             "{content}"
         );
+        assert!(
+            content.contains("front: Interfaz [awaiting approval] project:"),
+            "{content}"
+        );
+        // Verificar que aparece la línea de directorio
+        assert!(content.contains("(directory:"), "{content}");
 
         app.agents_move(1);
-        let content = buffer_of(&mut app, 100, 30);
+        let content = buffer_of(&mut app, 200, 30);
         assert!(content.contains("Prompt of `front`"), "{content}");
         assert!(content.contains("Cuerpo de front."), "{content}");
         assert!(content.contains("a approve"), "{content}");
@@ -3176,7 +3556,7 @@ Cuerpo de front.
         let mut app = App::new();
         app.set_agent_registry(std::sync::Arc::new(registro));
         app.show_agents();
-        let seleccionado = style_of_text(&mut app, 100, 30, "default [usable]");
+        let seleccionado = style_of_text(&mut app, 100, 30, "default: Agente genérico integrado; hereda modelo y esfuerzo del agente que delega [usable]");
         let realce = app.theme.styles.heading.add_modifier(Modifier::BOLD);
 
         // La fila con el foco se realza como en sesiones, ajustes y selectores: más viva que el

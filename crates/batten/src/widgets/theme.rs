@@ -1,6 +1,7 @@
 //! Tema: tokens semánticos, glifos y carga desde `theme.toml` parcial.
 
 use crate::state::{AgentState, StyleToken};
+use crate::widgets::matrix_rain::{GlyphSet, MatrixConfig};
 use ratatui::style::{Color, Modifier, Style};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -220,6 +221,8 @@ pub struct Theme {
     pub hyperlinks: bool,
     /// Presentación del composer y de las herramientas.
     pub look: Look,
+    /// Configuración de la lluvia Matrix, desde `[effects.matrix]`.
+    pub matrix: MatrixConfig,
 }
 
 /// Paletas de referencia disponibles en Batten y su showcase.
@@ -267,11 +270,31 @@ pub enum ThemeError {
 }
 
 /// Forma deserializable del `theme.toml`: un mapa plano token → valor de
-/// color.
+/// color, más la sección opcional de efectos.
 #[derive(Debug, Deserialize)]
 struct ThemeFile {
     #[serde(default)]
     styles: BTreeMap<String, String>,
+    #[serde(default)]
+    effects: Option<EffectsFile>,
+}
+
+/// Sección `[effects]` del tema.
+#[derive(Debug, Default, Deserialize)]
+struct EffectsFile {
+    #[serde(default)]
+    matrix: Option<MatrixFile>,
+}
+
+/// Sección `[effects.matrix]` del tema. Todos los campos son opcionales: lo que
+/// falte cae al `Default` de [`MatrixConfig`].
+#[derive(Debug, Default, Deserialize)]
+struct MatrixFile {
+    glyphs: Option<String>,
+    speed: Option<f32>,
+    density: Option<u8>,
+    length: Option<u16>,
+    color: Option<String>,
 }
 
 fn parse_color(s: &str) -> Result<Color, ThemeError> {
@@ -447,6 +470,7 @@ impl Theme {
             depth: ColorDepth::TrueColor,
             hyperlinks: true,
             look: Look::classic(),
+            matrix: MatrixConfig::default(),
         }
     }
 
@@ -486,6 +510,9 @@ impl Theme {
             if !theme.apply_override(&name, style) {
                 theme.extensions.insert(name.clone(), style);
             }
+        }
+        if let Some(matrix) = file.effects.and_then(|e| e.matrix) {
+            theme.matrix = matrix_config_from_file(matrix)?;
         }
         Ok(theme)
     }
@@ -590,44 +617,39 @@ fn adapt_lower(_depth: ColorDepth, color: Color) -> Option<Color> {
     Some(color)
 }
 
-fn token_to_key(t: StyleToken) -> &'static str {
-    match t {
-        StyleToken::Default => "default",
-        StyleToken::Muted => "muted",
-        StyleToken::Dim => "dim",
-        StyleToken::Heading => "heading",
-        StyleToken::User => "user",
-        StyleToken::Assistant => "assistant",
-        StyleToken::System => "system",
-        StyleToken::Error => "error",
-        StyleToken::Warning => "warning",
-        StyleToken::Success => "success",
-        StyleToken::ToolName => "tool_name",
-        StyleToken::ToolPath => "tool_path",
-        StyleToken::ToolCommand => "tool_command",
-        StyleToken::ToolCount => "tool_count",
-        StyleToken::ToolPending => "tool_pending",
-        StyleToken::ToolRunning => "tool_running",
-        StyleToken::ToolSuccess => "tool_success",
-        StyleToken::ToolError => "tool_error",
-        StyleToken::ToolCanceled => "tool_canceled",
-        StyleToken::TodoPending => "todo_pending",
-        StyleToken::TodoInProgress => "todo_in_progress",
-        StyleToken::TodoCompleted => "todo_completed",
-        StyleToken::Accent => "accent",
-        StyleToken::AccentFrom => "accent_from",
-        StyleToken::AccentTo => "accent_to",
-        StyleToken::LogoField => "logo_field",
-        StyleToken::Scrollbar => "scrollbar",
-        StyleToken::Border => "border",
-        StyleToken::DiffInsert => "diff_insert",
-        StyleToken::DiffDelete => "diff_delete",
-        StyleToken::DiffHunk => "diff_hunk",
-        StyleToken::Selection => "selection",
-        StyleToken::Code => "code",
-        StyleToken::Strong => "strong",
-        StyleToken::Emphasis => "emphasis",
+/// Convierte la sección `[effects.matrix]` en una [`MatrixConfig`], cayendo al
+/// `Default` en lo que falte. Un glifo o un token inválido es un error de tema,
+/// no un fallo silencioso.
+fn matrix_config_from_file(file: MatrixFile) -> Result<MatrixConfig, ThemeError> {
+    let mut config = MatrixConfig::default();
+    if let Some(name) = file.glyphs {
+        config.glyphs = match name.trim().to_ascii_lowercase().as_str() {
+            "katakana" => GlyphSet::katakana(),
+            "emoji" => GlyphSet::emoji(),
+            "binario" | "binary" => GlyphSet::binary(),
+            "ascii" => GlyphSet::ascii(),
+            "mixto" | "mixed" => GlyphSet::mixed(),
+            other => GlyphSet::custom(other).map_err(|e| ThemeError::Parse(e.to_string()))?,
+        };
     }
+    if let Some(speed) = file.speed {
+        config.speed = speed;
+    }
+    if let Some(density) = file.density {
+        config.density = density;
+    }
+    if let Some(length) = file.length {
+        config.length = length;
+    }
+    if let Some(name) = file.color {
+        config.color = StyleToken::from_key(&name)
+            .ok_or_else(|| ThemeError::Parse(format!("token de color desconocido: {name}")))?;
+    }
+    Ok(config.clamped())
+}
+
+fn token_to_key(t: StyleToken) -> &'static str {
+    t.key()
 }
 
 #[cfg(test)]
@@ -789,6 +811,94 @@ mod tests {
         assert_eq!(th.adapt(rgb), Some(rgb));
         th.depth = ColorDepth::NoColor;
         assert_eq!(th.adapt(rgb), None);
+    }
+
+    #[test]
+    fn matrix_section_defaults_when_absent() {
+        let th = Theme::from_toml("[styles]\naccent = \"cyan\"\n").unwrap();
+        assert_eq!(th.matrix, MatrixConfig::default());
+        assert_eq!(th.matrix.color, StyleToken::Success);
+    }
+
+    #[test]
+    fn matrix_section_overrides_fields() {
+        let th = Theme::from_toml(
+            r#"
+            [effects.matrix]
+            glyphs = "emoji"
+            speed = 1.5
+            density = 40
+            length = 12
+            color = "accent"
+            "#,
+        )
+        .unwrap();
+        assert_eq!(th.matrix.glyphs, GlyphSet::emoji());
+        assert_eq!(th.matrix.speed, 1.5);
+        assert_eq!(th.matrix.density, 40);
+        assert_eq!(th.matrix.length, 12);
+        assert_eq!(th.matrix.color, StyleToken::Accent);
+    }
+
+    #[test]
+    fn matrix_section_accepts_partial_fields() {
+        let th = Theme::from_toml("[effects.matrix]\nspeed = 2.0\n").unwrap();
+        assert_eq!(th.matrix.speed, 2.0);
+        // Lo no especificado cae al default.
+        assert_eq!(th.matrix.glyphs, GlyphSet::katakana());
+        assert_eq!(th.matrix.density, 3);
+    }
+
+    #[test]
+    fn matrix_section_clamps_out_of_range_values() {
+        let th = Theme::from_toml(
+            r#"
+            [effects.matrix]
+            speed = 999.0
+            density = 250
+            length = 0
+            "#,
+        )
+        .unwrap();
+        assert_eq!(th.matrix.speed, 4.0);
+        assert_eq!(th.matrix.density, 100);
+        assert_eq!(th.matrix.length, 1);
+    }
+
+    #[test]
+    fn matrix_section_rejects_unknown_color_token() {
+        let err = Theme::from_toml("[effects.matrix]\ncolor = \"no-existe\"\n").unwrap_err();
+        assert!(matches!(err, ThemeError::Parse(_)));
+    }
+
+    #[test]
+    fn matrix_section_accepts_custom_glyphs() {
+        let th = Theme::from_toml("[effects.matrix]\nglyphs = \"abc\"\n").unwrap();
+        assert_eq!(th.matrix.glyphs.preset_name(), "propio");
+        assert_eq!(th.matrix.glyphs.chars(), &['a', 'b', 'c']);
+    }
+
+    #[test]
+    fn matrix_section_rejects_mixed_width_glyphs() {
+        let err = Theme::from_toml("[effects.matrix]\nglyphs = \"a💧\"\n").unwrap_err();
+        assert!(matches!(err, ThemeError::Parse(_)));
+    }
+
+    #[test]
+    fn style_token_round_trips_through_key() {
+        for &token in crate::state::transcript::ALL_TOKENS {
+            assert_eq!(StyleToken::from_key(token.key()), Some(token));
+        }
+    }
+
+    #[test]
+    fn style_token_accepts_dashed_form() {
+        assert_eq!(
+            StyleToken::from_key("tool-running"),
+            Some(StyleToken::ToolRunning)
+        );
+        assert_eq!(StyleToken::from_key("  ACCENT "), Some(StyleToken::Accent));
+        assert_eq!(StyleToken::from_key("no-existe"), None);
     }
 
     #[cfg(feature = "termprofile")]

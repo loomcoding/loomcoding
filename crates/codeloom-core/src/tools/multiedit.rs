@@ -46,16 +46,18 @@ impl Tool for MultiEditTool {
             .map_err(|e| CoreError::Tool(format!("multiedit {path}: {e}")))?;
         let mut updated = original.clone();
         for (i, edit) in edits.iter().enumerate() {
-            let old = edit["old"].as_str().unwrap_or_default();
-            let new = edit["new"].as_str().unwrap_or_default();
-            let count = updated.matches(old).count();
+            let old =
+                super::match_line_endings(edit["old"].as_str().unwrap_or_default(), &original);
+            let new =
+                super::match_line_endings(edit["new"].as_str().unwrap_or_default(), &original);
+            let count = updated.matches(&old).count();
             if old.is_empty() || count != 1 {
                 return Ok(ToolOutput::err(format!(
                     "edit {} expected one match, found {count}; file unchanged",
                     i + 1
                 )));
             }
-            updated = updated.replacen(old, new, 1);
+            updated = updated.replacen(&old, &new, 1);
         }
         let req = PermissionRequest {
             tool: "multiedit".into(),

@@ -80,8 +80,8 @@ fn status_token(status: ToolStatus) -> StyleToken {
 fn render_line(line: &Line, theme: &Theme, entry_start: bool) -> Vec<TLine<'static>> {
     let base = theme.style(kind_token(line.kind));
     let role = match (entry_start, line.kind) {
-        (true, LineKind::User) => Some(("You", theme.styles.user)),
-        (true, LineKind::Assistant) => Some(("Assistant", theme.styles.assistant)),
+        (true, LineKind::User) => Some(("👤", theme.styles.user)),
+        (true, LineKind::Assistant) => Some(("🤖", theme.styles.assistant)),
         _ => None,
     };
     let text = line.plain();
@@ -751,8 +751,8 @@ mod tests {
         t.push(Line::new(LineKind::User, "hola"));
         t.push(Line::new(LineKind::Assistant, "buenas"));
         let out = buffer(&t, 40, 10);
-        assert!(out.contains("You"));
-        assert!(out.contains("Assistant"));
+        assert!(out.contains("👤"));
+        assert!(out.contains("🤖"));
         assert!(!out.contains("loom:"));
         assert!(out.contains("hola"));
         assert!(out.contains("buenas"));

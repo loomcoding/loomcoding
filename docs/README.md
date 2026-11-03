@@ -69,6 +69,7 @@ ejecutarlo).
 - [Flujo de desarrollo coordinado por agentes](specs/2026-10-25-codeloom-agent-development-workflow.md)
   y [su plan](plans/2026-10-25-codeloom-agent-development-workflow.md):
   implementación realizada; quedan tareas de cierre y verificación.
+- [Investigación sobre agentes ECC y CodeLoom](specs/2026-10-31-codeloom-ecc-agent-workforce-research.md): catálogo de perfiles, carga por harness y papel de los hooks.
 - [Fiabilidad interactiva del workflow de desarrollo](specs/2026-10-29-codeloom-development-workflow-interactive-reliability.md)
   y [su plan](plans/2026-10-29-codeloom-development-workflow-interactive-reliability.md):
   correcciones al turno del coordinador y al uso de herramientas del planner en Windows.

@@ -108,8 +108,8 @@ async fn a_turn_shows_prompt_as_you_and_streamed_reply() {
     let snap = s.expect("respuesta simulada", TURN);
     s.shot("turn");
     assert!(
-        snap.text.contains("You"),
-        "falta la atribución You:\n{}",
+        snap.text.contains("👤"),
+        "falta la atribución 👤:\n{}",
         snap.text
     );
     assert!(

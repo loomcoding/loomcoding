@@ -1,5 +1,6 @@
 //! Widgets ratatui y tema. Sin crossterm.
 
+pub mod activity;
 #[cfg(feature = "ansi")]
 pub mod ansi;
 pub mod attachment_preview;

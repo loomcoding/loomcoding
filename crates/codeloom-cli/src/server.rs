@@ -640,7 +640,6 @@ fn runtime_capabilities(
 async fn build_agent(
     manager: &Arc<AgentManager>,
     cwd: PathBuf,
-    id: &str,
     ui: Arc<AgentUi>,
     store: Arc<codeloom_core::session::sqlite::SqliteStore>,
     data_dir: &std::path::Path,
@@ -661,7 +660,7 @@ async fn build_agent(
     let prompt_cache = codeloom_core::config::ProviderCacheConfig::load(&config_path)?.prompt_cache;
     let (provider, api_key_configured) =
         super::build_provider_state(&cfg, &project_env, None, prompt_cache)?;
-    let project = format!("{}#codeloom-agent:{id}", cwd.display());
+    let project = format!("{}#codeloom-agent", cwd.display());
     let bus = codeloom_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
     let home = crate::home::user_home();
@@ -921,7 +920,6 @@ async fn open_agent(
     let setup = build_agent(
         manager,
         cwd,
-        &id,
         ui.clone(),
         store.clone(),
         data_dir,
@@ -2156,11 +2154,9 @@ where
                     anyhow::bail!("prompt exceeds 32000 bytes");
                 }
                 let cwd = validate_cwd(cwd)?;
-                let id = generate_agent_id()?;
                 let ui = Arc::new(AgentUi::new(mpsc::channel(1).0));
                 let setup =
-                    build_agent(&manager, cwd, &id, ui, store.clone(), data_dir, yolo, false)
-                        .await?;
+                    build_agent(&manager, cwd, ui, store.clone(), data_dir, yolo, false).await?;
                 let session = store.create_session(&setup.project).await?;
                 let outcome = setup
                     .agent
@@ -3069,6 +3065,8 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let config_path = cwd_path.join("codeloom.toml");
     let agents_config = codeloom_core::config::AgentsConfig::load(&config_path)?;
     let a2a_config = codeloom_a2a::config::A2aConfig::load(&config_path)?;
+    // Preferencias de UI del proyecto (verbose_provider_notices, etc.).
+    let ui_config = codeloom_core::config::UiConfig::load(&config_path).unwrap_or_default();
     let data_dir = crate::home::user_home()
         .unwrap_or_else(std::env::temp_dir)
         .join(".codeloom");
@@ -3096,7 +3094,7 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
             }
         });
     }
-    let mut app = codeloom_tui::app::App::with_context(cwd, model);
+    let mut app = codeloom_tui::app::App::with_context(cwd, model).with_ui_config(ui_config);
     app.use_product_default_view();
     app.set_provider_settings(settings);
     app.settings_api_key_configured = api_key_configured;

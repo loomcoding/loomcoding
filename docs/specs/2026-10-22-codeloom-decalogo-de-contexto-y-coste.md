@@ -94,7 +94,8 @@ que no tiene cota acabará, tarde o temprano, desbordándose.**
    marcador). Queda **sin tope** el total del prompt de sistema (tres secciones sumadas) y no hay
    aún habilidades ni memoria que acotar porque no existen; el tope de cada sección es una
    decisión propia, sin medir contra ningún proveedor.*
-7. **Todo bucle tiene techo, y el coste también.** Existen `max_steps` y `max_turns`. Desde el
+7. **Todo bucle tiene techo, y el coste también.** Existen `max_steps` y `max_turns`, y el tope de
+   llamadas a herramienta del proveedor (`max_tool_calls_per_response` / `_per_turn`). Desde el
    2026-10-23 hay **aviso** de presupuesto por sesión (tokens y/o dólares, sección `[budget]`),
    al 80 % y al 100 %, por decisión de producto **solo avisa**: no detiene el turno, no
    pregunta y no informa al modelo (`2026-10-23-codeloom-budget-warning-design.md`). El sondeo
@@ -104,6 +105,11 @@ que no tiene cota acabará, tarde o temprano, desbordándose.**
    hijo hereda el presupuesto y el aviso lo cruza quien gaste, una sola vez por nivel. Dos
    gastos simultáneos pueden duplicar un aviso, porque leer y apuntar no es atómico; con
    subagentes sin anidar la familia es de un nivel.*
+   *Tope de llamadas: hasta el 2026-11-02 el límite de llamadas por respuesta estaba fijado en
+   código (32 por respuesta, 64 por turno) y cortaba a los modelos que encadenan herramientas.
+   Ahora el valor por defecto es 128/256 y se puede subir sin recompilar con
+   `CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE` y `CODELOOM_MAX_TOOL_CALLS_PER_TURN`. Un valor menor o
+   igual a cero, o no numérico, se ignora y se usa el valor por defecto.*
 8. **Lo que cruza de un agente a otro también se acota.** El resultado de un subagente vuelve al
    padre y lo paga cada paso siguiente. *Estado: hecho: el aviso de finalización del hijo se recorta a 8 000 bytes.*
 9. **La memoria de la interfaz tiene cota.** Registros por hijo (200 elementos), cachés de

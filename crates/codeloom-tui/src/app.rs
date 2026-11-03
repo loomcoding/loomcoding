@@ -5,7 +5,7 @@ use batten::widgets::composer::hit_index;
 use codeloom_core::agent::compact::parse_summary_text;
 use codeloom_core::budget::BudgetMetric;
 use codeloom_core::catalog::{Catalog, CatalogModel, CatalogProvider};
-use codeloom_core::config::{CodeLoomConfig, ProviderKind};
+use codeloom_core::config::{CodeLoomConfig, ProviderKind, UiConfig};
 use codeloom_core::event::LiveEvent;
 use codeloom_core::event::{A2aDirection, A2aObservation, A2aOperation};
 use codeloom_core::message::{ContentPart, Message, MessageOrigin, Role, Usage, UsageSource};
@@ -287,6 +287,147 @@ pub struct PickerItem {
     pub label: String,
     pub detail: String,
 }
+
+/// Nivel del árbol de la ventana `/temas`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TemasLevel {
+    /// Raíz: las secciones «Efectos», «Tema» y «Spinner».
+    Root,
+    /// Lista de efectos disponibles.
+    Effects,
+    /// Formulario de la lluvia Matrix.
+    Matrix,
+    /// Lista de presets de tema.
+    Theme,
+    /// Lista de indicadores de actividad.
+    Spinner,
+}
+
+impl TemasLevel {
+    /// Título que se muestra en el bloque de la ventana.
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Root => "Temas",
+            Self::Effects => "Temas › Efectos",
+            Self::Matrix => "Temas › Efectos › Matrix rain",
+            Self::Theme => "Temas › Tema",
+            Self::Spinner => "Temas › Spinner",
+        }
+    }
+
+    /// Número de filas seleccionables del nivel.
+    pub fn rows(self) -> usize {
+        match self {
+            Self::Root => 3,
+            Self::Effects => 1,
+            Self::Matrix => MATRIX_FIELDS.len(),
+            Self::Theme => batten::widgets::ThemePreset::ALL.len(),
+            Self::Spinner => SPINNER_CHOICES.len(),
+        }
+    }
+}
+
+/// Indicador de actividad que el composer pinta mientras el agente trabaja.
+///
+/// Se elige en `/temas › Spinner` y se recuerda en `ui.toml`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SpinnerChoice {
+    /// Un estilo distinto en cada petición, tomado de [`SPINNER_CHOICES`].
+    #[default]
+    Random,
+    /// La barra que gira del chasis Crush.
+    Crush,
+    /// Un estilo concreto del catálogo `dotmax`, por índice en
+    /// `batten::widgets::activity::ACTIVITY_STYLES`.
+    Dotmax(usize),
+}
+
+impl SpinnerChoice {
+    /// Nombre estable, el que se escribe en `ui.toml`.
+    pub fn key(self) -> String {
+        match self {
+            Self::Random => "random".into(),
+            Self::Crush => "crush".into(),
+            Self::Dotmax(index) => batten::widgets::activity::ACTIVITY_STYLES
+                .get(index)
+                .copied()
+                .unwrap_or("dot-ring")
+                .to_string(),
+        }
+    }
+
+    /// Etiqueta legible para la lista de `/temas`.
+    pub fn label(self) -> String {
+        match self {
+            Self::Random => "Aleatorio (uno distinto por petición)".into(),
+            Self::Crush => "Crush (barra girando)".into(),
+            Self::Dotmax(index) => batten::widgets::activity::ACTIVITY_STYLES
+                .get(index)
+                .copied()
+                .unwrap_or("dot-ring")
+                .to_string(),
+        }
+    }
+
+    /// Lee un nombre de `ui.toml`; un valor desconocido cae en `Random`.
+    pub fn from_key(key: &str) -> Self {
+        let key = key.trim();
+        if key.eq_ignore_ascii_case("random") || key.is_empty() {
+            return Self::Random;
+        }
+        if key.eq_ignore_ascii_case("crush") {
+            return Self::Crush;
+        }
+        match batten::widgets::activity::ACTIVITY_STYLES
+            .iter()
+            .position(|name| name.eq_ignore_ascii_case(key))
+        {
+            Some(index) => Self::Dotmax(index),
+            None => Self::Random,
+        }
+    }
+
+    /// Estilo de `dotmax` que toca para una petición.
+    ///
+    /// `Random` reparte con la semilla; el resto es fijo. `Crush` no usa
+    /// `dotmax`, así que devuelve el primero solo para tener un valor.
+    pub fn style_for(self, seed: u64) -> &'static str {
+        match self {
+            Self::Random => batten::widgets::activity::pick_activity_style(seed),
+            Self::Crush => batten::widgets::activity::ACTIVITY_STYLES[0],
+            Self::Dotmax(index) => batten::widgets::activity::ACTIVITY_STYLES
+                .get(index)
+                .copied()
+                .unwrap_or(batten::widgets::activity::ACTIVITY_STYLES[0]),
+        }
+    }
+
+    /// Todas las opciones que ofrece `/temas › Spinner`, en orden.
+    pub fn all() -> Vec<Self> {
+        SPINNER_CHOICES.to_vec()
+    }
+}
+
+/// Opciones del selector de spinner: aleatorio, el de Crush y todo el catálogo.
+pub const SPINNER_CHOICES: &[SpinnerChoice] = &[
+    SpinnerChoice::Random,
+    SpinnerChoice::Crush,
+    SpinnerChoice::Dotmax(0),
+    SpinnerChoice::Dotmax(1),
+    SpinnerChoice::Dotmax(2),
+    SpinnerChoice::Dotmax(3),
+    SpinnerChoice::Dotmax(4),
+];
+
+/// Campos del formulario de Matrix rain, en orden de navegación.
+pub const MATRIX_FIELDS: &[&str] = &[
+    "Glifos",
+    "Velocidad",
+    "Densidad",
+    "Longitud",
+    "Color",
+    "Guardar",
+];
 
 /// Forma comparable de una URL base: sin espacios, sin barras finales y en minúsculas.
 fn normalize_base_url(url: &str) -> String {
@@ -762,6 +903,22 @@ pub struct AgentEditorDraft {
     pub editing_value: bool,
 }
 
+/// Qué filtro de la ventana /agents se está editando.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentFilterEdit {
+    Query,
+    Tag,
+}
+
+/// Qué parte de la ventana /agents tiene el foco para navegación con Tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum AgentsFocus {
+    #[default]
+    List,
+    Query,
+    Tag,
+}
+
 #[derive(Debug, Clone)]
 pub struct A2aAgentView {
     pub name: String,
@@ -827,6 +984,9 @@ pub struct App {
     pub(crate) last_escape: Option<Instant>,
     pub cwd: String,
     pub model: String,
+    /// Mostrar avisos de proveedor en el transcript (request started/response received).
+    /// Si `false`, se muestra un spinner en la barra de estado en su lugar.
+    pub verbose_provider_notices: bool,
     pub theme: batten::widgets::Theme,
     pub theme_preset: batten::widgets::ThemePreset,
     /// Fichero donde se guardan las preferencias de la interfaz. `None` = no persistir.
@@ -838,6 +998,8 @@ pub struct App {
     pub matrix_rain: batten::widgets::matrix_rain::MatrixRain,
     pub animation: batten::widgets::Anim,
     pub tools: VecDeque<batten::state::ToolItem>,
+    /// Si se invocó LSP durante la sesión visible.
+    pub lsp_invoked: bool,
     /// Entrada del transcript de cada herramienta y las líneas con las que
     /// está sincronizada (usado por el look `Inline`).
     tool_entries: HashMap<String, (batten::state::EntryId, Vec<batten::state::Line>)>,
@@ -1015,6 +1177,8 @@ pub struct App {
     pub usage_records: Vec<UsageRecord>,
     /// Peticiones de provider activas por sesión y request id, con cifras provisionales y finales.
     active_usage: HashMap<(i64, u64), ActiveUsage>,
+    /// Contador de peticiones de provider en vuelo (para spinner en status bar).
+    pub provider_in_flight: usize,
     /// Desglose estimado de la última petición de la sesión mostrada; `None` hasta recibir uno.
     pub context_breakdown: Option<codeloom_core::agent::compact::ContextBreakdown>,
     /// Copia de los ajustes al abrir el diálogo y tras guardar con éxito.
@@ -1023,6 +1187,18 @@ pub struct App {
     /// `true` tras avisar de cambios sin guardar; una segunda `Esc` descarta.
     pub settings_warned: bool,
     pub settings_open: bool,
+    /// Ventana `/temas` abierta: árbol Temas → Efectos → Matrix rain.
+    pub temas_open: bool,
+    /// Nivel actual del árbol de temas.
+    pub temas_level: TemasLevel,
+    /// Fila seleccionada dentro del nivel actual.
+    pub temas_selected: usize,
+    /// Copia editable de la config de la lluvia mientras la ventana está abierta.
+    pub temas_matrix: batten::widgets::matrix_rain::MatrixConfig,
+    /// Spinner elegido en `/temas › Spinner`.
+    pub spinner_choice: SpinnerChoice,
+    /// `true` si la config en pantalla difiere de la guardada.
+    pub temas_dirty: bool,
     pub settings_field: usize,
     pub settings_editing: bool,
     pub settings_editor: batten::state::Composer,
@@ -1042,6 +1218,16 @@ pub struct App {
     pub agents_open: bool,
     pub agent_rows: Vec<AgentRow>,
     pub agents_selected: usize,
+    /// Texto de búsqueda para filtrar agentes por nombre/descripción.
+    pub agents_query: String,
+    /// Buffer temporal para el tag que se está escribiendo en modo multiselect.
+    pub agents_tag_input: String,
+    /// Tags por los que filtrar agentes (multiselect).
+    pub agents_tag_filter: Option<Vec<String>>,
+    /// Qué filtro se está editando en el popup de agentes (None = navegación normal).
+    pub agents_filter_edit: Option<AgentFilterEdit>,
+    /// Qué parte de la ventana /agents tiene el foco (lista, query, tag).
+    pub agents_focus: AgentsFocus,
     pub agent_edit: Option<AgentEditorDraft>,
     pub agent_editor: batten::state::Composer,
     /// Resultado de la última aprobación o revocación, para pintarlo en el popup.
@@ -1093,6 +1279,16 @@ impl App {
         if let Some(on) = crate::prefs::load_mouse(&path) {
             self.mouse_capture = on;
         }
+        // La lluvia parte de la config del tema y encima aplica el override
+        // del usuario, si lo hay.
+        let matrix = crate::prefs::load_matrix(&path, &self.theme.matrix);
+        self.matrix_rain.set_config(matrix);
+        // El spinner elegido en /temas › Spinner.
+        if let Some(key) = crate::prefs::load_spinner(&path) {
+            self.spinner_choice = SpinnerChoice::from_key(&key);
+            self.composer
+                .set_activity_style(self.spinner_choice.style_for(0));
+        }
         self.prefs_path = Some(path);
     }
 
@@ -1113,6 +1309,18 @@ impl App {
     /// Invierte la captura del ratón (`/mouse`).
     pub fn toggle_mouse_capture(&mut self) {
         self.set_mouse_capture(!self.mouse_capture);
+    }
+
+    /// Fija si los avisos de proveedor van al transcript (`/verbose on|off`).
+    /// El cambio es de sesión: no reescribe `codeloom.toml`.
+    pub fn set_provider_notices_verbose(&mut self, on: bool) {
+        self.verbose_provider_notices = on;
+    }
+
+    /// Invierte los avisos de proveedor (`/verbose`) y devuelve el valor nuevo.
+    pub fn toggle_provider_notices(&mut self) -> bool {
+        self.verbose_provider_notices = !self.verbose_provider_notices;
+        self.verbose_provider_notices
     }
 
     fn apply_theme(&mut self, preset: batten::widgets::ThemePreset) {
@@ -1144,6 +1352,7 @@ impl App {
             last_escape: None,
             cwd: String::new(),
             model: String::new(),
+            verbose_provider_notices: false,
             theme: batten::widgets::Theme::default_dark(),
             theme_preset: batten::widgets::ThemePreset::Batten,
             prefs_path: None,
@@ -1152,6 +1361,7 @@ impl App {
             matrix_rain: batten::widgets::matrix_rain::MatrixRain::default(),
             animation: batten::widgets::Anim::new(),
             tools: VecDeque::new(),
+            lsp_invoked: false,
             tool_entries: HashMap::new(),
             activity_entries: Vec::new(),
             todos: Vec::new(),
@@ -1243,10 +1453,17 @@ impl App {
             refresh_agents_hook: None,
             usage_records: Vec::new(),
             active_usage: HashMap::new(),
+            provider_in_flight: 0,
             context_breakdown: None,
             settings_baseline: None,
             settings_warned: false,
             settings_open: false,
+            temas_open: false,
+            temas_level: TemasLevel::Root,
+            temas_selected: 0,
+            temas_matrix: batten::widgets::matrix_rain::MatrixConfig::default(),
+            spinner_choice: SpinnerChoice::default(),
+            temas_dirty: false,
             settings_field: 0,
             settings_editing: false,
             settings_editor: batten::state::Composer::new(),
@@ -1262,6 +1479,11 @@ impl App {
             agents_open: false,
             agent_rows: Vec::new(),
             agents_selected: 0,
+            agents_query: String::new(),
+            agents_tag_input: String::new(),
+            agents_tag_filter: None,
+            agents_filter_edit: None,
+            agents_focus: AgentsFocus::default(),
             agent_edit: None,
             agent_editor: batten::state::Composer::new(),
             agents_status: None,
@@ -1276,6 +1498,12 @@ impl App {
             model: model.into(),
             ..Self::new()
         }
+    }
+
+    /// Aplica la sección `[ui]` de `codeloom.toml` (avisos de proveedor, etc.).
+    pub fn with_ui_config(mut self, ui: UiConfig) -> Self {
+        self.verbose_provider_notices = ui.verbose_provider_notices;
+        self
     }
 
     pub fn slash_query(&self) -> Option<&str> {
@@ -1299,7 +1527,8 @@ impl App {
         let query = trimmed.strip_prefix('/')?;
         let command = query.split_whitespace().next().unwrap_or(query);
         let has_args = command.len() < query.len();
-        if command.contains('/') || (has_args && command != "attach") {
+        // `attach` y `verbose` aceptan argumentos y siguen mostrando el popup.
+        if command.contains('/') || (has_args && command != "attach" && command != "verbose") {
             return None;
         }
         Some(&trimmed[..command.len() + 1])
@@ -1453,12 +1682,64 @@ impl App {
         self.agent_registry = Some(registry);
     }
 
-    /// Abre el popup de `/agents` con los agentes de la instantánea vigente del registro.
-    pub fn show_agents(&mut self) {
-        self.agents_selected = 0;
-        self.agents_status = None;
+    /// Establece el texto de búsqueda y vuelve a filtrar.
+    pub fn set_agents_query(&mut self, query: String) {
+        self.agents_query = query;
         self.refresh_agent_rows();
-        self.agents_open = true;
+    }
+
+    /// Establece el filtro por tag y vuelve a filtrar.
+    pub fn set_agents_tag_filter(&mut self, tag: Option<Vec<String>>) {
+        self.agents_tag_filter = tag;
+        self.refresh_agent_rows();
+    }
+
+    /// Añade un tag al filtro multiselect.
+    pub fn add_agent_tag_filter(&mut self, tag: String) {
+        let tag = tag.trim().to_string();
+        if tag.is_empty() {
+            return;
+        }
+        let mut tags = self.agents_tag_filter.clone().unwrap_or_default();
+        if !tags.contains(&tag) {
+            tags.push(tag);
+            self.agents_tag_filter = Some(tags);
+            self.refresh_agent_rows();
+        }
+    }
+
+    /// Quita un tag del filtro multiselect.
+    pub fn remove_agent_tag_filter(&mut self, tag: &str) {
+        if let Some(mut tags) = self.agents_tag_filter.clone() {
+            tags.retain(|t| t != tag);
+            self.agents_tag_filter = if tags.is_empty() { None } else { Some(tags) };
+            self.refresh_agent_rows();
+        }
+    }
+
+    /// Limpia ambos filtros y vuelve a filtrar.
+    pub fn clear_agents_filters(&mut self) {
+        self.agents_query.clear();
+        self.agents_tag_filter = None;
+        self.refresh_agent_rows();
+    }
+
+    /// Cicla el foco entre Lista → Query → Tag → Lista...
+    pub fn cycle_agents_focus(&mut self, forward: bool) {
+        self.agents_focus = match (self.agents_focus, forward) {
+            (AgentsFocus::List, true) => AgentsFocus::Query,
+            (AgentsFocus::Query, true) => AgentsFocus::Tag,
+            (AgentsFocus::Tag, true) => AgentsFocus::List,
+            (AgentsFocus::List, false) => AgentsFocus::Tag,
+            (AgentsFocus::Query, false) => AgentsFocus::List,
+            (AgentsFocus::Tag, false) => AgentsFocus::Query,
+        };
+        // Sincroniza agents_filter_edit para el modo edición
+        self.agents_filter_edit = match self.agents_focus {
+            AgentsFocus::Query => Some(AgentFilterEdit::Query),
+            AgentsFocus::Tag => Some(AgentFilterEdit::Tag),
+            AgentsFocus::List => None,
+        };
     }
 
     pub fn begin_agent_edit(&mut self) {
@@ -1667,8 +1948,8 @@ impl App {
 
     /// Reconstruye las filas desde la instantánea vigente, conservando la selección acotada.
     /// El estado de aprobación se consulta en vivo, así que aprobar se refleja sin recargar.
-    fn refresh_agent_rows(&mut self) {
-        self.agent_rows = match &self.agent_registry {
+    pub fn refresh_agent_rows(&mut self) {
+        let filas = match &self.agent_registry {
             Some(registro) => {
                 let instantanea = registro.snapshot();
                 instantanea
@@ -1679,9 +1960,40 @@ impl App {
             }
             None => Vec::new(),
         };
+        let query = self.agents_query.to_lowercase();
+        let tags = self.agents_tag_filter.as_deref();
+        self.agent_rows = filas
+            .into_iter()
+            .filter(|fila| {
+                let coincide_texto = query.is_empty()
+                    || fila.name.to_lowercase().contains(&query)
+                    || fila.description.to_lowercase().contains(&query);
+                let coincide_tag = match tags {
+                    Some(tags) if !tags.is_empty() => tags.iter().any(|tag| {
+                        let tag = tag.to_lowercase();
+                        fila.card_skills.iter().any(|skill| {
+                            skill
+                                .tags
+                                .iter()
+                                .any(|etiqueta| etiqueta.to_lowercase().contains(&tag))
+                        })
+                    }),
+                    _ => true,
+                };
+                coincide_texto && coincide_tag
+            })
+            .collect();
         self.agents_selected = self
             .agents_selected
             .min(self.agent_rows.len().saturating_sub(1));
+    }
+
+    /// Abre el popup de `/agents` con la instantánea vigente del registro.
+    pub fn show_agents(&mut self) {
+        self.agents_selected = 0;
+        self.agents_status = None;
+        self.refresh_agent_rows();
+        self.agents_open = true;
     }
 
     /// Mueve la selección del popup de agentes (`delta` negativo sube), sin dar la vuelta.
@@ -1710,6 +2022,189 @@ impl App {
             Err(error) => format!("Not changed: {error}"),
         });
         self.refresh_agent_rows();
+    }
+
+    /// Abre la ventana `/temas` en la raíz, partiendo de la config vigente.
+    pub fn open_temas(&mut self) {
+        self.temas_open = true;
+        self.temas_level = TemasLevel::Root;
+        self.temas_selected = 0;
+        self.temas_matrix = self.matrix_rain.config().clone();
+        self.temas_dirty = false;
+        self.close_picker();
+    }
+
+    /// Cierra la ventana. Si hay cambios sin guardar, los descarta.
+    pub fn close_temas(&mut self) {
+        self.temas_open = false;
+        self.temas_level = TemasLevel::Root;
+        self.temas_selected = 0;
+        self.temas_dirty = false;
+    }
+
+    /// Mueve la selección dentro del nivel actual, sin dar la vuelta.
+    pub fn temas_move(&mut self, delta: isize) {
+        let tope = self.temas_level.rows().saturating_sub(1);
+        self.temas_selected = self.temas_selected.saturating_add_signed(delta).min(tope);
+    }
+
+    /// `Enter`: entra en el elemento seleccionado o aplica la acción del nivel.
+    pub fn temas_enter(&mut self) {
+        match self.temas_level {
+            TemasLevel::Root => {
+                self.temas_level = match self.temas_selected {
+                    0 => TemasLevel::Effects,
+                    1 => TemasLevel::Theme,
+                    _ => TemasLevel::Spinner,
+                };
+                self.temas_selected = 0;
+            }
+            TemasLevel::Effects => {
+                self.temas_level = TemasLevel::Matrix;
+                self.temas_selected = 0;
+            }
+            TemasLevel::Theme => {
+                if let Some(&preset) = batten::widgets::ThemePreset::ALL.get(self.temas_selected) {
+                    self.apply_theme(preset);
+                    // El tema cambia la config base de la lluvia: se refresca
+                    // la copia editable para no quedarse con la anterior.
+                    self.temas_matrix = self.theme.matrix.clone();
+                    self.temas_dirty = false;
+                }
+            }
+            TemasLevel::Spinner => {
+                if let Some(&choice) = SPINNER_CHOICES.get(self.temas_selected) {
+                    self.spinner_choice = choice;
+                    self.temas_dirty = true;
+                    self.persist_spinner();
+                    // El composer refleja la elección sin esperar a la próxima petición.
+                    self.composer.set_activity_style(choice.style_for(0));
+                    self.temas_dirty = false;
+                }
+            }
+            TemasLevel::Matrix => {
+                if self.temas_selected == MATRIX_FIELDS.len() - 1 {
+                    self.temas_save();
+                }
+            }
+        }
+    }
+
+    /// `Esc`: sube un nivel, o cierra la ventana si ya está en la raíz.
+    pub fn temas_back(&mut self) {
+        match self.temas_level {
+            TemasLevel::Root => self.close_temas(),
+            TemasLevel::Effects => {
+                self.temas_level = TemasLevel::Root;
+                self.temas_selected = 0;
+            }
+            TemasLevel::Matrix => {
+                self.temas_level = TemasLevel::Effects;
+                self.temas_selected = 0;
+            }
+            TemasLevel::Theme => {
+                self.temas_level = TemasLevel::Root;
+                self.temas_selected = 1;
+            }
+            TemasLevel::Spinner => {
+                self.temas_level = TemasLevel::Root;
+                self.temas_selected = 2;
+            }
+        }
+    }
+
+    /// `←`/`→`: ajusta el campo seleccionado del formulario de Matrix rain,
+    /// o cambia el spinner elegido cuando el nivel es `Spinner`.
+    pub fn temas_adjust(&mut self, forward: bool) {
+        if self.temas_level == TemasLevel::Spinner {
+            let count = SPINNER_CHOICES.len();
+            let next = if forward {
+                (self.temas_selected + 1) % count
+            } else {
+                (self.temas_selected + count - 1) % count
+            };
+            self.temas_selected = next;
+            if let Some(&choice) = SPINNER_CHOICES.get(next) {
+                self.spinner_choice = choice;
+                self.composer.set_activity_style(choice.style_for(0));
+                self.persist_spinner();
+            }
+            return;
+        }
+        if self.temas_level != TemasLevel::Matrix {
+            return;
+        }
+        let mut config = self.temas_matrix.clone();
+        match self.temas_selected {
+            0 => {
+                // Glifos: cicla por los presets.
+                let presets = [
+                    batten::widgets::matrix_rain::GlyphSet::katakana(),
+                    batten::widgets::matrix_rain::GlyphSet::emoji(),
+                    batten::widgets::matrix_rain::GlyphSet::binary(),
+                    batten::widgets::matrix_rain::GlyphSet::ascii(),
+                    batten::widgets::matrix_rain::GlyphSet::mixed(),
+                ];
+                let current = presets
+                    .iter()
+                    .position(|p| *p == config.glyphs)
+                    .unwrap_or(0);
+                let next = if forward {
+                    (current + 1) % presets.len()
+                } else {
+                    (current + presets.len() - 1) % presets.len()
+                };
+                config.glyphs = presets[next].clone();
+            }
+            1 => {
+                let step = if forward { 0.05 } else { -0.05 };
+                config.speed = (config.speed + step).clamp(0.05, 4.0);
+            }
+            2 => {
+                let step: i16 = if forward { 1 } else { -1 };
+                config.density = (i16::from(config.density) + step).clamp(0, 100) as u8;
+            }
+            3 => {
+                let step: i32 = if forward { 1 } else { -1 };
+                config.length = (i32::from(config.length) + step).clamp(1, 200) as u16;
+            }
+            4 => {
+                // Color: cicla por los tokens del tema.
+                let tokens = batten::state::transcript::ALL_TOKENS;
+                let current = tokens.iter().position(|t| *t == config.color).unwrap_or(0);
+                let next = if forward {
+                    (current + 1) % tokens.len()
+                } else {
+                    (current + tokens.len() - 1) % tokens.len()
+                };
+                config.color = tokens[next];
+            }
+            _ => return,
+        }
+        self.temas_matrix = config.clamped();
+        self.temas_dirty = true;
+        // Previsualización en vivo.
+        self.matrix_rain.set_config(self.temas_matrix.clone());
+    }
+
+    /// Guarda la config de la lluvia en `ui.toml` y la deja aplicada.
+    pub fn temas_save(&mut self) {
+        self.matrix_rain.set_config(self.temas_matrix.clone());
+        if let Some(path) = &self.prefs_path {
+            let _ = crate::prefs::save_matrix(path, &self.temas_matrix);
+        }
+        self.temas_dirty = false;
+    }
+
+    /// Persiste el spinner elegido en `ui.toml`. Un fallo no impide el cambio:
+    /// el spinner ya está aplicado en memoria y solo se avisa en `slash_feedback`.
+    pub fn persist_spinner(&mut self) {
+        let Some(path) = &self.prefs_path else {
+            return;
+        };
+        if let Err(err) = crate::prefs::save_spinner(path, &self.spinner_choice.key()) {
+            self.slash_feedback = Some(format!("Spinner not saved: {err}"));
+        }
     }
 
     pub fn open_settings(&mut self) {
@@ -2189,6 +2684,7 @@ impl App {
         self.assistant = None;
         self.history = batten::state::History::new();
         self.tools.clear();
+        self.lsp_invoked = false;
         self.tool_entries.clear();
         self.activity_scroll = 0;
         // Las anotaciones de nodo van con sus entradas: si sobrevivieran, una llamada
@@ -2244,6 +2740,9 @@ impl App {
                         match part {
                             ContentPart::Text { text } => self.push_assistant(&text),
                             ContentPart::ToolCall { id, name, input } => {
+                                if name == "lsp" {
+                                    self.lsp_invoked = true;
+                                }
                                 if name == TODO_TOOL {
                                     if let Ok(items) = codeloom_core::todo::parse_todos(&input) {
                                         self.todos = items;
@@ -3696,6 +4195,9 @@ impl App {
                 self.assistant = None;
             }
             LiveEvent::ToolStarted { call_id, name } => {
+                if name == "lsp" {
+                    self.lsp_invoked = true;
+                }
                 self.set_phase("running tools");
                 let tool = self.tool_mut(&call_id, &name);
                 tool.start();
@@ -3742,11 +4244,34 @@ impl App {
                 if self.status.starts_with("stopping subagent") {
                     self.status = "ready".into();
                 }
-                self.transcript.push_entry(
-                    batten::state::LineKind::System,
-                    batten::state::Format::Plain,
-                    message,
-                );
+                // Detectar mensajes de proveedor para spinner en status bar
+                let is_provider_start = message.contains("provider request started");
+                let is_provider_end = message.contains("provider response received");
+                if is_provider_start {
+                    self.provider_in_flight = self.provider_in_flight.saturating_add(1);
+                    // Estilo nuevo por petición: el composer cambia de indicador.
+                    let seed = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.subsec_nanos() as u64)
+                        .unwrap_or(0);
+                    self.composer
+                        .set_activity_style(batten::widgets::activity::pick_activity_style(seed));
+                    self.composer.set_working(!self.verbose_provider_notices);
+                }
+                if is_provider_end && self.provider_in_flight > 0 {
+                    self.provider_in_flight = self.provider_in_flight.saturating_sub(1);
+                    if self.provider_in_flight == 0 {
+                        self.composer.set_working(false);
+                    }
+                }
+                // Solo añadir al transcript si verbose_provider_notices está activado
+                if self.verbose_provider_notices || (!is_provider_start && !is_provider_end) {
+                    self.transcript.push_entry(
+                        batten::state::LineKind::System,
+                        batten::state::Format::Plain,
+                        message,
+                    );
+                }
                 self.assistant = None;
             }
             LiveEvent::FileDiff {
@@ -5007,6 +5532,44 @@ fn budget_warning_line(
 mod tests {
     use super::*;
     use batten::state::ToolStatus;
+
+    #[test]
+    fn provider_notices_are_hidden_by_default_and_drive_the_spinner() {
+        let mut app = App::new();
+        assert!(!app.verbose_provider_notices);
+        app.apply(codeloom_core::event::LiveEvent::RuntimeNotice {
+            message: "provider request started for `m`".into(),
+        });
+        assert_eq!(app.provider_in_flight, 1);
+        assert_eq!(app.transcript.entry_count(), 0);
+        app.apply(codeloom_core::event::LiveEvent::RuntimeNotice {
+            message: "provider response received for `m`".into(),
+        });
+        assert_eq!(app.provider_in_flight, 0);
+        assert_eq!(app.transcript.entry_count(), 0);
+    }
+
+    #[test]
+    fn provider_notices_are_shown_when_verbose() {
+        let mut app = App::new().with_ui_config(codeloom_core::config::UiConfig {
+            verbose_provider_notices: true,
+        });
+        app.apply(codeloom_core::event::LiveEvent::RuntimeNotice {
+            message: "provider request started for `m`".into(),
+        });
+        assert_eq!(app.transcript.entry_count(), 1);
+        assert_eq!(app.provider_in_flight, 1);
+    }
+
+    #[test]
+    fn other_runtime_notices_are_always_shown() {
+        let mut app = App::new();
+        app.apply(codeloom_core::event::LiveEvent::RuntimeNotice {
+            message: "subagent finished".into(),
+        });
+        assert_eq!(app.transcript.entry_count(), 1);
+        assert_eq!(app.provider_in_flight, 0);
+    }
 
     #[test]
     fn mcp_capability_without_schema_tokens_deserializes_with_zero() {
@@ -9538,6 +10101,181 @@ línea dos {}",
         assert!(!app.mouse_capture_dirty);
         assert!(app.slash_feedback.is_none());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    }
+
+    #[test]
+    fn set_prefs_path_applies_saved_matrix_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        let saved = batten::widgets::matrix_rain::MatrixConfig {
+            glyphs: batten::widgets::matrix_rain::GlyphSet::binary(),
+            speed: 2.5,
+            density: 60,
+            length: 14,
+            color: batten::state::StyleToken::Accent,
+        };
+        crate::prefs::save_matrix(&path, &saved).unwrap();
+        let mut app = App::new();
+        app.set_prefs_path(path);
+        assert_eq!(app.matrix_rain.config(), &saved);
+    }
+
+    #[test]
+    fn set_prefs_path_without_matrix_keeps_theme_config() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        std::fs::write(&path, "mouse = true\n").unwrap();
+        let mut app = App::new();
+        let from_theme = app.theme.matrix.clone();
+        app.set_prefs_path(path);
+        assert_eq!(app.matrix_rain.config(), &from_theme);
+    }
+
+    #[test]
+    fn temas_opens_at_root() {
+        let mut app = App::new();
+        app.open_temas();
+        assert!(app.temas_open);
+        assert_eq!(app.temas_level, TemasLevel::Root);
+        assert_eq!(app.temas_selected, 0);
+        assert!(!app.temas_dirty);
+    }
+
+    #[test]
+    fn temas_enter_walks_down_the_tree() {
+        let mut app = App::new();
+        app.open_temas();
+        // Raíz → Efectos
+        app.temas_enter();
+        assert_eq!(app.temas_level, TemasLevel::Effects);
+        // Efectos → Matrix
+        app.temas_enter();
+        assert_eq!(app.temas_level, TemasLevel::Matrix);
+        assert_eq!(app.temas_selected, 0);
+    }
+
+    #[test]
+    fn temas_esc_walks_up_and_closes_at_root() {
+        let mut app = App::new();
+        app.open_temas();
+        app.temas_enter();
+        app.temas_enter();
+        assert_eq!(app.temas_level, TemasLevel::Matrix);
+        app.temas_back();
+        assert_eq!(app.temas_level, TemasLevel::Effects);
+        app.temas_back();
+        assert_eq!(app.temas_level, TemasLevel::Root);
+        app.temas_back();
+        assert!(!app.temas_open);
+    }
+
+    #[test]
+    fn temas_selection_does_not_wrap() {
+        let mut app = App::new();
+        app.open_temas();
+        app.temas_move(-1);
+        assert_eq!(app.temas_selected, 0);
+        app.temas_move(1);
+        assert_eq!(app.temas_selected, 1);
+        app.temas_move(1);
+        assert_eq!(app.temas_selected, 2);
+        app.temas_move(1);
+        assert_eq!(app.temas_selected, 2);
+    }
+
+    #[test]
+    fn temas_theme_level_applies_preset() {
+        let mut app = App::new();
+        app.open_temas();
+        app.temas_move(1);
+        app.temas_enter();
+        assert_eq!(app.temas_level, TemasLevel::Theme);
+        let before = app.theme_preset;
+        app.temas_move(1);
+        app.temas_enter();
+        assert_ne!(app.theme_preset, before);
+    }
+
+    #[test]
+    fn temas_matrix_adjust_marks_dirty_and_previews() {
+        let mut app = App::new();
+        app.open_temas();
+        app.temas_enter();
+        app.temas_enter();
+        let before = app.temas_matrix.speed;
+        app.temas_move(1);
+        app.temas_adjust(true);
+        assert!(app.temas_matrix.speed > before);
+        assert!(app.temas_dirty);
+        // La previsualización aplica al widget en vivo.
+        assert_eq!(app.matrix_rain.config().speed, app.temas_matrix.speed);
+    }
+
+    #[test]
+    fn temas_matrix_glyph_cycle_changes_preset() {
+        let mut app = App::new();
+        app.open_temas();
+        app.temas_enter();
+        app.temas_enter();
+        let before = app.temas_matrix.glyphs.preset_name();
+        app.temas_adjust(true);
+        assert_ne!(app.temas_matrix.glyphs.preset_name(), before);
+    }
+
+    #[test]
+    fn temas_matrix_values_are_clamped() {
+        let mut app = App::new();
+        app.open_temas();
+        app.temas_enter();
+        app.temas_enter();
+        // Densidad: bajar 200 veces no debe pasar de 0.
+        app.temas_move(2);
+        for _ in 0..200 {
+            app.temas_adjust(false);
+        }
+        assert_eq!(app.temas_matrix.density, 0);
+        // Longitud: subir 300 veces no debe pasar de 200.
+        app.temas_move(1);
+        for _ in 0..300 {
+            app.temas_adjust(true);
+        }
+        assert_eq!(app.temas_matrix.length, 200);
+    }
+
+    #[test]
+    fn temas_save_persists_and_clears_dirty() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        let mut app = App::new();
+        app.set_prefs_path(path.clone());
+        app.open_temas();
+        app.temas_enter();
+        app.temas_enter();
+        app.temas_move(1);
+        app.temas_adjust(true);
+        assert!(app.temas_dirty);
+        app.temas_save();
+        assert!(!app.temas_dirty);
+        // Se guardó de verdad: recargar lo devuelve.
+        let loaded = crate::prefs::load_matrix(
+            &path,
+            &batten::widgets::matrix_rain::MatrixConfig::default(),
+        );
+        assert_eq!(loaded.speed, app.temas_matrix.speed);
+    }
+
+    #[test]
+    fn temas_close_discards_unsaved_changes() {
+        let mut app = App::new();
+        app.open_temas();
+        app.temas_enter();
+        app.temas_enter();
+        app.temas_move(1);
+        app.temas_adjust(true);
+        assert!(app.temas_dirty);
+        app.close_temas();
+        assert!(!app.temas_open);
+        assert!(!app.temas_dirty);
     }
 
     #[test]

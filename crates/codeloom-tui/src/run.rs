@@ -1,5 +1,8 @@
 use crate::app::Focus;
-use crate::app::{App, ProviderSettings, SessionChoice, SettingsPicker, SETTINGS_EFFORT_FIELD};
+use crate::app::{
+    AgentFilterEdit, AgentsFocus, App, ProviderSettings, SessionChoice, SettingsPicker,
+    SETTINGS_EFFORT_FIELD,
+};
 use crate::frame::{FrameScheduler, Urgency, MIN_FRAME};
 use crate::render::render;
 use codeloom_core::catalog::Catalog;
@@ -317,6 +320,10 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         handle_settings_key(app, code, mods);
         return None;
     }
+    if app.temas_open {
+        handle_temas_key(app, code);
+        return None;
+    }
     if app.help_open {
         if matches!(code, KeyCode::F(1) | KeyCode::Esc) {
             app.help_open = false;
@@ -381,16 +388,97 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         return None;
     }
     if app.agents_open {
+        // Modo edición de filtros (Query o Tag)
+        if app.agents_filter_edit.is_some() {
+            match code {
+                KeyCode::Esc => {
+                    app.agents_filter_edit = None;
+                    app.agents_focus = AgentsFocus::List;
+                    app.agents_tag_input.clear();
+                }
+                KeyCode::Enter => {
+                    match app.agents_filter_edit.unwrap() {
+                        AgentFilterEdit::Query => {
+                            app.agents_filter_edit = None;
+                            app.agents_focus = AgentsFocus::List;
+                        }
+                        AgentFilterEdit::Tag => {
+                            // Añadir el tag escrito y limpiar buffer
+                            let tag = app.agents_tag_input.trim().to_string();
+                            if !tag.is_empty() {
+                                app.add_agent_tag_filter(tag);
+                            }
+                            app.agents_tag_input.clear();
+                        }
+                    }
+                }
+                KeyCode::Tab => app.cycle_agents_focus(true),
+                KeyCode::BackTab => app.cycle_agents_focus(false),
+                KeyCode::Char('a') if mods.contains(KeyModifiers::CONTROL) => {
+                    match app.agents_filter_edit.unwrap() {
+                        AgentFilterEdit::Query => app.set_agents_query(String::new()),
+                        AgentFilterEdit::Tag => {
+                            app.set_agents_tag_filter(None);
+                            app.agents_tag_input.clear();
+                        }
+                    }
+                }
+                KeyCode::Backspace => match app.agents_filter_edit.unwrap() {
+                    AgentFilterEdit::Query => {
+                        let mut query = app.agents_query.clone();
+                        query.pop();
+                        app.set_agents_query(query);
+                    }
+                    AgentFilterEdit::Tag => {
+                        if !app.agents_tag_input.is_empty() {
+                            app.agents_tag_input.pop();
+                        } else if let Some(tags) = app.agents_tag_filter.clone() {
+                            if let Some(last) = tags.last().cloned() {
+                                app.remove_agent_tag_filter(&last);
+                            }
+                        }
+                    }
+                },
+                KeyCode::Char(c) if !mods.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {
+                    match app.agents_filter_edit.unwrap() {
+                        AgentFilterEdit::Query if app.agents_query.len() + c.len_utf8() <= 128 => {
+                            let mut query = app.agents_query.clone();
+                            query.push(c);
+                            app.set_agents_query(query);
+                        }
+                        AgentFilterEdit::Tag if app.agents_tag_input.len() + c.len_utf8() <= 64 => {
+                            app.agents_tag_input.push(c);
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+            return None;
+        }
+
+        // Modo navegación lista
         match code {
             KeyCode::Esc | KeyCode::Char('q') => app.agents_open = false,
             KeyCode::Up => app.agents_move(-1),
             KeyCode::Down => app.agents_move(1),
+            KeyCode::Tab => app.cycle_agents_focus(true),
+            KeyCode::BackTab => app.cycle_agents_focus(false),
             KeyCode::PageUp => app.agents_move(-5),
             KeyCode::PageDown => app.agents_move(5),
             KeyCode::Home => app.agents_move(isize::MIN / 2),
             KeyCode::Char('a') => app.agents_decide(true),
             KeyCode::Char('r') => app.agents_decide(false),
             KeyCode::Char('e') => app.begin_agent_edit(),
+            KeyCode::Char('/') => {
+                app.agents_filter_edit = Some(AgentFilterEdit::Query);
+                app.agents_focus = AgentsFocus::Query;
+            }
+            KeyCode::Char('t') => {
+                app.agents_filter_edit = Some(AgentFilterEdit::Tag);
+                app.agents_focus = AgentsFocus::Tag;
+            }
+            KeyCode::Char('x') => app.clear_agents_filters(),
             _ => {}
         }
         return None;
@@ -872,6 +960,8 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
 
 fn execute_slash_command(app: &mut App, command: crate::commands::Command) -> Option<String> {
     use crate::commands::Command;
+    // `/verbose` lee su argumento del texto escrito, que se borra justo abajo.
+    let verbose_arg = app.composer.text().trim().to_string();
     if command == Command::Compact {
         // Con motivo de rechazo queda en `slash_feedback` y se conserva el texto escrito.
         if !app.request_compact() {
@@ -905,6 +995,10 @@ fn execute_slash_command(app: &mut App, command: crate::commands::Command) -> Op
             confirm_theme(app);
             None
         }
+        Command::Temas => {
+            app.open_temas();
+            None
+        }
         Command::Crush => {
             app.set_theme(batten::widgets::ThemePreset::Crush);
             confirm_theme(app);
@@ -936,6 +1030,38 @@ fn execute_slash_command(app: &mut App, command: crate::commands::Command) -> Op
         Command::Mouse => {
             app.toggle_mouse_capture();
             confirm_mouse(app);
+            None
+        }
+        Command::Verbose => {
+            // El texto todavía contiene `/verbose ...`; nos quedamos con lo que sigue al nombre.
+            let arg = verbose_arg
+                .strip_prefix("/verbose")
+                .map(str::trim)
+                .unwrap_or("");
+            match arg {
+                "" => {
+                    let on = app.toggle_provider_notices();
+                    app.slash_feedback = Some(
+                        if on {
+                            "Provider notices: on"
+                        } else {
+                            "Provider notices: off"
+                        }
+                        .into(),
+                    );
+                }
+                "on" => {
+                    app.set_provider_notices_verbose(true);
+                    app.slash_feedback = Some("Provider notices: on".into());
+                }
+                "off" => {
+                    app.set_provider_notices_verbose(false);
+                    app.slash_feedback = Some("Provider notices: off".into());
+                }
+                _ => {
+                    app.slash_feedback = Some("Usage: /verbose [on|off]".into());
+                }
+            }
             None
         }
         Command::Cancel => {
@@ -1018,6 +1144,21 @@ fn handle_queue_editor_key(app: &mut App, code: KeyCode, mods: KeyModifiers) {
         KeyCode::Char(c) if !mods.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {
             app.queue_editor.insert_char(c);
         }
+        _ => {}
+    }
+}
+
+/// Teclado de la ventana `/temas`: árbol con `↑`/`↓`, `Enter` para entrar,
+/// `Esc` para subir un nivel y `←`/`→` para ajustar el campo del formulario.
+fn handle_temas_key(app: &mut App, code: KeyCode) {
+    match code {
+        KeyCode::Esc | KeyCode::Char('q') => app.temas_back(),
+        KeyCode::Up => app.temas_move(-1),
+        KeyCode::Down => app.temas_move(1),
+        KeyCode::Enter => app.temas_enter(),
+        KeyCode::Left => app.temas_adjust(false),
+        KeyCode::Right => app.temas_adjust(true),
+        KeyCode::Char('s') => app.temas_save(),
         _ => {}
     }
 }
@@ -1445,6 +1586,7 @@ pub async fn run(
         let animating = (fx.is_some() && app.permission.is_some())
             || app.matrix_rain.animating()
             || app.thinking
+            || app.provider_in_flight > 0
             || app.tools.iter().any(|tool| tool.is_spinning());
         let deadline = frames.deadline();
         tokio::select! {
@@ -3785,6 +3927,58 @@ Cuerpo.
         assert_eq!(
             app.slash_feedback.as_deref(),
             Some("Mouse capture on (wheel scrolls)")
+        );
+    }
+
+    #[test]
+    fn verbose_command_toggles_provider_notices_and_reports() {
+        let mut app = App::new();
+        assert!(!app.verbose_provider_notices);
+        app.composer.set_text("/verbose");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert!(app.verbose_provider_notices);
+        assert_eq!(app.slash_feedback.as_deref(), Some("Provider notices: on"));
+        assert!(app.composer.is_empty());
+
+        app.composer.set_text("/verbose");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert!(!app.verbose_provider_notices);
+        assert_eq!(app.slash_feedback.as_deref(), Some("Provider notices: off"));
+    }
+
+    #[test]
+    fn verbose_command_takes_an_explicit_value_and_rejects_junk() {
+        let mut app = App::new();
+        app.composer.set_text("/verbose on");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert!(app.verbose_provider_notices);
+
+        app.composer.set_text("/verbose off");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert!(!app.verbose_provider_notices);
+        assert_eq!(app.slash_feedback.as_deref(), Some("Provider notices: off"));
+
+        app.composer.set_text("/verbose maybe");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert!(!app.verbose_provider_notices);
+        assert_eq!(
+            app.slash_feedback.as_deref(),
+            Some("Usage: /verbose [on|off]")
         );
     }
 

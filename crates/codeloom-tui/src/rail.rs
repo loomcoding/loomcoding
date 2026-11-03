@@ -176,15 +176,17 @@ fn rail_lines(app: &App, width: usize) -> Vec<Line<'_>> {
                 Span::raw(recortar(&issue, width.saturating_sub(2))),
             ]));
         }
-        let lsp_invoked = app.tools.iter().any(|tool| tool.name == "lsp");
-        let lsp_status = match (
-            capabilities.lsp_registered,
-            capabilities.rust_analyzer_available,
-        ) {
-            (false, _) => "tool unavailable".to_owned(),
-            (true, false) => "registered · rust-analyzer missing".to_owned(),
-            (true, true) if lsp_invoked => "rust-analyzer found · used".to_owned(),
-            (true, true) => "rust-analyzer found · on demand".to_owned(),
+        let lsp_status = if app.lsp_invoked {
+            "query called this session".to_owned()
+        } else {
+            match (
+                capabilities.lsp_registered,
+                capabilities.rust_analyzer_available,
+            ) {
+                (false, _) => "tool unavailable".to_owned(),
+                (true, false) => "registered · rust-analyzer missing".to_owned(),
+                (true, true) => "rust-analyzer found · on demand".to_owned(),
+            }
         };
         out.push(Line::from(vec![
             Span::styled("LSP  ", app.theme.styles.accent),

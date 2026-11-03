@@ -32,8 +32,8 @@ impl Demo for MatrixRainDemo {
         "Space: iniciar/detener emisión · las gotas activas llegan al borde"
     }
 
-    fn render(&mut self, frame: &mut Frame, area: Rect, _theme: &Theme) {
-        self.rain.render(frame, area);
+    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &Theme) {
+        self.rain.render(frame, area, theme);
         let status = if self.emitting {
             "emitiendo lluvia · Space para detener"
         } else if self.rain.animating() {

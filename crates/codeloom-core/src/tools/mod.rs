@@ -121,6 +121,14 @@ pub fn limit_output(content: &str) -> std::borrow::Cow<'_, str> {
     limit_bytes(content, MAX_TOOL_OUTPUT_BYTES)
 }
 
+/// Adapta el texto recibido al formato de fin de línea del archivo destino.
+pub(crate) fn match_line_endings(text: &str, file: &str) -> String {
+    let crlf = file.matches("\r\n").count();
+    let lf = file.matches('\n').count().saturating_sub(crlf);
+    let newline = if crlf > lf { "\r\n" } else { "\n" };
+    text.replace("\r\n", "\n").replace('\n', newline)
+}
+
 #[derive(Clone)]
 pub struct ToolCtx {
     pub cwd: PathBuf,
@@ -279,8 +287,61 @@ pub fn mcp_schema_tokens_by_server(tools: &[std::sync::Arc<dyn Tool>]) -> BTreeM
     by_server
 }
 
+/// Herramientas que solo ven los subagentes: la sesión raíz no tiene tarea a la que adjuntarlas.
+/// Se registran al lanzar cada hijo, no en `project_registry`.
+pub const CHILD_ONLY_TOOLS: &[&str] = &["artifact_publish"];
+
+/// Registro de herramientas de la sesión raíz de un proyecto. `project_env` es el entorno que ve `bash`.
+pub fn project_registry(project_env: std::collections::HashMap<String, String>) -> ToolRegistry {
+    let mut tools = ToolRegistry::new();
+    tools.register(Arc::new(view::ViewTool));
+    tools.register(Arc::new(ls::LsTool));
+    tools.register(Arc::new(glob::GlobTool));
+    tools.register(Arc::new(grep::GrepTool));
+    tools.register(Arc::new(edit::EditTool));
+    tools.register(Arc::new(write::WriteTool));
+    tools.register(Arc::new(multiedit::MultiEditTool));
+    tools.register(Arc::new(lsp::LspTool));
+    tools.register(Arc::new(web::WebTool));
+    tools.register(Arc::new(bash::ProjectBashTool::new(project_env)));
+    tools.register(Arc::new(job_list::JobListTool));
+    tools.register(Arc::new(job_output::JobOutputTool));
+    tools.register(Arc::new(job_kill::JobKillTool));
+    tools.register(Arc::new(job_start::JobStartTool));
+    tools.register(Arc::new(subagent::SubagentTool));
+    tools.register(Arc::new(subagent_control::SubagentControlTool));
+    tools.register(Arc::new(subagent_list::SubagentListTool));
+    tools.register(Arc::new(artifact_read::ArtifactReadTool));
+    tools.register(Arc::new(todo_write::TodoWriteTool));
+    tools.register(Arc::new(ask_user::AskUserTool));
+    tools.register(Arc::new(development_workflow::DevelopmentWorkflowTool));
+    tools
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn project_registry_exposes_the_expected_tools() {
+        let registro = super::project_registry(std::collections::HashMap::new());
+        let nombres: Vec<String> = registro.specs().into_iter().map(|s| s.name).collect();
+        assert_eq!(nombres.len(), 21, "{nombres:?}");
+        for esperada in [
+            "bash",
+            "edit",
+            "subagent",
+            "artifact_read",
+            "development_workflow",
+        ] {
+            assert!(nombres.iter().any(|n| n == esperada), "falta {esperada}");
+        }
+        assert!(!nombres.iter().any(|n| n == "artifact_publish"));
+    }
+
+    #[test]
+    fn child_only_tools_are_registered_for_children() {
+        assert!(super::CHILD_ONLY_TOOLS.contains(&"artifact_publish"));
+    }
+
     use super::*;
     use async_trait::async_trait;
 

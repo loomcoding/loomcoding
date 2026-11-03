@@ -231,10 +231,13 @@ impl SessionStore for SqliteStore {
             "SELECT s.id, COUNT(m.id) AS message_count, MAX(m.id) AS last_message_id
              FROM sessions s
              JOIN messages m ON m.session_id = s.id
-             WHERE s.project = ?
+WHERE s.project = ?
+  OR substr(s.project, 1, length(?) + 1) = ? || ':'
              GROUP BY s.id
              ORDER BY last_message_id DESC",
         )
+        .bind(project)
+        .bind(project)
         .bind(project)
         .fetch_all(&self.pool)
         .await
@@ -265,8 +268,12 @@ impl SessionStore for SqliteStore {
     }
 
     async fn session_belongs_to_project(&self, session: SessionId, project: &str) -> Result<bool> {
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ? AND project = ?)")
+        sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM sessions WHERE id = ? AND (project = ? OR substr(project, 1, length(?) + 1) = ? || ':'))",
+        )
             .bind(session.0)
+            .bind(project)
+            .bind(project)
             .bind(project)
             .fetch_one(&self.pool)
             .await

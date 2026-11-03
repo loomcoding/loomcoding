@@ -10,10 +10,18 @@
 use std::io;
 use std::path::Path;
 
+use batten::state::StyleToken;
+use batten::widgets::matrix_rain::{GlyphSet, MatrixConfig};
 use batten::widgets::ThemePreset;
 
 const THEME_KEY: &str = "theme";
 const MOUSE_KEY: &str = "mouse";
+const SPINNER_KEY: &str = "spinner";
+const MATRIX_GLYPHS_KEY: &str = "matrix_glyphs";
+const MATRIX_SPEED_KEY: &str = "matrix_speed";
+const MATRIX_DENSITY_KEY: &str = "matrix_density";
+const MATRIX_LENGTH_KEY: &str = "matrix_length";
+const MATRIX_COLOR_KEY: &str = "matrix_color";
 
 /// Identificador estable y en minúsculas de cada preset, tal como se escribe en el fichero.
 fn key(preset: ThemePreset) -> &'static str {
@@ -108,9 +116,106 @@ pub fn save_mouse(path: &Path, on: bool) -> io::Result<()> {
     save_value(path, MOUSE_KEY, if on { "true" } else { "false" })
 }
 
+/// Lee el spinner guardado: un nombre de estilo, `"random"` o `"crush"`.
+///
+/// Cualquier otro valor produce `None` y se queda el de por defecto.
+pub fn load_spinner(path: &Path) -> Option<String> {
+    load_value(path, SPINNER_KEY, |value| {
+        Some(value.strip_prefix('"')?.strip_suffix('"')?.to_string())
+    })
+}
+
+/// Guarda el spinner elegido, conservando el resto de líneas del fichero.
+pub fn save_spinner(path: &Path, name: &str) -> io::Result<()> {
+    save_value(path, SPINNER_KEY, &format!("\"{name}\""))
+}
+
+/// Aplica sobre `base` (la config del tema) los ajustes de lluvia que el
+/// usuario haya guardado. Cada campo es independiente: lo que falte en el
+/// fichero conserva el valor del tema.
+pub fn load_matrix(path: &Path, base: &MatrixConfig) -> MatrixConfig {
+    let mut config = base.clone();
+    if let Some(name) = load_value(path, MATRIX_GLYPHS_KEY, |v| {
+        Some(v.strip_prefix('"')?.strip_suffix('"')?.to_string())
+    }) {
+        if let Some(glyphs) = glyphs_from_name(&name) {
+            config.glyphs = glyphs;
+        }
+    }
+    if let Some(speed) = load_value(path, MATRIX_SPEED_KEY, |v| v.parse::<f32>().ok()) {
+        config.speed = speed;
+    }
+    if let Some(density) = load_value(path, MATRIX_DENSITY_KEY, |v| v.parse::<u8>().ok()) {
+        config.density = density;
+    }
+    if let Some(length) = load_value(path, MATRIX_LENGTH_KEY, |v| v.parse::<u16>().ok()) {
+        config.length = length;
+    }
+    if let Some(name) = load_value(path, MATRIX_COLOR_KEY, |v| {
+        Some(v.strip_prefix('"')?.strip_suffix('"')?.to_string())
+    }) {
+        if let Some(token) = StyleToken::from_key(&name) {
+            config.color = token;
+        }
+    }
+    config.clamped()
+}
+
+/// Guarda la config de la lluvia, conservando el resto de líneas del fichero.
+pub fn save_matrix(path: &Path, config: &MatrixConfig) -> io::Result<()> {
+    save_value(
+        path,
+        MATRIX_GLYPHS_KEY,
+        &format!("\"{}\"", config.glyphs.preset_name()),
+    )?;
+    save_value(path, MATRIX_SPEED_KEY, &format!("{:.2}", config.speed))?;
+    save_value(path, MATRIX_DENSITY_KEY, &config.density.to_string())?;
+    save_value(path, MATRIX_LENGTH_KEY, &config.length.to_string())?;
+    save_value(
+        path,
+        MATRIX_COLOR_KEY,
+        &format!("\"{}\"", config.color.key()),
+    )
+}
+
+/// Resuelve un nombre de preset de glifos. Un nombre desconocido se interpreta
+/// como juego propio; si no es válido, se ignora y se conserva el del tema.
+fn glyphs_from_name(name: &str) -> Option<GlyphSet> {
+    match name.trim().to_ascii_lowercase().as_str() {
+        "katakana" => Some(GlyphSet::katakana()),
+        "emoji" => Some(GlyphSet::emoji()),
+        "binario" | "binary" => Some(GlyphSet::binary()),
+        "ascii" => Some(GlyphSet::ascii()),
+        "mixto" | "mixed" => Some(GlyphSet::mixed()),
+        other => GlyphSet::custom(other).ok(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spinner_round_trips_and_coexists_with_the_theme() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        save_theme(&path, ThemePreset::Crush).unwrap();
+        save_spinner(&path, "random").unwrap();
+        assert_eq!(load_spinner(&path).as_deref(), Some("random"));
+        assert_eq!(load_theme(&path), Some(ThemePreset::Crush));
+
+        save_spinner(&path, "crush").unwrap();
+        assert_eq!(load_spinner(&path).as_deref(), Some("crush"));
+        assert_eq!(load_theme(&path), Some(ThemePreset::Crush));
+    }
+
+    #[test]
+    fn a_missing_spinner_key_keeps_the_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        save_theme(&path, ThemePreset::Crush).unwrap();
+        assert_eq!(load_spinner(&path), None);
+    }
 
     #[test]
     fn theme_round_trips_for_every_preset() {
@@ -205,6 +310,98 @@ mod tests {
         let text = std::fs::read_to_string(&path).unwrap();
         assert_eq!(text.matches("mouse").count(), 1);
         assert_eq!(text.matches("theme").count(), 1);
+    }
+
+    #[test]
+    fn matrix_round_trips() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        let config = MatrixConfig {
+            glyphs: GlyphSet::emoji(),
+            speed: 1.25,
+            density: 40,
+            length: 12,
+            color: StyleToken::Accent,
+        };
+        save_matrix(&path, &config).unwrap();
+        assert_eq!(load_matrix(&path, &MatrixConfig::default()), config);
+    }
+
+    #[test]
+    fn matrix_missing_file_keeps_theme_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = MatrixConfig {
+            glyphs: GlyphSet::binary(),
+            speed: 2.0,
+            density: 50,
+            length: 9,
+            color: StyleToken::Warning,
+        };
+        assert_eq!(load_matrix(&dir.path().join("no-existe.toml"), &base), base);
+    }
+
+    #[test]
+    fn matrix_partial_file_overrides_only_present_fields() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        std::fs::write(&path, "matrix_speed = 3.00\n").unwrap();
+        let base = MatrixConfig {
+            glyphs: GlyphSet::binary(),
+            speed: 0.5,
+            density: 50,
+            length: 9,
+            color: StyleToken::Warning,
+        };
+        let loaded = load_matrix(&path, &base);
+        assert_eq!(loaded.speed, 3.0);
+        // El resto conserva los valores del tema.
+        assert_eq!(loaded.glyphs, GlyphSet::binary());
+        assert_eq!(loaded.density, 50);
+        assert_eq!(loaded.length, 9);
+        assert_eq!(loaded.color, StyleToken::Warning);
+    }
+
+    #[test]
+    fn matrix_garbage_values_are_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        std::fs::write(
+            &path,
+            "matrix_speed = \"rapido\"\nmatrix_density = -5\nmatrix_color = \"no-existe\"\n",
+        )
+        .unwrap();
+        let base = MatrixConfig::default();
+        assert_eq!(load_matrix(&path, &base), base);
+    }
+
+    #[test]
+    fn matrix_out_of_range_values_are_clamped() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        std::fs::write(&path, "matrix_speed = 999.00\nmatrix_density = 250\n").unwrap();
+        let loaded = load_matrix(&path, &MatrixConfig::default());
+        assert_eq!(loaded.speed, 4.0);
+        assert_eq!(loaded.density, 100);
+    }
+
+    #[test]
+    fn matrix_and_theme_keep_each_other() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        save_theme(&path, ThemePreset::Crush).unwrap();
+        save_matrix(&path, &MatrixConfig::default()).unwrap();
+        assert_eq!(load_theme(&path), Some(ThemePreset::Crush));
+        assert_eq!(
+            load_matrix(&path, &MatrixConfig::default()),
+            MatrixConfig::default()
+        );
+
+        save_theme(&path, ThemePreset::Pawan).unwrap();
+        assert_eq!(load_theme(&path), Some(ThemePreset::Pawan));
+        assert_eq!(
+            load_matrix(&path, &MatrixConfig::default()),
+            MatrixConfig::default()
+        );
     }
 
     #[test]

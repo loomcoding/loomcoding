@@ -332,6 +332,34 @@ pub fn render_focused_with_model(
     }
 }
 
+/// Primer span del gutter. Si el agente está trabajando, la primera fila de la
+/// primera línea lógica muestra el indicador de actividad en vez de `> `. Ocupa
+/// exactamente las mismas dos celdas, así que el layout no se mueve.
+fn crush_gutter_head(
+    composer: &Composer,
+    row: &VisualRow,
+    prompt: Style,
+    theme: &Theme,
+) -> Span<'static> {
+    let is_prompt_row = row.line == 0 && row.first;
+    if is_prompt_row && composer.is_working() {
+        let glyph = super::activity::activity_glyph(
+            composer.activity_style(),
+            composer.activity_frame(),
+            1,
+            theme,
+        )
+        .unwrap_or_else(|| Span::styled(">", prompt));
+        return glyph;
+    }
+    let text = if is_prompt_row {
+        ">"
+    } else {
+        &crush_gutter(row)[..1]
+    };
+    Span::styled(text.to_string(), prompt)
+}
+
 /// Prefijo visual de una fila del composer Crush: `> ` en la primera fila de
 /// la primera línea lógica, `::: ` en la primera fila de las demás y sangría
 /// de igual anchura en las filas de continuación.
@@ -532,7 +560,9 @@ pub fn render_crush(
         .take(height)
         .map(|row| {
             let mut spans = Vec::with_capacity(4);
-            spans.push(Span::styled(crush_gutter(row), prompt));
+            let head = crush_gutter_head(composer, row, prompt, theme);
+            spans.push(head);
+            spans.push(Span::styled(&crush_gutter(row)[1..], prompt));
             push_parts(
                 &mut spans,
                 split_selected(source, row.start, row.end, sel),

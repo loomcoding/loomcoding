@@ -78,6 +78,98 @@ pub enum StyleToken {
     Emphasis,
 }
 
+impl StyleToken {
+    /// Nombre canónico del token, el mismo que usa el TOML del tema.
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Muted => "muted",
+            Self::Dim => "dim",
+            Self::Heading => "heading",
+            Self::User => "user",
+            Self::Assistant => "assistant",
+            Self::System => "system",
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Success => "success",
+            Self::ToolName => "tool_name",
+            Self::ToolPath => "tool_path",
+            Self::ToolCommand => "tool_command",
+            Self::ToolCount => "tool_count",
+            Self::ToolPending => "tool_pending",
+            Self::ToolRunning => "tool_running",
+            Self::ToolSuccess => "tool_success",
+            Self::ToolError => "tool_error",
+            Self::ToolCanceled => "tool_canceled",
+            Self::TodoPending => "todo_pending",
+            Self::TodoInProgress => "todo_in_progress",
+            Self::TodoCompleted => "todo_completed",
+            Self::Accent => "accent",
+            Self::AccentFrom => "accent_from",
+            Self::AccentTo => "accent_to",
+            Self::LogoField => "logo_field",
+            Self::Scrollbar => "scrollbar",
+            Self::Border => "border",
+            Self::DiffInsert => "diff_insert",
+            Self::DiffDelete => "diff_delete",
+            Self::DiffHunk => "diff_hunk",
+            Self::Selection => "selection",
+            Self::Code => "code",
+            Self::Strong => "strong",
+            Self::Emphasis => "emphasis",
+        }
+    }
+
+    /// Resuelve un nombre de token del TOML. Acepta el nombre canónico y una
+    /// forma con guiones (`tool-name`) por comodidad.
+    pub fn from_key(key: &str) -> Option<Self> {
+        let normalized = key.trim().to_ascii_lowercase().replace('-', "_");
+        ALL_TOKENS
+            .iter()
+            .copied()
+            .find(|token| token.key() == normalized)
+    }
+}
+
+/// Todos los tokens, para búsquedas por nombre y para la UI de selección.
+pub const ALL_TOKENS: &[StyleToken] = &[
+    StyleToken::Default,
+    StyleToken::Muted,
+    StyleToken::Dim,
+    StyleToken::Heading,
+    StyleToken::User,
+    StyleToken::Assistant,
+    StyleToken::System,
+    StyleToken::Error,
+    StyleToken::Warning,
+    StyleToken::Success,
+    StyleToken::ToolName,
+    StyleToken::ToolPath,
+    StyleToken::ToolCommand,
+    StyleToken::ToolCount,
+    StyleToken::ToolPending,
+    StyleToken::ToolRunning,
+    StyleToken::ToolSuccess,
+    StyleToken::ToolError,
+    StyleToken::ToolCanceled,
+    StyleToken::TodoPending,
+    StyleToken::TodoInProgress,
+    StyleToken::TodoCompleted,
+    StyleToken::Accent,
+    StyleToken::AccentFrom,
+    StyleToken::AccentTo,
+    StyleToken::LogoField,
+    StyleToken::Scrollbar,
+    StyleToken::Border,
+    StyleToken::DiffInsert,
+    StyleToken::DiffDelete,
+    StyleToken::DiffHunk,
+    StyleToken::Selection,
+    StyleToken::Code,
+    StyleToken::Strong,
+    StyleToken::Emphasis,
+];
+
 /// Rango con estilo, como offsets sobre el texto plano de una linea.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SpanSpec {

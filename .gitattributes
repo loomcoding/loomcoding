@@ -1,0 +1,28 @@
+# Normaliza los finales de línea a LF en el repositorio.
+# Sin esto, un checkout en Windows con core.autocrlf deja CRLF en el
+# working tree y el diff de un fichero entero aparece como reescrito.
+* text=auto eol=lf
+
+# Ficheros que deben conservar sus bytes tal cual.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# Scripts de Windows: CRLF para que cmd.exe y PowerShell los lean bien.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

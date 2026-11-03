@@ -9,6 +9,7 @@ pub enum Command {
     Queue,
     Tools,
     Theme,
+    Temas,
     Crush,
     Classic,
     Cancel,
@@ -17,6 +18,7 @@ pub enum Command {
     Parent,
     Sidebar,
     Mouse,
+    Verbose,
     Agent,
     Agents,
     A2a,
@@ -37,6 +39,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
     (Command::Queue, "/queue", "Manage pending prompts"),
     (Command::Tools, "/tools", "Inspect recent tool calls"),
     (Command::Theme, "/theme", "Cycle terminal color theme"),
+    (
+        Command::Temas,
+        "/temas",
+        "Temas: efectos (Matrix rain) y presets de tema",
+    ),
     (Command::Crush, "/crush", "Switch to the Crush look"),
     (Command::Classic, "/classic", "Back to the Batten look"),
     (
@@ -52,6 +59,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         Command::Mouse,
         "/mouse",
         "Toggle mouse capture (off: select text with the mouse)",
+    ),
+    (
+        Command::Verbose,
+        "/verbose",
+        "Toggle provider request notices in the transcript",
     ),
     (
         Command::Agent,
