@@ -208,8 +208,8 @@ pub(super) fn draw_tool_inspector(frame: &mut Frame, area: Rect, app: &mut App) 
 
 pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width.min(78).saturating_sub(2);
-    // Dieciocho líneas de contenido más el marco; por eso el recuadro crece a 22 filas.
-    let height = area.height.min(22).saturating_sub(2);
+    // Diecinueve líneas de contenido más el marco; por eso el recuadro crece a 23 filas.
+    let height = area.height.min(23).saturating_sub(2);
     if width < 54 || height < 20 {
         draw_resize_hint(frame, area, "Keyboard shortcuts", app);
         return;
