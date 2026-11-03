@@ -109,7 +109,9 @@ vuelta a la fase previa. Sin reloj real, sin hilos.
 - `crates/codeloom-core/src/lib.rs`
 
 **Test concreto:**
-- `stall_y_recuperacion` — superado `stall_threshold` → `Stalled`; latido → fase previa.
+- `stall_y_recuperacion` — superado `stall_threshold` → `Stalled`; latido → `Working`
+  (no "fase previa": `can_transition_to` solo admite `Stalled → Working`; ver
+  `docs/specs/2026-11-05-codeloom-watchdog-de-subagentes.md` §8).
 - `lost_terminal` — superado `lost_threshold` → `Lost`.
 - `no_falso_positivo` — dentro del umbral no transiciona.
 - `esperar_al_humano_no_es_atasco` — un hijo en `AwaitingParentInput` o

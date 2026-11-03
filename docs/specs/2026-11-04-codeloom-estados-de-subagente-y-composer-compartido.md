@@ -463,8 +463,10 @@ por destino.
 
 ## Preguntas abiertas
 
-1. ¿Valores por defecto de `stall_threshold`/`lost_threshold`? ¿Deben ser
-   configurables por subagente o globales?
+1. ~~¿Valores por defecto de `stall_threshold`/`lost_threshold`? ¿Deben ser
+   configurables por subagente o globales?~~ **Resuelta** (spec
+   `2026-11-05-codeloom-watchdog-de-subagentes.md`): globales en `[agents]`
+   (`stall_threshold_secs` = 120, `lost_threshold_secs` = 300).
 2. ¿El `SubagentSettled.summary` debe alimentar la memoria del padre o solo el
    `runtime_snapshot`?
 3. ¿La cola de mensajes de un hijo en `Working` tiene cota? ¿Qué pasa si se llena?

@@ -1,7 +1,7 @@
 # Spec: organización y navegabilidad del código
 
 - **Fecha:** 2026-11-05
-- **Estado:** Propuesta
+- **Estado:** Propuesta (preguntas abiertas cerradas, ver "Decisiones")
 - **Ámbito:** documentación, estructura de crates y proceso (sin cambio funcional)
 - **Complementa:** `docs/specs/2026-10-14-loom-architecture-overview.md` (visión general)
   y `AGENTS.md` (reglas operativas)
@@ -17,7 +17,7 @@ cambiarlo**. Los datos medidos:
 | Líneas de Rust | **115.603** |
 | Archivos de más de 1.000 líneas | 25 |
 | % del código en esos 25 archivos | **54,5 %** (62.978 líneas) |
-| Specs / Plans | 62 / 44 |
+| Specs / Plans | 62 / 44 (a la medición; 64 / 46 el 2026-11-05) |
 | Tests (`#[test]`/`#[tokio::test]`) | 2.137 |
 
 Por crate: `codeloom-core` 42.918 · `batten` 30.873 · `codeloom-tui` 23.328 ·
@@ -34,6 +34,9 @@ Los peores archivos:
  4377  codeloom-tui/src/run.rs
  3228  codeloom-cli/src/server.rs
 ```
+
+Cifras medidas al redactar; derivan con cada commit (p. ej. `app.rs` ya tiene 10.794
+líneas), así que los checks y el INDEX deben contarlas, no hardcodearlas.
 
 **El hallazgo que define el problema: no existe `ARCHITECTURE.md`, ni mapa de código,
 ni `README.md` por crate.** Un agente nuevo solo tiene `AGENTS.md` y 106 documentos
@@ -64,7 +67,8 @@ visible donde mirar** dentro de `app.rs`.
 - Un agente localiza el punto de cambio de cualquier feature en **3 saltos o menos**,
   sin leer archivos de más de 1.000 líneas.
 - Existe una guía por tarea ("quiero añadir un tool") que nombra los archivos exactos.
-- Los 25 archivos monolito bajan del 54,5 % a menos del 30 % del código.
+- Los archivos de más de 1.000 líneas bajan del 54,5 % a menos del 30 % del código y de
+  25 a menos de 20 archivos en este ciclo.
 - Ningún archivo nuevo supera el techo acordado, con check automático.
 - Todo spec y plan declara su estado (vigente, histórico, superado, obsoleto).
 - Un agente nuevo puede responder "¿dónde va esto?" leyendo **un** documento.
@@ -211,12 +215,17 @@ Ordenado por **riesgo/beneficio**, no por tamaño bruto.
 
 | Orden | Archivo | Qué extraer | Riesgo | Por qué en esta posición |
 |---:|---|---|---|---|
-| 1 | `subagent.rs` (7.510) | fases, watchdog, ejecución, publicación de eventos | Medio | Es donde vive el trabajo de A2A en curso; hacerlo pronto evita conflicto |
-| 2 | `app.rs` (10.769) | estado de sesión · estado de hijos · scroll/selección · comandos · layout | Alto | El más grande y donde vive el bug del composer, pero el más arriesgado: después de los demás |
-| 3 | `render.rs` (4.810) | un módulo por zona (header, transcript, rail, composer, footer) | Medio | Alto beneficio y bajo acoplamiento |
-| 4 | `run.rs` (4.377) | bucle de eventos · teclas por contexto · driver de tick | Medio | Depende de que `app.rs` ya esté partido |
-| 5 | `server.rs` (3.228) | IPC · ciclo de sesión · snapshot · suscripciones | Bajo | Aislado del resto |
-| 6 | `agent/mod.rs` (5.613) | turno · tool loop · compactación · dispatch | Alto | Motor central: máximo cuidado, mínimo en este ciclo |
+| 1 | `subagent.rs` (7.510) | ejecución, publicación de eventos, input (las fases y el watchdog ya son módulos hermanos propios: `subagent_phase.rs`, `subagent_watchdog.rs`) | Medio | Es donde vive el trabajo de A2A en curso; hacerlo pronto evita conflicto |
+| 2 | `render.rs` (4.810) | un módulo por zona (header, transcript, rail, composer, footer) | Medio | Alto beneficio y bajo acoplamiento |
+| 3 | `server.rs` (3.228) | IPC · ciclo de sesión · snapshot · suscripciones | Bajo | Aislado del resto |
+| 4 | `app.rs` (10.769) | estado de sesión · estado de hijos · scroll/selección · comandos · layout | Alto | El más grande y donde vive el bug del composer, pero el más arriesgado: va tras los anteriores y tras la Fase 6 del plan de estados |
+| 5 | `run.rs` (4.377) | bucle de eventos · teclas por contexto · driver de tick | Medio | Depende de que `app.rs` ya esté partido |
+| 6 | `agent/mod.rs` (5.613) | turno · tool loop · compactación · dispatch | Alto | Motor central: máximo cuidado, posponible |
+
+Estos seis suman 36.307 líneas (31,4 % del código). Partirlos en piezas por debajo de
+1.000 baja el porcentaje por debajo del 30 % (objetivo 1), pero deja ~19 archivos
+mayores de 1.000: el objetivo de **número** de archivos es "< 20 en este ciclo", y el
+resto se aborda en una oleada posterior con la lista blanca decreciente.
 
 **Qué NO partir:** `theme.rs`, `anthropic.rs`, `openai.rs` y las tablas de `batten`.
 Son grandes pero cohesivos; partirlos añadiría indirección sin ahorrar contexto.
@@ -251,14 +260,18 @@ Los cuatro checks siguen siendo el contrato: `cargo build`, `cargo test`,
 4. **Romper la API pública al partir módulos.** Descartada: `pub use` mantiene las
    rutas y evita tocar a los consumidores.
 
-## Preguntas abiertas
+## Decisiones (antes preguntas abiertas)
 
-1. **Techo de líneas:** ¿1.000 duro o 800 como objetivo con 1.000 de alarma?
-2. **Guardarraíl:** ¿test de Rust (corre siempre) o script de CI (más limpio)?
-3. **Prioridad vs. A2A:** ¿el refactor va antes o después de cerrar el trabajo de
-   estados de subagente? Este spec asume **después de la Fase 0-1 de A2A** y en
-   paralelo con el resto.
-4. **README por crate:** ¿en cada `crates/*/README.md` o centralizados en
-   `docs/crates/`?
-5. **Índice de specs:** ¿generado por script desde frontmatter (fuente de verdad
-   única) o mantenido a mano (más simple, se desincroniza)?
+1. **Techo de líneas:** 1.000 duro, sin objetivo intermedio. 500-600 queda como
+   recomendación de revisión, no como check.
+2. **Guardarraíl:** opción A, test de Rust en el workspace (corre en `cargo test`, sin
+   CI adicional), con lista blanca decreciente.
+3. **Prioridad vs. A2A:** `subagent.rs` primero; `app.rs` y `run.rs` **después de la
+   Fase 6 del plan de estados** (`2026-11-04`), para no tener dos refactores del
+   composer a la vez. (Sustituye la frase anterior "después de la Fase 0-1".)
+4. **README por crate:** en `crates/<crate>/README.md` (viaja con el crate y lo ve
+   `cargo doc`/crates.io).
+5. **Índice de specs:** `docs/INDEX.md` mantenido a mano, más un test que falla si algún
+   `docs/specs/*.md` o `docs/plans/*.md` no aparece en él (detecta el desincronizado sin
+   exigir frontmatter retroactivo en 110 documentos). El frontmatter es obligatorio solo
+   en documentos nuevos desde esta fecha.

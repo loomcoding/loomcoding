@@ -4,11 +4,19 @@
 - **Spec:** `docs/specs/2026-11-05-codeloom-organizacion-y-navegabilidad.md`
 - **Relacionado:** `docs/plans/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`
 - **Principio de orden:** primero lo de riesgo cero y beneficio inmediato (documentar),
-  después los guardarraíles, y al final el refactor de monolitos de mayor a menor riesgo.
+  después los guardarraíles, y al final el refactor de monolitos de menor a mayor riesgo.
+
+## Decisiones ya tomadas (spec, sección "Decisiones")
+
+Techo duro 1.000 líneas · guardarraíl = test de Rust con lista blanca decreciente ·
+README en `crates/<crate>/README.md` · `docs/INDEX.md` a mano + test de cobertura ·
+`app.rs`/`run.rs` tras la Fase 6 del plan de estados.
 
 ## Global Constraints
 
-Los cuatro checks en cada commit:
+Los cuatro checks en cada commit (en esta máquina, vía
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\checks.ps1 -TargetDir .verify-target`,
+porque `cargo test` directo da `Acceso denegado` con daemons vivos):
 
 ```bash
 cargo build
@@ -26,125 +34,135 @@ Reglas que este plan no puede romper:
 - **Un commit que mueve código no cambia comportamiento.** Nunca mezclar movimiento
   con lógica: si algo se rompe, hay que saber cuál de los dos fue.
 - Los specs y READMEs son **español**; el código sigue el idioma del archivo que toca.
+- **Cifras sin hardcodear:** los conteos (documentos, líneas, tests) los calcula un
+  comando o un test; en los documentos se citan "a fecha de" y no como contrato.
 
 ---
 
 ## Fase 0 — Navegación (riesgo cero, beneficio inmediato)
 
-Ningún archivo de `crates/` se toca. Al terminar esta fase, un agente nuevo puede
-orientarse leyendo cinco documentos.
+Ningún archivo de `crates/` se toca (salvo los `README.md` nuevos). Al terminar, un
+agente nuevo puede orientarse leyendo cinco documentos. Un commit por paso.
 
 ### Paso 0.1 — `docs/ARCHITECTURE.md`
 
 - Tabla de los 8 crates: responsabilidad · entrada · qué **no** va aquí.
-- Diagrama de dependencias permitidas y prohibidas (core sin TUI).
+- Diagrama de dependencias permitidas y prohibidas (core sin TUI), sacado de los
+  `Cargo.toml` reales.
 - Flujo end-to-end: mensaje → sesión → provider → tools → `LiveEvent` → TUI/servidor,
   con el archivo real en cada frontera.
 - Los cinco subsistemas: `Provider`, registry de tools, bus de eventos,
   `SessionStore`, orquestador de subagentes.
 
 **Aceptación:** un agente responde "¿dónde entra un mensaje del usuario?" sin abrir
-código, solo con el documento.
+código, solo con el documento; todas las rutas citadas existen (comprobar con `ls`).
 
-### Paso 0.2 — `README.md` por crate (8 archivos)
+### Paso 0.2 — `README.md` por crate (8 archivos, en `crates/<crate>/`)
 
 Plantilla fija del spec: responsabilidad · no va aquí · tipos clave · puntos de
 entrada · cómo se testea · trampas. Una pantalla cada uno.
 
-**Aceptación:** los 8 existen y siguen la misma plantilla (verificable a ojo: mismas
-secciones en el mismo orden).
+**Aceptación:** los 8 existen con las mismas secciones en el mismo orden; los tipos y
+rutas citados existen.
 
 ### Paso 0.3 — `docs/CODE-MAP.md`
 
-Índice orientado a tareas. Entradas mínimas obligatorias:
+Índice orientado a tareas. Entradas mínimas obligatorias: añadir una tool · un
+provider · un evento al bus · una fase de subagente (`subagent_phase.rs`, y el
+watchdog en `subagent_watchdog.rs` si ya existe) · un widget de TUI · un comando de
+composer · cambiar el flujo de permisos · tocar A2A (cliente y servidor) · añadir una
+columna persistida.
 
-- añadir una tool
-- añadir un provider
-- añadir un evento al bus
-- añadir una fase de subagente
-- añadir un widget de TUI
-- añadir un comando de composer
-- cambiar el flujo de permisos
-- tocar A2A (cliente y servidor)
-- añadir una columna persistida
-
-**Aceptación:** cada entrada nombra archivos exactos con ruta, y el listado se
-contrasta contra el código real (no inventar rutas: verificar que existen).
+**Aceptación:** cada entrada nombra archivos exactos con ruta y **todas existen**
+(verificado con un `ls`/`grep` por ruta antes de commitear; no inventar rutas).
 
 ### Paso 0.4 — `docs/INVARIANTS.md`
 
-Tabla invariante → **comando exacto o procedimiento** que lo verifica. No basta la
-proclamación: cada fila debe ser comprobable por un agente.
+Tabla invariante → **comando exacto o procedimiento** que lo verifica.
 
-**Aceptación:** cada invariante tiene una comprobación ejecutable o un procedimiento
-concreto con ruta.
+**Aceptación:** cada fila tiene una comprobación ejecutable o un procedimiento
+concreto con ruta; se ejecuta cada comando una vez para confirmar que funciona.
 
 ### Paso 0.5 — `docs/INDEX.md`
 
-Índice de los 62 specs y 44 plans con estado (`vigente` / `en curso` / `histórico` /
-`superado` / `obsoleto`) y relaciones `sustituye` / `sustituido_por`.
+Índice de **todos** los `docs/specs/*.md` y `docs/plans/*.md` (a 2026-11-05: 64 + 46)
+con estado (`vigente` / `en curso` / `histórico` / `superado` / `obsoleto`) y
+relaciones `sustituye` / `sustituido_por`. Los de `docs/plans/hechos/` figuran como
+`histórico`.
 
-**Aceptación:** los 106 documentos aparecen; los estados son coherentes (ningún
-documento `superado` sin destino que lo sustituya).
+**Aceptación:** `ls docs/specs docs/plans` y el INDEX coinciden; ningún documento
+`superado` sin destino. Esta cobertura la fija el test del paso 1.3.
 
 ### Paso 0.6 — `AGENTS.md` como puerta de entrada
 
-Añadir al principio la sección "Mapa de lectura" con los cinco punteros. **No
-duplicar** contenido: solo enlazar.
+Añadir al principio la sección "Mapa de lectura" con los cinco punteros, y la regla
+"un cambio que invalida `ARCHITECTURE.md`/`CODE-MAP.md` los actualiza en el mismo
+commit". **No duplicar** contenido: solo enlazar.
 
-**Aceptación:** `AGENTS.md` sigue siendo corto y no repite lo que hay en
-`ARCHITECTURE.md`.
+**Aceptación:** `AGENTS.md` sigue siendo corto y no repite lo de `ARCHITECTURE.md`.
 
 ---
 
 ## Fase 1 — Guardarraíles
 
+Tres checks como tests de Rust en el workspace (decisión cerrada: corren con
+`cargo test`). Crate/ubicación: un test de integración en `crates/codeloom-e2e/tests/`
+(ya existe el crate y no es parte del motor), `guardarrailes.rs`.
+
 ### Paso 1.1 — Check de tamaño
 
-Implementar la opción elegida (test de Rust o script). Lista blanca inicial: los 25
-archivos actuales de más de 1.000 líneas, **explícitamente justificados**. La lista
-solo puede decrecer.
+Enumera `crates/*/src/**/*.rs` y falla si alguno supera **1.000 líneas** y no está en
+la lista blanca. Lista blanca inicial: los archivos que hoy superan el techo (25 a la
+medición), cada uno con una línea de justificación. La lista solo puede decrecer: el
+test falla también si una entrada de la lista ya no supera el techo (obliga a retirarla).
 
-**Aceptación:** el check falla si se añade un archivo nuevo de más de 1.000 líneas;
-pasa en el estado actual.
+**Aceptación:** pasa en el estado actual; falla si se añade un archivo nuevo de más de
+1.000 líneas; falla si queda una entrada obsoleta en la lista.
 
 ### Paso 1.2 — Check de la regla de dependencias
 
-Verificar que `codeloom-core/Cargo.toml` no declara `ratatui`/`crossterm` y que no hay
-imports en el código.
+`codeloom-core/Cargo.toml` no declara `ratatui`/`crossterm` y no hay `use ratatui`/
+`use crossterm` en `crates/codeloom-core/src`.
 
-**Aceptación:** el check falla si alguien añade la dependencia.
+**Aceptación:** falla si alguien añade la dependencia o el import.
+
+### Paso 1.3 — Check de cobertura del INDEX
+
+Falla si algún `docs/specs/*.md` o `docs/plans/*.md` (incluida `hechos/`) no aparece en
+`docs/INDEX.md`.
+
+**Aceptación:** pasa tras el paso 0.5; falla al añadir un spec sin indexarlo.
 
 ---
 
 ## Fase 2 — Refactor de `subagent.rs` (7.510 líneas)
 
-Va primero porque el trabajo de A2A de `2026-11-04` crea módulos hermanos
-(`subagent_phase.rs`, `subagent_watchdog.rs`): conviene hacer el movimiento antes de
-que el archivo crezca más.
+Va primero porque el trabajo de A2A de `2026-11-04` crece alrededor del archivo.
+`subagent_phase.rs` ya existe (Fase 1 de estados) y `subagent_watchdog.rs` es un módulo
+nuevo del plan del watchdog: **no hay nada que mover para ellos**; este refactor solo
+extrae lo que sigue dentro de `subagent.rs`.
 
-### Paso 2.1 — Extraer fases y watchdog
+### Paso 2.1 — Mapa antes de mover
 
-Crear `subagent_phase.rs` y `subagent_watchdog.rs`, mover las responsabilidades y
-mantener `pub use` para no romper rutas públicas.
+Listar las responsabilidades que hoy conviven en `subagent.rs` (ejecución, publicación
+de eventos, input, remotos A2A, descriptores…) con líneas aproximadas, y fijar el
+corte. Sin tocar código.
 
-**Aceptación:** `cargo test` verde sin cambios de comportamiento; ningún consumidor
-toca sus imports.
+**Aceptación:** corte escrito en el commit/plan y revisado antes del paso 2.2.
 
 ### Paso 2.2 — Convertir `subagent.rs` en `subagent/`
 
-`subagent/mod.rs` con re-exports y archivos por responsabilidad: ejecución,
-publicación de eventos, input. Movimiento puro.
+`subagent/mod.rs` con re-exports (`pub use`) y archivos por responsabilidad. Un commit
+por responsabilidad extraída; movimiento puro.
 
-**Aceptación:** 0 archivos de `subagent/` superan 1.000 líneas; la API pública se
-mantiene vía `pub use`.
+**Aceptación:** 0 archivos de `subagent/` superan 1.000 líneas; API pública intacta;
+cuatro checks verdes en cada commit; ningún consumidor cambia sus imports.
 
 ---
 
 ## Fase 3 — Refactor de `render.rs` (4.810 líneas)
 
-Bajo acoplamiento, alto beneficio: un módulo por zona visual (header, transcript,
-rail, composer, footer).
+Un módulo por zona visual (header, transcript, rail, composer, footer).
 
 **Aceptación:** cada zona en su archivo, ninguno sobre 1.000 líneas, salida visual
 idéntica (los tests de render existentes como red).
@@ -161,22 +179,33 @@ Aislado del resto: IPC · ciclo de sesión · snapshot · suscripciones.
 
 ## Fase 5 — Refactor de `app.rs` (10.769 líneas)
 
-El más arriesgado, se hace al final y **después** de la Fase 6 del plan de estados
-(para no chocar con el composer).
+**Precondición:** Fase 6 del plan de estados (`2026-11-04`) terminada, para no tener dos
+refactores del composer a la vez.
 
 Extraer por responsabilidad: estado de sesión · estado de hijos · scroll/selección ·
-comandos · layout. El objetivo no es estético: es que el bug del composer
-(`load_session` en `app.rs:2802` no toca `self.composer`) tenga una frontera visible.
+comandos · layout. No es estético: es para que el bug del composer (`load_session` en
+`app.rs`, no toca `self.composer`) tenga una frontera visible.
 
 **Aceptación:** `app.rs` por debajo de 1.000 líneas; tests de TUI verdes;
 `load_session` vive en el módulo de sesión con su test de borrador.
 
 ---
 
-## Fase 6 — Refactor de `agent/mod.rs` (5.613 líneas)
+## Fase 6 — Refactor de `run.rs` (4.377 líneas)
 
-Motor central. Turno · tool loop · compactación · dispatch. El máximo cuidado y el
-último de este ciclo: si hay prisa por features, esta fase es la que se puede posponer.
+**Precondición:** Fase 5 hecha (el bucle depende del estado de `app.rs`).
+
+Bucle de eventos · teclas por contexto · driver de tick.
+
+**Aceptación:** ninguno sobre 1.000 líneas; tests de TUI verdes; el composer no
+parpadea ni se retrasa (prioridad de suavidad del composer).
+
+---
+
+## Fase 7 — Refactor de `agent/mod.rs` (5.613 líneas)
+
+Motor central. Turno · tool loop · compactación · dispatch. Máximo cuidado y último
+de este ciclo: si hay prisa por features, esta es la fase que se pospone.
 
 **Aceptación:** ninguno sobre 1.000 líneas; tests de motor verdes.
 
@@ -187,34 +216,36 @@ Motor central. Turno · tool loop · compactación · dispatch. El máximo cuida
 ```
 Fase 0 (docs) ──→ Fase 1 (checks) ──→ Fase 2 (subagent) ──→ Fase 3 (render)
                                                               ├──→ Fase 4 (server)
-                                                              └──→ Fase 5 (app)  [tras Fase 6 de estados]
-                                                                     └──→ Fase 6 (agent)
+                                                              └──→ Fase 5 (app) ──→ Fase 6 (run)   [5 tras Fase 6 de estados]
+                                                                    Fase 7 (agent): independiente, posponible
 ```
 
-- **Fase 0 puede empezar hoy** y no depende de nada.
-- **Fase 5 (app.rs)** debe ir **después** de la Fase 6 del plan de estados
-  (`2026-11-04`), para no tener dos refactores del composer a la vez.
+- **Fase 0 puede empezar ya** y no depende de nada.
+- Cada fase retira de la lista blanca del paso 1.1 los archivos que parte.
 
 ## Métricas de éxito
 
-| Métrica | Hoy | Objetivo |
+Línea base a 2026-11-05; los valores se recalculan con el test del paso 1.1.
+
+| Métrica | Hoy | Objetivo de este ciclo |
 |---|---:|---:|
 | % de código en archivos > 1.000 líneas | 54,5 % | < 30 % |
-| Archivos > 1.000 líneas | 25 | < 10 |
-| `app.rs` | 10.769 | < 1.000 |
+| Archivos > 1.000 líneas | 25 | < 20 (el resto, en una oleada posterior) |
+| `app.rs` | ~10.800 | < 1.000 |
 | Documentos de navegación | 0 | 5 + 8 READMEs |
-| Specs con estado declarado | 0 | 106 |
+| Specs/plans en el INDEX con estado | 0 | todos (test de cobertura) |
 | Saltos para localizar un punto de cambio | ≥ 5 | ≤ 3 |
 
 ## Riesgos
 
 | Riesgo | Mitigación |
 |---|---|
-| El refactor de `app.rs` rompe la TUI | Se hace al final, con commits de movimiento puro y los tests de render como red |
-| La documentación se queda obsoleta | `CODE-MAP.md` y `ARCHITECTURE.md` se actualizan en el mismo PR que el cambio que los invalida (regla en `AGENTS.md`) |
-| `docs/INDEX.md` se desincroniza | Preferir generación desde frontmatter si se elige esa opción |
-| Choque con el trabajo de A2A en curso | `subagent.rs` se parte primero (Fase 2), antes de que crezca más |
-| Refactor eterno sin features | Cada fase es un commit cerrado; la Fase 6 es posponible |
+| El refactor de `app.rs` rompe la TUI | Se hace tarde, con commits de movimiento puro y los tests de render como red |
+| La documentación se queda obsoleta | Regla en `AGENTS.md`: se actualiza en el mismo commit que la invalida |
+| `docs/INDEX.md` se desincroniza | Test de cobertura (paso 1.3) |
+| Choque con el trabajo de A2A en curso | `subagent.rs` se parte primero (Fase 2) y `app.rs`/`run.rs` esperan a la Fase 6 de estados |
+| Refactor eterno sin features | Cada fase es un commit cerrado; la Fase 7 es posponible |
+| Rutas inventadas en la documentación | Cada ruta citada se verifica con `ls` antes de commitear |
 
 ## Fuera de alcance
 
@@ -222,12 +253,10 @@ Fase 0 (docs) ──→ Fase 1 (checks) ──→ Fase 2 (subagent) ──→ Fa
 - Cambiar el modelo de datos de sesión.
 - Refactorizar archivos grandes pero cohesivos (`theme.rs`, providers, tablas): están
   justificados como excepción.
+- Los ~19 archivos > 1.000 líneas que queden tras este ciclo.
 - Migrar a otra herramienta de documentación (mdbook u otra).
-- Cobertura de tests nueva: se usa la existente (2.137) como red.
+- Cobertura de tests nueva: se usa la existente como red.
 
-## Preguntas abiertas (repetidas del spec para decisión)
+## Preguntas abiertas
 
-1. Techo de líneas: ¿1.000 duro u 800 objetivo con 1.000 de alarma?
-2. Guardarraíl: ¿test de Rust o script de CI?
-3. ¿README por crate dentro de `crates/` o centralizados en `docs/crates/`?
-4. ¿`docs/INDEX.md` generado desde frontmatter o mantenido a mano?
+Ninguna (cerradas en la sección "Decisiones" del spec).
