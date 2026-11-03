@@ -872,7 +872,8 @@ impl AgentLoop {
                 break;
             }
             self.flush_subagent_notices(session).await?;
-            history = self.store.messages(session).await?;
+            // Ventana, no historial completo: esto se ejecuta en cada paso del bucle.
+            history = self.store.recent_messages(session, HISTORY_WINDOW).await?;
             if crate::agent::stop::should_stop(&history, steps, config.max_steps) {
                 break;
             }
