@@ -167,7 +167,31 @@ descriptor sin tocar `status.state` (A2A manda). Tests: `phase_observer` (7),
 
 **Criterio de aceptación:** tests verdes; el padre recibe fases; sin inundación.
 
-## Fase 5 — Supervisor del runtime
+## Fase 5 — Supervisor del runtime (HECHA 2026-11-05, con matices)
+
+**Hecho:** `subagent/supervisor.rs` (puro: `on_event` + `tick(now_ms)` → `Mark`/`Notify`/
+`Cancel`, reutiliza `watchdog::evaluate`; 14 tests), `subagent/supervisor_driver.rs`
+(`spawn_supervisor`: alimenta al supervisor desde el bus del padre, tick de 5 s, publica
+`SubagentPhaseChanged` y `RuntimeNotice`; 2 tests) y su arranque por agente en
+`codeloom-cli` con los umbrales del `[agents]`. `runtime_snapshot` lista cada hijo vivo con
+fase y `health=ok|stalled|lost`.
+
+**Decisiones y matices:**
+- **`ToolRunning` queda fuera del tick** (alternativa admitida en §8.2 del spec del
+  watchdog): una herramienta larga no emite latidos y no hay latido periódico del ejecutor.
+- El eco de `Stalled`/`Lost` que el propio supervisor publica **no** cuenta como latido
+  (test `lo_que_publica_el_propio_supervisor_no_cuenta_como_latido`).
+- `Stalled → Working` lo dispara un evento real del hijo (`ChildEvent`), nunca el tick.
+- **`Cancel` existe en el supervisor pero no está cableado:** la política por defecto es
+  `MarkAndNotify`; el driver solo avisa. Falta el ajuste de configuración y llamar a
+  `cancel_subagent`.
+- `Lost` no cambia el `TaskState` A2A del hijo (sigue `working`): marca y avisa, no
+  asienta. Decidir si debe pasar a `failed` es una pregunta abierta.
+- El driver vive en el daemon (`codeloom-cli`), no en la TUI: la TUI cliente recibe sus
+  eventos por el bus.
+- Sin persistir la fase ni `last_activity_at_ms` (sigue pendiente de la Fase 4).
+
+**Contenido original de la fase:**
 
 **Qué cambia:** `SubagentSupervisor` en core, **puro** (`on_event(&LiveEvent)` +
 `tick(now_ms) -> Vec<SupervisorAction>`), y un driver que inyecta el tick en TUI y

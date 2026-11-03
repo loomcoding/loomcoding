@@ -29,6 +29,8 @@ pub(super) struct AgentEntry {
     pub(super) status: StdRwLock<String>,
     pub(super) activity: StdRwLock<Option<String>>,
     pub(super) jobs: StdMutex<HashSet<JobId>>,
+    /// Salud de los subagentes de este agente, para `runtime_snapshot`.
+    pub(super) supervisor: Option<codeloom_core::subagent::supervisor_driver::SupervisorHandle>,
 }
 
 pub(super) struct AgentSetup {
@@ -45,6 +47,7 @@ pub(super) struct AgentSetup {
     pub(super) registry: Arc<codeloom_core::registry::AgentRegistry>,
     pub(super) runtime_capabilities: codeloom_tui::app::RuntimeCapabilities,
     pub(super) bus_rx: tokio::sync::broadcast::Receiver<LiveEvent>,
+    pub(super) supervisor: codeloom_core::subagent::supervisor_driver::SupervisorHandle,
 }
 
 pub(super) fn executable_on_path(name: &str) -> bool {
@@ -164,6 +167,13 @@ pub(super) async fn build_agent(
     let project = format!("{}#codeloom-agent", cwd.display());
     let bus = codeloom_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
+    // Vigila a los subagentes con los umbrales del `[agents]` de este proyecto.
+    let supervisor = codeloom_core::subagent::supervisor_driver::spawn_supervisor(
+        bus.clone(),
+        agents_cfg.stall_threshold_ms(),
+        agents_cfg.lost_threshold_ms(),
+        codeloom_core::subagent::supervisor_driver::DEFAULT_TICK,
+    );
     let home = crate::home::user_home();
     let runtime_peers = a2a
         .consumes()
@@ -312,6 +322,7 @@ pub(super) async fn build_agent(
         watcher,
         registry,
         runtime_capabilities,
+        supervisor,
         bus_rx,
     })
 }
@@ -468,6 +479,7 @@ pub(super) async fn open_agent(
         status: StdRwLock::new("idle".into()),
         activity: StdRwLock::new(None),
         jobs: StdMutex::new(HashSet::new()),
+        supervisor: Some(setup.supervisor),
     });
     manager
         .agents

@@ -102,7 +102,7 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
 | Herramientas | `trait Tool`, `ToolRegistry`, `ExecutionMode` | `crates/codeloom-core/src/tools/mod.rs` (registro de las integradas en `project_registry`) |
 | Bus de eventos | `LiveEvent`, `EventBus` | `crates/codeloom-core/src/event/mod.rs` |
 | Sesiones | `trait SessionStore`, `SqliteStore` | `crates/codeloom-core/src/session/{mod,sqlite}.rs` |
-| Subagentes | `SubagentLauncher`, `InProcessSubagentLauncher`, `SubagentPhase`, vigilante de latidos | `crates/codeloom-core/src/subagent/` (`mod.rs`, `launcher.rs`, `phase.rs`, `watchdog.rs`, `input.rs`, y el ciclo de vida en `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`) |
+| Subagentes | `SubagentLauncher`, `InProcessSubagentLauncher`, `SubagentPhase`, observador de fases, vigilante de latidos y supervisor | `crates/codeloom-core/src/subagent/` (`mod.rs`, `launcher.rs`, `phase.rs`, `phase_observer.rs`, `watchdog.rs`, `supervisor.rs`, `supervisor_driver.rs`, `input.rs`, y el ciclo de vida en `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`) |
 
 Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agentes**
 (perfiles `<nombre>.md`), no el de herramientas.

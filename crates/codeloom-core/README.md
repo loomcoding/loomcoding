@@ -13,7 +13,7 @@ cliente de red de A2A (eso es `codeloom-a2a`).
 
 **Puntos de entrada:** `AgentLoop::run` y `run_message` (`agent/entry.rs`); el turno, en `agent/turn.rs`; la compactación, en `agent/compaction.rs`;
 `dispatch::execute_tools` (`agent/dispatch.rs`); `project_registry` (`tools/mod.rs`, registra
-las herramientas integradas); `subagent::watchdog::evaluate` (decisión pura de latidos).
+las herramientas integradas); `subagent::watchdog::evaluate` (decisión pura de latidos); `subagent::supervisor::SubagentSupervisor` (salud por hijo, puro) y `supervisor_driver::spawn_supervisor` (reloj y E/S).
 
 **Cómo se testea:** tests unitarios en el propio módulo (`#[cfg(test)]`) y `wiremock` para los
 providers. Sin red real: los tests de `tests/*_live.rs` son los únicos que tocan un proveedor

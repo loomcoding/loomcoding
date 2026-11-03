@@ -53,6 +53,7 @@ async fn test_entry(
         status: StdRwLock::new("idle".into()),
         activity: StdRwLock::new(None),
         jobs: StdMutex::new(HashSet::new()),
+        supervisor: None,
     })
 }
 
@@ -391,4 +392,34 @@ async fn two_project_agents_keep_configuration_environment_and_sessions_separate
             .len(),
         1
     );
+}
+
+#[test]
+fn the_snapshot_names_phase_and_health_of_each_subagent() {
+    use codeloom_core::subagent::supervisor::ChildHealth;
+    use codeloom_core::subagent_phase::SubagentPhase;
+    let child = |id: i64, phase| ChildHealth {
+        parent: SessionId(1),
+        child: SessionId(id),
+        phase,
+        last_activity_ms: 0,
+    };
+    let text = manager::subagent_lines(vec![
+        child(7, SubagentPhase::Streaming),
+        child(8, SubagentPhase::Stalled),
+        child(9, SubagentPhase::Lost),
+    ]);
+    assert!(
+        text.contains("subagent #7 of #1: streaming, health=ok"),
+        "{text}"
+    );
+    assert!(
+        text.contains("subagent #8 of #1: stalled, health=stalled"),
+        "{text}"
+    );
+    assert!(
+        text.contains("subagent #9 of #1: lost, health=lost"),
+        "{text}"
+    );
+    assert_eq!(manager::subagent_lines(Vec::new()), "");
 }

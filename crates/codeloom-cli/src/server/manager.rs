@@ -187,13 +187,17 @@ impl AgentManager {
         let mut rows = agents
             .values()
             .map(|agent| {
-                format!(
+                let mut row = format!(
                     "{}: {}, connected={}, working={}",
                     agent.card.name,
                     agent.status.read().unwrap(),
                     agent.connected.load(Ordering::Acquire),
                     agent.working.load(Ordering::Acquire)
-                )
+                );
+                // Fase y salud de cada subagente vivo: el estado A2A no distingue «trabaja» de «mudo».
+                let children = agent.supervisor.iter().flat_map(|s| s.children()).collect();
+                row.push_str(&subagent_lines(children));
+                row
             })
             .collect::<Vec<_>>();
         rows.sort();
@@ -406,4 +410,28 @@ impl TaskHost for AgentManager {
             .ok_or_else(|| HostError::Other("runtime task has no id".into()))?;
         self.subscribe_for(Some(tenant), id).await
     }
+}
+
+/// Una línea por subagente vivo con su fase y su salud, cada una precedida de un salto de línea.
+pub(super) fn subagent_lines(
+    children: Vec<codeloom_core::subagent::supervisor::ChildHealth>,
+) -> String {
+    use codeloom_core::subagent_phase::SubagentPhase;
+    let mut lines = String::new();
+    for child in children {
+        let health = match child.phase {
+            SubagentPhase::Lost => "lost",
+            SubagentPhase::Stalled => "stalled",
+            _ => "ok",
+        };
+        lines.push_str(&format!(
+            "
+  subagent #{} of #{}: {}, health={}",
+            child.child.0,
+            child.parent.0,
+            child.phase.as_str(),
+            health
+        ));
+    }
+    lines
 }
