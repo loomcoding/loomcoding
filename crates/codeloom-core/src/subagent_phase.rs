@@ -149,6 +149,44 @@ impl SubagentPhase {
         }
     }
 
+    /// Nombre corto de la fase, con el que se persiste en SQLite: el nombre de la
+    /// variante en minúsculas, p. ej. `queued`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::Starting => "starting",
+            Self::Streaming => "streaming",
+            Self::Reasoning => "reasoning",
+            Self::ToolRunning => "toolrunning",
+            Self::AwaitingPermission => "awaitingpermission",
+            Self::AwaitingParentInput => "awaitingparentinput",
+            Self::AwaitingCredentials => "awaitingcredentials",
+            Self::Working => "working",
+            Self::SettledOk => "settledok",
+            Self::SettledErr => "settlederr",
+            Self::Rejected => "rejected",
+            Self::Canceled => "canceled",
+            Self::Stalled => "stalled",
+            Self::Lost => "lost",
+            Self::Unknown => "unknown",
+        }
+    }
+
+    /// Fase a partir de su nombre corto. Lo no reconocido cae en `Unknown` en vez
+    /// de fallar: una fila escrita por una versión más nueva no debe romper la
+    /// rehidratación.
+    ///
+    /// Cabe señalar que no se implementa `std::str::FromStr` a propósito: ese trait
+    /// devuelve `Result`, y aquí un nombre irreconocible no es un error sino una
+    /// versión más nueva del dato, que debe poder leerse igual.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(name: &str) -> SubagentPhase {
+        Self::ALL
+            .into_iter()
+            .find(|phase| phase.as_str() == name)
+            .unwrap_or(Self::Unknown)
+    }
+
     /// Si la transición de esta fase a `next` es legal.
     ///
     /// Las reglas duras del spec: de una fase terminal no se sale nunca, y

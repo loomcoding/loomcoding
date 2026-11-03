@@ -659,6 +659,7 @@ fn tool_style(status: ToolStatus, app: &App) -> Style {
 mod tests {
     use super::*;
     use codeloom_core::session::{SessionId, SubagentDescriptor, UsageRecord};
+    use codeloom_core::subagent_phase::SubagentPhase;
     use codeloom_core::task::{TaskState, TaskStatus};
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
@@ -666,6 +667,12 @@ mod tests {
     /// Subagente en marcha de la sesión 1 con el id interno `child`.
     fn running(child: i64, label: &str) -> SubagentDescriptor {
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: SessionId(1),
             child: SessionId(child),
             job_id: format!("subagent-{child}"),
@@ -1444,6 +1451,12 @@ mod tests {
         app.subagents.insert(
             9,
             SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 status: TaskStatus::new(TaskState::Failed),
                 ..running(9, "review")
             },
@@ -1463,6 +1476,12 @@ mod tests {
         app.subagents.insert(
             9,
             SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 status: TaskStatus::new(TaskState::Completed),
                 ..running(9, "review")
             },
@@ -1556,6 +1575,12 @@ mod tests {
         app.subagents.insert(
             9,
             SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 status: TaskStatus::new(TaskState::InputRequired),
                 ..running(9, "review")
             },
@@ -1563,6 +1588,12 @@ mod tests {
         app.subagents.insert(
             10,
             SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 status: TaskStatus::new(TaskState::AuthRequired),
                 ..running(10, "tests")
             },

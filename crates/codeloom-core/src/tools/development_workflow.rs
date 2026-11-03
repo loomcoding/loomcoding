@@ -793,6 +793,7 @@ mod tests {
     use crate::session::sqlite::SqliteStore;
     use crate::session::{SessionId, SessionStore, SubagentDescriptor};
     use crate::subagent::SubagentLauncher;
+    use crate::subagent_phase::SubagentPhase;
     use crate::task::{TaskState, TaskStatus};
     use async_trait::async_trait;
     use std::sync::atomic::{AtomicI64, Ordering};
@@ -828,6 +829,12 @@ mod tests {
                 self.read_only_reviews.lock().unwrap().push(agent.clone());
             }
             self.children.lock().unwrap().push(SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: format!("job-{}", child.0),
@@ -1077,6 +1084,12 @@ mod tests {
         let store = Arc::new(SqliteStore::open(db.to_str().unwrap()).await.unwrap());
         let launcher = Arc::new(TestLauncher::new());
         launcher.children.lock().unwrap().push(SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: session,
             child: planner_child,
             job_id: format!("job-{}", planner_child.0),

@@ -5532,6 +5532,7 @@ fn budget_warning_line(
 mod tests {
     use super::*;
     use batten::state::ToolStatus;
+    use codeloom_core::subagent_phase::SubagentPhase;
 
     #[test]
     fn provider_notices_are_hidden_by_default_and_drive_the_spinner() {
@@ -5674,6 +5675,12 @@ mod tests {
         app.load_subagents(
             parent,
             vec![codeloom_core::session::SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),
@@ -5699,6 +5706,12 @@ mod tests {
 
     fn rail_child(parent: SessionId, child: i64) -> SubagentDescriptor {
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent,
             child: SessionId(child),
             job_id: format!("subagent-{child}"),
@@ -6753,6 +6766,12 @@ linea 2",
     /// Subagente de prueba (hijo `SessionId(9)`).
     fn sub(label: &str, state: TaskState, parent: SessionId) -> SubagentDescriptor {
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent,
             child: SessionId(9),
             job_id: "subagent-1".into(),
@@ -8545,6 +8564,12 @@ línea dos {}",
     /// Descriptor de un hijo con identificador y estado concretos.
     fn child_descriptor(child: i64, state: TaskState, parent: SessionId) -> SubagentDescriptor {
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent,
             child: SessionId(child),
             job_id: format!("subagent-{child}"),

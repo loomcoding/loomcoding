@@ -1803,6 +1803,7 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codeloom_core::subagent_phase::SubagentPhase;
 
     /// App con dos agentes globales usables (`rust` y `superpowers`), sin aprobación pendiente.
     fn app_con_agentes() -> App {
@@ -4038,6 +4039,12 @@ Cuerpo.
                 (
                     id,
                     SubagentDescriptor {
+                        phase: SubagentPhase::Queued,
+                        last_activity_at_ms: 0,
+                        steps: 0,
+                        tool_calls: 0,
+                        tokens_in: 0,
+                        tokens_out: 0,
                         parent,
                         child: SessionId(id),
                         job_id: format!("subagent-{id}"),

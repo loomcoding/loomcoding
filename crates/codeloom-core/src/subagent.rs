@@ -17,6 +17,7 @@ use crate::remote_task::{
 };
 use crate::session::{SessionId, SessionStore, SubagentDescriptor};
 use crate::subagent_input::{ChildResponder, InputBroker, PendingInput};
+use crate::subagent_phase::SubagentPhase;
 use crate::task::{TaskState, TaskStatus};
 use crate::tools::spill::ToolSpill;
 use crate::tools::{Tool, ToolRegistry};
@@ -598,6 +599,12 @@ impl InProcessSubagentLauncher {
             label: label.to_string(),
             status: TaskStatus::new(TaskState::Rejected)
                 .with_message(mensaje_capacidad(self.max_active)),
+            phase: SubagentPhase::Rejected,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             artifacts: Vec::new(),
             notice_delivered: false,
             agent,
@@ -1076,12 +1083,18 @@ Task: {label}
                     let steps = outcome.steps;
                     let text = outcome.final_text;
                     if text.trim().is_empty() {
+                        // El motivo importa: antes todo se reportaba como "sin respuesta
+                        // final tras N pasos", que sonaba a presupuesto agotado incluso
+                        // cuando el corte había sido por repetición de tool calls.
                         let reason = if steps >= child_max_steps {
                             format!(
                                 "subagent reached its step limit ({steps}/{child_max_steps}) without a final response"
                             )
                         } else {
-                            format!("subagent produced no final response after {steps} steps")
+                            format!(
+                                "subagent produced no final response after {steps} steps \
+                                 (the turn was cut early: repeated tool calls or cancellation)"
+                            )
                         };
                         return Err(CoreError::Tool(reason));
                     }
@@ -1136,6 +1149,12 @@ Task: {label}
             job_id: job.id().0.clone(),
             label: descriptor_label,
             status: TaskStatus::new(TaskState::Submitted),
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             artifacts: Vec::new(),
             notice_delivered: false,
             agent: agente,
@@ -4493,6 +4512,12 @@ mod tests {
             .unwrap();
         store
             .save_subagent(&SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: job.id().0.clone(),
@@ -5226,6 +5251,12 @@ mod tests {
         let child = store.create_session("/project").await.unwrap();
         store
             .save_subagent(&SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),
@@ -5406,6 +5437,12 @@ mod tests {
         let grande = store.create_session("/project").await.unwrap();
         store
             .save_subagent(&SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child: grande,
                 job_id: "subagent-grande".into(),
@@ -5450,6 +5487,12 @@ mod tests {
         let fallido = store.create_session("/project").await.unwrap();
         store
             .save_subagent(&SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child: fallido,
                 job_id: "subagent-fallido".into(),

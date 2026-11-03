@@ -92,7 +92,10 @@ pub enum ServerEvent {
         api_key_configured: bool,
     },
     Capabilities(codeloom_tui::app::RuntimeCapabilities),
-    Live(codeloom_core::event::LiveEvent),
+    /// Va en caja porque `LiveEvent` creció al añadir la fase y los contadores al
+    /// descriptor de subagente, y sin indirección el enum entero engorda y clippy
+    /// lo rechaza (`large_enum_variant`).
+    Live(Box<codeloom_core::event::LiveEvent>),
     Session(codeloom_tui::run::SessionUpdate),
     SessionListPage {
         items: Vec<codeloom_core::session::SessionInfo>,
@@ -1160,9 +1163,9 @@ async fn run_agent_worker(
                 if let Err(error) = run_turn_with_message(&entry, &agent, session, message).await {
                     entry
                         .ui
-                        .send(ServerEvent::Live(LiveEvent::Error {
+                        .send(ServerEvent::Live(Box::new(LiveEvent::Error {
                             message: error.to_string(),
-                        }))
+                        })))
                         .await;
                 }
             }
@@ -1192,9 +1195,9 @@ async fn run_agent_worker(
                     if let Err(error) = agent.run_subagent_request(session, request).await {
                         let _ = entry
                             .ui
-                            .send(ServerEvent::Live(LiveEvent::RuntimeNotice {
+                            .send(ServerEvent::Live(Box::new(LiveEvent::RuntimeNotice {
                                 message: format!("could not start the agent: {error}"),
-                            }))
+                            })))
                             .await;
                     }
                 }
@@ -1203,24 +1206,24 @@ async fn run_agent_worker(
                         Ok(descriptor) if !descriptor.status.state.is_terminal() => {
                             let _ = entry
                                 .ui
-                                .send(ServerEvent::Live(LiveEvent::RuntimeNotice {
+                                .send(ServerEvent::Live(Box::new(LiveEvent::RuntimeNotice {
                                     message: format!(
                                         "stop requested for subagent {}, current state: {:?}",
                                         child.0, descriptor.status.state
                                     ),
-                                }))
+                                })))
                                 .await;
                         }
                         Ok(_) => {}
                         Err(error) => {
                             let _ = entry
                                 .ui
-                                .send(ServerEvent::Live(LiveEvent::RuntimeNotice {
+                                .send(ServerEvent::Live(Box::new(LiveEvent::RuntimeNotice {
                                     message: format!(
                                         "could not stop subagent {}: {error}",
                                         child.0
                                     ),
-                                }))
+                                })))
                                 .await;
                         }
                     }
@@ -1436,7 +1439,7 @@ async fn forward_agent_events(
             _ => {}
         }
         let bounded = bounded_wire(event);
-        entry.ui.send(ServerEvent::Live(bounded)).await;
+        entry.ui.send(ServerEvent::Live(Box::new(bounded))).await;
     }
 }
 
@@ -2954,7 +2957,7 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
                     let _ = session_update_tx.send(SessionUpdate::Error(message));
                 }
                 ServerEvent::Live(event) => {
-                    match &event {
+                    match &*event {
                         LiveEvent::TurnStarted => {
                             if let Some(end) = turn_end.take() {
                                 let _ = end.send(());
@@ -2979,7 +2982,7 @@ async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
                         }
                         _ => {}
                     }
-                    reader_bus.publish(event);
+                    reader_bus.publish(*event);
                 }
                 ServerEvent::Session(update) => {
                     let _ = session_update_tx.send(update);

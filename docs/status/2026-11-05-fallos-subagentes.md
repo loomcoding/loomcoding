@@ -6,6 +6,22 @@ evidencia (fichero y línea) y una propuesta, no una decisión.
 
 Fecha de apertura: 2026-11-05.
 
+## Resumen
+
+| Fallo | Qué rompe | Severidad |
+|---|---|---|
+| F-01 | El turno muere al releer un fichero; el mensaje miente | alta |
+| F-02 | Un subagente que falla no deja rastro | alta |
+| F-03 | El reporte puede llegar truncado y se da por bueno | media |
+| F-04 | El subagente afirma trabajo que no está en disco | alta |
+| F-05 | El presupuesto de pasos no se adapta a la tarea | media |
+| F-06 | El padre no distingue "falló" de "falló sin hacer nada" | media |
+| F-07 | Mitigación provisional a mano (parche, no solución) | informativa |
+
+**Tasa de fallo observada: 3 de 5 subagentes, y los 3 fallidos escribieron 0 ficheros.**
+Con el código actual, delegar es una moneda al aire. Eso es incompatible con un producto
+cuyo modelo de orquestación es precisamente la delegación.
+
 ---
 
 ## F-01 — El subagente muere en silencio al repetir una tool call, y el mensaje miente
@@ -44,6 +60,20 @@ corte por repetición. El operador no puede saber qué pasó.
    sube el umbral (3-4), o se exceptúan las tools de solo lectura, o se compara contra
    la firma de la ventana entera y no solo las dos últimas.
 3. El mensaje debe decir qué tool se repitió y con qué argumentos.
+
+**ESTADO: ARREGLADO el 2026-11-05.** Se aplicaron las propuestas 1 y 2:
+
+- `REPEAT_THRESHOLD` sube de 2 a 3. Dos relecturas idénticas seguidas son legítimas;
+  tres ya no aportan información nueva.
+- `stop_reason()` devuelve `Option<StopReason>` (`StepBudget` | `RepeatedToolCalls`) y
+  `should_stop()` se conserva como envoltorio booleano para no romper llamantes.
+- El mensaje de `subagent.rs` ya no miente: distingue presupuesto agotado de corte
+  temprano.
+- Tests nuevos: `dos_lecturas_iguales_no_cortan`, `repeticion_no_consecutiva_no_corta`,
+  `un_mensaje_de_usuario_rearma_la_deteccion`, `stops_on_step_budget`.
+
+Queda pendiente la propuesta 3 (decir qué tool se repitió): requiere propagar la firma
+hasta el error, y no bloquea el desarrollo.
 
 **Evidencia de esta sesión.** Los tres subagentes delegados fallaron, y **ninguno de los
 tres escribió un solo fichero**:
@@ -141,6 +171,29 @@ empezar de cero.
 **Propuesta.** El resultado de un subagente debería incluir siempre: ficheros
 modificados (según `git status`), tests ejecutados y su resultado, y motivo del fallo.
 Con eso el padre decide sin adivinar.
+
+---
+
+## F-07 — Mitigación provisional: el padre blinda el encargo a mano
+
+**Severidad:** informativa. Es un parche, no una solución.
+
+Mientras F-01 no esté arreglado, la única forma de que un subagente sobreviva es que el
+padre le escriba en el prompt:
+
+- "NUNCA leas el mismo fichero con el mismo `offset` dos veces."
+- "Prefiere `grep` a `view`."
+- "Escribe los cambios ANTES de verificar."
+- Y darle el contexto ya verificado (structs, líneas, firmas) para que no tenga que
+  explorar, que es lo que dispara las relecturas.
+
+**Esto no escala.** Depende de que el padre se acuerde, gasta contexto del padre en
+duplicar información que el hijo podría descubrir, y no protege de una relectura
+legítima. La solución de verdad es F-01.
+
+**Propuesta de producto:** que el propio runtime inyecte esa guía en el prompt de
+sistema de todo subagente con tools de lectura, y que la regla de corte por repetición
+distinga entre "releo para ver lo mismo" (legítimo) y "estoy en bucle" (cortar).
 
 ---
 

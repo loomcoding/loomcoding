@@ -2922,6 +2922,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 mod tests {
     use super::*;
     use crate::app::App;
+    use codeloom_core::subagent_phase::SubagentPhase;
 
     fn record_with_cache(read: u64, write: u64) -> codeloom_core::session::UsageRecord {
         codeloom_core::session::UsageRecord {
@@ -3302,6 +3303,12 @@ mod tests {
             app.subagents.insert(
                 child,
                 codeloom_core::session::SubagentDescriptor {
+                    phase: SubagentPhase::Queued,
+                    last_activity_at_ms: 0,
+                    steps: 0,
+                    tool_calls: 0,
+                    tokens_in: 0,
+                    tokens_out: 0,
                     parent: codeloom_core::session::SessionId(2),
                     child: codeloom_core::session::SessionId(child),
                     job_id: format!("subagent-{child}"),
@@ -3326,6 +3333,12 @@ mod tests {
             app.subagents.insert(
                 child,
                 codeloom_core::session::SubagentDescriptor {
+                    phase: SubagentPhase::Queued,
+                    last_activity_at_ms: 0,
+                    steps: 0,
+                    tool_calls: 0,
+                    tokens_in: 0,
+                    tokens_out: 0,
                     parent: codeloom_core::session::SessionId(1),
                     child: codeloom_core::session::SessionId(child),
                     job_id: format!("subagent-{child}"),
@@ -3374,6 +3387,12 @@ mod tests {
             app.subagents.insert(
                 child,
                 codeloom_core::session::SubagentDescriptor {
+                    phase: SubagentPhase::Queued,
+                    last_activity_at_ms: 0,
+                    steps: 0,
+                    tool_calls: 0,
+                    tokens_in: 0,
+                    tokens_out: 0,
                     parent: codeloom_core::session::SessionId(1),
                     child: codeloom_core::session::SessionId(child),
                     job_id: format!("subagent-{child}"),
@@ -3424,6 +3443,12 @@ mod tests {
         app.subagents.insert(
             9,
             codeloom_core::session::SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent: codeloom_core::session::SessionId(1),
                 child: codeloom_core::session::SessionId(9),
                 job_id: "subagent-9".into(),
@@ -4370,6 +4395,12 @@ tres",
             SessionId(1),
         )));
         app.apply(LiveEvent::SubagentChanged(SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: SessionId(1),
             child: SessionId(9),
             job_id: "subagent-1".into(),

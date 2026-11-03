@@ -424,6 +424,7 @@ mod tests {
     use super::*;
     use crate::question::QuestionOption;
     use crate::session::SessionStore;
+    use crate::subagent_phase::SubagentPhase;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
@@ -851,6 +852,12 @@ mod tests {
         let child = store.create_session("/project").await.unwrap();
         store
             .save_subagent(&crate::session::SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),

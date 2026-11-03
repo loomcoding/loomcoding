@@ -82,6 +82,7 @@ mod tests {
     use crate::permission::PermissionService;
     use crate::session::SubagentDescriptor;
     use crate::subagent::SubagentLauncher;
+    use crate::subagent_phase::SubagentPhase;
     use crate::task::{TaskState, TaskStatus};
     use std::sync::Arc;
 
@@ -148,6 +149,12 @@ mod tests {
         Arc::new(ConHijos {
             padre: SessionId(1),
             hijos: vec![SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent: SessionId(1),
                 child: SessionId(2),
                 job_id: "subagent-1".into(),

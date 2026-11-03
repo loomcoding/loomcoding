@@ -170,12 +170,19 @@ pub fn flujo_de_tarea(
 mod tests {
     use super::*;
     use crate::event::EventBus;
+    use crate::subagent_phase::SubagentPhase;
     use crate::task::TaskState;
     use futures::StreamExt;
     use std::time::Duration;
 
     fn descriptor(estado: TaskState, artefactos: Vec<Artifact>) -> SubagentDescriptor {
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: SessionId(4),
             child: SessionId(9),
             job_id: "subagent-1".into(),

@@ -1759,6 +1759,7 @@ mod tests {
     use super::*;
     use crate::provider::{Capabilities, ProviderStream, StreamChunk};
     use crate::session::sqlite::SqliteStore;
+    use crate::subagent_phase::SubagentPhase;
     use crate::tools::{ExecutionMode, Tool, ToolCtx, ToolOutput};
     use async_trait::async_trait;
     use std::collections::VecDeque;
@@ -4806,6 +4807,12 @@ Cuerpo.
         let child = store.create_session("/p").await.unwrap();
         store
             .save_subagent(&crate::session::SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),

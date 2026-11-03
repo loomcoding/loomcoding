@@ -487,6 +487,7 @@ impl From<&StreamResponse> for WireStreamResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codeloom_core::subagent_phase::SubagentPhase;
 
     #[test]
     fn states_roundtrip_through_wire_names() {
@@ -709,6 +710,12 @@ mod tests {
 
     fn descriptor(estado: TaskState, artefactos: Vec<Artifact>) -> SubagentDescriptor {
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: codeloom_core::session::SessionId(4),
             child: codeloom_core::session::SessionId(9),
             job_id: "subagent-1".into(),

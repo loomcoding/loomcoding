@@ -1,6 +1,7 @@
 use crate::a2a::Artifact;
 use crate::error::Result;
 use crate::message::Message;
+use crate::subagent_phase::SubagentPhase;
 use crate::task::TaskStatus;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,17 @@ pub struct SubagentDescriptor {
     pub label: String,
     /// Estado de la tarea del subagente, según A2A: el estado es el `TaskState` mismo.
     pub status: TaskStatus,
+    /// Fase local del subagente. No viaja en `TaskStatus.message`: es texto libre y
+    /// `update_subagent_status` puede pisarlo.
+    pub phase: SubagentPhase,
+    /// Última actividad observada, en milisegundos desde la época. Nunca `Instant`:
+    /// el descriptor deriva `Serialize, Deserialize, PartialEq, Eq` y `Instant` no
+    /// implementa ninguno de los cuatro.
+    pub last_activity_at_ms: u64,
+    pub steps: u64,
+    pub tool_calls: u64,
+    pub tokens_in: u64,
+    pub tokens_out: u64,
     /// Resultado de la tarea, como `Artifact`s de A2A. Vacío mientras no ha terminado.
     pub artifacts: Vec<Artifact>,
     pub notice_delivered: bool,
@@ -40,6 +52,14 @@ pub struct SubagentDescriptor {
 }
 
 impl SubagentDescriptor {
+    /// Suma a los contadores saturando en `u64::MAX` en vez de desbordar.
+    pub fn add_usage(&mut self, steps: u64, tool_calls: u64, tokens_in: u64, tokens_out: u64) {
+        self.steps = self.steps.saturating_add(steps);
+        self.tool_calls = self.tool_calls.saturating_add(tool_calls);
+        self.tokens_in = self.tokens_in.saturating_add(tokens_in);
+        self.tokens_out = self.tokens_out.saturating_add(tokens_out);
+    }
+
     /// Texto del resultado: el de los artefactos que no son de progreso, unidos con `"\n"`. `None` si el
     /// subagente no tiene ninguno.
     pub fn result_text(&self) -> Option<String> {
@@ -300,6 +320,12 @@ mod tests {
     fn descriptor_sin_artefactos() -> SubagentDescriptor {
         use crate::task::TaskState;
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: SessionId(7),
             child: SessionId(8),
             job_id: "subagent-8".into(),
@@ -320,6 +346,12 @@ mod tests {
         assert_eq!(sin.result_text(), None);
 
         let con = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             artifacts: vec![
                 Artifact::text_artifact("uno"),
                 Artifact::text_artifact("dos"),

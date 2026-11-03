@@ -118,6 +118,7 @@ mod tests {
     use crate::permission::PermissionService;
     use crate::session::SubagentDescriptor;
     use crate::subagent::SubagentLauncher;
+    use crate::subagent_phase::SubagentPhase;
     use std::sync::{Arc, Mutex};
 
     /// Lanzador de prueba: registra las respuestas recibidas por `answer` y, si se le da un
@@ -158,6 +159,12 @@ mod tests {
                 .unwrap()
                 .ok_or(CoreError::TaskNotFound(child.0))?;
             Ok(SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),

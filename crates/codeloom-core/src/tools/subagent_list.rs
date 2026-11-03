@@ -66,11 +66,18 @@ mod tests {
     use super::*;
     use crate::a2a::Artifact;
     use crate::session::SessionId;
+    use crate::subagent_phase::SubagentPhase;
     use crate::task::{TaskState, TaskStatus};
 
     #[test]
     fn descriptor_json_exposes_failure_message_and_stable_state() {
         let descriptor = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: SessionId(1),
             child: SessionId(2),
             job_id: "subagent-1".into(),
@@ -94,6 +101,12 @@ mod tests {
         let mut artifacts = crate::a2a::publicar_progreso(&[], "plan", None, "1. leer").unwrap();
         artifacts.push(Artifact::text_artifact("resultado final"));
         let descriptor = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent: SessionId(1),
             child: SessionId(2),
             job_id: "subagent-1".into(),

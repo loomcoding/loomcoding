@@ -75,6 +75,7 @@ mod tests {
     use crate::permission::PermissionService;
     use crate::session::sqlite::SqliteStore;
     use crate::session::{SessionStore, SubagentDescriptor};
+    use crate::subagent_phase::SubagentPhase;
     use crate::task::{TaskState, TaskStatus};
     use std::sync::Arc;
 
@@ -94,6 +95,12 @@ mod tests {
         let child = store.create_session("/proj").await.unwrap();
         store
             .save_subagent(&SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),

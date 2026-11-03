@@ -2,6 +2,7 @@ use super::{SessionId, SessionInfo, SessionStore, SubagentDescriptor, UsageRecor
 use crate::a2a::{self, Artifact};
 use crate::error::{CoreError, Result};
 use crate::message::{self, Message};
+use crate::subagent_phase::SubagentPhase;
 use crate::task::{TaskState, TaskStatus};
 use crate::workflow::{DevelopmentWorkflow, DevelopmentWorkflowEvent, WorkflowId, WorkflowPhase};
 use async_trait::async_trait;
@@ -86,6 +87,30 @@ impl SqliteStore {
             (
                 "reference_task_ids",
                 "ALTER TABLE subagents ADD COLUMN reference_task_ids TEXT",
+            ),
+            (
+                "phase",
+                "ALTER TABLE subagents ADD COLUMN phase TEXT NOT NULL DEFAULT 'queued'",
+            ),
+            (
+                "last_activity_at_ms",
+                "ALTER TABLE subagents ADD COLUMN last_activity_at_ms INTEGER NOT NULL DEFAULT 0",
+            ),
+            (
+                "steps",
+                "ALTER TABLE subagents ADD COLUMN steps INTEGER NOT NULL DEFAULT 0",
+            ),
+            (
+                "tool_calls",
+                "ALTER TABLE subagents ADD COLUMN tool_calls INTEGER NOT NULL DEFAULT 0",
+            ),
+            (
+                "tokens_in",
+                "ALTER TABLE subagents ADD COLUMN tokens_in INTEGER NOT NULL DEFAULT 0",
+            ),
+            (
+                "tokens_out",
+                "ALTER TABLE subagents ADD COLUMN tokens_out INTEGER NOT NULL DEFAULT 0",
             ),
         ] {
             if !columnas.iter().any(|existente| existente == columna) {
@@ -313,8 +338,8 @@ WHERE s.project = ?
 
     async fn save_subagent(&self, descriptor: &SubagentDescriptor) -> Result<()> {
         sqlx::query(
-            "INSERT INTO subagents (parent_session_id, child_session_id, job_id, label, status, status_message, status_timestamp_ms, artifacts_json, agent, agent_origin, reference_task_ids, created_at_ms)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO subagents (parent_session_id, child_session_id, job_id, label, status, status_message, status_timestamp_ms, artifacts_json, agent, agent_origin, reference_task_ids, phase, last_activity_at_ms, steps, tool_calls, tokens_in, tokens_out, created_at_ms)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(descriptor.parent.0)
         .bind(descriptor.child.0)
@@ -327,6 +352,12 @@ WHERE s.project = ?
         .bind(&descriptor.agent)
         .bind(&descriptor.agent_origin)
         .bind(encode_references(&descriptor.reference_task_ids)?)
+        .bind(descriptor.phase.as_str())
+        .bind(descriptor.last_activity_at_ms as i64)
+        .bind(descriptor.steps as i64)
+        .bind(descriptor.tool_calls as i64)
+        .bind(descriptor.tokens_in as i64)
+        .bind(descriptor.tokens_out as i64)
         .bind(crate::message::now_ms())
         .execute(&self.pool)
         .await
@@ -386,7 +417,8 @@ WHERE s.project = ?
         let rows = sqlx::query(
             "SELECT parent_session_id, child_session_id, job_id, label, status, status_message,
                     status_timestamp_ms, created_at_ms, artifacts_json, result, notice_delivered,
-                    agent, agent_origin, reference_task_ids
+                    agent, agent_origin, reference_task_ids, phase, last_activity_at_ms,
+                    steps, tool_calls, tokens_in, tokens_out
              FROM subagents WHERE parent_session_id = ? ORDER BY created_at_ms, child_session_id",
         )
         .bind(parent.0)
@@ -411,6 +443,20 @@ WHERE s.project = ?
                         message: decode_status_message(row.get("status_message"), child),
                         timestamp_ms,
                     },
+                    // Una fila antigua no tiene fase: sale `Queued` sin error. Un texto
+                    // de una versión más nueva cae en `Unknown`, tampoco con error.
+                    phase: row
+                        .get::<Option<String>, _>("phase")
+                        .map(|texto| SubagentPhase::from_str(&texto))
+                        .unwrap_or(SubagentPhase::Queued),
+                    last_activity_at_ms: row
+                        .get::<Option<i64>, _>("last_activity_at_ms")
+                        .unwrap_or(0)
+                        .max(0) as u64,
+                    steps: row.get::<Option<i64>, _>("steps").unwrap_or(0).max(0) as u64,
+                    tool_calls: row.get::<Option<i64>, _>("tool_calls").unwrap_or(0).max(0) as u64,
+                    tokens_in: row.get::<Option<i64>, _>("tokens_in").unwrap_or(0).max(0) as u64,
+                    tokens_out: row.get::<Option<i64>, _>("tokens_out").unwrap_or(0).max(0) as u64,
                     artifacts: decode_artifacts(
                         row.get("artifacts_json"),
                         row.get("result"),
@@ -1131,6 +1177,12 @@ mod tests {
     /// Descriptor de prueba del subagente `child` con el estado A2A dado.
     fn descriptor(parent: SessionId, child: SessionId, state: TaskState) -> SubagentDescriptor {
         SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             parent,
             child,
             job_id: format!("subagent-{}", child.0),
@@ -1256,6 +1308,12 @@ mod tests {
         for state in TaskState::ALL {
             let child = store.create_session("/proj").await.unwrap();
             let guardado = SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 status: TaskStatus {
                     state,
                     message: Some(crate::a2a::Message::agent_text(format!(
@@ -1535,6 +1593,12 @@ mod tests {
         let child = store.create_session("/p").await.unwrap();
         store
             .save_subagent(&SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),
@@ -1605,6 +1669,12 @@ mod tests {
         let stranger = store.create_session("/p").await.unwrap();
         store
             .save_subagent(&SubagentDescriptor {
+                phase: SubagentPhase::Queued,
+                last_activity_at_ms: 0,
+                steps: 0,
+                tool_calls: 0,
+                tokens_in: 0,
+                tokens_out: 0,
                 parent,
                 child,
                 job_id: "subagent-1".into(),
@@ -1664,6 +1734,12 @@ mod tests {
         for (padre, hijo_de) in [(raiz, hijo), (hijo, nieto), (nieto, bisnieto)] {
             store
                 .save_subagent(&SubagentDescriptor {
+                    phase: SubagentPhase::Queued,
+                    last_activity_at_ms: 0,
+                    steps: 0,
+                    tool_calls: 0,
+                    tokens_in: 0,
+                    tokens_out: 0,
                     parent: padre,
                     child: hijo_de,
                     job_id: format!("subagent-{}", hijo_de.0),
@@ -1812,6 +1888,12 @@ mod tests {
         let child = store.create_session("/proj").await.unwrap();
         let mensaje = crate::a2a::Message::agent_text("¿Cuál?");
         let guardado = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             status: TaskStatus {
                 state: TaskState::InputRequired,
                 message: Some(mensaje.clone()),
@@ -1887,6 +1969,12 @@ mod tests {
             },
         ];
         let guardado = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             artifacts: artefactos,
             ..descriptor(parent, child, TaskState::Completed)
         };
@@ -2090,6 +2178,12 @@ mod tests {
         let parent = store.create_session("/proj").await.unwrap();
         let child = store.create_session("/proj").await.unwrap();
         let con_agente = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             agent: Some("reviewer".into()),
             agent_origin: Some("project:/proj/.codeloom/agents/reviewer.md".into()),
             reference_task_ids: Vec::new(),
@@ -2189,10 +2283,22 @@ mod tests {
         let anterior = store.create_session("/proj").await.unwrap();
         let child = store.create_session("/proj").await.unwrap();
         let sin = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             reference_task_ids: Vec::new(),
             ..descriptor(parent, anterior, TaskState::Completed)
         };
         let con = SubagentDescriptor {
+            phase: SubagentPhase::Queued,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
             reference_task_ids: vec![anterior, SessionId(99)],
             ..descriptor(parent, child, TaskState::Working)
         };
