@@ -118,24 +118,25 @@ Tres checks como tests de Rust en el workspace (decisión cerrada: corren con
 `cargo test`). Crate/ubicación: un test de integración en `crates/codeloom-e2e/tests/`
 (ya existe el crate y no es parte del motor), `guardarrailes.rs`.
 
-### Paso 1.1 — Check de tamaño
+### Paso 1.1 — Check de tamaño (HECHO 2026-11-05)
 
 Enumera `crates/*/src/**/*.rs` y falla si alguno supera **1.000 líneas** y no está en
-la lista blanca. Lista blanca inicial: los archivos que hoy superan el techo (25 a la
-medición), cada uno con una línea de justificación. La lista solo puede decrecer: el
+la lista blanca. Lista blanca inicial: los archivos que hoy superan el techo (23 en `crates/*/src`, medidos el
+2026-11-05; el «25» del spec contaba otros ficheros). Cada entrada lleva un tope redondeado a la
+centena superior, cada uno con una línea de justificación. La lista solo puede decrecer: el
 test falla también si una entrada de la lista ya no supera el techo (obliga a retirarla).
 
 **Aceptación:** pasa en el estado actual; falla si se añade un archivo nuevo de más de
 1.000 líneas; falla si queda una entrada obsoleta en la lista.
 
-### Paso 1.2 — Check de la regla de dependencias
+### Paso 1.2 — Check de la regla de dependencias (HECHO 2026-11-05)
 
 `codeloom-core/Cargo.toml` no declara `ratatui`/`crossterm` y no hay `use ratatui`/
 `use crossterm` en `crates/codeloom-core/src`.
 
 **Aceptación:** falla si alguien añade la dependencia o el import.
 
-### Paso 1.3 — Check de cobertura del INDEX
+### Paso 1.3 — Check de cobertura del INDEX (HECHO 2026-11-05)
 
 Como el índice es temático, el test no exige una fila por fichero: falla si algún
 `docs/specs/*.md` o `docs/plans/*.md` de primer nivel con fecha **posterior al corte**
