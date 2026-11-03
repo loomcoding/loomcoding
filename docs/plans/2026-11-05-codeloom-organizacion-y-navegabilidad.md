@@ -278,7 +278,9 @@ comandos · layout. No es estético: es para que el bug del composer (`load_sess
 
 ---
 
-## Fase 6 — Refactor de `run.rs` (4.377 líneas)
+## Fase 6 — Refactor de `run.rs` (4.377 líneas) — HECHA
+
+**Hecho (2026-11-05):** `run.rs` pasó a `run/`: `mod.rs` (bucle `run`, tipos de órdenes; ~415 líneas), `keys`, `dialogs`, `slash`, `events`, `clipboard` y `tests/` en 12 temas más `support`. Movimiento puro (119 tests de `run` sin cambios); ningún fichero pasa de 800 líneas; `run.rs` sale de la lista blanca.
 
 **Precondición:** Fase 5 hecha (el bucle depende del estado de `app.rs`).
 

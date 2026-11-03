@@ -61,7 +61,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 ## Quiero añadir un comando de composer (`/algo`)
 
 1. Variante en `Command` y fila en la tabla de `crates/codeloom-tui/src/commands.rs`.
-2. Su ejecución, en el `match` de comandos de `crates/codeloom-tui/src/run.rs`
+2. Su ejecución, en el `match` de comandos de `crates/codeloom-tui/src/run/slash.rs`
    (ejemplo: `Command::Verbose`).
 3. Estado que necesite: `crates/codeloom-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
 4. El composer no puede parpadear ni ir con retraso: comprueba con `tui_pty` si tocas teclas.
