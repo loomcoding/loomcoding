@@ -44,7 +44,14 @@ Reglas que este plan no puede romper:
 Ningún archivo de `crates/` se toca (salvo los `README.md` nuevos). Al terminar, un
 agente nuevo puede orientarse leyendo cinco documentos. Un commit por paso.
 
-### Paso 0.1 — `docs/ARCHITECTURE.md`
+### Paso 0.1 — `docs/ARCHITECTURE.md` (HECHO 2026-11-05)
+
+**Corrección de premisa:** el spec daba por inexistente `docs/ARCHITECTURE.md` y todo
+índice. En realidad ya existían `docs/ARCHITECTURE.md` (con rutas desfasadas y la flecha
+core→a2a al revés), `docs/README.md` (índice de carpetas) y `docs/inventario.md`
+(estado cotejado de los specs, a 2026-10-30), y `docs/specs|plans/hechos/` separan lo
+terminado. El paso se ejecutó como **reescritura** del existente, no como creación.
+Consecuencia para el paso 0.5: ver allí.
 
 - Tabla de los 8 crates: responsabilidad · entrada · qué **no** va aquí.
 - Diagrama de dependencias permitidas y prohibidas (core sin TUI), sacado de los
@@ -84,6 +91,13 @@ Tabla invariante → **comando exacto o procedimiento** que lo verifica.
 concreto con ruta; se ejecuta cada comando una vez para confirmar que funciona.
 
 ### Paso 0.5 — `docs/INDEX.md`
+
+**Pendiente de decisión:** ya existe `docs/inventario.md` (estado de cada spec/plan,
+fotografía del 2026-10-30) y la carpeta `hechos/` ya marca lo terminado. Hay ~290
+documentos en total (no 106: los de `hechos/` no estaban contados). Opciones: (a)
+actualizar y renombrar `inventario.md` como INDEX; (b) crear `INDEX.md` solo para lo
+vigente y enlazar el inventario para el histórico. El test del paso 1.3 se ajusta a la
+opción elegida.
 
 Índice de **todos** los `docs/specs/*.md` y `docs/plans/*.md` (a 2026-11-05: 64 + 46)
 con estado (`vigente` / `en curso` / `histórico` / `superado` / `obsoleto`) y

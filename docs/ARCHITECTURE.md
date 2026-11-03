@@ -1,65 +1,111 @@
 # Arquitectura de CodeLoom
 
-Mapa de capas y guía de "dónde vive qué". Este documento es un índice: la intención de
-diseño está en los specs enlazados al final, no aquí.
+Mapa de capas, flujo de un mensaje y guía de «dónde vive qué». Este documento es un
+mapa, no un tutorial: la intención de diseño está en los specs enlazados al final. Las
+rutas citadas se verifican contra el código; si mueves un archivo, actualiza aquí en el
+mismo commit.
 
 ## Mapa de capas
+
+Las flechas van de quien depende hacia lo que usa (verificado en los `Cargo.toml`).
 
 ```
                         ┌──────────────┐
                         │ codeloom-cli │  binarios `loom` y `codeloom`
                         └──────┬───────┘
-                 ┌─────────────┼─────────────┐
-                 ▼             ▼             ▼
-          ┌────────────┐ ┌───────────┐ ┌───────────┐
-          │codeloom-tui│ │codeloom-  │ │codeloom-  │
-          │            │ │  herdr    │ │   mcp     │
-          └─────┬──────┘ └─────┬─────┘ └─────┬─────┘
-                │              │             │
-                ▼              ▼             ▼
-          ┌──────────────────────────────────────┐
-          │           codeloom-core              │  motor puro
-          └──────────────┬───────────────────────┘
-                         ▼
-          ┌──────────────────────────────────────┐
-          │           codeloom-a2a               │  edge de red
-          └──────────────────────────────────────┘
-
-          ┌──────────────┐
-          │    batten    │  widgets y estado de TUI (sin motor)
-          └──────────────┘
+        ┌───────────┬──────────┼──────────┬───────────┐
+        ▼           ▼          ▼          ▼           ▼
+ ┌────────────┐ ┌─────────┐ ┌────────┐ ┌────────┐ ┌─────────┐
+ │codeloom-tui│ │codeloom-│ │codeloom│ │codeloom│ │ codeloom│
+ │            │ │  herdr  │ │  -mcp  │ │  -a2a  │ │  -e2e*  │
+ └──┬───────┬─┘ └─────────┘ └───┬────┘ └───┬────┘ └────┬────┘
+    │       │  (herdr: sin      │          │           │
+    ▼       │   deps internas)  ▼          ▼           ▼
+┌────────┐  └───────────────►┌──────────────────────────────┐
+│ batten │                   │         codeloom-core        │  motor puro
+└────────┘                   └──────────────────────────────┘
+  (sin motor)
+                                          * solo como dev-dependency
 ```
+
+`batten` no depende de nadie del workspace; `codeloom-core` tampoco. `codeloom-a2a` y
+`codeloom-mcp` dependen de `core`, **nunca al revés**.
 
 ## Reglas de dependencia (duras)
 
 - **`codeloom-core` no depende de `ratatui` ni de `crossterm`.** El motor es una
   librería pura y testeable. Toda la interfaz vive en crates opcionales.
-- **`codeloom-core` no hace red real en tests.** El provider es siempre un mock
-  (`wiremock` o un `Provider` de test).
+- **Sin red real en tests.** El provider es siempre un mock (`wiremock` o un `Provider`
+  de test).
 - **Errores de librería con `thiserror`**; el binario puede usar `anyhow`.
 - **Herramientas que escriben son `ExecutionMode::Exclusive`** (forman barrera); las de
   solo lectura son `Parallel`.
 - **Nada sin cota llega al modelo**: todo output de herramienta, sección de prompt y
   bucle tiene un límite. Ver el decálogo enlazado abajo.
 
+Cómo se comprueba cada una: `docs/INVARIANTS.md`.
+
 ## Crates
 
-| Crate | Responsabilidad | ¿Opcional? |
-|---|---|---|
-| `codeloom-core` | Motor: agente, sesiones, herramientas, provider, eventos, tareas, subagentes | no |
-| `codeloom-a2a` | Edge A2A: tarjeta, JSON-RPC, SSE, cliente y servidor | no |
-| `codeloom-cli` | Punto de entrada; construye los binarios `loom` y `codeloom` | no |
-| `codeloom-tui` | Interfaz de terminal sobre `ratatui` | sí |
-| `batten` | Widgets y estado de TUI reutilizables, sin motor | sí |
-| `codeloom-herdr` | Integración con el runtime `herdr` como plugin | sí |
-| `codeloom-mcp` | Integración MCP | sí |
-| `codeloom-e2e` | Pruebas de extremo a extremo | solo test |
+| Crate | Responsabilidad | Entrada principal | No va aquí | ¿Opcional? |
+|---|---|---|---|---|
+| `codeloom-core` | Motor: agente, sesiones, herramientas, provider, eventos, tareas, subagentes | `agent/mod.rs` (`AgentLoop`) | TUI, terminal, red A2A | no |
+| `codeloom-a2a` | Borde A2A: tarjeta, JSON-RPC, SSE, cliente y servidor | `lib.rs`, `serve/`, `client.rs` | lógica del motor | no |
+| `codeloom-cli` | Binarios `loom`/`codeloom`; daemon, IPC y arranque | `main.rs`, `server.rs` | widgets, lógica del agente | no |
+| `codeloom-tui` | Interfaz de terminal sobre `ratatui` | `run.rs`, `app.rs`, `render.rs` | acceso directo al motor sin pasar por el cliente | sí |
+| `batten` | Widgets y estado reutilizables de chat de agentes | `state/`, `widgets/` | nada de `codeloom-core` | sí |
+| `codeloom-herdr` | Integración con el runtime `herdr` como plugin | `lib.rs` | TUI propia | sí |
+| `codeloom-mcp` | Integración MCP (herramientas externas) | `lib.rs` | — | sí |
+| `codeloom-e2e` | Apoyo a pruebas E2E visuales | `daemon.rs`, `term.rs` | código de producción | solo test |
+
+Cada crate tiene su `README.md` con la plantilla fija (responsabilidad, tipos clave,
+puntos de entrada, trampas).
 
 ## Los dos binarios
 
 `codeloom-cli` declara dos `[[bin]]` que comparten `src/main.rs`: **`loom`** (comando
-corto) y **`codeloom`**. Ambos autodetectan el modo de ejecución: standalone o plugin de
-`herdr`. Es un par de binarios, dos modos.
+corto) y **`codeloom`**. Ambos autodetectan el modo: standalone o plugin de `herdr`. Es
+un par de binarios, dos modos.
+
+## Flujo de un mensaje de punta a punta
+
+Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el motor.
+
+1. **Teclas → mensaje.** `crates/codeloom-tui/src/run.rs` (`handle_key`, `run`) recoge la
+   entrada; el estado vive en `app.rs`.
+2. **IPC.** El cliente envía por `crates/codeloom-cli/src/ipc.rs` (`send`/`receive`).
+   `server.rs::connect_or_start` arranca el daemon si no existe.
+3. **Daemon.** `server.rs::run_server` → `serve_connection` → `serve_authenticated`
+   atienden la conexión (con token); `run_agent_worker` y `run_turn_with_message` lanzan
+   el turno.
+4. **Bucle del agente.** `AgentLoop::run`/`run_message` en
+   `crates/codeloom-core/src/agent/mod.rs` leen una ventana del historial
+   (`SessionStore::recent_messages`), arman el prompt y llaman al provider.
+5. **Provider.** `Provider::stream` (`provider/mod.rs`); implementaciones en
+   `provider/{anthropic,openai,gemini}.rs`.
+6. **Herramientas.** Si el modelo pide tools, `agent/dispatch.rs::execute_tools` las
+   ejecuta contra el `ToolRegistry` (`tools/mod.rs`): las `Parallel` a la vez, las
+   `Exclusive` como barrera. El permiso se decide en `permission/mod.rs`.
+7. **Eventos.** Todo lo observable se publica como `LiveEvent` en el `EventBus`
+   (`event/mod.rs`). El daemon se suscribe (`bus.subscribe()` en `server.rs`) y reenvía
+   al cliente.
+8. **Persistencia.** Cada mensaje se guarda con `SessionStore::append_message`
+   (`session/mod.rs`; SQLite en `session/sqlite.rs`).
+9. **Pintado.** El cliente aplica el evento a `App` y `render.rs` lo dibuja con los
+   widgets de `batten`.
+
+## Los cinco subsistemas que hay que conocer
+
+| Subsistema | Tipo clave | Dónde |
+|---|---|---|
+| Provider | `trait Provider` (`capabilities`, `stream`) | `crates/codeloom-core/src/provider/mod.rs` |
+| Herramientas | `trait Tool`, `ToolRegistry`, `ExecutionMode` | `crates/codeloom-core/src/tools/mod.rs` (registro de las integradas en `project_registry`) |
+| Bus de eventos | `LiveEvent`, `EventBus` | `crates/codeloom-core/src/event/mod.rs` |
+| Sesiones | `trait SessionStore`, `SqliteStore` | `crates/codeloom-core/src/session/{mod,sqlite}.rs` |
+| Subagentes | `SubagentLauncher`, `InProcessSubagentLauncher`, `SubagentPhase`, vigilante de latidos | `subagent.rs`, `subagent_phase.rs`, `subagent_watchdog.rs`, `subagent_input.rs` |
+
+Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agentes**
+(perfiles `<nombre>.md`), no el de herramientas.
 
 ## Si buscas X, mira en Y
 
@@ -67,21 +113,27 @@ corto) y **`codeloom`**. Ambos autodetectan el modo de ejecución: standalone o 
 |---|---|
 | Modelo de tarea A2A (`TaskState`) | `crates/codeloom-core/src/task.rs` |
 | Fase local del subagente (`SubagentPhase`) | `crates/codeloom-core/src/subagent_phase.rs` |
+| Vigilante de latidos (`Stalled`/`Lost`) | `crates/codeloom-core/src/subagent_watchdog.rs` |
 | Descriptor de subagente y su persistencia | `crates/codeloom-core/src/session/mod.rs`, `session/sqlite.rs` |
 | Bucle del agente y criterios de parada | `crates/codeloom-core/src/agent/mod.rs`, `agent/stop.rs` |
+| Compactación del contexto | `crates/codeloom-core/src/agent/compact.rs` |
 | Ejecución y ciclo de vida de subagentes | `crates/codeloom-core/src/subagent.rs` |
 | Entrada dirigida a un subagente | `crates/codeloom-core/src/subagent_input.rs` |
-| Registro de herramientas | `crates/codeloom-core/src/tools/` |
+| Herramientas (una por archivo) | `crates/codeloom-core/src/tools/` |
+| Registro de agentes (perfiles, router) | `crates/codeloom-core/src/registry/` |
 | `trait Provider` y clientes de modelo | `crates/codeloom-core/src/provider/` |
-| Bus de eventos | `crates/codeloom-core/src/event.rs` |
+| Bus de eventos | `crates/codeloom-core/src/event/mod.rs` |
 | Presupuesto y cotas | `crates/codeloom-core/src/budget.rs` |
-| Permisos | `crates/codeloom-core/src/permission.rs` |
-| Configuración | `crates/codeloom-core/src/config.rs` |
+| Permisos | `crates/codeloom-core/src/permission/mod.rs` |
+| Configuración (`[agents]`, umbrales) | `crates/codeloom-core/src/config/mod.rs` |
 | Tarjeta de agente A2A | `crates/codeloom-core/src/card.rs`, `crates/codeloom-a2a/src/` |
-| Estado y handles de teclado de la TUI | `crates/codeloom-tui/src/app.rs` |
-| Renderizado | `crates/codeloom-tui/src/render.rs` |
-| Arranque y bucle de la TUI | `crates/codeloom-tui/src/run.rs` |
+| Daemon, IPC y servidor | `crates/codeloom-cli/src/server.rs`, `ipc.rs` |
+| Estado y teclas de la TUI | `crates/codeloom-tui/src/app.rs`, `run.rs` |
+| Renderizado de la TUI | `crates/codeloom-tui/src/render.rs` |
+| Widgets reutilizables | `crates/batten/src/widgets/`, estado puro en `crates/batten/src/state/` |
 | Integración con herdr | `crates/codeloom-herdr/src/` |
+
+Para «dónde toco para hacer X» paso a paso, ver `docs/CODE-MAP.md`.
 
 ## Documentos de diseño
 
