@@ -51,7 +51,7 @@ Cómo se comprueba cada una: `docs/INVARIANTS.md`.
 |---|---|---|---|---|
 | `codeloom-core` | Motor: agente, sesiones, herramientas, provider, eventos, tareas, subagentes | `agent/mod.rs` (`AgentLoop`) | TUI, terminal, red A2A | no |
 | `codeloom-a2a` | Borde A2A: tarjeta, JSON-RPC, SSE, cliente y servidor | `lib.rs`, `serve/`, `client.rs` | lógica del motor | no |
-| `codeloom-cli` | Binarios `loom`/`codeloom`; daemon, IPC y arranque | `main.rs`, `server.rs` | widgets, lógica del agente | no |
+| `codeloom-cli` | Binarios `loom`/`codeloom`; daemon, IPC y arranque | `main.rs`, `server/mod.rs` | widgets, lógica del agente | no |
 | `codeloom-tui` | Interfaz de terminal sobre `ratatui` | `run.rs`, `app.rs`, `render/mod.rs` | acceso directo al motor sin pasar por el cliente | sí |
 | `batten` | Widgets y estado reutilizables de chat de agentes | `state/`, `widgets/` | nada de `codeloom-core` | sí |
 | `codeloom-herdr` | Integración con el runtime `herdr` como plugin | `lib.rs` | TUI propia | sí |
@@ -74,8 +74,8 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
 1. **Teclas → mensaje.** `crates/codeloom-tui/src/run.rs` (`handle_key`, `run`) recoge la
    entrada; el estado vive en `app.rs`.
 2. **IPC.** El cliente envía por `crates/codeloom-cli/src/ipc.rs` (`send`/`receive`).
-   `server.rs::connect_or_start` arranca el daemon si no existe.
-3. **Daemon.** `server.rs::run_server` → `serve_connection` → `serve_authenticated`
+   `server/daemon.rs::connect_or_start` arranca el daemon si no existe.
+3. **Daemon.** `server/daemon.rs::run_server` → `serve_connection` → `serve_authenticated`
    atienden la conexión (con token); `run_agent_worker` y `run_turn_with_message` lanzan
    el turno.
 4. **Bucle del agente.** `AgentLoop::run`/`run_message` en
@@ -87,7 +87,7 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
    ejecuta contra el `ToolRegistry` (`tools/mod.rs`): las `Parallel` a la vez, las
    `Exclusive` como barrera. El permiso se decide en `permission/mod.rs`.
 7. **Eventos.** Todo lo observable se publica como `LiveEvent` en el `EventBus`
-   (`event/mod.rs`). El daemon se suscribe (`bus.subscribe()` en `server.rs`) y reenvía
+   (`event/mod.rs`). El daemon se suscribe (`bus.subscribe()` en `server/agent_build.rs` y `server/client.rs`) y reenvía
    al cliente.
 8. **Persistencia.** Cada mensaje se guarda con `SessionStore::append_message`
    (`session/mod.rs`; SQLite en `session/sqlite.rs`).
@@ -127,7 +127,7 @@ Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agen
 | Permisos | `crates/codeloom-core/src/permission/mod.rs` |
 | Configuración (`[agents]`, umbrales) | `crates/codeloom-core/src/config/mod.rs` |
 | Tarjeta de agente A2A | `crates/codeloom-core/src/card.rs`, `crates/codeloom-a2a/src/` |
-| Daemon, IPC y servidor | `crates/codeloom-cli/src/server.rs`, `ipc.rs` |
+| Daemon, IPC y servidor (protocolo, daemon, cliente, gestor de agentes, worker, instantáneas) | `crates/codeloom-cli/src/server/`, `ipc.rs` |
 | Estado y teclas de la TUI | `crates/codeloom-tui/src/app.rs`, `run.rs` |
 | Renderizado de la TUI (una zona por fichero: `chrome`, `transcript`, `sidebar`, `settings`, `overlays`, `a2a`, `marks`) | `crates/codeloom-tui/src/render/` |
 | Widgets reutilizables | `crates/batten/src/widgets/`, estado puro en `crates/batten/src/state/` |

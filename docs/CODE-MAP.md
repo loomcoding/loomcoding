@@ -37,7 +37,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 3. Publícala donde ocurre el hecho (`EventBus`).
 4. Consumo en la TUI: `crates/codeloom-tui/src/app.rs`.
 5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/codeloom-core/src/session/sqlite.rs`.
-6. Si viaja por IPC al cliente, el reenvío está en `crates/codeloom-cli/src/server.rs`.
+6. Si viaja por IPC al cliente, el reenvío está en `crates/codeloom-cli/src/server/` (`worker.rs`: `forward_agent_events`; los tipos del cable, en `protocol.rs`).
 
 ## Quiero añadir una fase de subagente
 

@@ -249,7 +249,12 @@ idéntica (los tests de render existentes como red).
 
 ---
 
-## Fase 4 — Refactor de `server.rs` (3.228 líneas)
+## Fase 4 — Refactor de `server.rs` (3.228 líneas) (HECHA 2026-11-05)
+
+`server/mod.rs` queda en 47 líneas (declaraciones); nueve zonas: `protocol`, `daemon`, `client`,
+`manager`, `worker`, `snapshot`, `agent_build`, `agent_ui`, `runtime_tasks` (la mayor, 493); los dos
+módulos de tests pasan a `runtime_tests.rs` y `tests.rs`. Lo que usaba `super::` para llegar a la raíz
+del crate pasa a `crate::`. Entrada de `server.rs` fuera de la lista blanca.
 
 Aislado del resto: IPC · ciclo de sesión · snapshot · suscripciones.
 

@@ -38,11 +38,6 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         "monolito: partir en la Fase 6 del plan",
     ),
     (
-        "crates/codeloom-cli/src/server.rs",
-        3300,
-        "monolito: partir en la Fase 4 del plan",
-    ),
-    (
         "crates/codeloom-core/src/session/sqlite.rs",
         2400,
         "pendiente de evaluar en una oleada posterior",
