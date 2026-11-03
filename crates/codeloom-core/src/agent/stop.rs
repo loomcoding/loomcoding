@@ -3,12 +3,28 @@ use crate::message::{ContentPart, Message, Role};
 /// Cuántas tool calls idénticas y consecutivas hacen falta para considerar que el
 /// agente está en un bucle.
 ///
-/// Cabe señalar que el umbral es 3 y no 2 a propósito: releer el mismo fichero con
-/// los mismos argumentos dos veces seguidas es una operación legítima —pasa cada vez
-/// que una salida llega truncada y hay que volver a mirar—, mientras que tres
-/// seguidas ya no aportan información nueva. Con el umbral en 2 el turno moría en
-/// mitad de una tarea normal, y el subagente se quedaba sin escribir nada.
-const REPEAT_THRESHOLD: usize = 3;
+/// Cabe señalar que el umbral es alto a propósito: releer el mismo fichero con los
+/// mismos argumentos es una operación legítima —pasa cada vez que una salida llega
+/// truncada y hay que volver a mirar—, y un agente que explora repite lecturas sin
+/// que eso sea un problema. El corte existe para el caso peligroso, que es repetir
+/// una **escritura**: eso sí es un bucle que no avanza.
+const REPEAT_THRESHOLD: usize = 6;
+
+/// Herramientas cuyo bucle es peligroso: escriben o lanzan trabajo.
+///
+/// Las de solo lectura (`view`, `grep`, `glob`, `ls`) quedan fuera a propósito: un
+/// agente que relee no está atascado, está mirando. Cortarle ahí mataba el turno en
+/// mitad de una tarea normal y el subagente se quedaba sin escribir nada.
+const WRITE_TOOLS: [&str; 8] = [
+    "write",
+    "edit",
+    "multiedit",
+    "apply_patch",
+    "bash",
+    "job_start",
+    "subagent",
+    "development_workflow",
+];
 
 /// Por qué se detuvo el turno.
 ///
@@ -19,7 +35,7 @@ const REPEAT_THRESHOLD: usize = 3;
 pub enum StopReason {
     /// Se agotó `max_steps`.
     StepBudget,
-    /// El agente repitió la misma tool call demasiadas veces seguidas.
+    /// El agente repitió la misma tool call de escritura demasiadas veces seguidas.
     RepeatedToolCalls,
 }
 
@@ -39,6 +55,16 @@ fn signature(m: &Message) -> Option<Vec<String>> {
     }
 }
 
+/// Si la firma corresponde a una herramienta que escribe.
+///
+/// La firma tiene la forma `nombre:json`, así que basta con mirar el prefijo.
+fn es_escritura(sig: &[String]) -> bool {
+    sig.iter().any(|call| {
+        let nombre = call.split(':').next().unwrap_or("");
+        WRITE_TOOLS.contains(&nombre)
+    })
+}
+
 /// Motivo por el que hay que parar, si lo hay.
 ///
 /// Solo mira el turno actual: un mensaje de usuario rearma la detección, de modo que
@@ -56,19 +82,20 @@ pub fn stop_reason(history: &[Message], steps: usize, max_steps: usize) -> Optio
         .filter(|m| m.role == Role::Assistant)
         .filter_map(signature)
         .collect();
-    if sigs.len() >= REPEAT_THRESHOLD {
-        let ultima = &sigs[sigs.len() - 1];
-        let repetidas = sigs[sigs.len() - REPEAT_THRESHOLD..]
-            .iter()
-            .all(|s| s == ultima);
-        if repetidas {
-            return Some(StopReason::RepeatedToolCalls);
-        }
+    if sigs.len() < REPEAT_THRESHOLD {
+        return None;
+    }
+    let ultima = &sigs[sigs.len() - 1];
+    let repetidas = sigs[sigs.len() - REPEAT_THRESHOLD..]
+        .iter()
+        .all(|s| s == ultima);
+    if repetidas && es_escritura(ultima) {
+        return Some(StopReason::RepeatedToolCalls);
     }
     None
 }
 
-/// Para si se superó `max_steps` o si se repiten tool calls dentro del turno actual.
+/// Para si se superó `max_steps` o si se repite una escritura dentro del turno actual.
 pub fn should_stop(history: &[Message], steps: usize, max_steps: usize) -> bool {
     stop_reason(history, steps, max_steps).is_some()
 }
@@ -97,8 +124,8 @@ mod tests {
 
     #[test]
     fn dos_lecturas_iguales_no_cortan() {
-        // Releer el mismo fichero dos veces es legítimo: es lo que hace un agente
-        // cuando la salida le llega truncada. Antes esto mataba el turno.
+        // Releer el mismo fichero es legítimo: es lo que hace un agente cuando la
+        // salida le llega truncada. Antes esto mataba el turno.
         let h = vec![
             with_call("view", json!({"path":"a"})),
             with_call("view", json!({"path":"a"})),
@@ -107,16 +134,29 @@ mod tests {
     }
 
     #[test]
-    fn stops_on_repeated_tool_calls() {
-        let h = vec![
-            with_call("view", json!({"path":"a"})),
-            with_call("view", json!({"path":"a"})),
-            with_call("view", json!({"path":"a"})),
-        ];
+    fn muchas_lecturas_iguales_tampoco_cortan() {
+        // Un agente que explora puede releer diez veces sin estar atascado: leer no
+        // cambia el mundo, así que no hay nada que proteger.
+        let h: Vec<Message> = (0..10)
+            .map(|_| with_call("view", json!({"path":"a"})))
+            .collect();
         assert_eq!(
-            stop_reason(&h, 1, 10),
+            stop_reason(&h, 1, 100),
+            None,
+            "un bucle de lecturas es inofensivo y no debe cortar el turno"
+        );
+    }
+
+    #[test]
+    fn stops_on_repeated_writes() {
+        // Repetir la misma escritura sí es un bucle que no avanza.
+        let h: Vec<Message> = (0..REPEAT_THRESHOLD)
+            .map(|_| with_call("write", json!({"path":"a","content":"x"})))
+            .collect();
+        assert_eq!(
+            stop_reason(&h, 1, 100),
             Some(StopReason::RepeatedToolCalls),
-            "tres repeticiones seguidas sí son un bucle"
+            "repetir la misma escritura sí debe cortar"
         );
     }
 
@@ -133,23 +173,21 @@ mod tests {
     fn repeticion_no_consecutiva_no_corta() {
         // a, b, a: no es un bucle, es ir y volver.
         let h = vec![
-            with_call("view", json!({"path":"a"})),
-            with_call("view", json!({"path":"b"})),
-            with_call("view", json!({"path":"a"})),
+            with_call("write", json!({"path":"a"})),
+            with_call("write", json!({"path":"b"})),
+            with_call("write", json!({"path":"a"})),
         ];
         assert_eq!(stop_reason(&h, 1, 10), None);
     }
 
     #[test]
     fn un_mensaje_de_usuario_rearma_la_deteccion() {
-        let mut h = vec![
-            with_call("view", json!({"path":"a"})),
-            with_call("view", json!({"path":"a"})),
-            with_call("view", json!({"path":"a"})),
-        ];
+        let mut h: Vec<Message> = (0..REPEAT_THRESHOLD)
+            .map(|_| with_call("write", json!({"path":"a"})))
+            .collect();
         h.push(Message::user("otra cosa"));
         assert_eq!(
-            stop_reason(&h, 1, 10),
+            stop_reason(&h, 1, 100),
             None,
             "un turno nuevo no hereda el bucle del anterior"
         );

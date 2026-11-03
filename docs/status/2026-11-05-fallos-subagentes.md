@@ -197,6 +197,33 @@ distinga entre "releo para ver lo mismo" (legítimo) y "estoy en bucle" (cortar)
 
 ---
 
+## F-08 — El subagente gasta el presupuesto planificando en voz alta
+
+**Severidad:** alta. Es la variante de F-05 que más veces se ha repetido.
+
+**Síntoma.** El subagente devuelve un reporte que es un monólogo de planificación
+("mod.rs: 1–42, header.rs: 43–275, ... Espera — split_footer_meter lo usa el footer
+clásico... Reasigno...") y **cero ficheros escritos**. Murió a mitad de decidir.
+
+**Causa.** El encargo pedía una decisión de diseño grande (repartir 4.810 líneas en 6
+zonas) y el subagente intentó resolverla entera en el razonamiento antes de tocar disco.
+Con `max_steps` fijo, razonar consume el mismo presupuesto que actuar.
+
+**Propuesta.**
+1. **Trocear el encargo, no el fichero.** En vez de "parte render.rs en 6 módulos", un
+   encargo por zona: "extrae el footer a `render/footer.rs`". Rust permite que
+   `render.rs` y `render/` convivan, así que la extracción puede ser incremental y cada
+   paso deja el árbol compilando.
+2. El prompt debería prohibir explícitamente planificar en el reporte: "no describas el
+   reparto, hazlo".
+3. Un subagente que lleva N pasos sin escribir nada debería recibir un empujón del
+   runtime ("escribe ya lo que tengas"), no morir en silencio.
+
+**Evidencia.** Dos intentos de partir `render.rs`, ambos con 0 ficheros escritos. El
+segundo dejó cinco ficheros temporales de índice (`.tmp-symbols*.ps1`) y nada más.
+
+---
+
 ## Notas de entorno (no son fallos del producto, pero cuestan pasos)
 
 - `findstr /C:"texto con espacios"` en cmd falla con `No se puede abrir result"`.
