@@ -4,6 +4,7 @@
 #
 #   .\scripts\purge-from-history.ps1 -Path grep_out.txt
 #   .\scripts\purge-from-history.ps1 -Path grep_out.txt -DryRun
+#   .\scripts\purge-from-history.ps1 -Path grep_out.txt -Repo C:\otro\repo
 #
 # Por qué existe: el commit 0a67d86 metió `grep_out.txt` de 2,3 GB. Compartido en
 # un blob suelto ocupa 15,6 MB, pero el fichero en el árbol ocupa 2,3 GB y viaja
@@ -26,20 +27,24 @@ param(
     [string]$Path,
 
     # Muestra lo que haría y sale, sin tocar el repositorio.
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    # Repositorio sobre el que actuar. Por defecto, el del script. La prueba de humo
+    # lo apunta a un repositorio desechable.
+    [string]$Repo = ""
 )
 
 $ErrorActionPreference = "Stop"
 
-$Root = Split-Path -Parent $PSScriptRoot
+$Root = if ($Repo -ne "") { (Resolve-Path $Repo).Path } else { Split-Path -Parent $PSScriptRoot }
 Push-Location $Root
 try {
-    if (-not (git rev-parse --git-dir)) {
+    if (-not (git rev-parse --git-dir 2>$null)) {
         throw "no parece un repositorio git: $Root"
     }
 
-    $dirty = git status --porcelain
-    if ($dirty) {
+    $dirty = @(git status --porcelain)
+    if ($dirty.Count -gt 0) {
         throw "hay cambios sin commitear; haz commit o stash antes de reescribir el historial"
     }
 
@@ -50,9 +55,9 @@ try {
         Write-Host "nada que reescribir: $upstream..HEAD está vacío." -ForegroundColor Yellow
     }
 
-    $inHistory = git log --oneline --all -- $Path
-    if (-not $inHistory) {
-        Write-Host "'$Path' no aparece en ningún commit; no hay nada que purgar." -ForegroundColor Yellow
+    $inHistory = @(git log --oneline HEAD -- $Path)
+    if ($inHistory.Count -eq 0) {
+        Write-Host "'$Path' no aparece en los commits de HEAD; no hay nada que purgar." -ForegroundColor Yellow
         exit 0
     }
 
@@ -68,7 +73,24 @@ try {
         exit 0
     }
 
-    git update-ref refs/backup/pre-purge $head
+    # Un segundo intento tiene que partir del estado limpio: si quedan copias de
+    # `filter-branch` en refs/original, apuntan al historial con el fichero.
+    $originalRefs = @(git for-each-ref --format="%(refname)" refs/original)
+    foreach ($ref in $originalRefs) {
+        git update-ref -d $ref
+    }
+
+    # El respaldo NO se sobrescribe: si ya existe de un intento anterior, se queda
+    # como está. Lo que hay que poder deshacer es el trabajo previo a la primera
+    # purga, no el de la purga de una purga.
+    $hasBackup = @(git for-each-ref --format="%(refname)" refs/backup/pre-purge).Count -gt 0
+    if ($hasBackup) {
+        $kept = git rev-parse --short refs/backup/pre-purge
+        Write-Host "  respaldo ya existente: se conserva refs/backup/pre-purge ($kept)" -ForegroundColor Yellow
+    }
+    else {
+        git update-ref refs/backup/pre-purge $head
+    }
 
     # `filter-branch` está desaconsejado para el historial completo, pero aquí se
     # limita a un rango corto y ya respaldado: no requiere instalar filter-repo.
@@ -79,25 +101,29 @@ try {
     }
 
     # filter-branch deja sus copias en refs/original; si no se borran, los blobs
-    # siguen alcanzables y `gc` no los poda.
-    git for-each-ref --format="delete %(refname)" refs/original | git update-ref --stdin
+    # siguen alcanzables y `gc` no los poda. Se borra ref a ref: pasarle varias
+    # líneas a `update-ref --stdin` falla en Windows porque cmd/PS añaden `\r`.
+    $originalRefs = @(git for-each-ref --format="%(refname)" refs/original)
+    foreach ($ref in $originalRefs) {
+        git update-ref -d $ref
+    }
     git reflog expire --expire=now --all
     git gc --prune=now --aggressive
 
-    $still = git log --oneline --all -- $Path
-    if ($still) {
-        throw "la ruta sigue en el historial: $still"
+    # La comprobación no puede ser `--all`: el respaldo `refs/backup/pre-purge` conserva
+    # a propósito el historial anterior (para poder deshacer), así que saldría siempre.
+    # Lo que importa es que la ruta desaparezca de lo que se va a publicar: HEAD y las
+    # demás refs, contando el respaldo.
+    $still = @(git log --oneline HEAD -- $Path)
+    if ($still.Count -gt 0) {
+        throw "la ruta sigue en el historial: $($still -join '; ')"
     }
-    if ((git rev-parse "HEAD^{tree}") -ne (git rev-parse "refs/backup/pre-purge^{tree}")) {
-        # El árbol de HEAD pierde la ruta purgada; es el único cambio esperado.
-        Write-Host "nota: el árbol de HEAD cambió solo por la ruta purgada." -ForegroundColor Yellow
-    }
-    if ((git ls-tree -r --name-only HEAD | Select-String -SimpleMatch $Path)) {
+    if (@(git ls-tree -r --name-only HEAD | Select-String -SimpleMatch $Path)) {
         throw "la ruta sigue en el árbol de HEAD"
     }
 
     Write-Host ""
-    Write-Host "Purga terminada. Respaldo en refs/backup/pre-purge ($head)." -ForegroundColor Green
+    Write-Host "Purga terminada. Respaldo en refs/backup/pre-purge." -ForegroundColor Green
     Write-Host "Bórralo cuando estés conforme: git update-ref -d refs/backup/pre-purge"
 }
 finally {
