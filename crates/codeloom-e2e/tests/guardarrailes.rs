@@ -33,11 +33,6 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         "monolito: motor central, Fase 7 del plan",
     ),
     (
-        "crates/codeloom-tui/src/render.rs",
-        4900,
-        "monolito: partir en la Fase 3 del plan",
-    ),
-    (
         "crates/codeloom-tui/src/run.rs",
         4400,
         "monolito: partir en la Fase 6 del plan",

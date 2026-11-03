@@ -52,7 +52,7 @@ Cómo se comprueba cada una: `docs/INVARIANTS.md`.
 | `codeloom-core` | Motor: agente, sesiones, herramientas, provider, eventos, tareas, subagentes | `agent/mod.rs` (`AgentLoop`) | TUI, terminal, red A2A | no |
 | `codeloom-a2a` | Borde A2A: tarjeta, JSON-RPC, SSE, cliente y servidor | `lib.rs`, `serve/`, `client.rs` | lógica del motor | no |
 | `codeloom-cli` | Binarios `loom`/`codeloom`; daemon, IPC y arranque | `main.rs`, `server.rs` | widgets, lógica del agente | no |
-| `codeloom-tui` | Interfaz de terminal sobre `ratatui` | `run.rs`, `app.rs`, `render.rs` | acceso directo al motor sin pasar por el cliente | sí |
+| `codeloom-tui` | Interfaz de terminal sobre `ratatui` | `run.rs`, `app.rs`, `render/mod.rs` | acceso directo al motor sin pasar por el cliente | sí |
 | `batten` | Widgets y estado reutilizables de chat de agentes | `state/`, `widgets/` | nada de `codeloom-core` | sí |
 | `codeloom-herdr` | Integración con el runtime `herdr` como plugin | `lib.rs` | TUI propia | sí |
 | `codeloom-mcp` | Integración MCP (herramientas externas) | `lib.rs` | — | sí |
@@ -91,7 +91,7 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
    al cliente.
 8. **Persistencia.** Cada mensaje se guarda con `SessionStore::append_message`
    (`session/mod.rs`; SQLite en `session/sqlite.rs`).
-9. **Pintado.** El cliente aplica el evento a `App` y `render.rs` lo dibuja con los
+9. **Pintado.** El cliente aplica el evento a `App` y `render/` lo dibuja con los
    widgets de `batten`.
 
 ## Los cinco subsistemas que hay que conocer
@@ -129,7 +129,7 @@ Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agen
 | Tarjeta de agente A2A | `crates/codeloom-core/src/card.rs`, `crates/codeloom-a2a/src/` |
 | Daemon, IPC y servidor | `crates/codeloom-cli/src/server.rs`, `ipc.rs` |
 | Estado y teclas de la TUI | `crates/codeloom-tui/src/app.rs`, `run.rs` |
-| Renderizado de la TUI | `crates/codeloom-tui/src/render.rs` |
+| Renderizado de la TUI (una zona por fichero: `chrome`, `transcript`, `sidebar`, `settings`, `overlays`, `a2a`, `marks`) | `crates/codeloom-tui/src/render/` |
 | Widgets reutilizables | `crates/batten/src/widgets/`, estado puro en `crates/batten/src/state/` |
 | Integración con herdr | `crates/codeloom-herdr/src/` |
 

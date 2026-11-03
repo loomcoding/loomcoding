@@ -236,7 +236,11 @@ cuatro checks verdes en cada commit; ningún consumidor cambia sus imports.
 
 ---
 
-## Fase 3 — Refactor de `render.rs` (4.810 líneas)
+## Fase 3 — Refactor de `render.rs` (4.810 líneas) (HECHA 2026-11-05)
+
+`render/mod.rs` queda en ~190 líneas (la función `render`); zonas en `chrome`, `transcript`, `sidebar`,
+`settings`, `overlays`, `a2a` y `marks` (la mayor, 775); 84 tests repartidos en `render/tests/` por
+tema. Movimiento puro; entrada de `render.rs` fuera de la lista blanca.
 
 Un módulo por zona visual (header, transcript, rail, composer, footer).
 
