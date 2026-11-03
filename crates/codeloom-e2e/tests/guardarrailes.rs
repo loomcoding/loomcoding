@@ -149,6 +149,11 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
+            // Directorios de compilación (`target`, `.verify-target`…): no son código fuente.
+            let nombre = entry.file_name().to_string_lossy().to_string();
+            if nombre == "target" || nombre.starts_with('.') {
+                continue;
+            }
             rust_files(&path, out);
         } else if path.extension().is_some_and(|e| e == "rs") {
             out.push(path);

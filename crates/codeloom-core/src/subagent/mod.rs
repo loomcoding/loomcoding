@@ -45,7 +45,9 @@ use control::*;
 mod remote;
 use remote::*;
 
+mod local_body;
 mod local_run;
+mod local_watch;
 
 mod admission;
 pub(crate) use admission::*;
