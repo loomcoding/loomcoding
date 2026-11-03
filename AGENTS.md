@@ -2,6 +2,17 @@
 
 Context for agents working in the `codeloom` repository. Read this before acting.
 
+## Reading map
+
+- How is it organised? -> `docs/ARCHITECTURE.md`
+- Where do I touch for X? -> `docs/CODE-MAP.md`
+- What must I not break, and how do I check? -> `docs/INVARIANTS.md`
+- What is this crate for? -> `crates/<crate>/README.md`
+- Which specs and plans are current? -> `docs/INDEX.md` (read it before implementing; if the
+  document you meant to follow is superseded, read the one that replaces it)
+
+A change that invalidates `ARCHITECTURE.md` or `CODE-MAP.md` updates them in the same commit.
+
 ## What CodeLoom is
 
 CodeLoom is a code agent written in **Rust** with a **ratatui** TUI, whose

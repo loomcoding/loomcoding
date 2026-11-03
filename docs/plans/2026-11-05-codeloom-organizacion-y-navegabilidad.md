@@ -64,7 +64,7 @@ Consecuencia para el paso 0.5: ver allí.
 **Aceptación:** un agente responde "¿dónde entra un mensaje del usuario?" sin abrir
 código, solo con el documento; todas las rutas citadas existen (comprobar con `ls`).
 
-### Paso 0.2 — `README.md` por crate (8 archivos, en `crates/<crate>/`)
+### Paso 0.2 — `README.md` por crate (8 archivos, en `crates/<crate>/`) (HECHO 2026-11-05)
 
 Plantilla fija del spec: responsabilidad · no va aquí · tipos clave · puntos de
 entrada · cómo se testea · trampas. Una pantalla cada uno.
@@ -72,7 +72,7 @@ entrada · cómo se testea · trampas. Una pantalla cada uno.
 **Aceptación:** los 8 existen con las mismas secciones en el mismo orden; los tipos y
 rutas citados existen.
 
-### Paso 0.3 — `docs/CODE-MAP.md`
+### Paso 0.3 — `docs/CODE-MAP.md` (HECHO 2026-11-05)
 
 Índice orientado a tareas. Entradas mínimas obligatorias: añadir una tool · un
 provider · un evento al bus · una fase de subagente (`subagent_phase.rs`, y el
@@ -83,7 +83,7 @@ columna persistida.
 **Aceptación:** cada entrada nombra archivos exactos con ruta y **todas existen**
 (verificado con un `ls`/`grep` por ruta antes de commitear; no inventar rutas).
 
-### Paso 0.4 — `docs/INVARIANTS.md`
+### Paso 0.4 — `docs/INVARIANTS.md` (HECHO 2026-11-05)
 
 Tabla invariante → **comando exacto o procedimiento** que lo verifica.
 
@@ -102,7 +102,7 @@ admitidos y una tabla con la tanda del 2026-11-01 al 11-05, que no estaba. Es un
 `Estado:` figuran como «sin estado declarado», sin inventar uno. Pendiente aparte: cotejar
 con el código los seis documentos que aún dicen «sin cotejar».
 
-### Paso 0.6 — `AGENTS.md` como puerta de entrada
+### Paso 0.6 — `AGENTS.md` como puerta de entrada (HECHO 2026-11-05)
 
 Añadir al principio la sección "Mapa de lectura" con los cinco punteros, y la regla
 "un cambio que invalida `ARCHITECTURE.md`/`CODE-MAP.md` los actualiza en el mismo
