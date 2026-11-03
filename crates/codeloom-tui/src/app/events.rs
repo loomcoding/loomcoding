@@ -376,6 +376,12 @@ impl App {
             }
             // La vuelta a `working` llega como `SubagentChanged`: no hay nada que mantener aquí.
             LiveEvent::SubagentInputResolved { .. } => {}
+            // La fase fina del hijo (A2A sigue mandando: `status.state` no se toca).
+            LiveEvent::SubagentPhaseChanged { child, phase, .. } => {
+                if let Some(subagent) = self.subagents.get_mut(&child.0) {
+                    subagent.phase = phase;
+                }
+            }
             LiveEvent::WakeIdle => self.wake_in_flight = false,
             // La compactación manual terminó, bien o mal: se libera la cola y se dice cómo acabó.
             // El resumen en sí ya se pintó con `ContextCompacted`.

@@ -220,6 +220,13 @@ pub enum LiveEvent {
         child: crate::session::SessionId,
         status: crate::task::TaskState,
     },
+    /// La fase de un hijo local cambió (`Streaming`, `ToolRunning`...). Se publica directamente en el
+    /// bus del padre, ya coalescida por el observador de fases: no es un evento del hijo reenviable.
+    SubagentPhaseChanged {
+        parent: crate::session::SessionId,
+        child: crate::session::SessionId,
+        phase: crate::subagent_phase::SubagentPhase,
+    },
     Error {
         message: String,
     },
@@ -278,6 +285,7 @@ impl LiveEvent {
             | LiveEvent::WakeIdle
             | LiveEvent::ManualCompactionEnded { .. }
             | LiveEvent::SubagentSettled { .. }
+            | LiveEvent::SubagentPhaseChanged { .. }
             | LiveEvent::RuntimeNotice { .. }
             | LiveEvent::ChildEvent { .. } => false,
             LiveEvent::Delta { .. } => true,

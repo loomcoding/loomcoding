@@ -14,9 +14,19 @@ pub(super) fn reenviar_eventos_del_hijo(
     child: SessionId,
 ) {
     tokio::spawn(async move {
+        let mut fases = phase_observer::PhaseObserver::new();
         loop {
             match child_rx.recv().await {
                 Ok(event) => {
+                    // La fase se deduce de todo lo que ocurre en el hijo, también de lo que no se
+                    // reenvía (el razonamiento); el observador ya coalesce y acota los cambios.
+                    for phase in fases.observe(&event, crate::message::now_ms().max(0) as u64) {
+                        forward_bus.publish(LiveEvent::SubagentPhaseChanged {
+                            parent,
+                            child,
+                            phase,
+                        });
+                    }
                     // El avance que publica el propio hijo cambia su descriptor: sube tal cual, sin
                     // envolver, como el resto de cambios de tarea que publica el lanzador.
                     if matches!(&event, LiveEvent::SubagentChanged(d) if d.parent == parent && d.child == child)
@@ -101,4 +111,88 @@ pub(super) fn vigilar_asiento(
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    async fn siguiente(rx: &mut broadcast::Receiver<LiveEvent>) -> LiveEvent {
+        tokio::time::timeout(Duration::from_secs(2), rx.recv())
+            .await
+            .expect("el padre debía recibir un evento")
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn estado_de_hijo_llega_al_padre() {
+        let child_bus = EventBus::new(64);
+        let parent_bus = EventBus::new(64);
+        let mut parent_rx = parent_bus.subscribe();
+        reenviar_eventos_del_hijo(
+            parent_bus.clone(),
+            child_bus.subscribe(),
+            SessionId(1),
+            SessionId(7),
+        );
+        child_bus.publish(LiveEvent::TurnStarted);
+        child_bus.publish(LiveEvent::Delta { text: "x".into() });
+        let mut fases = Vec::new();
+        let mut envueltos = 0;
+        while fases.len() < 2 || envueltos < 2 {
+            match siguiente(&mut parent_rx).await {
+                LiveEvent::SubagentPhaseChanged {
+                    parent,
+                    child,
+                    phase,
+                } => {
+                    assert_eq!((parent, child), (SessionId(1), SessionId(7)));
+                    fases.push(phase);
+                }
+                LiveEvent::ChildEvent { .. } => envueltos += 1,
+                other => panic!("evento inesperado: {other:?}"),
+            }
+        }
+        assert_eq!(
+            fases,
+            vec![SubagentPhase::Starting, SubagentPhase::Streaming]
+        );
+    }
+
+    #[tokio::test]
+    async fn el_razonamiento_alimenta_la_fase_aunque_no_se_reenvie() {
+        let child_bus = EventBus::new(64);
+        let parent_bus = EventBus::new(64);
+        let mut parent_rx = parent_bus.subscribe();
+        reenviar_eventos_del_hijo(
+            parent_bus.clone(),
+            child_bus.subscribe(),
+            SessionId(1),
+            SessionId(7),
+        );
+        child_bus.publish(LiveEvent::TurnStarted);
+        child_bus.publish(LiveEvent::ReasoningDelta { text: "x".into() });
+        let mut fases = Vec::new();
+        while fases.len() < 3 {
+            match siguiente(&mut parent_rx).await {
+                LiveEvent::SubagentPhaseChanged { phase, .. } => fases.push(phase),
+                LiveEvent::ChildEvent { event, .. } => {
+                    assert!(
+                        !matches!(*event, LiveEvent::ReasoningDelta { .. }),
+                        "el razonamiento no se reenvía"
+                    );
+                }
+                other => panic!("evento inesperado: {other:?}"),
+            }
+        }
+        assert_eq!(
+            fases,
+            vec![
+                SubagentPhase::Starting,
+                SubagentPhase::Streaming,
+                SubagentPhase::Reasoning
+            ]
+        );
+    }
 }

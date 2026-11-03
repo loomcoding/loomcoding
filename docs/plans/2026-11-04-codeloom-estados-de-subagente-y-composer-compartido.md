@@ -122,7 +122,29 @@ vuelta a la fase previa. Sin reloj real, sin hilos.
 
 **Criterio de aceptación:** tests puros verdes; sin dependencia de `std::thread`/reloj.
 
-## Fase 4 — Eventos y lista blanca de `is_child_relevant()`
+## Fase 4 — Eventos y lista blanca de `is_child_relevant()` (HECHA 2026-11-05, con matices)
+
+**Hecho:** `LiveEvent::SubagentPhaseChanged { parent, child, phase }`, publicado en el bus
+del padre por el reenvío de eventos del hijo (`subagent/local_watch.rs`) a partir de un
+**observador puro** (`subagent/phase_observer.rs`): traduce `TurnStarted`, `Delta`,
+`ReasoningDelta`, `ToolStarted/Finished` en transiciones **legales** (`can_transition_to`),
+con salto por `Streaming` si hace falta y una ventana de 500 ms para el vaivén
+`Streaming ↔ Reasoning` (a lo sumo 2 eventos/s por hijo). La TUI guarda la fase en el
+descriptor sin tocar `status.state` (A2A manda). Tests: `phase_observer` (7),
+`local_watch` (2) y `child_tree` (2).
+
+**Matices respecto al texto original (comprobados en el código):**
+- `is_child_relevant()` **ya era una enumeración exhaustiva** (sin comodín): añadir una
+  variante sin clasificarla no compila, que es más fuerte que `lista_blanca_completa`.
+- «El padre se queda ciego» era falso: `SubagentChanged`, `SubagentSettled` y
+  `SubagentInputRequested/Resolved` los publica el lanzador **en el bus del padre**; no son
+  eventos del hijo y reenviarlos los duplicaría. Lo que faltaba era la fase fina.
+- **Pendiente:** `SubagentProgress` y el `summary` de `SubagentSettled` (los contadores ya
+  suben con `SubagentChanged`); persistir `phase` y `last_activity_at_ms` en el almacén
+  (hoy solo se escriben al crear el hijo); `AwaitingPermission`, que el bus del hijo no
+  expone; y los hijos remotos. Todo ello es precondición de la Fase 5 (§8 del spec del
+  watchdog).
+
 
 **Qué cambia:** `SubagentPhaseChanged` y `SubagentProgress` (coalescido) en
 `LiveEvent`; `SubagentSettled` gana `summary` acotado. `is_child_relevant()`

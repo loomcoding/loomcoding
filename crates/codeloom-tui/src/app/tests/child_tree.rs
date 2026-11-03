@@ -506,3 +506,34 @@ fn loading_an_unrelated_session_clears_files_by_session() {
     );
     assert!(app.changes.is_empty());
 }
+
+#[test]
+fn un_cambio_de_fase_actualiza_al_hijo_sin_tocar_su_estado_a2a() {
+    let mut app = App::new();
+    app.load_session(SessionId(1), Vec::new());
+    app.apply(LiveEvent::SubagentChanged(child_descriptor(
+        7,
+        TaskState::Working,
+        SessionId(1),
+    )));
+    app.apply(LiveEvent::SubagentPhaseChanged {
+        parent: SessionId(1),
+        child: SessionId(7),
+        phase: SubagentPhase::ToolRunning,
+    });
+    let hijo = &app.subagents[&7];
+    assert_eq!(hijo.phase, SubagentPhase::ToolRunning);
+    assert_eq!(hijo.status.state, TaskState::Working);
+}
+
+#[test]
+fn una_fase_de_un_hijo_desconocido_no_hace_nada() {
+    let mut app = App::new();
+    app.load_session(SessionId(1), Vec::new());
+    app.apply(LiveEvent::SubagentPhaseChanged {
+        parent: SessionId(1),
+        child: SessionId(99),
+        phase: SubagentPhase::Streaming,
+    });
+    assert!(app.subagents.is_empty());
+}

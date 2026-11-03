@@ -29,6 +29,7 @@ use tokio_util::sync::CancellationToken;
 
 pub mod input;
 pub mod phase;
+pub mod phase_observer;
 pub mod watchdog;
 
 mod depth;
