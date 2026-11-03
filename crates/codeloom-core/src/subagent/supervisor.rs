@@ -102,7 +102,13 @@ impl SubagentSupervisor {
         match event {
             LiveEvent::SubagentChanged(descriptor) => {
                 let state = descriptor.status.state;
-                if state.is_terminal() {
+                // Un remoto no emite latidos (su espejo lo sondea y tiene sus propios plazos): vigilarlo
+                // lo daría por perdido sin motivo.
+                let remoto = descriptor
+                    .agent_origin
+                    .as_deref()
+                    .is_some_and(|origen| origen.starts_with("remote:"));
+                if remoto || state.is_terminal() {
                     self.children.remove(&descriptor.child.0);
                     return Vec::new();
                 }
@@ -522,5 +528,23 @@ mod tests {
         let mut s = sup();
         assert!(s.on_event(&latido(99), 0).is_empty());
         assert!(s.children().is_empty());
+    }
+
+    #[test]
+    fn un_hijo_remoto_no_se_vigila_porque_no_emite_latidos() {
+        let mut s = sup();
+        let mut remoto = descriptor(7, P, TaskState::Working);
+        remoto.agent_origin = Some("remote:https://agente.example/card".into());
+        s.on_event(&LiveEvent::SubagentChanged(remoto), 0);
+        assert!(
+            s.children().is_empty(),
+            "el remoto lo sigue su propio espejo"
+        );
+        assert!(s.tick(LOST * 10).is_empty());
+        // Uno local con origen de proyecto sí se vigila.
+        let mut local = descriptor(8, P, TaskState::Working);
+        local.agent_origin = Some("project:/p/.codeloom/agents/r.md".into());
+        s.on_event(&LiveEvent::SubagentChanged(local), 0);
+        assert_eq!(s.children().len(), 1);
     }
 }
