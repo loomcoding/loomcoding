@@ -79,7 +79,7 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
    atienden la conexión (con token); `run_agent_worker` y `run_turn_with_message` lanzan
    el turno.
 4. **Bucle del agente.** `AgentLoop::run`/`run_message` en
-   `crates/codeloom-core/src/agent/mod.rs` leen una ventana del historial
+   `crates/codeloom-core/src/agent/` (`turn.rs`) leen una ventana del historial
    (`SessionStore::recent_messages`), arman el prompt y llaman al provider.
 5. **Provider.** `Provider::stream` (`provider/mod.rs`); implementaciones en
    `provider/{anthropic,openai,gemini}.rs`.
@@ -115,7 +115,7 @@ Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agen
 | Fase local del subagente (`SubagentPhase`) | `crates/codeloom-core/src/subagent/phase.rs` |
 | Vigilante de latidos (`Stalled`/`Lost`) | `crates/codeloom-core/src/subagent/watchdog.rs` |
 | Descriptor de subagente y su persistencia | `crates/codeloom-core/src/session/mod.rs`, `session/sqlite.rs` |
-| Bucle del agente y criterios de parada | `crates/codeloom-core/src/agent/mod.rs`, `agent/stop.rs` |
+| Bucle del agente y criterios de parada | `crates/codeloom-core/src/agent/` (`turn.rs`, `entry.rs`, `stop.rs`) |
 | Compactación del contexto | `crates/codeloom-core/src/agent/compact.rs` |
 | Ciclo de vida de subagentes (contrato, admisión, ejecución local, remotos, control) | `crates/codeloom-core/src/subagent/` (`mod.rs`, `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`, `launcher.rs`) |
 | Entrada dirigida a un subagente | `crates/codeloom-core/src/subagent/input.rs` |

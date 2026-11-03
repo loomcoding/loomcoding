@@ -291,7 +291,9 @@ parpadea ni se retrasa (prioridad de suavidad del composer).
 
 ---
 
-## Fase 7 — Refactor de `agent/mod.rs` (5.613 líneas)
+## Fase 7 — Refactor de `agent/mod.rs` (5.613 líneas) — HECHA
+
+**Hecho (2026-11-05):** `agent/mod.rs` conserva las constantes, `TurnOutcome` y `AgentLoop` (155 líneas); los métodos se reparten en `builder`, `subagents`, `entry`, `compaction`, `usage` y `turn` (junto a los módulos que ya existían) y los tests, en 10 temas más `support`. Movimiento puro: 741 tests antes y después; ningún fichero pasa de 660 líneas. `run_turn` sigue siendo un único método de ~630 líneas: partirlo sería ya un cambio de lógica, no un movimiento.
 
 Motor central. Turno · tool loop · compactación · dispatch. Máximo cuidado y último
 de este ciclo: si hay prisa por features, esta es la fase que se pospone.
