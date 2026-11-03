@@ -134,7 +134,7 @@ vuelta a la fase previa. Sin reloj real, sin hilos.
 
 **Archivos:**
 - `crates/codeloom-core/src/event/mod.rs`
-- Puntos de emisión en `crates/codeloom-core/src/subagent.rs`
+- Puntos de emisión en `crates/codeloom-core/src/subagent/` (`local_run.rs`, `remote.rs`, `control.rs`)
 
 **Test concreto:**
 - `lista_blanca_completa` — todo evento de estado está clasificado; falla si se añade
@@ -149,7 +149,7 @@ vuelta a la fase previa. Sin reloj real, sin hilos.
 
 **Qué cambia:** `SubagentSupervisor` en core, **puro** (`on_event(&LiveEvent)` +
 `tick(now_ms) -> Vec<SupervisorAction>`), y un driver que inyecta el tick en TUI y
-CLI. `runtime_snapshot` (`codeloom-cli/src/server.rs:1623`) incluye fase y salud por
+CLI. `runtime_snapshot` (`codeloom-cli/src/server/manager.rs`) incluye fase y salud por
 subagente.
 
 **No se inventa `SubagentId`:** el identificador real es `SessionId`
@@ -158,7 +158,7 @@ subagente.
 **Archivos:**
 - `crates/codeloom-core/src/supervisor.rs` (nuevo)
 - `crates/codeloom-tui/src/run.rs` (driver del tick)
-- `crates/codeloom-cli/src/server.rs` (`runtime_snapshot`)
+- `crates/codeloom-cli/src/server/manager.rs` (`runtime_snapshot`)
 
 **Test concreto:**
 - `agrega_por_arbol` — estado agregado correcto por padre.
@@ -174,10 +174,20 @@ solo una lista de ids.
 **Qué cambia:** destinatario activo, **un borrador por sesión**, despacho de
 `submit()` según destino.
 
-**El bug que arregla** (verificado): `load_session`
-(`crates/codeloom-tui/src/app.rs:2802`) **no toca `self.composer`** y abrir un hijo
-**cambia de sesión**. Escribes para el padre, abres el hijo y el texto aparece dentro
-del hijo.
+**Orden decidido (2026-11-05):** primero **6a** (borrador por sesión), después el troceo
+de `app.rs` (Fase 5 del plan de organización) y por último **6b** (destinatario,
+`Ctrl+T`, `/focus`).
+
+**6a — HECHA.** `load_session` aparta el borrador (composer + `draft_images`) de la
+sesión que se deja y restaura el de la que se abre, en `App::composer_drafts`
+(`BTreeMap<SessionId, ComposerDraft>`). El indicador de trabajo y su estilo pasan al
+composer entrante porque son del agente, no del borrador. Un borrador vacío no deja
+entrada, y la primera carga no toca nada. Seis tests en `app.rs`
+(`load_session_preserva_borrador_del_padre` y compañeros).
+
+**El bug que arreglaba** (verificado): `load_session` (`app.rs`, `App::load_session`)
+**no tocaba `self.composer`** y abrir un hijo **cambia de sesión**. Escribías para el
+padre, abrías el hijo y el texto aparecía dentro del hijo.
 
 **Atajos:**
 - `Ctrl+T` — alternar destinatario. **No `Tab`**: ya lo usan el foco del rail

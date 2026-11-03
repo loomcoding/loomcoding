@@ -957,6 +957,12 @@ fn estimate_tokens(bytes: usize) -> u64 {
     bytes.div_ceil(4) as u64
 }
 
+/// Lo que el usuario tenía escrito en una sesión al apartarse de ella.
+struct ComposerDraft {
+    composer: batten::state::Composer,
+    images: Vec<ContentPart>,
+}
+
 pub struct App {
     /// Transcript persistente: se actualiza con los eventos, no por frame.
     pub transcript: batten::state::Transcript,
@@ -965,6 +971,8 @@ pub struct App {
     pub composer: batten::state::Composer,
     /// Imágenes del borrador, todavía no asignadas a un prompt en cola.
     pub draft_images: Vec<ContentPart>,
+    /// Borradores de las sesiones que no están a la vista, uno por sesión.
+    composer_drafts: BTreeMap<SessionId, ComposerDraft>,
     /// Snapshot runtime recibido del daemon; `None` significa que aún no llegó.
     pub runtime_capabilities: Option<RuntimeCapabilities>,
     pub slash_selected: usize,
@@ -1335,6 +1343,7 @@ impl App {
             assistant: None,
             composer: batten::state::Composer::new(),
             draft_images: Vec::new(),
+            composer_drafts: BTreeMap::new(),
             runtime_capabilities: None,
             slash_selected: 0,
             slash_dismissed: None,
@@ -2799,11 +2808,40 @@ impl App {
         self.session_loading = false;
     }
 
+    /// Aparta el borrador de la sesión que se deja y pone el de `destino`
+    /// (o uno vacío). El indicador de trabajo y su estilo son del agente, no
+    /// del borrador, así que pasan al composer entrante.
+    fn swap_composer_draft(&mut self, destino: SessionId) {
+        // Primera carga: lo ya escrito es de la sesión que se abre, no de otra.
+        let Some(previa) = self.session_id else {
+            return;
+        };
+        let entrante = self
+            .composer_drafts
+            .remove(&destino)
+            .unwrap_or_else(|| ComposerDraft {
+                composer: batten::state::Composer::new(),
+                images: Vec::new(),
+            });
+        let working = self.composer.is_working();
+        let style = self.composer.activity_style();
+        let saliente = ComposerDraft {
+            composer: std::mem::replace(&mut self.composer, entrante.composer),
+            images: std::mem::replace(&mut self.draft_images, entrante.images),
+        };
+        self.composer.set_working(working);
+        self.composer.set_activity_style(style);
+        if !saliente.composer.is_empty() || !saliente.images.is_empty() {
+            self.composer_drafts.insert(previa, saliente);
+        }
+    }
+
     pub fn load_session(&mut self, session: SessionId, messages: Vec<Message>) {
         // Un aviso de la sesión anterior no debe despertar a la nueva.
         if self.session_id != Some(session) {
             self.wake_pending = false;
             self.wake_causes.clear();
+            self.swap_composer_draft(session);
         }
         self.session_id = Some(session);
         // Una navegación con `open_child` o `go_parent` conserva la pila de padres;
@@ -5737,6 +5775,85 @@ mod tests {
                 .collect(),
         );
         app
+    }
+
+    #[test]
+    fn load_session_preserva_borrador_del_padre() {
+        let mut app = App::new();
+        app.load_session(SessionId(1), Vec::new());
+        app.composer.insert_str("para el padre");
+        // Abrir un hijo cambia de sesión: el texto es del padre, no del hijo.
+        app.load_session(SessionId(7), Vec::new());
+        assert!(
+            app.composer.is_empty(),
+            "el hijo no hereda el borrador del padre"
+        );
+        app.composer.insert_str("para el hijo");
+        // Volver al padre restaura su borrador, y el hijo conserva el suyo.
+        app.load_session(SessionId(1), Vec::new());
+        assert_eq!(app.composer.text(), "para el padre");
+        app.load_session(SessionId(7), Vec::new());
+        assert_eq!(app.composer.text(), "para el hijo");
+    }
+
+    #[test]
+    fn recargar_la_misma_sesion_no_toca_el_borrador() {
+        let mut app = App::new();
+        app.load_session(SessionId(1), Vec::new());
+        app.composer.insert_str("sigue aquí");
+        app.load_session(SessionId(1), Vec::new());
+        assert_eq!(app.composer.text(), "sigue aquí");
+    }
+
+    #[test]
+    fn el_borrador_restaurado_conserva_el_cursor() {
+        let mut app = App::new();
+        app.load_session(SessionId(1), Vec::new());
+        app.composer.insert_str("hola mundo");
+        app.composer.set_cursor(4);
+        app.load_session(SessionId(7), Vec::new());
+        app.load_session(SessionId(1), Vec::new());
+        assert_eq!(app.composer.text(), "hola mundo");
+        assert_eq!(app.composer.cursor(), 4);
+    }
+
+    #[test]
+    fn las_imagenes_del_borrador_viajan_con_su_sesion() {
+        let mut app = App::new();
+        app.load_session(SessionId(1), Vec::new());
+        app.draft_images.push(ContentPart::Image {
+            mime_type: "image/png".into(),
+            data: "AAAA".into(),
+            filename: "a.png".into(),
+        });
+        app.load_session(SessionId(7), Vec::new());
+        assert!(app.draft_images.is_empty(), "el hijo no hereda la imagen");
+        app.load_session(SessionId(1), Vec::new());
+        assert_eq!(app.draft_images.len(), 1);
+    }
+
+    #[test]
+    fn un_borrador_vacio_no_deja_entrada_guardada() {
+        let mut app = App::new();
+        app.load_session(SessionId(1), Vec::new());
+        app.load_session(SessionId(7), Vec::new());
+        app.load_session(SessionId(1), Vec::new());
+        assert!(
+            app.composer_drafts.is_empty(),
+            "sin texto ni imágenes no se guarda nada"
+        );
+    }
+
+    #[test]
+    fn cambiar_de_sesion_no_apaga_el_indicador_de_trabajo() {
+        let mut app = App::new();
+        app.load_session(SessionId(1), Vec::new());
+        app.composer.set_working(true);
+        app.load_session(SessionId(7), Vec::new());
+        assert!(
+            app.composer.is_working(),
+            "el estado de trabajo es del agente, no del borrador"
+        );
     }
 
     #[test]
