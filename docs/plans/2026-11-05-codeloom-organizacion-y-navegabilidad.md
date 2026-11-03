@@ -195,6 +195,32 @@ Riesgos: la visibilidad. Lo que hoy es privado del módulo (`struct Espejo`, con
 
 ### Paso 2.2 — Convertir `subagent.rs` en `subagent/`
 
+**Corte por arquitectura (revisión del 2026-11-05).** Los 2.142 líneas de producción de
+`subagent/mod.rs` no se parten «por tamaño»: se parten por **fase del ciclo de vida** de un
+subagente, que es como se razona sobre ellos. Hallazgo: `arrancar_con` mide 464 líneas por sí
+sola (un único método), y el espejo de remotos otras ~490.
+
+| Fichero | Responsabilidad (fase) | Contenido actual |
+|---|---|---|
+| `mod.rs` | Contrato y re-exports | `SubagentRequest`, `trait SubagentLauncher`, `pub use` |
+| `depth.rs` | Política de recursión | `root_levels`, `child_levels`, `depth_clipped`, `can_delegate` |
+| `profile_prompt.rs` | Composición del prompt del hijo | `compose_child_system`, topes de persona, `elegir_skills` |
+| `tracker.rs` | Dueño del estado de la tarea | `TaskTracker`, `DiscardOnExit` |
+| `launcher.rs` | Estado y construcción del lanzador | struct `InProcessSubagentLauncher`, `new`, `with_*`, `anidado` |
+| `admission.rs` | Antes de lanzar: ¿se puede y se quiere? | `validar_peticion`, `resolver_agente`, `route`, `pedir_aprobacion`, `registrar_rechazo`, `mensaje_capacidad` |
+| `local_run.rs` | Lanzar y ejecutar un hijo local | `arrancar`, `arrancar_con` (464 líneas: se trocea en pasos con nombre) |
+| `remote/` | Hijos que son agentes A2A remotos | `EjecucionRemota`, `Espejo`, `seguir_remoto` (`mod`, `mirror`, `follow`) |
+| `control.rs` | Interacción con hijos vivos | `control`, `cancel`, `deliver_notices`, `pending_input_notices`, `start_follow_up`, `prompt_de_seguimiento` |
+
+Mecánica: Rust permite varios `impl InProcessSubagentLauncher` en módulos hijos, y un hijo ve lo
+privado del padre, así que casi no cambia la visibilidad (solo `pub(super)` en los métodos que
+se llaman entre ficheros). Primero se mueve todo tal cual, un commit por fichero; trocear
+`arrancar_con` es un commit **aparte** (es refactor de lógica, no movimiento) y con tests en verde.
+
+Idea posterior, fuera de este paso: `subagent_phase.rs`, `subagent_watchdog.rs` y
+`subagent_input.rs` son hermanos de `subagent/` y podrían vivir dentro como `subagent/phase.rs`,
+etc., con un `pub use` en `lib.rs` que conserve las rutas. Se decide cuando acabe la partición.
+
 `subagent/mod.rs` con re-exports (`pub use`) y archivos por responsabilidad. Un commit
 por responsabilidad extraída; movimiento puro.
 
