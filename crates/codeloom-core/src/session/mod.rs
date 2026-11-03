@@ -176,6 +176,18 @@ pub trait SessionStore: Send + Sync {
         child: SessionId,
         status: TaskStatus,
     ) -> Result<()>;
+    /// Guarda la fase de ejecución y el último latido del hijo, para que se vean tras reabrir el
+    /// almacén. No toca a un hijo ya asentado. Por defecto no hace nada.
+    async fn update_subagent_runtime(
+        &self,
+        parent: SessionId,
+        child: SessionId,
+        phase: SubagentPhase,
+        last_activity_at_ms: u64,
+    ) -> Result<()> {
+        let _ = (parent, child, phase, last_activity_at_ms);
+        Ok(())
+    }
     async fn list_subagents(&self, parent: SessionId) -> Result<Vec<SubagentDescriptor>>;
     /// Marca el hijo como `Completed` y guarda su resultado como artefactos.
     async fn complete_subagent(

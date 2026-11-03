@@ -5,14 +5,19 @@ use super::supervisor::{
     ChildHealth, HealthSummary, LostPolicy, SubagentSupervisor, SupervisorAction,
 };
 use crate::event::{EventBus, LiveEvent};
-use crate::session::SessionId;
+use crate::session::{SessionId, SessionStore};
 use crate::subagent_phase::SubagentPhase;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::broadcast;
 
 /// Cada cuánto se evalúa a los hijos. Con umbrales de decenas de segundos, cinco bastan.
 pub const DEFAULT_TICK: Duration = Duration::from_secs(5);
+
+/// Cada cuánto, como mucho, se guarda el latido de un hijo cuya fase no cambia: el almacén no
+/// necesita cada token, solo saber que sigue vivo.
+const HEARTBEAT_SAVE_MS: u64 = 10_000;
 
 /// Quien ejecuta el paso a `failed` de un hijo perdido (lo implementa el agente).
 #[async_trait::async_trait]
@@ -49,6 +54,7 @@ pub fn spawn_supervisor(
     tick: Duration,
     policy: LostPolicy,
     handler: Option<Arc<dyn LostHandler>>,
+    store: Option<Arc<dyn SessionStore>>,
 ) -> SupervisorHandle {
     let inner = Arc::new(Mutex::new(SubagentSupervisor::new(
         stall_ms, lost_ms, policy,
@@ -58,6 +64,7 @@ pub fn spawn_supervisor(
     };
     let mut rx = bus.subscribe();
     tokio::spawn(async move {
+        let mut saved: HashMap<i64, (SubagentPhase, u64)> = HashMap::new();
         let mut interval = tokio::time::interval(tick);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -73,6 +80,9 @@ pub fn spawn_supervisor(
             for action in actions {
                 execute(&bus, action, stall_ms, lost_ms, handler.as_ref());
             }
+            if let Some(store) = &store {
+                persist(&inner, store, &mut saved);
+            }
         }
     });
     handle
@@ -86,6 +96,44 @@ fn lock(inner: &Mutex<SubagentSupervisor>) -> std::sync::MutexGuard<'_, Subagent
     inner
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Guarda en el almacén la fase y el latido de los hijos que cambiaron desde la última vez. La
+/// escritura va en una tarea aparte: el reloj del supervisor no espera a la base de datos.
+fn persist(
+    inner: &Mutex<SubagentSupervisor>,
+    store: &Arc<dyn SessionStore>,
+    saved: &mut HashMap<i64, (SubagentPhase, u64)>,
+) {
+    let children = lock(inner).children();
+    saved.retain(|id, _| children.iter().any(|c| c.child.0 == *id));
+    for health in children {
+        let due = match saved.get(&health.child.0) {
+            None => true,
+            Some((phase, written)) => {
+                *phase != health.phase
+                    || health.last_activity_ms >= written.saturating_add(HEARTBEAT_SAVE_MS)
+            }
+        };
+        if !due {
+            continue;
+        }
+        saved.insert(health.child.0, (health.phase, health.last_activity_ms));
+        let store = store.clone();
+        tokio::spawn(async move {
+            if let Err(error) = store
+                .update_subagent_runtime(
+                    health.parent,
+                    health.child,
+                    health.phase,
+                    health.last_activity_ms,
+                )
+                .await
+            {
+                tracing::warn!("could not save subagent runtime: {error}");
+            }
+        });
+    }
 }
 
 fn execute(
@@ -168,6 +216,7 @@ mod tests {
             Duration::from_millis(10),
             LostPolicy::MarkAndNotify,
             None,
+            None,
         );
         bus.publish(working(7));
         let mut fases = Vec::new();
@@ -201,6 +250,7 @@ mod tests {
             Duration::from_millis(10),
             LostPolicy::MarkAndNotify,
             None,
+            None,
         );
         bus.publish(working(7));
         let limite = tokio::time::Instant::now() + Duration::from_secs(2);
@@ -209,6 +259,50 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         assert_eq!(handle.children()[0].child, SessionId(7));
+    }
+
+    #[tokio::test]
+    async fn la_fase_y_el_latido_se_guardan_en_el_almacen() {
+        use crate::session::{sqlite::SqliteStore, SessionStore};
+        let dir = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(dir.path().join("sup.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let parent = store.create_session("/proj").await.unwrap();
+        let child = store.create_session("/proj").await.unwrap();
+        let LiveEvent::SubagentChanged(mut descriptor) = working(0) else {
+            unreachable!()
+        };
+        descriptor.parent = parent;
+        descriptor.child = child;
+        store.save_subagent(&descriptor).await.unwrap();
+        let bus = EventBus::new(64);
+        let _handle = spawn_supervisor(
+            bus.clone(),
+            60_000,
+            120_000,
+            Duration::from_millis(10),
+            LostPolicy::MarkAndNotify,
+            None,
+            Some(store.clone()),
+        );
+        bus.publish(LiveEvent::SubagentChanged(descriptor));
+        bus.publish(LiveEvent::SubagentPhaseChanged {
+            parent,
+            child,
+            phase: SubagentPhase::Streaming,
+        });
+        let limite = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let hijos = store.list_subagents(parent).await.unwrap();
+            if hijos[0].phase == SubagentPhase::Streaming && hijos[0].last_activity_at_ms > 0 {
+                break;
+            }
+            assert!(tokio::time::Instant::now() < limite, "no se guardó la fase");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
     }
 
     struct Espia(tokio::sync::mpsc::UnboundedSender<(SessionId, SessionId, String)>);
@@ -231,6 +325,7 @@ mod tests {
             Duration::from_millis(10),
             LostPolicy::FailAndStop,
             Some(Arc::new(Espia(tx))),
+            None,
         );
         bus.publish(working(7));
         let (parent, child, motivo) = tokio::time::timeout(Duration::from_secs(5), rx.recv())
@@ -253,6 +348,7 @@ mod tests {
             Duration::from_millis(10),
             LostPolicy::MarkAndNotify,
             Some(Arc::new(Espia(tx))),
+            None,
         );
         bus.publish(working(7));
         // Espera a que se dé por perdido (segundo aviso) y comprueba que nadie fue llamado.

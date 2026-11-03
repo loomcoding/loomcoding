@@ -319,6 +319,7 @@ pub(super) async fn build_agent(
             }
         },
         Some(Arc::new(Arc::downgrade(&agent))),
+        Some(store.clone()),
     );
     Ok(AgentSetup {
         agent,

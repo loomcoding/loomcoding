@@ -434,6 +434,30 @@ WHERE s.project = ?
         Ok(())
     }
 
+    async fn update_subagent_runtime(
+        &self,
+        parent: SessionId,
+        child: SessionId,
+        phase: SubagentPhase,
+        last_activity_at_ms: u64,
+    ) -> Result<()> {
+        // Un hijo ya asentado conserva la fase con que terminó: la guarda la propia condición.
+        sqlx::query(
+            "UPDATE subagents SET phase = ?, last_activity_at_ms = ?
+             WHERE parent_session_id = ? AND child_session_id = ?
+               AND status NOT IN ('TASK_STATE_COMPLETED', 'TASK_STATE_FAILED',
+                                  'TASK_STATE_CANCELED', 'TASK_STATE_REJECTED')",
+        )
+        .bind(phase.as_str())
+        .bind(last_activity_at_ms as i64)
+        .bind(parent.0)
+        .bind(child.0)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| CoreError::Store(e.to_string()))?;
+        Ok(())
+    }
+
     async fn list_subagents(&self, parent: SessionId) -> Result<Vec<SubagentDescriptor>> {
         let rows = sqlx::query(
             "SELECT parent_session_id, child_session_id, job_id, label, status, status_message,
@@ -1451,6 +1475,53 @@ mod tests {
                 .unwrap();
         assert!(columnas.iter().any(|c| c == "status_message"));
         assert!(columnas.iter().any(|c| c == "status_timestamp_ms"));
+    }
+
+    #[tokio::test]
+    async fn runtime_phase_and_heartbeat_survive_reopening() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("runtime.db");
+        let store = SqliteStore::open(path.to_str().unwrap()).await.unwrap();
+        let parent = store.create_session("/proj").await.unwrap();
+        let child = store.create_session("/proj").await.unwrap();
+        store
+            .save_subagent(&descriptor(parent, child, TaskState::Working))
+            .await
+            .unwrap();
+        store
+            .update_subagent_runtime(parent, child, SubagentPhase::Streaming, 1234)
+            .await
+            .unwrap();
+        drop(store);
+        let again = SqliteStore::open(path.to_str().unwrap()).await.unwrap();
+        let hijos = again.list_subagents(parent).await.unwrap();
+        assert_eq!(hijos[0].phase, SubagentPhase::Streaming);
+        assert_eq!(hijos[0].last_activity_at_ms, 1234);
+    }
+
+    #[tokio::test]
+    async fn runtime_update_does_not_touch_a_settled_child() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("runtime2.db").to_str().unwrap())
+            .await
+            .unwrap();
+        let parent = store.create_session("/proj").await.unwrap();
+        let child = store.create_session("/proj").await.unwrap();
+        store
+            .save_subagent(&descriptor(parent, child, TaskState::Working))
+            .await
+            .unwrap();
+        store
+            .update_subagent_status(parent, child, TaskStatus::new(TaskState::Completed))
+            .await
+            .unwrap();
+        store
+            .update_subagent_runtime(parent, child, SubagentPhase::Stalled, 99)
+            .await
+            .unwrap();
+        let hijos = store.list_subagents(parent).await.unwrap();
+        assert_ne!(hijos[0].phase, SubagentPhase::Stalled);
+        assert_ne!(hijos[0].last_activity_at_ms, 99);
     }
 
     #[tokio::test]

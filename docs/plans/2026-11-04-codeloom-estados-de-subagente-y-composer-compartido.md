@@ -139,11 +139,12 @@ descriptor sin tocar `status.state` (A2A manda). Tests: `phase_observer` (7),
 - «El padre se queda ciego» era falso: `SubagentChanged`, `SubagentSettled` y
   `SubagentInputRequested/Resolved` los publica el lanzador **en el bus del padre**; no son
   eventos del hijo y reenviarlos los duplicaría. Lo que faltaba era la fase fina.
-- **Pendiente:** `SubagentProgress` y el `summary` de `SubagentSettled` (los contadores ya
-  suben con `SubagentChanged`); persistir `phase` y `last_activity_at_ms` en el almacén
-  (hoy solo se escriben al crear el hijo); `AwaitingPermission`, que el bus del hijo no
-  expone; y los hijos remotos. Todo ello es precondición de la Fase 5 (§8 del spec del
-  watchdog).
+- **Hecho:** `phase` y `last_activity_at_ms` se persisten (`SessionStore::update_subagent_runtime`,
+  que no toca a un hijo asentado). Los escribe el driver del supervisor: al cambiar la fase y,
+  con la fase quieta, un latido como mucho cada 10 s por hijo.
+- **Pendiente:** el `summary` de `SubagentSettled`; `AwaitingPermission`, que el bus del hijo no
+  expone; y los hijos remotos. `SubagentProgress` se descarta por redundante: los contadores y
+  los artefactos de progreso ya suben con `SubagentChanged`.
 
 
 **Qué cambia:** `SubagentPhaseChanged` y `SubagentProgress` (coalescido) en
@@ -192,7 +193,7 @@ fase y `health=ok|stalled|lost`.
   y no `canceled` porque nadie lo canceló: dejó de dar señales.
 - El driver vive en el daemon (`codeloom-cli`), no en la TUI: la TUI cliente recibe sus
   eventos por el bus.
-- Sin persistir la fase ni `last_activity_at_ms` (sigue pendiente de la Fase 4).
+- La fase y el latido sí se persisten (ver Fase 4, «Hecho»).
 
 **Contenido original de la fase:**
 
