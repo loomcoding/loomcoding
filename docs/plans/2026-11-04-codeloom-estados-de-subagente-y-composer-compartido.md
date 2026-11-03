@@ -99,7 +99,9 @@ propio), `last_activity_at_ms: u64`, `steps`, `tool_calls`, `tokens_in`,
 
 **Criterio de aceptación:** tests verdes; sin cambios de API pública que rompan la TUI.
 
-## Fase 3 — Watchdog puro
+## Fase 3 — Watchdog puro (HECHA 2026-11-05)
+
+Implementada en `subagent_watchdog.rs` y `AgentsConfig`; ver `docs/plans/2026-11-05-codeloom-watchdog-de-subagentes.md`.
 
 **Qué cambia:** módulo puro que, dado `now_ms: u64`, devuelve `Stalled`/`Lost` o
 vuelta a la fase previa. Sin reloj real, sin hilos.

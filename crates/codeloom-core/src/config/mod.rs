@@ -163,6 +163,12 @@ pub struct AgentsConfig {
     pub max_active_subagents: Option<usize>,
     /// Techo de profundidad de la delegación. Sin valor, `DEFAULT_DEPTH_CEILING`; ver `depth_ceiling`.
     pub max_depth: Option<u32>,
+    /// Segundos sin latido tras los que un subagente se da por atascado (`Stalled`).
+    /// Sin valor, `DEFAULT_STALL_THRESHOLD_SECS`; ver `stall_threshold_ms`.
+    pub stall_threshold_secs: Option<u64>,
+    /// Segundos sin latido tras los que un subagente se da por perdido (`Lost`).
+    /// Sin valor, `DEFAULT_LOST_THRESHOLD_SECS`; ver `lost_threshold_ms`.
+    pub lost_threshold_secs: Option<u64>,
     /// Raíces de catálogos externos de agentes y skills (`<raíz>/.agents/agents` y `<raíz>/.agents/skills`).
     /// Sus agentes son contenido de terceros y exigen aprobación; ver `catalog_roots_effective`.
     pub catalog_roots: Vec<PathBuf>,
@@ -180,6 +186,22 @@ pub const MAX_DEPTH_CEILING: u32 = 3;
 pub const DEFAULT_ACTIVE_SUBAGENTS: usize = 8;
 /// Cota superior de `max_active_subagents`: más allá, un valor equivocado agotaría el proveedor.
 pub const MAX_ACTIVE_SUBAGENTS: usize = 64;
+
+/// Umbral de atasco por defecto: dos minutos sin latido.
+pub const DEFAULT_STALL_THRESHOLD_SECS: u64 = 120;
+/// Cota inferior del atasco: por debajo, el ruido de planificación o una pausa de red normal dispara el vigilante.
+pub const MIN_STALL_THRESHOLD_SECS: u64 = 10;
+/// Cota superior del atasco: más de una hora ya no aporta nada que una cancelación manual no cubra.
+pub const MAX_STALL_THRESHOLD_SECS: u64 = 3600;
+/// Umbral de pérdida por defecto: cinco minutos sin latido.
+pub const DEFAULT_LOST_THRESHOLD_SECS: u64 = 300;
+/// Cota inferior de la pérdida (mismo razonamiento que la del atasco).
+pub const MIN_LOST_THRESHOLD_SECS: u64 = 30;
+/// Cota superior de la pérdida: seis horas; más allá, cancelar a mano es lo sensato.
+pub const MAX_LOST_THRESHOLD_SECS: u64 = 21600;
+/// Margen mínimo entre atasco y pérdida: con un empate `Lost` ganaría en el mismo instante
+/// y `Stalled` jamás sería observable, perdiendo la ventana en la que un latido tardío rescata.
+pub const LOST_MARGIN_MS: u64 = 30_000;
 
 /// Forma del fichero a efectos de la sección `[agents]`; el resto de claves se ignora.
 #[derive(Deserialize)]
@@ -215,6 +237,26 @@ impl AgentsConfig {
             .map_or(DEFAULT_ACTIVE_SUBAGENTS, |n| {
                 n.clamp(1, MAX_ACTIVE_SUBAGENTS)
             })
+    }
+
+    /// Umbral de atasco en milisegundos (listo para compararlo con `last_activity_at_ms`):
+    /// el configurado, acotado a `MIN..=MAX_STALL_THRESHOLD_SECS`, o el valor por defecto.
+    pub fn stall_threshold_ms(&self) -> u64 {
+        self.stall_threshold_secs
+            .unwrap_or(DEFAULT_STALL_THRESHOLD_SECS)
+            .clamp(MIN_STALL_THRESHOLD_SECS, MAX_STALL_THRESHOLD_SECS)
+            * 1000
+    }
+
+    /// Umbral de pérdida en milisegundos. Tras acotarlo se normaliza para que supere al de
+    /// atasco al menos en `LOST_MARGIN_MS`: un subagente no puede perderse antes de atascarse.
+    pub fn lost_threshold_ms(&self) -> u64 {
+        let lost = self
+            .lost_threshold_secs
+            .unwrap_or(DEFAULT_LOST_THRESHOLD_SECS)
+            .clamp(MIN_LOST_THRESHOLD_SECS, MAX_LOST_THRESHOLD_SECS)
+            * 1000;
+        lost.max(self.stall_threshold_ms() + LOST_MARGIN_MS)
     }
 
     /// Lee la sección `[agents]` de un texto TOML. Su ausencia da los valores por defecto.
@@ -679,6 +721,48 @@ max_depth = {valor}
         assert_eq!(leer("3"), 3);
         assert_eq!(leer("0"), 1);
         assert_eq!(leer("9"), 3);
+    }
+
+    fn umbrales(toml: &str) -> (u64, u64) {
+        let cfg = AgentsConfig::from_toml(toml).unwrap();
+        (cfg.stall_threshold_ms(), cfg.lost_threshold_ms())
+    }
+
+    #[test]
+    fn umbrales_por_defecto() {
+        let cfg = AgentsConfig::default();
+        assert_eq!(cfg.stall_threshold_ms(), 120_000);
+        assert_eq!(cfg.lost_threshold_ms(), 300_000);
+    }
+
+    #[test]
+    fn umbrales_acotados_por_ambos_lados() {
+        let (stall, lost) =
+            umbrales("[agents]\nstall_threshold_secs = 1\nlost_threshold_secs = 1\n");
+        assert_eq!(stall, 10_000);
+        assert_eq!(lost, 40_000, "lost mínimo 30 s, pero sube a stall + margen");
+        let (stall, lost) =
+            umbrales("[agents]\nstall_threshold_secs = 999999\nlost_threshold_secs = 999999\n");
+        assert_eq!(stall, 3_600_000);
+        assert_eq!(lost, 21_600_000);
+    }
+
+    #[test]
+    fn lost_siempre_supera_a_stall() {
+        // Stall en su máximo con lost por defecto: lost se normaliza a stall + margen.
+        let (stall, lost) = umbrales("[agents]\nstall_threshold_secs = 3600\n");
+        assert_eq!(lost, stall + LOST_MARGIN_MS);
+        // Lost configurado por debajo de stall: idem.
+        let (stall, lost) =
+            umbrales("[agents]\nstall_threshold_secs = 200\nlost_threshold_secs = 100\n");
+        assert_eq!(lost, stall + LOST_MARGIN_MS);
+    }
+
+    #[test]
+    fn toml_lee_las_claves_del_spec() {
+        let (stall, lost) =
+            umbrales("[agents]\nstall_threshold_secs = 60\nlost_threshold_secs = 200\n");
+        assert_eq!((stall, lost), (60_000, 200_000));
     }
 
     #[test]
