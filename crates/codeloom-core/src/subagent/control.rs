@@ -164,6 +164,36 @@ impl InProcessSubagentLauncher {
         }
     }
 
+    /// Asienta como `failed` a un hijo perdido y detiene su trabajo. Primero se persiste el
+    /// estado y luego se mata el trabajo: así el asiento que sigue lee `failed` y no `canceled`.
+    pub(super) async fn dar_por_perdido(
+        &self,
+        parent: SessionId,
+        child: SessionId,
+        motivo: String,
+    ) -> Result<()> {
+        let descriptor = self.descriptor_of(parent, child).await?;
+        if descriptor.status.state.is_terminal() {
+            return Ok(());
+        }
+        let mut status = TaskStatus::new(TaskState::Failed);
+        status.message = Some(Message::agent_text(
+            crate::tools::limit_bytes(&format!("lost: {motivo}"), crate::tools::MAX_NOTICE_BYTES)
+                .into_owned(),
+        ));
+        TaskTracker::new(self.store.clone(), self.bus.clone())
+            .transition(parent, child, status)
+            .await?;
+        let job = JobId(descriptor.job_id);
+        let en_marcha = self.jobs.list(parent).into_iter().any(|snapshot| {
+            snapshot.id == job && snapshot.status == crate::job::JobStatus::Running
+        });
+        if en_marcha {
+            self.jobs.kill(parent, &job)?;
+        }
+        Ok(())
+    }
+
     pub(super) async fn avisos_de_resultado(
         &self,
         parent: SessionId,

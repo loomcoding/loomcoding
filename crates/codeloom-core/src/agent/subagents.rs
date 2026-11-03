@@ -15,6 +15,20 @@ impl AgentLoop {
             .await
     }
 
+    /// Da por fallido a un hijo perdido y detiene su trabajo (lo pide el supervisor).
+    pub async fn fail_lost_subagent(
+        &self,
+        parent: SessionId,
+        child: SessionId,
+        reason: String,
+    ) -> crate::error::Result<()> {
+        self.subagents
+            .as_ref()
+            .ok_or_else(|| crate::error::CoreError::Tool("subagents are unavailable".into()))?
+            .fail_lost(parent, child, reason)
+            .await
+    }
+
     /// Responde la pregunta pendiente (`input-required`) de un hijo con el texto de la persona
     /// usuaria, sin turno del modelo principal.
     pub async fn answer_subagent(
@@ -143,5 +157,17 @@ impl AgentLoop {
             }
         }
         Ok(delivered)
+    }
+}
+
+/// El supervisor da por fallidos a los hijos perdidos a través de una referencia débil: así su
+/// tarea no mantiene vivo al agente (que es dueño del bus que ella escucha).
+#[async_trait::async_trait]
+impl crate::subagent::supervisor_driver::LostHandler for std::sync::Weak<AgentLoop> {
+    async fn fail_lost(&self, parent: SessionId, child: SessionId, reason: String) {
+        let Some(agent) = self.upgrade() else { return };
+        if let Err(error) = agent.fail_lost_subagent(parent, child, reason).await {
+            tracing::warn!("could not fail lost subagent {}: {error}", child.0);
+        }
     }
 }

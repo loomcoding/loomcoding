@@ -14,11 +14,11 @@ use std::collections::BTreeMap;
 /// Qué se hace con un hijo que se da por perdido.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LostPolicy {
-    /// Marcarlo y avisar a la persona usuaria; no se cancela nada por cuenta propia.
+    /// Marcarlo y avisar a la persona usuaria; no se toca su tarea.
     #[default]
     MarkAndNotify,
-    /// Además, pedir su cancelación.
-    MarkNotifyAndCancel,
+    /// Además, darlo por fallido y detener su trabajo.
+    FailAndStop,
 }
 
 /// Decisión del supervisor, para que la ejecute el driver.
@@ -36,8 +36,8 @@ pub enum SupervisorAction {
         child: SessionId,
         phase: SubagentPhase,
     },
-    /// Pedir la cancelación del hijo (solo con `LostPolicy::MarkNotifyAndCancel`).
-    Cancel { parent: SessionId, child: SessionId },
+    /// Dar al hijo por fallido y detener su trabajo (solo con `LostPolicy::FailAndStop`).
+    Fail { parent: SessionId, child: SessionId },
 }
 
 /// Lo que el supervisor sabe de un hijo vivo.
@@ -236,8 +236,8 @@ impl SubagentSupervisor {
                 child,
                 phase,
             });
-            if phase == SubagentPhase::Lost && self.policy == LostPolicy::MarkNotifyAndCancel {
-                actions.push(SupervisorAction::Cancel { parent, child });
+            if phase == SubagentPhase::Lost && self.policy == LostPolicy::FailAndStop {
+                actions.push(SupervisorAction::Fail { parent, child });
             }
         }
         actions
@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn lost_produce_mark_y_notify_pero_no_cancela_por_defecto() {
+    fn lost_produce_mark_y_notify_pero_no_falla_con_la_politica_de_solo_avisar() {
         let mut s = sup();
         registra(&mut s, 7, TaskState::Working, 0);
         s.tick(STALL);
@@ -385,12 +385,12 @@ mod tests {
     }
 
     #[test]
-    fn con_la_politica_de_cancelar_lost_pide_la_cancelacion() {
-        let mut s = SubagentSupervisor::new(STALL, LOST, LostPolicy::MarkNotifyAndCancel);
+    fn con_la_politica_de_fallar_lost_pide_darlo_por_fallido() {
+        let mut s = SubagentSupervisor::new(STALL, LOST, LostPolicy::FailAndStop);
         registra(&mut s, 7, TaskState::Working, 0);
         s.tick(STALL);
         let acciones = s.tick(LOST);
-        assert!(acciones.contains(&SupervisorAction::Cancel {
+        assert!(acciones.contains(&SupervisorAction::Fail {
             parent: P,
             child: SessionId(7)
         }));

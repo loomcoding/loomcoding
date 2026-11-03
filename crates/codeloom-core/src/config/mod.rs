@@ -169,6 +169,8 @@ pub struct AgentsConfig {
     /// Segundos sin latido tras los que un subagente se da por perdido (`Lost`).
     /// Sin valor, `DEFAULT_LOST_THRESHOLD_SECS`; ver `lost_threshold_ms`.
     pub lost_threshold_secs: Option<u64>,
+    /// Qué se hace con un subagente dado por perdido. Por defecto, `fail`.
+    pub lost_action: LostAction,
     /// Raíces de catálogos externos de agentes y skills (`<raíz>/.agents/agents` y `<raíz>/.agents/skills`).
     /// Sus agentes son contenido de terceros y exigen aprobación; ver `catalog_roots_effective`.
     pub catalog_roots: Vec<PathBuf>,
@@ -202,6 +204,17 @@ pub const MAX_LOST_THRESHOLD_SECS: u64 = 21600;
 /// Margen mínimo entre atasco y pérdida: con un empate `Lost` ganaría en el mismo instante
 /// y `Stalled` jamás sería observable, perdiendo la ventana en la que un latido tardío rescata.
 pub const LOST_MARGIN_MS: u64 = 30_000;
+
+/// Qué hace el supervisor con un subagente dado por perdido (`[agents] lost_action`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LostAction {
+    /// Solo marcarlo y avisar: la tarea sigue como estaba.
+    Notify,
+    /// Asentar la tarea como `failed`, con el motivo, y detener su trabajo.
+    #[default]
+    Fail,
+}
 
 /// Forma del fichero a efectos de la sección `[agents]`; el resto de claves se ignora.
 #[derive(Deserialize)]
@@ -726,6 +739,35 @@ max_depth = {valor}
     fn umbrales(toml: &str) -> (u64, u64) {
         let cfg = AgentsConfig::from_toml(toml).unwrap();
         (cfg.stall_threshold_ms(), cfg.lost_threshold_ms())
+    }
+
+    #[test]
+    fn lost_action_por_defecto_da_el_hijo_por_fallido() {
+        assert_eq!(AgentsConfig::default().lost_action, LostAction::Fail);
+        let cfg = AgentsConfig::from_toml(
+            "[agents]
+lost_action = \"notify\"
+",
+        )
+        .unwrap();
+        assert_eq!(cfg.lost_action, LostAction::Notify);
+        let cfg = AgentsConfig::from_toml(
+            "[agents]
+lost_action = \"fail\"
+",
+        )
+        .unwrap();
+        assert_eq!(cfg.lost_action, LostAction::Fail);
+    }
+
+    #[test]
+    fn lost_action_desconocida_es_un_error_y_no_se_ignora() {
+        assert!(AgentsConfig::from_toml(
+            "[agents]
+lost_action = \"cancel\"
+"
+        )
+        .is_err());
     }
 
     #[test]

@@ -164,6 +164,17 @@ pub trait SubagentLauncher: Send + Sync {
         Err(CoreError::Tool("subagent cancel unavailable".into()))
     }
 
+    /// Da por fallido a un hijo perdido: asienta su tarea como `failed` con el motivo y detiene su
+    /// trabajo. Repetirlo sobre un hijo ya asentado no es un error.
+    async fn fail_lost(
+        &self,
+        _parent: SessionId,
+        _child: SessionId,
+        _reason: String,
+    ) -> Result<()> {
+        Err(CoreError::Tool("subagent fail_lost unavailable".into()))
+    }
+
     async fn list(&self, parent: SessionId) -> Result<Vec<SubagentDescriptor>>;
 
     async fn deliver_notices(&self, parent: SessionId) -> Result<Vec<crate::message::Message>>;

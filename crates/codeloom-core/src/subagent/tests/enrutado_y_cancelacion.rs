@@ -301,3 +301,75 @@ async fn start_without_registry_behaves_as_before() {
         .iter()
         .all(|hijo| hijo.agent.is_none() && hijo.agent_origin.is_none()));
 }
+
+#[tokio::test]
+async fn a_lost_child_is_settled_as_failed_with_the_reason_and_its_work_stopped() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store, parent) = tienda_de_prueba(dir.path(), "fail-lost.db").await;
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let bus = EventBus::new(64);
+    let mut rx = bus.subscribe();
+    let runtime = lanzador_que_pregunta(dir.path(), store.clone(), jobs.clone(), bus);
+    let (child, _job) = runtime
+        .start(
+            parent,
+            "obrero".into(),
+            "decide algo".into(),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while runtime.pending_inputs(parent).is_empty() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("el hijo debería quedar esperando una respuesta");
+
+    runtime
+        .fail_lost(parent, child, "no activity for over 300 s".into())
+        .await
+        .unwrap();
+
+    let tarea = store
+        .list_subagents(parent)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|d| d.child == child)
+        .unwrap();
+    assert_eq!(tarea.status.state, TaskState::Failed);
+    let mensaje = tarea.status.message.expect("lleva el motivo").text();
+    assert!(mensaje.contains("no activity"), "{mensaje}");
+    // El padre se entera: el trabajo se detiene y el asiento llega con el estado persistido.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let LiveEvent::SubagentSettled { status, .. } = rx.recv().await.unwrap() {
+                assert_eq!(status, TaskState::Failed);
+                break;
+            }
+        }
+    })
+    .await
+    .expect("debía asentarse el hijo perdido");
+    assert!(runtime.pending_inputs(parent).is_empty());
+    // Repetirlo no es un error: el hijo ya está asentado.
+    runtime
+        .fail_lost(parent, child, "otra vez".into())
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn failing_an_unknown_child_is_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store, parent) = tienda_de_prueba(dir.path(), "fail-lost-unknown.db").await;
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let runtime = lanzador_que_pregunta(dir.path(), store, jobs, EventBus::new(8));
+    assert!(matches!(
+        runtime.fail_lost(parent, SessionId(999), "x".into()).await,
+        Err(CoreError::TaskNotFound(999))
+    ));
+}

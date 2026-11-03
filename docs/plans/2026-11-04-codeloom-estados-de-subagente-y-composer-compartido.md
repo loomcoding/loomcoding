@@ -182,11 +182,14 @@ fase y `health=ok|stalled|lost`.
 - El eco de `Stalled`/`Lost` que el propio supervisor publica **no** cuenta como latido
   (test `lo_que_publica_el_propio_supervisor_no_cuenta_como_latido`).
 - `Stalled → Working` lo dispara un evento real del hijo (`ChildEvent`), nunca el tick.
-- **`Cancel` existe en el supervisor pero no está cableado:** la política por defecto es
-  `MarkAndNotify`; el driver solo avisa. Falta el ajuste de configuración y llamar a
-  `cancel_subagent`.
-- `Lost` no cambia el `TaskState` A2A del hijo (sigue `working`): marca y avisa, no
-  asienta. Decidir si debe pasar a `failed` es una pregunta abierta.
+- **Resuelto (2026-11-05): un hijo perdido pasa a `failed` y se detiene su trabajo.**
+  `[agents] lost_action = "fail"` (defecto) o `"notify"` (solo marcar y avisar; un valor
+  desconocido es un error de configuración). Con `fail`, `SupervisorAction::Fail` llega al
+  agente (`LostHandler` sobre `Weak<AgentLoop>`, para no mantenerlo vivo) y el lanzador
+  (`fail_lost` → `dar_por_perdido`) **primero persiste `failed` con el motivo y luego mata
+  el trabajo**: así el asiento lee `failed` y no `canceled`, y el padre recibe
+  `SubagentSettled`. Repetirlo sobre un hijo ya asentado no es un error. Se eligió `failed`
+  y no `canceled` porque nadie lo canceló: dejó de dar señales.
 - El driver vive en el daemon (`codeloom-cli`), no en la TUI: la TUI cliente recibe sus
   eventos por el bus.
 - Sin persistir la fase ni `last_activity_at_ms` (sigue pendiente de la Fase 4).

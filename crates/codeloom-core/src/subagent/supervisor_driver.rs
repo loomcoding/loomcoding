@@ -14,6 +14,12 @@ use tokio::sync::broadcast;
 /// Cada cuánto se evalúa a los hijos. Con umbrales de decenas de segundos, cinco bastan.
 pub const DEFAULT_TICK: Duration = Duration::from_secs(5);
 
+/// Quien ejecuta el paso a `failed` de un hijo perdido (lo implementa el agente).
+#[async_trait::async_trait]
+pub trait LostHandler: Send + Sync {
+    async fn fail_lost(&self, parent: SessionId, child: SessionId, reason: String);
+}
+
 /// Vista compartida de la salud de los hijos, para quien necesite mostrarla (`runtime_snapshot`).
 #[derive(Clone)]
 pub struct SupervisorHandle {
@@ -41,11 +47,11 @@ pub fn spawn_supervisor(
     stall_ms: u64,
     lost_ms: u64,
     tick: Duration,
+    policy: LostPolicy,
+    handler: Option<Arc<dyn LostHandler>>,
 ) -> SupervisorHandle {
     let inner = Arc::new(Mutex::new(SubagentSupervisor::new(
-        stall_ms,
-        lost_ms,
-        LostPolicy::MarkAndNotify,
+        stall_ms, lost_ms, policy,
     )));
     let handle = SupervisorHandle {
         inner: inner.clone(),
@@ -65,7 +71,7 @@ pub fn spawn_supervisor(
                 _ = interval.tick() => lock(&inner).tick(now()),
             };
             for action in actions {
-                execute(&bus, action, stall_ms, lost_ms);
+                execute(&bus, action, stall_ms, lost_ms, handler.as_ref());
             }
         }
     });
@@ -82,7 +88,13 @@ fn lock(inner: &Mutex<SubagentSupervisor>) -> std::sync::MutexGuard<'_, Subagent
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-fn execute(bus: &EventBus, action: SupervisorAction, stall_ms: u64, lost_ms: u64) {
+fn execute(
+    bus: &EventBus,
+    action: SupervisorAction,
+    stall_ms: u64,
+    lost_ms: u64,
+    handler: Option<&Arc<dyn LostHandler>>,
+) {
     match action {
         SupervisorAction::Mark {
             parent,
@@ -108,9 +120,12 @@ fn execute(bus: &EventBus, action: SupervisorAction, stall_ms: u64, lost_ms: u64
             };
             bus.publish(LiveEvent::RuntimeNotice { message });
         }
-        // La política por defecto no cancela; el cableado de la cancelación llegará con su ajuste.
-        SupervisorAction::Cancel { child, .. } => {
-            tracing::warn!("cancelación del subagente {} sin cablear", child.0);
+        SupervisorAction::Fail { parent, child } => {
+            if let Some(handler) = handler {
+                let handler = handler.clone();
+                let reason = format!("no activity for over {} s", lost_ms / 1000);
+                tokio::spawn(async move { handler.fail_lost(parent, child, reason).await });
+            }
         }
     }
 }
@@ -146,7 +161,14 @@ mod tests {
     async fn un_hijo_mudo_pasa_a_stalled_y_luego_a_lost_con_avisos() {
         let bus = EventBus::new(64);
         let mut rx = bus.subscribe();
-        let handle = spawn_supervisor(bus.clone(), 30, 90, Duration::from_millis(10));
+        let handle = spawn_supervisor(
+            bus.clone(),
+            30,
+            90,
+            Duration::from_millis(10),
+            LostPolicy::MarkAndNotify,
+            None,
+        );
         bus.publish(working(7));
         let mut fases = Vec::new();
         let mut avisos = 0;
@@ -172,7 +194,14 @@ mod tests {
     #[tokio::test]
     async fn la_vista_compartida_muestra_los_hijos_vivos() {
         let bus = EventBus::new(64);
-        let handle = spawn_supervisor(bus.clone(), 60_000, 120_000, Duration::from_millis(10));
+        let handle = spawn_supervisor(
+            bus.clone(),
+            60_000,
+            120_000,
+            Duration::from_millis(10),
+            LostPolicy::MarkAndNotify,
+            None,
+        );
         bus.publish(working(7));
         let limite = tokio::time::Instant::now() + Duration::from_secs(2);
         while handle.children().is_empty() {
@@ -180,5 +209,64 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         assert_eq!(handle.children()[0].child, SessionId(7));
+    }
+
+    struct Espia(tokio::sync::mpsc::UnboundedSender<(SessionId, SessionId, String)>);
+
+    #[async_trait::async_trait]
+    impl LostHandler for Espia {
+        async fn fail_lost(&self, parent: SessionId, child: SessionId, reason: String) {
+            let _ = self.0.send((parent, child, reason));
+        }
+    }
+
+    #[tokio::test]
+    async fn con_la_politica_de_fallar_el_manejador_recibe_al_hijo_perdido() {
+        let bus = EventBus::new(64);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let _handle = spawn_supervisor(
+            bus.clone(),
+            30,
+            90,
+            Duration::from_millis(10),
+            LostPolicy::FailAndStop,
+            Some(Arc::new(Espia(tx))),
+        );
+        bus.publish(working(7));
+        let (parent, child, motivo) = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("el manejador debía recibir al hijo perdido")
+            .unwrap();
+        assert_eq!((parent, child), (SessionId(1), SessionId(7)));
+        assert!(motivo.contains("no activity"), "{motivo}");
+    }
+
+    #[tokio::test]
+    async fn con_la_politica_de_solo_avisar_no_se_llama_al_manejador() {
+        let bus = EventBus::new(64);
+        let mut avisos = bus.subscribe();
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+        let _handle = spawn_supervisor(
+            bus.clone(),
+            30,
+            90,
+            Duration::from_millis(10),
+            LostPolicy::MarkAndNotify,
+            Some(Arc::new(Espia(tx))),
+        );
+        bus.publish(working(7));
+        // Espera a que se dé por perdido (segundo aviso) y comprueba que nadie fue llamado.
+        let mut n = 0;
+        while n < 2 {
+            if let LiveEvent::RuntimeNotice { .. } =
+                tokio::time::timeout(Duration::from_secs(5), avisos.recv())
+                    .await
+                    .unwrap()
+                    .unwrap()
+            {
+                n += 1;
+            }
+        }
+        assert!(rx.try_recv().is_err());
     }
 }

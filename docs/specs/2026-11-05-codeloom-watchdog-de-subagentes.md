@@ -81,6 +81,7 @@ Se sigue el patrón existente de `AgentsConfig` en `crates/codeloom-core/src/con
 [agents]
 stall_threshold_secs = 120   # segundos
 lost_threshold_secs  = 300   # segundos
+lost_action          = "fail" # "fail" (defecto: asienta `failed` y detiene el trabajo) | "notify"
 ```
 
 La clave del TOML es **idéntica** al campo (`_secs` incluido), como `max_active_subagents`:

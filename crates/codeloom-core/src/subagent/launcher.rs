@@ -408,6 +408,9 @@ impl SubagentLauncher for InProcessSubagentLauncher {
     async fn cancel(&self, parent: SessionId, child: SessionId) -> Result<SubagentDescriptor> {
         self.cancelar(parent, child).await
     }
+    async fn fail_lost(&self, parent: SessionId, child: SessionId, reason: String) -> Result<()> {
+        self.dar_por_perdido(parent, child, reason).await
+    }
     async fn list(&self, parent: SessionId) -> Result<Vec<SubagentDescriptor>> {
         self.store.list_subagents(parent).await
     }

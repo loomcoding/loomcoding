@@ -167,13 +167,6 @@ pub(super) async fn build_agent(
     let project = format!("{}#codeloom-agent", cwd.display());
     let bus = codeloom_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
-    // Vigila a los subagentes con los umbrales del `[agents]` de este proyecto.
-    let supervisor = codeloom_core::subagent::supervisor_driver::spawn_supervisor(
-        bus.clone(),
-        agents_cfg.stall_threshold_ms(),
-        agents_cfg.lost_threshold_ms(),
-        codeloom_core::subagent::supervisor_driver::DEFAULT_TICK,
-    );
     let home = crate::home::user_home();
     let runtime_peers = a2a
         .consumes()
@@ -282,7 +275,7 @@ pub(super) async fn build_agent(
         provider,
         store.clone(),
         Arc::new(tools),
-        bus,
+        bus.clone(),
         permission,
         cfg.clone(),
         cwd.clone(),
@@ -309,8 +302,26 @@ pub(super) async fn build_agent(
         None => agent,
     };
 
+    let agent = Arc::new(agent);
+    // Vigila a los subagentes con los umbrales y la acción del `[agents]` de este proyecto. El
+    // manejador es débil: la tarea del supervisor no debe mantener vivo al agente.
+    let supervisor = codeloom_core::subagent::supervisor_driver::spawn_supervisor(
+        bus.clone(),
+        agents_cfg.stall_threshold_ms(),
+        agents_cfg.lost_threshold_ms(),
+        codeloom_core::subagent::supervisor_driver::DEFAULT_TICK,
+        match agents_cfg.lost_action {
+            codeloom_core::config::LostAction::Notify => {
+                codeloom_core::subagent::supervisor::LostPolicy::MarkAndNotify
+            }
+            codeloom_core::config::LostAction::Fail => {
+                codeloom_core::subagent::supervisor::LostPolicy::FailAndStop
+            }
+        },
+        Some(Arc::new(Arc::downgrade(&agent))),
+    );
     Ok(AgentSetup {
-        agent: Arc::new(agent),
+        agent,
         cwd,
         project,
         config_path,
