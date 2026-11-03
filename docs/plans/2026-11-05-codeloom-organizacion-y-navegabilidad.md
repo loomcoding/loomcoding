@@ -217,6 +217,12 @@ privado del padre, así que casi no cambia la visibilidad (solo `pub(super)` en 
 se llaman entre ficheros). Primero se mueve todo tal cual, un commit por fichero; trocear
 `arrancar_con` es un commit **aparte** (es refactor de lógica, no movimiento) y con tests en verde.
 
+**Avance (2026-11-05):** hechos los movimientos de producción: `subagent/mod.rs` baja de 7.553 a 182
+líneas, con `depth`, `profile_prompt`, `tracker`, `remote`, `launcher`, `admission`, `local_run` y
+`control`; el mayor es `launcher.rs` (619). La entrada de `subagent/mod.rs` sale de la lista blanca.
+Pendiente aparte: trocear `arrancar_con` (464 líneas, en `local_run.rs`) en un commit de lógica, y
+mover el `impl SubagentLauncher` (hoy en `launcher.rs`) si se quiere separar por fase.
+
 Idea posterior, fuera de este paso: `subagent_phase.rs`, `subagent_watchdog.rs` y
 `subagent_input.rs` son hermanos de `subagent/` y podrían vivir dentro como `subagent/phase.rs`,
 etc., con un `pub use` en `lib.rs` que conserve las rutas. Se decide cuando acabe la partición.
