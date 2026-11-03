@@ -190,8 +190,9 @@ entrada, y la primera carga no toca nada. Seis tests en `app/tests/session.rs`
 padre, abrías el hijo y el texto aparecía dentro del hijo.
 
 **Atajos:**
-- `Ctrl+T` — alternar destinatario. **No `Tab`**: ya lo usan el foco del rail
-  (`run.rs`) y los diálogos de permiso (`permission_flow.rs`).
+- ~~`Ctrl+T` — alternar destinatario.~~ **Falso (comprobado 2026-11-05):** `Ctrl+T` ya abre
+  el panel de herramientas (`run.rs`, `tools_open`), y `Tab` lo usan el foco del rail y los
+  diálogos de permiso (`permission_flow.rs`). La tecla del destinatario está **por decidir**.
 - `/focus <id>` — fijar destinatario.
 - `/parent` — volver al padre: **ya existe** (`commands.rs:18` y `:56`); no se añade
   `/back`.
