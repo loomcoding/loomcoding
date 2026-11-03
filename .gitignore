@@ -1,5 +1,20 @@
+# Credenciales: nunca al repositorio.
 .env
 .env.*
 !.env.example
+
+# Artefactos de compilación.
 target/
-.verify-target/  
+.verify-target/
+
+# Salidas de herramientas y volcados. No son código ni documentación y pueden ser
+# enormes: un `grep` redirigido llegó a 2,3 GB y se coló en un commit (`0a67d86`).
+grep_out.txt
+grep_out*.txt
+*.dump
+*.trace
+*.profraw
+*.profdata
+
+# Estado de herramientas locales.
+.crush/
