@@ -154,13 +154,39 @@ Va primero porque el trabajo de A2A de `2026-11-04` crece alrededor del archivo.
 nuevo del plan del watchdog: **no hay nada que mover para ellos**; este refactor solo
 extrae lo que sigue dentro de `subagent.rs`.
 
-### Paso 2.1 — Mapa antes de mover
+### Paso 2.1 — Mapa antes de mover (HECHO 2026-11-05)
 
-Listar las responsabilidades que hoy conviven en `subagent.rs` (ejecución, publicación
-de eventos, input, remotos A2A, descriptores…) con líneas aproximadas, y fijar el
-corte. Sin tocar código.
+Medido sobre `crates/codeloom-core/src/subagent.rs` (7.553 líneas). **Hallazgo clave: el 71 %
+del archivo son tests** (líneas 2141-7553, 110 tests); el código de producción son 2.140.
 
-**Aceptación:** corte escrito en el commit/plan y revisado antes del paso 2.2.
+| Líneas | Contenido | Destino propuesto |
+|---|---|---|
+| 1-255 | `SubagentRequest`, `trait SubagentLauncher`, profundidad (`root_levels`, `child_levels`, `depth_clipped`, `can_delegate`), `compose_child_system`, struct `InProcessSubagentLauncher` | `subagent/mod.rs` (con los `pub use`) |
+| 256-350 | `DiscardOnExit`, constantes de espera, `TaskTracker` | `subagent/tracker.rs` |
+| 351-1231 | `impl InProcessSubagentLauncher` (constructores `with_*`, `descriptor_of`, resolución de agente) | `subagent/launcher.rs` |
+| 1232-1717 | Espejo de remotos A2A: `EjecucionRemota`, `Espejo`, `Entrada`, `seguir_remoto` | `subagent/remote.rs` |
+| 1718-2140 | Helpers (`resumen_de_permiso`, `validar_peticion`, `prompt_de_seguimiento`, `elegir_skills`) e `impl SubagentLauncher` | `subagent/launch.rs` |
+| 2141-7553 | `mod tests` | `subagent/tests/` (ver abajo) |
+
+Tests, por tema (los proveedores y lanzadores de prueba están intercalados y pasan a
+`tests/support.rs`): profundidad y persona (2149-2230) · ciclo de vida y avisos (2234-3040) ·
+reenvío de eventos y mensajes del hijo (3039-3500) · aprobación, capacidad y cancelación
+(3611-4300) · enrutado y cancelación fina (4251-4580) · arranque con registro y perfiles
+(4606-5240) · seguimiento (5243-5530) · espejo de remotos (5531-6700, ~1.170 líneas: se parte en
+espejo y streaming) · recursión, skills y presupuesto familiar (6700-7553).
+
+Orden de commits (cada uno, movimiento puro y los cuatro checks en verde):
+1. `git mv subagent.rs subagent/mod.rs` (solo renombrado; la entrada de la lista blanca del
+   guardarraíl cambia de ruta con el mismo tope).
+2. Tests fuera, por temas, con `support.rs` común. Nada de un `tests.rs` único de 5.400 líneas:
+   crearía un archivo nuevo sobre el techo.
+3. `remote.rs`, 4. `tracker.rs`, 5. `launcher.rs` y `launch.rs`.
+6. Retirar la entrada de `subagent/mod.rs` de la lista blanca cuando baje de 1.000.
+
+Riesgos: la visibilidad. Lo que hoy es privado del módulo (`struct Espejo`, constantes) pasa a
+`pub(super)`; los tests acceden a internos con `use super::*`, y hay que conservar esa vía.
+
+**Aceptación:** corte escrito y revisado antes del paso 2.2.
 
 ### Paso 2.2 — Convertir `subagent.rs` en `subagent/`
 
