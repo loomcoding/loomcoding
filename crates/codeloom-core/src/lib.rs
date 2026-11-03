@@ -20,6 +20,7 @@ pub mod session;
 pub mod skills;
 pub mod subagent;
 pub mod subagent_input;
+pub mod subagent_phase;
 pub mod task;
 pub mod task_events;
 pub mod todo;

@@ -38,6 +38,12 @@ las fases siguientes no alteran comportamiento.
 **Criterio de aceptación:** cuatro checks verdes y recuento anotado; sin baseline no se
 puede atribuir una regresión a este plan.
 
+**Estado: cumplido el 2026-11-05.** Commit de partida `3d23b60`. Los cuatro checks en
+verde sobre ese commit: `cargo build` OK, `cargo test` OK (0 fallos), `cargo fmt --check`
+OK, `cargo clippy --all-targets -- -D warnings` OK. Recuento verificado por script sobre
+`crates/**/*.rs`: **2.137** atributos `#[test]`/`#[tokio::test]`, que coincide con la
+cifra de referencia. Nada estaba en rojo, así que no hubo que arreglar nada previo.
+
 ## Fase 1 — `SubagentPhase` y mapeos A2A (core puro) — **prioridad A2A**
 
 **Qué cambia:** añadir `enum SubagentPhase` en `codeloom-core` (junto a `TaskStatus`,
