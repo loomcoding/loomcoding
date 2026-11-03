@@ -1,4 +1,11 @@
-# Inventario de specs y planes
+# Índice de specs y planes
+
+Cabe señalar que este documento es el **índice** de `docs/specs/` y `docs/plans/` (antes se
+llamaba `inventario.md`). **Regla para quien vaya a implementar algo:** consulta primero este
+índice; si el documento que ibas a leer figura como superado, lee el que lo sustituye. Los
+estados admitidos son `hecho`, `en curso`, `propuesta`, `idea` (no implementar), `referencia`
+y `superado`. Un documento sin línea `Estado:` en su cabecera consta aquí como «sin estado
+declarado» y no debe darse por vigente sin cotejarlo con el código.
 
 Fotografía del 2026-10-30, con anexos y una higiene documental del 2026-11-01. Se obtuvo leyendo la línea `Estado:` de cada documento
 y cotejándola con el repositorio: existencia de los ficheros que cada plan crea,
@@ -88,6 +95,24 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   se descartó a propósito (`answer` ya cubre `input-required`). Detalle en la cabecera de la spec.
 - **Referencia, no ejecutables:** a2a-roadmap, jevalan-roadmap, pendientes,
   agent-first-development-skills.
+
+## Tanda del 2026-11-01 al 2026-11-05 (añadida al convertir esto en índice)
+
+| Documento | Estado | Nota |
+|---|---|---|
+| estados-de-subagente-y-composer-compartido (11-04) | en curso | Fases 1 y 3 hechas (`subagent_phase.rs`, `subagent_watchdog.rs`); restan las demás |
+| watchdog-de-subagentes (11-05) | hecho | Fase 3 del anterior, commit `70a21f9`; el supervisor (Fase 5) tiene precondiciones en el spec §8 |
+| organizacion-y-navegabilidad (11-05) | en curso | Fase 0: hecho `ARCHITECTURE.md` y este índice |
+| avisos-proveedor-spinner (11-03) | sin estado declarado | `/verbose` existe en `commands.rs`; el resto sin cotejar |
+| temas-efectos-matrix-rain (11-02) | propuesta | ya hay `widgets/matrix_rain.rs` en `batten`; sin cotejar el alcance |
+| loomcoding-renombrado (11-02) | propuesta | |
+| help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
+| agents-picker-filters (11-01) | sin estado declarado | hay código (`agents_filter_edit`, `agents_tag_filter` en `app.rs`) |
+| edit-line-endings (11-01) | sin estado declarado | hay código (`match_line_endings` en `tools/edit.rs`) |
+| session-picker-rows, session-project-identity, tool-loop-turn-scope (11-01) | sin estado declarado | sin cotejar con el código |
+| deuda-tecnica (10-16) | referencia | registro vivo de limitaciones |
+| development-workflow-interactive-reliability, runtime-capabilities-dashboard (10-29) | sin cierre declarado | anotado en la higiene del 11-01 |
+| local-server-client-runtime (10-26) | hecho | es el «Runtime R1 a R6» de más arriba |
 
 ## Dependencia vigilada: crossterm
 

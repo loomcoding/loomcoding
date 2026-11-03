@@ -48,7 +48,7 @@ agente nuevo puede orientarse leyendo cinco documentos. Un commit por paso.
 
 **Corrección de premisa:** el spec daba por inexistente `docs/ARCHITECTURE.md` y todo
 índice. En realidad ya existían `docs/ARCHITECTURE.md` (con rutas desfasadas y la flecha
-core→a2a al revés), `docs/README.md` (índice de carpetas) y `docs/inventario.md`
+core→a2a al revés), `docs/README.md` (índice de carpetas) y `docs/INDEX.md`
 (estado cotejado de los specs, a 2026-10-30), y `docs/specs|plans/hechos/` separan lo
 terminado. El paso se ejecutó como **reescritura** del existente, no como creación.
 Consecuencia para el paso 0.5: ver allí.
@@ -90,22 +90,17 @@ Tabla invariante → **comando exacto o procedimiento** que lo verifica.
 **Aceptación:** cada fila tiene una comprobación ejecutable o un procedimiento
 concreto con ruta; se ejecuta cada comando una vez para confirmar que funciona.
 
-### Paso 0.5 — `docs/INDEX.md`
+### Paso 0.5 — `docs/INDEX.md` (HECHO 2026-11-05, opción a)
 
-**Pendiente de decisión:** ya existe `docs/inventario.md` (estado de cada spec/plan,
-fotografía del 2026-10-30) y la carpeta `hechos/` ya marca lo terminado. Hay ~290
-documentos en total (no 106: los de `hechos/` no estaban contados). Opciones: (a)
-actualizar y renombrar `inventario.md` como INDEX; (b) crear `INDEX.md` solo para lo
-vigente y enlazar el inventario para el histórico. El test del paso 1.3 se ajusta a la
-opción elegida.
+Decisión: `inventario.md` se renombra a `docs/INDEX.md` (con `git mv`; enlaces
+actualizados) y se amplía: cabecera con la regla «consulta el índice primero», estados
+admitidos y una tabla con la tanda del 2026-11-01 al 11-05, que no estaba. Es un índice
+**temático** (agrupa por tema, no una fila por fichero) y los documentos en
+`specs|plans/hechos/` constan como hechos.
 
-Índice de **todos** los `docs/specs/*.md` y `docs/plans/*.md` (a 2026-11-05: 64 + 46)
-con estado (`vigente` / `en curso` / `histórico` / `superado` / `obsoleto`) y
-relaciones `sustituye` / `sustituido_por`. Los de `docs/plans/hechos/` figuran como
-`histórico`.
-
-**Aceptación:** `ls docs/specs docs/plans` y el INDEX coinciden; ningún documento
-`superado` sin destino. Esta cobertura la fija el test del paso 1.3.
+**Aceptación:** la tanda reciente está cubierta y marcada; los documentos sin línea
+`Estado:` figuran como «sin estado declarado», sin inventar uno. Pendiente aparte: cotejar
+con el código los seis documentos que aún dicen «sin cotejar».
 
 ### Paso 0.6 — `AGENTS.md` como puerta de entrada
 
@@ -142,10 +137,12 @@ test falla también si una entrada de la lista ya no supera el techo (obliga a r
 
 ### Paso 1.3 — Check de cobertura del INDEX
 
-Falla si algún `docs/specs/*.md` o `docs/plans/*.md` (incluida `hechos/`) no aparece en
-`docs/INDEX.md`.
+Como el índice es temático, el test no exige una fila por fichero: falla si algún
+`docs/specs/*.md` o `docs/plans/*.md` de primer nivel con fecha **posterior al corte**
+(2026-11-05) no aparece por su nombre corto en `docs/INDEX.md`. Los anteriores quedan
+cubiertos por el propio índice y por `hechos/`.
 
-**Aceptación:** pasa tras el paso 0.5; falla al añadir un spec sin indexarlo.
+**Aceptación:** pasa tras el paso 0.5; falla al añadir un spec nuevo sin indexarlo.
 
 ---
 

@@ -4,7 +4,7 @@
 >
 > Origen: la persona usuaria quiere documentar todo el repositorio como una web de ayuda. Sus decisiones constan en §3.
 >
-> Relacionado: `docs/README.md` (índice del diseño interno, no se sustituye), `docs/inventario.md`,
+> Relacionado: `docs/README.md` (índice del diseño interno, no se sustituye), `docs/INDEX.md`,
 > `2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`, `docs/visual-e2e.md`.
 
 ## 1. Intención

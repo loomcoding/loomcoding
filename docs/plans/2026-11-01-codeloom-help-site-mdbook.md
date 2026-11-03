@@ -187,7 +187,7 @@ inmediatamente antes de un bloque. `pub fn extract_blocks(markdown: &str) -> Vec
 
 ### Tarea 9: CI, README y cierre
 
-**Ficheros:** crear `.github/workflows/book.yml`; modificar `README.md`, `CONTRIBUTING.md`, `docs/inventario.md`, la spec y este plan.
+**Ficheros:** crear `.github/workflows/book.yml`; modificar `README.md`, `CONTRIBUTING.md`, `docs/INDEX.md`, la spec y este plan.
 
 - [ ] `book.yml`: job `book` (Linux) con `cargo install mdbook mdbook-mermaid --locked`, `cargo test -p codeloom-book`,
       `scripts/book.sh` y `actions/upload-artifact` con el nombre `codeloom-book-v<versión>`; job `deploy` a Pages con
@@ -195,5 +195,5 @@ inmediatamente antes de un bloque. `pub fn extract_blocks(markdown: &str) -> Vec
 - [ ] `README.md`: corregir el desfase (MCP y skills sí existen; memoria no), añadir `/agent`, y enlazar el libro. Sigue en inglés.
 - [ ] `CONTRIBUTING.md`: regla «clave de configuración, herramienta u orden nueva → actualizar el libro y regenerar con
       `UPDATE_BOOK=1 cargo test -p codeloom-book`».
-- [ ] Estado de spec y plan a «hecho», línea en `docs/inventario.md` y mover el par a `hechos/` con enlaces reescritos.
+- [ ] Estado de spec y plan a «hecho», línea en `docs/INDEX.md` y mover el par a `hechos/` con enlaces reescritos.
 - [ ] Las cuatro comprobaciones, `scripts/book.sh` y la CI en verde; commit: `docs(book): CI del libro, README y cierre`.

@@ -165,10 +165,10 @@
 ### Task 7: Cierre documental
 
 **Files:**
-- Modify: `docs/inventario.md`, `docs/README.md`, este plan, el spec
+- Modify: `docs/INDEX.md`, `docs/README.md`, este plan, el spec
 
 - [ ] **Step 1:** cambiar la cabecera de este plan y del spec a `**hecho**` con la fecha y los commits.
-- [ ] **Step 2:** en `docs/inventario.md`, anotar que el e2e en PTY existe y listar qué cabos sueltos pueden cerrarse con él (multiline-composer, large-paste, image-attachments, atribución `You`, subagent-empty-final-response) sin cerrarlos todavía: cada uno se cierra al añadir su escenario.
+- [ ] **Step 2:** en `docs/INDEX.md`, anotar que el e2e en PTY existe y listar qué cabos sueltos pueden cerrarse con él (multiline-composer, large-paste, image-attachments, atribución `You`, subagent-empty-final-response) sin cerrarlos todavía: cada uno se cierra al añadir su escenario.
 - [ ] **Step 3:** enlazar `docs/visual-e2e.md` desde `docs/README.md`.
 - [ ] **Step 4:** mover spec y plan a `hechos/` y reescribir enlaces (mismo procedimiento que el traslado del 2026-10-30).
 - [ ] **Step 5: Commit** `docs: cierre del e2e visual`.

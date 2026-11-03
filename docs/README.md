@@ -33,7 +33,7 @@ ejecutarlo).
   desarrollado y verificado. Es historial, no una cola de trabajo.
 - [`visual-e2e.md`](visual-e2e.md): cómo ver y probar la TUI con un PTY en `cargo test` o
   con `ttyd` y Chrome.
-- [`inventario.md`](inventario.md): estado cotejado con el código de todos los
+- [`INDEX.md`](INDEX.md): estado cotejado con el código de todos los
   specs y planes.
 - [`references/`](references/): investigación y observaciones externas,
   incluidas las comparativas de UI y contexto.
