@@ -27,6 +27,15 @@ use std::sync::{Arc, RwLock};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 
+mod depth;
+pub use depth::*;
+
+mod profile_prompt;
+pub(crate) use profile_prompt::*;
+
+mod tracker;
+pub use tracker::*;
+
 /// Petición de un subagente hecha directamente por la persona usuaria. `skills` es una selección, en orden,
 /// dentro de las que declara el perfil del agente; `None` carga todas las declaradas, como `start`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -155,50 +164,6 @@ pub trait SubagentLauncher: Send + Sync {
     }
 }
 
-/// Niveles restantes de la sesión raíz: ella misma más los del techo de profundidad.
-pub fn root_levels(ceiling: u32) -> u32 {
-    ceiling.saturating_add(1)
-}
-
-/// Niveles restantes de un hijo: los del padre menos uno, sin pasar de lo que su perfil declara (sin
-/// `max_depth`, una hoja).
-pub fn child_levels(parent_left: u32, profile_max_depth: Option<u32>) -> u32 {
-    parent_left
-        .saturating_sub(1)
-        .min(profile_max_depth.unwrap_or(1).max(1))
-}
-
-/// Tope del texto de persona del perfil dentro del prompt adicional del hijo. Las skills tienen el suyo.
-pub(crate) const MAX_PROFILE_PROMPT_BYTES: usize = 16_000;
-
-/// Holgura para el marcador que `limit_bytes` añade al recortar (`[... N bytes omitted ...]`).
-pub(crate) const TRUNCATION_MARKER_SLACK: usize = 128;
-
-/// Une la persona del perfil y las skills cargadas en el prompt adicional del hijo. Cada parte lleva su
-/// tope propio: unas skills grandes no deben recortar la persona.
-pub(crate) fn compose_child_system(persona: Option<String>, skills_prompt: &str) -> Option<String> {
-    let mut sistema = persona
-        .map(|texto| crate::tools::limit_bytes(&texto, MAX_PROFILE_PROMPT_BYTES).into_owned())
-        .unwrap_or_default();
-    if !skills_prompt.is_empty() {
-        if !sistema.is_empty() {
-            sistema.push_str("\n\n");
-        }
-        sistema.push_str(skills_prompt);
-    }
-    (!sistema.is_empty()).then_some(sistema)
-}
-
-/// Si el perfil pide más niveles de los que el techo del árbol deja al hijo.
-pub fn depth_clipped(parent_left: u32, profile_max_depth: Option<u32>) -> bool {
-    profile_max_depth.is_some_and(|pedidos| pedidos > parent_left.saturating_sub(1))
-}
-
-/// Una sesión puede delegar solo si le quedan al menos dos niveles: ella y uno por debajo.
-pub fn can_delegate(left: u32) -> bool {
-    left >= 2
-}
-
 pub struct InProcessSubagentLauncher {
     provider: Arc<RwLock<Arc<dyn Provider>>>,
     store: Arc<dyn SessionStore>,
@@ -251,19 +216,6 @@ pub struct InProcessSubagentLauncher {
     clipped_notified: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
 }
 
-/// Descarta la pregunta pendiente del hijo al terminar su trabajo, sea cual sea la
-/// causa (final normal, cancelación o aborto), para no dejar entradas huérfanas.
-struct DiscardOnExit {
-    broker: Arc<InputBroker>,
-    child: SessionId,
-}
-
-impl Drop for DiscardOnExit {
-    fn drop(&mut self) {
-        self.broker.discard(self.child);
-    }
-}
-
 /// Lo máximo que `cancel` espera a que el hijo se asiente tras la orden de parar.
 const CANCEL_WAIT: std::time::Duration = std::time::Duration::from_secs(2);
 
@@ -293,59 +245,6 @@ const CANCEL_POLL: std::time::Duration = std::time::Duration::from_millis(10);
 /// Mensaje de la tarea rechazada por capacidad agotada. Es el mismo error que recibe el padre.
 fn mensaje_capacidad(maximo: usize) -> String {
     format!("maximum of {maximo} active subagents reached")
-}
-
-/// Único punto del lanzador que cambia el estado de la tarea de un hijo. Valida la
-/// transición con `TaskState::can_transition_to`, la persiste y publica `SubagentChanged`.
-pub struct TaskTracker {
-    store: Arc<dyn SessionStore>,
-    bus: EventBus,
-}
-
-impl TaskTracker {
-    pub(crate) fn new(store: Arc<dyn SessionStore>, bus: EventBus) -> Self {
-        Self { store, bus }
-    }
-
-    /// Lleva la tarea del hijo a `status.state`. Si el estado actual no admite la
-    /// transición (un terminal no se reinicia) devuelve error y no toca el almacén.
-    pub(crate) async fn transition(
-        &self,
-        parent: SessionId,
-        child: SessionId,
-        status: TaskStatus,
-    ) -> Result<()> {
-        let mut descriptor = self.descriptor(parent, child).await?;
-        if !descriptor.status.state.can_transition_to(status.state) {
-            return Err(CoreError::Store(format!(
-                "transición no admitida: {} -> {}",
-                descriptor.status.state.proto_name(),
-                status.state.proto_name()
-            )));
-        }
-        self.store
-            .update_subagent_status(parent, child, status.clone())
-            .await?;
-        descriptor.status = status;
-        self.bus.publish(LiveEvent::SubagentChanged(descriptor));
-        Ok(())
-    }
-
-    /// Publica el descriptor guardado del hijo tal cual está, p. ej. tras fijar su resultado.
-    pub(crate) async fn publish(&self, parent: SessionId, child: SessionId) -> Result<()> {
-        let descriptor = self.descriptor(parent, child).await?;
-        self.bus.publish(LiveEvent::SubagentChanged(descriptor));
-        Ok(())
-    }
-
-    async fn descriptor(&self, parent: SessionId, child: SessionId) -> Result<SubagentDescriptor> {
-        self.store
-            .list_subagents(parent)
-            .await?
-            .into_iter()
-            .find(|descriptor| descriptor.child == child)
-            .ok_or_else(|| CoreError::Store(format!("unknown subagent {}", child.0)))
-    }
 }
 
 impl InProcessSubagentLauncher {
@@ -1764,49 +1663,6 @@ fn prompt_de_seguimiento(anterior: &SubagentDescriptor, peticion: &str) -> Strin
         crate::tools::limit_bytes(&resultado, crate::tools::MAX_NOTICE_BYTES),
         peticion
     )
-}
-
-/// Valida la selección de skills de una petición directa contra las que declara el perfil. Devuelve las
-/// que se cargarán (`None`: todas las declaradas). Rechaza, antes de crear tarea, una selección vacía,
-/// repetida, de más de `MAX_SKILLS_PER_AGENT`, con una skill que el perfil no declara, o hecha a un agente
-/// que no declara ninguna o es remoto.
-fn elegir_skills(
-    perfil: Option<&AgentEntry>,
-    skills: Option<Vec<String>>,
-) -> Result<Option<Vec<String>>> {
-    let Some(pedidas) = skills else {
-        return Ok(None);
-    };
-    let declaradas: &[String] = match perfil {
-        Some(AgentEntry {
-            execution: Execution::Local(spec),
-            ..
-        }) => &spec.scope.skills,
-        _ => &[],
-    };
-    if declaradas.is_empty() {
-        return Err(CoreError::Tool(
-            "this agent declares no skills to choose from".into(),
-        ));
-    }
-    if pedidas.is_empty() || pedidas.len() > crate::skills::MAX_SKILLS_PER_AGENT {
-        return Err(CoreError::Tool(format!(
-            "choose between 1 and {} skills",
-            crate::skills::MAX_SKILLS_PER_AGENT
-        )));
-    }
-    let mut vistas = std::collections::HashSet::new();
-    for id in &pedidas {
-        if !vistas.insert(id.as_str()) {
-            return Err(CoreError::Tool(format!("skills: «{id}» is repeated")));
-        }
-        if !declaradas.contains(id) {
-            return Err(CoreError::Tool(format!(
-                "skills: «{id}» is not declared by the agent"
-            )));
-        }
-    }
-    Ok(Some(pedidas))
 }
 
 #[async_trait]
