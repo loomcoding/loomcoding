@@ -52,7 +52,7 @@ Cómo se comprueba cada una: `docs/INVARIANTS.md`.
 | `codeloom-core` | Motor: agente, sesiones, herramientas, provider, eventos, tareas, subagentes | `agent/mod.rs` (`AgentLoop`) | TUI, terminal, red A2A | no |
 | `codeloom-a2a` | Borde A2A: tarjeta, JSON-RPC, SSE, cliente y servidor | `lib.rs`, `serve/`, `client.rs` | lógica del motor | no |
 | `codeloom-cli` | Binarios `loom`/`codeloom`; daemon, IPC y arranque | `main.rs`, `server/mod.rs` | widgets, lógica del agente | no |
-| `codeloom-tui` | Interfaz de terminal sobre `ratatui` | `run.rs`, `app.rs`, `render/mod.rs` | acceso directo al motor sin pasar por el cliente | sí |
+| `codeloom-tui` | Interfaz de terminal sobre `ratatui` | `run.rs`, `app/mod.rs`, `render/mod.rs` | acceso directo al motor sin pasar por el cliente | sí |
 | `batten` | Widgets y estado reutilizables de chat de agentes | `state/`, `widgets/` | nada de `codeloom-core` | sí |
 | `codeloom-herdr` | Integración con el runtime `herdr` como plugin | `lib.rs` | TUI propia | sí |
 | `codeloom-mcp` | Integración MCP (herramientas externas) | `lib.rs` | — | sí |
@@ -72,7 +72,7 @@ un par de binarios, dos modos.
 Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el motor.
 
 1. **Teclas → mensaje.** `crates/codeloom-tui/src/run.rs` (`handle_key`, `run`) recoge la
-   entrada; el estado vive en `app.rs`.
+   entrada; el estado vive en `app/` (`App` en `app/mod.rs`; sus métodos, repartidos por responsabilidad).
 2. **IPC.** El cliente envía por `crates/codeloom-cli/src/ipc.rs` (`send`/`receive`).
    `server/daemon.rs::connect_or_start` arranca el daemon si no existe.
 3. **Daemon.** `server/daemon.rs::run_server` → `serve_connection` → `serve_authenticated`
@@ -128,7 +128,7 @@ Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agen
 | Configuración (`[agents]`, umbrales) | `crates/codeloom-core/src/config/mod.rs` |
 | Tarjeta de agente A2A | `crates/codeloom-core/src/card.rs`, `crates/codeloom-a2a/src/` |
 | Daemon, IPC y servidor (protocolo, daemon, cliente, gestor de agentes, worker, instantáneas) | `crates/codeloom-cli/src/server/`, `ipc.rs` |
-| Estado y teclas de la TUI | `crates/codeloom-tui/src/app.rs`, `run.rs` |
+| Estado y teclas de la TUI | `crates/codeloom-tui/src/app/`, `run.rs` |
 | Renderizado de la TUI (una zona por fichero: `chrome`, `transcript`, `sidebar`, `settings`, `overlays`, `a2a`, `marks`) | `crates/codeloom-tui/src/render/` |
 | Widgets reutilizables | `crates/batten/src/widgets/`, estado puro en `crates/batten/src/state/` |
 | Integración con herdr | `crates/codeloom-herdr/src/` |

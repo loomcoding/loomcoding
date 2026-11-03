@@ -6,7 +6,7 @@ composer y pintado, sobre `ratatui` y los widgets de `batten`.
 **No va aquí:** lógica del motor (`codeloom-core`); widgets genéricos reutilizables (`batten`);
 el daemon y el IPC (`codeloom-cli`).
 
-**Tipos clave:** `App` (`app.rs`: todo el estado), `Command` y la tabla de comandos
+**Tipos clave:** `App` (`app/mod.rs`: todo el estado; sus métodos viven en `app/*.rs` por responsabilidad), `Command` y la tabla de comandos
 (`commands.rs`), `PermissionDialog` (`permission_flow.rs`), el rail de subagentes (`rail.rs`).
 
 **Puntos de entrada:** `run::run` (arranque y bucle), `run::handle_key` y `run::handle_event`
@@ -17,6 +17,7 @@ extremo a extremo, en `crates/codeloom-cli/tests/tui_pty.rs`.
 
 **Trampas:**
 - **El composer no puede parpadear, colgarse ni ir con retraso**: es el corazón de la app.
-- `app.rs` y `run.rs` son monolitos (miles de líneas; `render/` ya está partido): localiza antes de leer.
+- `run.rs` sigue siendo un monolito (miles de líneas; `render/` y `app/` ya están partidos): localiza antes de leer.
+- Dónde está cada cosa en `app/`: `session.rs` (carga y borrador por sesión, `open_child`), `events.rs` (`apply` de `LiveEvent`), `settings.rs`, `agents.rs`, `usage.rs` (tokens y coste), `children.rs`, `activity.rs`, `tool_sync.rs`, `pointer.rs` (ratón y selección), `prompts.rs` (permisos y preguntas), `composer.rs`, `turn.rs`, `prefs.rs`; los tipos, en `types.rs`, `settings_types.rs` y `child_types.rs`.
 - Si la UI agrupa estados de A2A, nombra entre paréntesis los originales.
 - Toda llamada a herramienta o subagente debe verse en el transcript.

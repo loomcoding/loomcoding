@@ -182,10 +182,10 @@ de `app.rs` (Fase 5 del plan de organización) y por último **6b** (destinatari
 sesión que se deja y restaura el de la que se abre, en `App::composer_drafts`
 (`BTreeMap<SessionId, ComposerDraft>`). El indicador de trabajo y su estilo pasan al
 composer entrante porque son del agente, no del borrador. Un borrador vacío no deja
-entrada, y la primera carga no toca nada. Seis tests en `app.rs`
+entrada, y la primera carga no toca nada. Seis tests en `app/tests/session.rs`
 (`load_session_preserva_borrador_del_padre` y compañeros).
 
-**El bug que arreglaba** (verificado): `load_session` (`app.rs`, `App::load_session`)
+**El bug que arreglaba** (verificado): `load_session` (`app/session.rs`, `App::load_session`)
 **no tocaba `self.composer`** y abrir un hijo **cambia de sesión**. Escribías para el
 padre, abrías el hijo y el texto aparecía dentro del hijo.
 
@@ -197,7 +197,7 @@ padre, abrías el hijo y el texto aparecía dentro del hijo.
   `/back`.
 
 **Archivos:**
-- `crates/codeloom-tui/src/app.rs` (`load_session` guarda/restaura borrador;
+- `crates/codeloom-tui/src/app/` (`session.rs`: `load_session` guarda/restaura borrador;
   `composer_target`)
 - `crates/codeloom-tui/src/commands.rs` (comando `/focus`)
 - `crates/batten/src/state/composer.rs` (borradores, si hace falta)

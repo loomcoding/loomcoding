@@ -23,11 +23,6 @@ const CORTE_INDICE: &str = "2026-11-05";
 /// margen para tocar el archivo sin convertir cada commit en un fallo).
 const LISTA_BLANCA: &[(&str, usize, &str)] = &[
     (
-        "crates/codeloom-tui/src/app.rs",
-        11000,
-        "monolito: partir en la Fase 5 del plan (la 6a subió el tope una vez; el troceo lo retira)",
-    ),
-    (
         "crates/codeloom-core/src/agent/mod.rs",
         5700,
         "monolito: motor central, Fase 7 del plan",

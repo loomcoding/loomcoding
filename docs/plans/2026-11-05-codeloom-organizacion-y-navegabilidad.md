@@ -262,7 +262,9 @@ Aislado del resto: IPC · ciclo de sesión · snapshot · suscripciones.
 
 ---
 
-## Fase 5 — Refactor de `app.rs` (10.769 líneas)
+## Fase 5 — Refactor de `app.rs` (10.769 líneas) — HECHA
+
+**Hecho (2026-11-05):** `app.rs` pasó a `app/` con `mod.rs` (518 líneas: `App`, `new`), 13 ficheros de métodos por responsabilidad (`session`, `events`, `settings`, `agents`, `usage`, `children`, `activity`, `tool_sync`, `pointer`, `prompts`, `composer`, `turn`, `prefs`), tres de tipos (`types`, `settings_types`, `child_types`) y `tests/` en 12 temas más `support`. Movimiento puro: 540 tests antes y después; ningún fichero pasa de 700 líneas; `app.rs` sale de la lista blanca. La precondición de la 6a se cumplió (el borrador por sesión ya estaba hecho); la 6b va después.
 
 **Precondición:** Fase 6 del plan de estados (`2026-11-04`) terminada, para no tener dos
 refactores del composer a la vez.

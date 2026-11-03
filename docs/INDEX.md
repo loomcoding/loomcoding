@@ -107,7 +107,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | temas-efectos-matrix-rain (11-02) | propuesta | ya hay `widgets/matrix_rain.rs` en `batten`; sin cotejar el alcance |
 | loomcoding-renombrado (11-02) | propuesta | |
 | help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
-| agents-picker-filters (11-01) | sin estado declarado | hay código (`agents_filter_edit`, `agents_tag_filter` en `app.rs`) |
+| agents-picker-filters (11-01) | sin estado declarado | hay código (`agents_filter_edit`, `agents_tag_filter` en `app/`) |
 | edit-line-endings (11-01) | sin estado declarado | hay código (`match_line_endings` en `tools/edit.rs`) |
 | session-picker-rows, session-project-identity, tool-loop-turn-scope (11-01) | sin estado declarado | sin cotejar con el código |
 | deuda-tecnica (10-16) | referencia | registro vivo de limitaciones |

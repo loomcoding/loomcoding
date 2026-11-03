@@ -35,7 +35,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 1. Variante en `LiveEvent` (`crates/codeloom-core/src/event/mod.rs`).
 2. Clasifícala en `is_child_relevant()` (mismo archivo): es lo que decide qué ve el padre.
 3. Publícala donde ocurre el hecho (`EventBus`).
-4. Consumo en la TUI: `crates/codeloom-tui/src/app.rs`.
+4. Consumo en la TUI: `crates/codeloom-tui/src/app/events.rs` (`App::apply`).
 5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/codeloom-core/src/session/sqlite.rs`.
 6. Si viaja por IPC al cliente, el reenvío está en `crates/codeloom-cli/src/server/` (`worker.rs`: `forward_agent_events`; los tipos del cable, en `protocol.rs`).
 
@@ -63,7 +63,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 1. Variante en `Command` y fila en la tabla de `crates/codeloom-tui/src/commands.rs`.
 2. Su ejecución, en el `match` de comandos de `crates/codeloom-tui/src/run.rs`
    (ejemplo: `Command::Verbose`).
-3. Estado que necesite: `crates/codeloom-tui/src/app.rs`.
+3. Estado que necesite: `crates/codeloom-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
 4. El composer no puede parpadear ni ir con retraso: comprueba con `tui_pty` si tocas teclas.
 
 ## Quiero cambiar el flujo de permisos
