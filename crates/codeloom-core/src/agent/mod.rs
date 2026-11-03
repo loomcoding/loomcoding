@@ -322,6 +322,21 @@ impl AgentLoop {
             .await
     }
 
+    /// Responde la pregunta pendiente (`input-required`) de un hijo con el texto de la persona
+    /// usuaria, sin turno del modelo principal.
+    pub async fn answer_subagent(
+        &self,
+        parent: SessionId,
+        child: SessionId,
+        text: String,
+    ) -> crate::error::Result<()> {
+        self.subagents
+            .as_ref()
+            .ok_or_else(|| crate::error::CoreError::Tool("subagents are unavailable".into()))?
+            .answer(parent, child, vec![text])
+            .await
+    }
+
     /// Lanza un subagente por orden directa de la persona usuaria, sin turno del modelo principal.
     pub async fn run_subagent_request(
         &self,

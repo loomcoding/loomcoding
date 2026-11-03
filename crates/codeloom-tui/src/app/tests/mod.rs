@@ -15,6 +15,7 @@ mod support;
 use support::*;
 mod agents_composer_budget;
 mod child_tree;
+mod composer_target;
 mod folded_blocks;
 mod notices_and_remote;
 mod session;

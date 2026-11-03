@@ -258,6 +258,8 @@ impl App {
                     }
                     // Primero en el mapa: el camino y la sangría del nodo se derivan de él.
                     self.subagents.insert(subagent.child.0, subagent.clone());
+                    // Lo que esperaba a este hijo se entrega o se descarta según su estado.
+                    self.on_child_state_changed(subagent.child, subagent.status.state);
                     self.sync_subagent_activity(&subagent);
                     // Una llamada del padre que llegó antes que su hijo puede colgar ahora de él.
                     self.resync_tools();

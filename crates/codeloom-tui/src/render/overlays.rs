@@ -241,6 +241,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
             Line::from("Ctrl+O      Expand latest tool output"),
             Line::from("Space       Fold/unfold the active long block"),
             Line::from("Ctrl+T      Inspect recent tool calls"),
+            Line::from("Ctrl+G      Send to a subagent (cycle)"),
             Line::from("/           Commands at start of composer"),
             Line::from("/theme      Cycle terminal color theme"),
             Line::from("F3          Switch or create session (when idle)"),

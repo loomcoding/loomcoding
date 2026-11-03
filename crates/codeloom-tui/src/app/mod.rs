@@ -34,6 +34,7 @@ mod prompts;
 mod session;
 mod settings;
 mod settings_types;
+mod target;
 mod tool_sync;
 mod turn;
 mod types;
@@ -60,6 +61,12 @@ pub struct App {
     pub draft_images: Vec<ContentPart>,
     /// Borradores de las sesiones que no están a la vista, uno por sesión.
     composer_drafts: BTreeMap<SessionId, ComposerDraft>,
+    /// A quién va lo que se escribe: la sesión abierta o uno de sus hijos.
+    pub composer_target: ComposerTarget,
+    /// Respuesta a un hijo que pide entrada, pendiente de enviar al daemon.
+    pub answer_subagent_requested: Option<(SessionId, String)>,
+    /// Mensajes en espera por hijo, a la espera de que pida entrada.
+    child_queue: BTreeMap<SessionId, VecDeque<String>>,
     /// Snapshot runtime recibido del daemon; `None` significa que aún no llegó.
     pub runtime_capabilities: Option<RuntimeCapabilities>,
     pub slash_selected: usize,
@@ -343,6 +350,9 @@ impl App {
             composer: batten::state::Composer::new(),
             draft_images: Vec::new(),
             composer_drafts: BTreeMap::new(),
+            composer_target: ComposerTarget::Open,
+            answer_subagent_requested: None,
+            child_queue: BTreeMap::new(),
             runtime_capabilities: None,
             slash_selected: 0,
             slash_dismissed: None,

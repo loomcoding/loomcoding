@@ -149,3 +149,44 @@ pub(crate) fn composer_text_area(area: Rect) -> Rect {
         ..area
     }
 }
+
+/// A quién va lo que se escribe en el composer: la sesión abierta o un hijo directo suyo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ComposerTarget {
+    /// La sesión que muestra la interfaz (el comportamiento de siempre).
+    #[default]
+    Open,
+    /// Un hijo directo de la sesión abierta, sin cambiar de sesión.
+    Child(SessionId),
+}
+
+/// Qué se hace con un mensaje dirigido a un hijo, según el estado A2A de su tarea.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChildDispatch {
+    /// El hijo espera respuesta (`input-required`): el texto la contesta.
+    Answer,
+    /// El hijo trabaja (`submitted` o `working`): el texto espera su turno de entrada.
+    Queue,
+    /// El texto no tiene destino: la tarea pide credenciales o ya terminó.
+    Reject,
+}
+
+/// Máximo de mensajes en espera por hijo; el que no cabe se queda en el borrador.
+pub const MAX_CHILD_QUEUE: usize = 4;
+
+/// Máximo de bytes de un mensaje dirigido a un hijo.
+pub const MAX_CHILD_MESSAGE_BYTES: usize = 4_000;
+
+/// Decide el despacho de un mensaje a un hijo. Una tarea terminal de A2A no se reinicia,
+/// así que no admite mensajes nuevos: se continúa abriendo su sesión.
+pub fn child_dispatch(state: TaskState) -> ChildDispatch {
+    match state {
+        TaskState::InputRequired => ChildDispatch::Answer,
+        TaskState::Submitted | TaskState::Working => ChildDispatch::Queue,
+        TaskState::AuthRequired
+        | TaskState::Completed
+        | TaskState::Failed
+        | TaskState::Canceled
+        | TaskState::Rejected => ChildDispatch::Reject,
+    }
+}

@@ -283,6 +283,11 @@ pub(super) fn draw_transcript(
     }
     // El composer anima su propio indicador: le pasamos el fotograma actual.
     app.composer.set_activity_frame(app.animation.frame);
+    // Con un hijo como destinatario, el composer nombra a quién va lo que se escribe.
+    let model_label: std::borrow::Cow<str> = match app.composer_target_label() {
+        Some(target) => format!("{target} · {}", app.model).into(),
+        None => std::borrow::Cow::Borrowed(&app.model),
+    };
     batten::widgets::composer::render_for_look(
         frame,
         rows[5],
@@ -297,7 +302,7 @@ pub(super) fn draw_transcript(
             && !app.help_open
             && !app.agents_open
             && !app.tools_open,
-        &app.model,
+        &model_label,
         &app.theme,
     );
     if app.slash_query().is_some() {

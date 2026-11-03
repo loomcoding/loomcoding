@@ -81,6 +81,18 @@ pub(super) async fn run_agent_worker(
                         }
                     }
                 }
+                codeloom_tui::run::SessionCommand::AnswerSubagent(child, text) => {
+                    // Respuesta de la persona usuaria a la pregunta pendiente del hijo. Un rechazo
+                    // (nada pendiente, número de preguntas distinto) se muestra como aviso.
+                    if let Err(error) = agent.answer_subagent(session, child, text).await {
+                        let _ = entry
+                            .ui
+                            .send(ServerEvent::Live(Box::new(LiveEvent::RuntimeNotice {
+                                message: format!("could not answer subagent {}: {error}", child.0),
+                            })))
+                            .await;
+                    }
+                }
                 codeloom_tui::run::SessionCommand::Select(choice) => {
                     let selected = match choice {
                         codeloom_tui::app::SessionChoice::New => {

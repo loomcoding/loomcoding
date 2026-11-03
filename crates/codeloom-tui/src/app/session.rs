@@ -213,6 +213,8 @@ impl App {
             self.wake_pending = false;
             self.wake_causes.clear();
             self.swap_composer_draft(session);
+            // El destinatario es un hijo de la sesión que se deja, no de la que se abre.
+            self.composer_target = ComposerTarget::Open;
         }
         self.session_id = Some(session);
         // Una navegación con `open_child` o `go_parent` conserva la pila de padres;
@@ -282,6 +284,7 @@ impl App {
                 .collect();
             // Las llamadas restauradas antes que los hijos se reclasifican ahora que constan.
             self.resync_tools();
+            self.validate_composer_target();
             // Un hijo que ya no existe no puede seguir marcado en el rail.
             if self
                 .rail_selected

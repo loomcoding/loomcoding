@@ -20,6 +20,7 @@ pub enum Command {
     Mouse,
     Verbose,
     Agent,
+    Focus,
     Agents,
     A2a,
     RefreshAgents,
@@ -69,6 +70,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         Command::Agent,
         "/agent",
         "Run an agent: /agent <name> [--skills a,b] <task>",
+    ),
+    (
+        Command::Focus,
+        "/focus",
+        "Send what you type to a subagent: /focus <id> (no id: back to this session)",
     ),
     (Command::Agents, "/agents", "List the loaded agents"),
     (

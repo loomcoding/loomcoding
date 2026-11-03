@@ -18,6 +18,6 @@ extremo a extremo, en `crates/codeloom-cli/tests/tui_pty.rs`.
 **Trampas:**
 - **El composer no puede parpadear, colgarse ni ir con retraso**: es el corazón de la app.
 - `run.rs` sigue siendo un monolito (miles de líneas; `render/` y `app/` ya están partidos): localiza antes de leer.
-- Dónde está cada cosa en `app/`: `session.rs` (carga y borrador por sesión, `open_child`), `events.rs` (`apply` de `LiveEvent`), `settings.rs`, `agents.rs`, `usage.rs` (tokens y coste), `children.rs`, `activity.rs`, `tool_sync.rs`, `pointer.rs` (ratón y selección), `prompts.rs` (permisos y preguntas), `composer.rs`, `turn.rs`, `prefs.rs`; los tipos, en `types.rs`, `settings_types.rs` y `child_types.rs`.
+- Dónde está cada cosa en `app/`: `session.rs` (carga y borrador por sesión, `open_child`), `events.rs` (`apply` de `LiveEvent`), `settings.rs`, `agents.rs`, `usage.rs` (tokens y coste), `children.rs`, `activity.rs`, `tool_sync.rs`, `pointer.rs` (ratón y selección), `prompts.rs` (permisos y preguntas), `composer.rs`, `target.rs` (destinatario del composer y despacho a hijos), `turn.rs`, `prefs.rs`; los tipos, en `types.rs`, `settings_types.rs` y `child_types.rs`.
 - Si la UI agrupa estados de A2A, nombra entre paréntesis los originales.
 - Toda llamada a herramienta o subagente debe verse en el transcript.

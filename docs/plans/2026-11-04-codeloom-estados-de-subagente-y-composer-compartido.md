@@ -185,6 +185,23 @@ composer entrante porque son del agente, no del borrador. Un borrador vacío no 
 entrada, y la primera carga no toca nada. Seis tests en `app/tests/session.rs`
 (`load_session_preserva_borrador_del_padre` y compañeros).
 
+**6b — HECHA (2026-11-05).** Destinatario del composer (`ComposerTarget::{Open, Child}`),
+`/focus [id]` y `Ctrl+G` (alterna sesión → hijos vivos → sesión). El despacho es una
+función pura sobre el `TaskState` A2A (`child_dispatch`): `input-required` → responde
+(`SessionCommand::AnswerSubagent` → `AgentLoop::answer_subagent` → `InputBroker::answer`);
+`submitted`/`working` → cola en la TUI (máx. 4 por hijo y 4.000 bytes por mensaje), que se
+entrega al pedir entrada y se descarta con aviso si el hijo termina; `auth-required` y
+terminales → rechazo con aviso, sin perder el borrador. El composer nombra el destino.
+Tests: `app/tests/composer_target.rs`.
+
+**Correcciones al plan original (comprobadas en el código):**
+- La **Fase 4 no era precondición**: `TaskTracker::transition` ya publica `SubagentChanged`
+  con el `TaskState` en cada cambio y la TUI lo guarda; el despacho solo necesita ese estado.
+  La Fase 4 sigue pendiente por su propio valor (padre ciego ante eventos del hijo).
+- «Asentado → nuevo turno» **no** se hace: en A2A una tarea terminal no se reinicia. Se
+  rechaza con aviso y se continúa abriendo el hijo (rail → Enter), que ya es una sesión.
+- No hay prueba del extremo daemon (`worker.rs`): es un reenvío fino como `cancel_subagent`.
+
 **El bug que arreglaba** (verificado): `load_session` (`app/session.rs`, `App::load_session`)
 **no tocaba `self.composer`** y abrir un hijo **cambia de sesión**. Escribías para el
 padre, abrías el hijo y el texto aparecía dentro del hijo.

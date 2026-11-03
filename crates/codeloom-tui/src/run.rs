@@ -92,6 +92,8 @@ pub enum SessionCommand {
     Refresh,
     Select(SessionChoice),
     CancelSubagent(codeloom_core::session::SessionId),
+    /// Contesta la pregunta pendiente (`input-required`) de un hijo.
+    AnswerSubagent(codeloom_core::session::SessionId, String),
     /// Lanza un agente por orden directa de la persona usuaria (`/agent` o `@`).
     RunAgent(crate::agent_command::AgentInvocation),
 }
@@ -703,6 +705,10 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         app.tool_scroll = (0, 0);
         return None;
     }
+    if code == KeyCode::Char('g') && mods.contains(KeyModifiers::CONTROL) {
+        app.cycle_composer_target();
+        return None;
+    }
     if code == KeyCode::F(2) {
         app.open_settings();
         return None;
@@ -868,7 +874,8 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
     match code {
         KeyCode::Enter => {
             // `/agent` y `@agente` no son mensajes: se analizan aquí, al enviar, y nunca por pulsación.
-            if app.try_agent_command() {
+            // `/focus` fija el destinatario; con un hijo de destinatario el texto no va al padre.
+            if app.try_agent_command() || app.try_focus_command() || app.submit_to_child() {
                 return None;
             }
             let sent = app.submit();
@@ -1013,6 +1020,10 @@ fn execute_slash_command(app: &mut App, command: crate::commands::Command) -> Op
         Command::Agent => {
             app.composer.set_text("/agent ");
             app.slash_feedback = Some(crate::agent_command::USAGE.into());
+            None
+        }
+        Command::Focus => {
+            app.begin_focus_command();
             None
         }
         Command::Agents => {
@@ -1797,6 +1808,9 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
     }
     if let Some(invocation) = app.run_agent_requested.take() {
         let _ = tx.send(SessionCommand::RunAgent(invocation));
+    }
+    if let Some((child, text)) = app.answer_subagent_requested.take() {
+        let _ = tx.send(SessionCommand::AnswerSubagent(child, text));
     }
 }
 
