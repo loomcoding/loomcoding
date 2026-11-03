@@ -1,26 +1,48 @@
 //! Limpieza de resultados de herramienta antiguos en la petición al proveedor.
 //!
 //! Solo afecta a la copia que se envía al modelo: el historial guardado y el almacén no se tocan.
+//!
+//! La limpieza respeta la frontera del turno: los resultados del turno en curso se envían
+//! íntegros, porque son justo los que el modelo necesita para razonar. Solo se podan los de
+//! turnos ya cerrados; el recorte por presupuesto lo hace `compact`.
 
-use crate::message::{ContentPart, Message};
+use crate::message::{ContentPart, Message, MessageOrigin, Role};
 
-/// Número de resultados de herramienta más recientes que se conservan íntegros.
+/// Número de resultados de herramienta de turnos cerrados que se conservan íntegros.
 pub const KEEP_TOOL_RESULTS: usize = 6;
 
 /// Por debajo de este tamaño (en bytes) un resultado antiguo no compensa sustituirlo.
-const CLEAR_MIN_BYTES: usize = 256;
+const CLEAR_MIN_BYTES: usize = 2_048;
 
-/// Devuelve una copia del historial en la que los resultados de herramienta anteriores a los
-/// `keep` más recientes, y de más de `CLEAR_MIN_BYTES` bytes, se sustituyen por un marcador.
+/// Índice del mensaje que abre el turno en curso.
 ///
+/// Se prefiere el último mensaje humano; si no hay ninguno (turnos internos, subagentes), se usa
+/// el último mensaje de usuario. Devuelve `None` si no hay frontera reconocible: en ese caso se
+/// aplica la poda por número de resultados, como antes.
+fn turn_start_index(history: &[Message]) -> Option<usize> {
+    history
+        .iter()
+        .rposition(|m| m.role == Role::User && m.origin == MessageOrigin::Human)
+        .or_else(|| history.iter().rposition(|m| m.role == Role::User))
+}
+
+/// Devuelve una copia del historial en la que los resultados de herramienta de turnos cerrados
+/// anteriores a los `keep` más recientes, y de más de `CLEAR_MIN_BYTES` bytes, se sustituyen por
+/// un marcador.
+///
+/// Los resultados del turno en curso (posteriores al último mensaje de usuario) nunca se tocan.
 /// Se conservan el orden, el número de partes, los `call_id` y el indicador de error.
 pub fn clear_old_tool_results(history: &[Message], keep: usize) -> Vec<Message> {
+    // Si no hay frontera de turno reconocible, no se protege nada por turno: se poda por número.
+    let turn_start = turn_start_index(history).unwrap_or(history.len());
+
     let continuation_calls: std::collections::HashSet<&str> = history
         .iter()
         .filter(|message| message.provider_state.is_some())
         .flat_map(|message| message.tool_calls().into_iter().map(|(id, _, _)| id))
         .collect();
-    let total = history
+    // Solo cuentan los resultados de turnos cerrados: `keep` acota esa poda, no el turno vivo.
+    let total = history[..turn_start]
         .iter()
         .flat_map(|m| m.parts.iter())
         .filter(|p| matches!(p, ContentPart::ToolResult { .. }))
@@ -30,7 +52,9 @@ pub fn clear_old_tool_results(history: &[Message], keep: usize) -> Vec<Message> 
 
     let mut ordinal = 0usize;
     let mut out = Vec::with_capacity(history.len());
-    for message in history {
+    for (message_index, message) in history.iter().enumerate() {
+        // Dentro del turno en curso no se poda nada: el modelo lo está usando ahora mismo.
+        let in_current_turn = message_index >= turn_start;
         let mut parts = Vec::with_capacity(message.parts.len());
         for part in &message.parts {
             match part {
@@ -41,7 +65,8 @@ pub fn clear_old_tool_results(history: &[Message], keep: usize) -> Vec<Message> 
                 } => {
                     let index = ordinal;
                     ordinal += 1;
-                    if index < cutoff
+                    if !in_current_turn
+                        && index < cutoff
                         && content.len() > CLEAR_MIN_BYTES
                         && !continuation_calls.contains(call_id.as_str())
                     {
@@ -90,6 +115,9 @@ mod tests {
         Message::new(Role::Tool, vec![result(call_id, "x".repeat(bytes), false)])
     }
 
+    /// Tamaño de resultado que supera `CLEAR_MIN_BYTES` y por tanto es podable.
+    const BIG: usize = 3_000;
+
     fn contents(messages: &[Message]) -> Vec<String> {
         messages
             .iter()
@@ -110,43 +138,105 @@ mod tests {
 
     #[test]
     fn clears_only_results_older_than_the_last_six() {
-        let history: Vec<Message> = (0..10)
-            .map(|i| result_msg(&format!("c{i}"), 1000))
-            .collect();
+        let history: Vec<Message> = (0..10).map(|i| result_msg(&format!("c{i}"), BIG)).collect();
 
         let out = clear_old_tool_results(&history, KEEP_TOOL_RESULTS);
         let got = contents(&out);
 
         assert_eq!(got.len(), 10);
         for content in &got[..4] {
-            assert_eq!(content, &marker(1000));
+            assert_eq!(content, &marker(BIG));
         }
         for content in &got[4..] {
-            assert_eq!(content.len(), 1000);
+            assert_eq!(content.len(), BIG);
             assert!(content.chars().all(|c| c == 'x'));
+        }
+    }
+
+    #[test]
+    fn results_of_the_current_turn_are_never_cleared() {
+        // Un turno largo: el humano pide algo y el agente encadena muchas herramientas.
+        let mut history = vec![Message::user("refactoriza el módulo")];
+        for i in 0..12 {
+            history.push(result_msg(&format!("c{i}"), BIG));
+        }
+
+        let out = clear_old_tool_results(&history, KEEP_TOOL_RESULTS);
+        let got = contents(&out);
+
+        // Ningún resultado del turno en curso se sustituye, por muchos que haya.
+        assert_eq!(got.len(), 12);
+        for content in &got {
+            assert_eq!(content.len(), BIG, "el turno en curso debe llegar íntegro");
+        }
+    }
+
+    #[test]
+    fn internal_notices_do_not_move_the_turn_boundary() {
+        // Un aviso de job llega a mitad de turno como `Message::user` con origen `Internal`.
+        // No debe abrir un turno nuevo: si lo hiciera, se podaría trabajo aún en curso.
+        let mut history = vec![Message::human("refactoriza el módulo")];
+        for i in 0..4 {
+            history.push(result_msg(&format!("c{i}"), BIG));
+        }
+        history.push(Message::user("[Job 7 finished] ok"));
+        for i in 4..8 {
+            history.push(result_msg(&format!("c{i}"), BIG));
+        }
+
+        let out = clear_old_tool_results(&history, KEEP_TOOL_RESULTS);
+        let got = contents(&out);
+
+        // El turno sigue abierto: los ocho resultados llegan íntegros.
+        assert_eq!(got.len(), 8);
+        for content in &got {
+            assert_eq!(content.len(), BIG, "un aviso interno no cierra el turno");
+        }
+    }
+
+    #[test]
+    fn closed_turns_are_cleared_but_the_current_one_is_not() {
+        let mut history = vec![Message::user("primer turno")];
+        for i in 0..8 {
+            history.push(result_msg(&format!("old{i}"), BIG));
+        }
+        history.push(Message::user("segundo turno"));
+        for i in 0..3 {
+            history.push(result_msg(&format!("new{i}"), BIG));
+        }
+
+        let out = clear_old_tool_results(&history, KEEP_TOOL_RESULTS);
+        let got = contents(&out);
+
+        // Los dos más antiguos del turno cerrado se podan (8 - 6 = 2).
+        assert_eq!(got[0], marker(BIG));
+        assert_eq!(got[1], marker(BIG));
+        // El resto del turno cerrado y todo el turno en curso se conservan.
+        for content in &got[2..] {
+            assert_eq!(content.len(), BIG);
         }
     }
 
     #[test]
     fn small_old_results_are_kept() {
         let history = vec![
-            result_msg("c0", 256),
-            result_msg("c1", 257),
-            result_msg("c2", 1000),
-            result_msg("c3", 1000),
-            result_msg("c4", 1000),
-            result_msg("c5", 1000),
-            result_msg("c6", 1000),
-            result_msg("c7", 1000),
+            result_msg("c0", CLEAR_MIN_BYTES),
+            result_msg("c1", CLEAR_MIN_BYTES + 1),
+            result_msg("c2", BIG),
+            result_msg("c3", BIG),
+            result_msg("c4", BIG),
+            result_msg("c5", BIG),
+            result_msg("c6", BIG),
+            result_msg("c7", BIG),
         ];
 
         let out = clear_old_tool_results(&history, KEEP_TOOL_RESULTS);
         let got = contents(&out);
 
-        // El de 256 bytes es antiguo pero no supera el umbral: se queda tal cual.
-        assert_eq!(got[0].len(), 256);
-        // El de 257 bytes sí supera el umbral: se sustituye.
-        assert_eq!(got[1], marker(257));
+        // Justo en el umbral no se toca: solo se poda lo que lo supera.
+        assert_eq!(got[0].len(), CLEAR_MIN_BYTES);
+        // Un byte por encima del umbral sí se sustituye.
+        assert_eq!(got[1], marker(CLEAR_MIN_BYTES + 1));
     }
 
     #[test]
@@ -156,8 +246,8 @@ mod tests {
             Message::new(
                 Role::Tool,
                 vec![
-                    result("c0", "x".repeat(1000), true),
-                    result("c1", "y".repeat(1000), false),
+                    result("c0", "x".repeat(BIG), true),
+                    result("c1", "y".repeat(BIG), false),
                 ],
             ),
             Message::assistant(vec![
@@ -170,12 +260,14 @@ mod tests {
                     input: serde_json::json!({}),
                 },
             ]),
-            Message::new(Role::Tool, vec![result("c2", "z".repeat(1000), false)]),
-            result_msg("c3", 1000),
-            result_msg("c4", 1000),
-            result_msg("c5", 1000),
-            result_msg("c6", 1000),
-            result_msg("c7", 1000),
+            Message::new(Role::Tool, vec![result("c2", "z".repeat(BIG), false)]),
+            result_msg("c3", BIG),
+            result_msg("c4", BIG),
+            result_msg("c5", BIG),
+            result_msg("c6", BIG),
+            result_msg("c7", BIG),
+            // Cierra el turno: los resultados anteriores ya son historial, no trabajo en curso.
+            Message::user("siguiente"),
         ];
 
         let out = clear_old_tool_results(&history, KEEP_TOOL_RESULTS);
@@ -216,7 +308,7 @@ mod tests {
                 is_error,
             } => {
                 assert_eq!(call_id, "c0");
-                assert_eq!(content, &marker(1000));
+                assert_eq!(content, &marker(BIG));
                 assert!(*is_error);
             }
             otra => panic!("parte inesperada: {otra:?}"),
@@ -225,9 +317,7 @@ mod tests {
 
     #[test]
     fn original_history_is_not_modified() {
-        let history: Vec<Message> = (0..10)
-            .map(|i| result_msg(&format!("c{i}"), 1000))
-            .collect();
+        let history: Vec<Message> = (0..10).map(|i| result_msg(&format!("c{i}"), BIG)).collect();
         let snapshot = history.clone();
 
         let out = clear_old_tool_results(&history, KEEP_TOOL_RESULTS);
@@ -253,8 +343,8 @@ mod tests {
         });
         let history = vec![
             assistant,
-            result_msg("pending-call", 1000),
-            result_msg("unrelated", 1000),
+            result_msg("pending-call", BIG),
+            result_msg("unrelated", BIG),
         ];
         let cleared = clear_old_tool_results(&history, 0);
         let result = |id: &str| {
@@ -269,7 +359,7 @@ mod tests {
                 })
                 .unwrap()
         };
-        assert_eq!(result("pending-call").len(), 1000);
+        assert_eq!(result("pending-call").len(), BIG);
         assert!(result("unrelated").starts_with("[tool result cleared:"));
     }
 }

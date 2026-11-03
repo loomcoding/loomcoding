@@ -3513,7 +3513,7 @@ Cuerpo.
                         Role::Tool,
                         vec![ContentPart::ToolResult {
                             call_id,
-                            content: "x".repeat(1000),
+                            content: "x".repeat(3000),
                             is_error: false,
                         }],
                     ),
@@ -3565,16 +3565,16 @@ Cuerpo.
         for content in &sent[..4] {
             assert_eq!(
                 content,
-                "[tool result cleared: 1000 bytes; run the tool again if you need it]"
+                "[tool result cleared: 3000 bytes; run the tool again if you need it]"
             );
         }
         for content in &sent[4..] {
-            assert_eq!(content.len(), 1000);
+            assert_eq!(content.len(), 3000);
         }
 
         let stored = contents_of(&store.messages(sid).await.unwrap());
         assert_eq!(stored.len(), 10);
-        assert!(stored.iter().all(|c| c.len() == 1000));
+        assert!(stored.iter().all(|c| c.len() == 3000));
     }
 
     /// Proveedor simulado de la compactación: responde siempre el mismo texto y guarda cada

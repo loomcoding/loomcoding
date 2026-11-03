@@ -38,15 +38,23 @@ async fn run_command(
     if BANNED.iter().any(|b| command.contains(b)) {
         return Ok(super::ToolOutput::err("command blocked by policy"));
     }
-    let (prog, flag) = if cfg!(windows) {
-        ("cmd", "/C")
-    } else {
-        ("sh", "-c")
+    // En Windows, `cmd.exe` no interpreta la línea de comandos con las reglas MSVCRT que aplica
+    // `Command::arg`: al pasar el comando como argumento, Rust escapaba las comillas (`"` -> `\"`)
+    // y cmd las recibía literales. Se entrega la línea cruda con `/s`, que hace que cmd quite solo
+    // la primera y la última comilla y deje intacto el resto, incluidas las comillas internas.
+    #[cfg(windows)]
+    let mut process = {
+        let mut process = tokio::process::Command::new("cmd");
+        process.raw_arg(format!("/d /s /c \"{command}\""));
+        process
     };
-    let mut process = tokio::process::Command::new(prog);
+    #[cfg(not(windows))]
+    let mut process = {
+        let mut process = tokio::process::Command::new("sh");
+        process.arg("-c").arg(command);
+        process
+    };
     process
-        .arg(flag)
-        .arg(command)
         .current_dir(&ctx.cwd)
         .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
@@ -163,6 +171,75 @@ mod tests {
             .await
             .unwrap();
         assert!(out.content.contains("hi"));
+    }
+
+    #[tokio::test]
+    async fn bash_preserves_quotes_in_the_command() {
+        let dir = tempfile::tempdir().unwrap();
+        // `echo` imprime su argumento tal cual. Si el proceso recibe `\"quoted\"` en vez de
+        // `"quoted"`, las comillas se han escapado por el camino.
+        let out = BashTool
+            .run(
+                ctx(dir.path()),
+                serde_json::json!({ "command": "echo \"quoted\"" }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            !out.content.contains("\\\""),
+            "el comando llegó con comillas escapadas: {:?}",
+            out.content
+        );
+        assert!(out.content.contains("\"quoted\""));
+    }
+
+    #[tokio::test]
+    async fn bash_keeps_shell_operators_and_variables_working() {
+        let dir = tempfile::tempdir().unwrap();
+        // `/s` solo debe afectar al entrecomillado externo: los operadores y la expansión de
+        // variables tienen que seguir funcionando igual.
+        let out = BashTool
+            .run(
+                ctx(dir.path()),
+                serde_json::json!({ "command": "echo uno & echo dos" }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(out.content.contains("uno"), "salida: {:?}", out.content);
+        assert!(out.content.contains("dos"), "salida: {:?}", out.content);
+
+        let out = BashTool
+            .run(
+                ctx(dir.path()),
+                serde_json::json!({ "command": "echo %CODELOOM_TEST_VAR%" }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        // Sin la variable definida, cmd deja el literal: lo importante es que no se rompa.
+        assert!(!out.content.contains("\\\""), "salida: {:?}", out.content);
+    }
+
+    #[tokio::test]
+    async fn bash_handles_nested_quotes() {
+        let dir = tempfile::tempdir().unwrap();
+        // Comillas dentro de comillas: el caso que más fácil rompe al reentrecomillar.
+        let out = BashTool
+            .run(
+                ctx(dir.path()),
+                serde_json::json!({ "command": "echo \"a b\" c" }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            !out.content.contains("\\\""),
+            "el comando llegó con comillas escapadas: {:?}",
+            out.content
+        );
+        assert!(out.content.contains("a b"), "salida: {:?}", out.content);
     }
 
     #[tokio::test]
