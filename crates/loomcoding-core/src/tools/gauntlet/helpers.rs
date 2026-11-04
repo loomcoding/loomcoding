@@ -68,8 +68,20 @@ pub(super) fn draw_seed() -> u64 {
     nanos ^ (nanos >> 7)
 }
 
-/// Primera ronda: el objetivo, la pieza y la barra a la que apuntar.
-pub(super) fn first_builder_prompt(gauntlet: &Gauntlet) -> String {
+/// Primera ronda: el objetivo, la pieza y, salvo que se oculte, la barra a la que apuntar.
+///
+/// Con `hide_bar` el constructor no sabe dónde está la referencia: para código, una barra legible se
+/// copia (ocurrió en el piloto con un modelo local). El crítico la sigue recibiendo, sin rotular.
+pub(super) fn first_builder_prompt(gauntlet: &Gauntlet, hide_bar: bool) -> String {
+    if hide_bar {
+        return format!(
+            "Improve the piece below until it fully meets the goal. Edit it in place. An independent reviewer will compare your result with a hidden reference, so do the work yourself from the goal.
+Goal: {}
+Piece to improve: {}
+Report briefly what you changed and why.",
+            gauntlet.goal, gauntlet.artifact
+        );
+    }
     format!(
         "Improve the piece below until it reaches the quality of the quality bar. Edit it in place; do not modify the bar files.\nGoal: {}\nPiece to improve: {}\nQuality bar (read-only files to aim at): {}\nReport briefly what you changed and why.",
         gauntlet.goal,

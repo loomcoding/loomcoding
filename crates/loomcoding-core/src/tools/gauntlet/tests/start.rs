@@ -143,3 +143,29 @@ async fn a_failed_launch_leaves_the_gauntlet_failed_not_building() {
         .unwrap()
         .is_none());
 }
+
+#[tokio::test]
+async fn a_hidden_bar_is_not_named_to_the_builder() {
+    let env = Entorno::nuevo().await;
+    let mut input = Entorno::start_input();
+    input["hide_bar"] = true.into();
+    env.run(input).await.unwrap();
+    let launch = env.launcher.last();
+    assert!(launch.prompt.contains("out/portada.md"));
+    assert!(
+        !launch.prompt.contains("ref/portada.md"),
+        "el constructor no debe ver la barra: {}",
+        launch.prompt
+    );
+    // El crítico sigue recibiendo la barra, sin rotular.
+    assert_eq!(env.active().await.bar, ["ref/portada.md"]);
+}
+
+#[tokio::test]
+async fn hide_bar_must_be_a_boolean() {
+    let env = Entorno::nuevo().await;
+    let mut input = Entorno::start_input();
+    input["hide_bar"] = "yes".into();
+    let error = env.run(input).await.unwrap_err();
+    assert!(error.to_string().contains("hide_bar"), "{error}");
+}

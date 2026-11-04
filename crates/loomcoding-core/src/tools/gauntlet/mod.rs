@@ -46,7 +46,8 @@ impl Tool for GauntletTool {
             "bar":{"type":"array","items":{"type":"string","maxLength":512},"minItems":1,"maxItems":8,"description":"Project paths of the text files that set the quality bar."},
             "builder":{"type":"string","maxLength":64,"description":"Local agent name; must differ from critic."},
             "critic":{"type":"string","maxLength":64,"description":"Local agent name; must differ from builder."},
-            "max_rounds":{"type":"integer","minimum":1,"maximum":5,"description":"Build rounds before stopping (default 2)."}
+            "max_rounds":{"type":"integer","minimum":1,"maximum":5,"description":"Build rounds before stopping (default 2)."},
+            "hide_bar":{"type":"boolean","description":"Do not tell the builder where the bar is (use it for code, where a readable reference gets copied). Default false."}
         },"required":["action"]})
     }
     fn execution_mode(&self, _: &serde_json::Value) -> ExecutionMode {

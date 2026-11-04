@@ -119,7 +119,8 @@ async fn gauntlet_against_a_local_server() {
             ctx(),
             serde_json::json!({
                 "action": "start", "goal": goal, "artifact": artifact, "bar": bar,
-                "builder": "constructor", "critic": "critico", "max_rounds": max_rounds
+                "builder": "constructor", "critic": "critico", "max_rounds": max_rounds,
+                "hide_bar": true
             }),
             CancellationToken::new(),
         )

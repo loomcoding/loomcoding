@@ -45,6 +45,12 @@ pub(super) async fn action_start(
                 .ok_or_else(|| CoreError::Tool("max_rounds must be an integer".into()))?,
         ),
     };
+    let hide_bar = match input.get("hide_bar").filter(|value| !value.is_null()) {
+        None => false,
+        Some(value) => value
+            .as_bool()
+            .ok_or_else(|| CoreError::Tool("hide_bar must be a boolean".into()))?,
+    };
     check_text_path(&ctx.cwd, &artifact)?;
     for path in &bar {
         check_text_path(&ctx.cwd, path)?;
@@ -67,7 +73,7 @@ pub(super) async fn action_start(
         actor: "parent".into(),
         detail: "gauntlet started".into(),
     });
-    let prompt = first_builder_prompt(&gauntlet);
+    let prompt = first_builder_prompt(&gauntlet, hide_bar);
     let gauntlet = launch_builder(
         &ctx.bus,
         store.as_ref(),
