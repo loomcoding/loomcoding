@@ -125,7 +125,31 @@ se recoge.
 6. ¿Una petición extra de traspaso cabe en el presupuesto de contexto de un modelo con ventana corta? Debe
    medirse; si no cabe, el traspaso usa el último texto del asistente sin llamar al modelo.
 
-## 6. Verificación
+## 6. Enmiendas tras el piloto con Qwen3.5-9B (2026-11-04)
+
+Cabe señalar que el piloto (T1–T3 y tres Gauntlets contra `llama-server`) contradijo o completó el diseño en
+cuatro puntos. Lo medido está en `G:\temp\loom-qwen\autonomia\logs\`; lo de aquí es lo que se deduce.
+
+1. **Respuesta final vacía: causa hallada (hecho medido).** Un modelo con razonamiento puede cerrar el turno
+   con `finish_reason: stop` habiendo escrito su respuesta *dentro* de `reasoning_content`, sin cerrar el
+   bloque de pensamiento: `content` llega vacío y el JSON o el resumen exigidos quedan en el razonamiento
+   (petición del crítico reproducida con un proxy de registro: `content` 0 caracteres, 809 de razonamiento
+   terminando en el JSON pedido). `compat.rs` y `turn.rs` lo leen bien; el hueco está en que el turno descarta
+   el razonamiento. Enmienda: el turno acumula el razonamiento y, si termina con `Stop`, sin llamadas a
+   herramientas y sin texto, el mensaje final **se rotula como texto procedente del razonamiento** y se usa
+   como respuesta (trazable en la UI: «sin texto, recuperado del razonamiento»). Transversal a cualquier
+   proveedor que emita `reasoning_content`. Prueba primero: guion con solo `ReasoningDelta` y `Done(Stop)`.
+2. **Exploración atascada.** Más presupuesto no la arregla (T3: 19 lecturas de 30, 49 de 60). Además del tope
+   de lecturas de §3.1 se añade una guarda: tras N rondas de lectura seguidas sin escritura ni texto nuevo,
+   se inyecta un aviso al modelo («escribe lo que llevas o declara qué te falta») antes de agotar el tope.
+3. **Informe de traspaso también para el crítico del Gauntlet.** Un crítico que llega al tope sin veredicto
+   hoy cuenta como fallo del Gauntlet; debe pasar por el mismo traspaso de §3.2 (una petición sin
+   herramientas que fuerce el JSON).
+4. **Barra de calidad no legible por el constructor** cuando el artefacto es código: el constructor copió la
+   barra byte a byte. La barra se entrega solo al coordinador y al crítico. Es cambio del Gauntlet, no de
+   este proyecto; se anota aquí para no perderlo.
+
+## 7. Verificación
 
 Los cuatro checks del repo, más pruebas por tema: cuenta de lecturas frente a escrituras; cota de lecturas
 alcanzada; el principal pregunta al tope y obedece la respuesta; el subagente deja informe parcial y no
