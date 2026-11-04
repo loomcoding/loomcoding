@@ -145,8 +145,13 @@ descriptor sin tocar `status.state` (A2A manda). Tests: `phase_observer` (7),
 - **Hecho:** `SubagentSettled` lleva `summary: Option<String>`, un extracto de 500 bytes como
   máximo: el motivo si el hijo falló o el texto de su primer artefacto. Lo calcula `local_watch`
   releyendo el hijo ya asentado.
-- **Pendiente:** `AwaitingPermission`, que el bus del hijo no expone; y los hijos remotos. `SubagentProgress` se descarta por redundante: los contadores y
-  los artefactos de progreso ya suben con `SubagentChanged`.
+- **Hecho:** `AwaitingPermission`. No hacía falta que el bus del hijo lo expusiera: el padre ya
+  sabe que el hijo espera un permiso, porque `ChildResponder::decide` lo pasa a `auth-required`.
+  El supervisor lo traduce a `AwaitingPermission` (antes lo marcaba `AwaitingCredentials`, que
+  solo aplica a remotos, y esos no se vigilan).
+- **Descartado:** `SubagentProgress`, por redundante: los contadores y los artefactos de
+  progreso ya suben con `SubagentChanged`.
+- **Pendiente:** los hijos remotos.
 
 
 **Qué cambia:** `SubagentPhaseChanged` y `SubagentProgress` (coalescido) en

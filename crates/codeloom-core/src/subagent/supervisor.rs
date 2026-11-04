@@ -128,9 +128,9 @@ impl SubagentSupervisor {
                         TaskState::InputRequired => {
                             health.phase = SubagentPhase::AwaitingParentInput
                         }
-                        TaskState::AuthRequired => {
-                            health.phase = SubagentPhase::AwaitingCredentials
-                        }
+                        // Los remotos, únicos con credenciales de verdad, no se vigilan: un hijo
+                        // local pide `auth-required` solo para que el padre apruebe un permiso.
+                        TaskState::AuthRequired => health.phase = SubagentPhase::AwaitingPermission,
                         TaskState::Working
                             if matches!(
                                 health.phase,
@@ -428,7 +428,8 @@ mod tests {
         registra(&mut s, 7, TaskState::InputRequired, 0);
         registra(&mut s, 8, TaskState::AuthRequired, 0);
         assert_eq!(fase_de(&s, 7), Some(SubagentPhase::AwaitingParentInput));
-        assert_eq!(fase_de(&s, 8), Some(SubagentPhase::AwaitingCredentials));
+        // Un hijo local solo pide `auth-required` para que el padre apruebe un permiso.
+        assert_eq!(fase_de(&s, 8), Some(SubagentPhase::AwaitingPermission));
         assert!(s.tick(LOST * 10).is_empty());
     }
 
