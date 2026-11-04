@@ -50,7 +50,7 @@ Cómo se comprueba cada una: `docs/INVARIANTS.md`.
 | Crate | Responsabilidad | Entrada principal | No va aquí | ¿Opcional? |
 |---|---|---|---|---|
 | `codeloom-core` | Motor: agente, sesiones, herramientas, provider, eventos, tareas, subagentes | `agent/mod.rs` (`AgentLoop`) | TUI, terminal, red A2A | no |
-| `codeloom-a2a` | Borde A2A: tarjeta, JSON-RPC, SSE, cliente y servidor | `lib.rs`, `serve/`, `client.rs` | lógica del motor | no |
+| `codeloom-a2a` | Borde A2A: tarjeta, JSON-RPC, SSE, cliente y servidor | `lib.rs`, `serve/`, `client/` | lógica del motor | no |
 | `codeloom-cli` | Binarios `loom`/`codeloom`; daemon, IPC y arranque | `main.rs`, `server/mod.rs` | widgets, lógica del agente | no |
 | `codeloom-tui` | Interfaz de terminal sobre `ratatui` | `run/mod.rs`, `app/mod.rs`, `render/mod.rs` | acceso directo al motor sin pasar por el cliente | sí |
 | `batten` | Widgets y estado reutilizables de chat de agentes | `state/`, `widgets/` | nada de `codeloom-core` | sí |

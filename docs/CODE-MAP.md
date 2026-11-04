@@ -77,7 +77,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 ## Quiero tocar A2A (cliente o servidor)
 
 1. Nombres del cable y tarjeta: `crates/codeloom-a2a/src/card.rs`, `wire.rs`.
-2. Cliente (consumir agentes remotos): `crates/codeloom-a2a/src/client.rs`, `remote.rs`,
+2. Cliente (consumir agentes remotos): `crates/codeloom-a2a/src/client/` (`mod.rs` llama; `stream.rs` sigue el SSE; `factory.rs` construye clientes), `remote.rs`,
    `oauth.rs`, `security.rs`, `signing.rs`.
 3. Servidor (servir CodeLoom): `crates/codeloom-a2a/src/serve/` (`rpc.rs`, `auth.rs`, `host.rs`).
 4. Streaming: `crates/codeloom-a2a/src/sse.rs`.
