@@ -26,6 +26,17 @@ pub(super) async fn run_with_limits(
     limits: LimitsConfig,
     permission: Arc<PermissionService>,
 ) -> (crate::agent::TurnOutcome, usize) {
+    run_configured(scripts, max_steps, limits, permission, false).await
+}
+
+/// Igual que `run_with_limits`; con `child` el agente cuenta como subagente de su propia sesión.
+pub(super) async fn run_configured(
+    scripts: Vec<Vec<StreamChunk>>,
+    max_steps: usize,
+    limits: LimitsConfig,
+    permission: Arc<PermissionService>,
+    child: bool,
+) -> (crate::agent::TurnOutcome, usize) {
     let provider = Arc::new(QueueProvider {
         scripts: Mutex::new(scripts.into()),
     });
@@ -59,6 +70,11 @@ pub(super) async fn run_with_limits(
         dir.path().to_path_buf(),
     )
     .with_limits(limits);
+    let agent = if child {
+        agent.with_budget_family(sid)
+    } else {
+        agent
+    };
     let outcome = agent
         .run(sid, "hi".into(), CancellationToken::new())
         .await

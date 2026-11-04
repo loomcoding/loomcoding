@@ -26,6 +26,7 @@ mod builder;
 mod compaction;
 mod entry;
 mod handoff;
+mod step_limit;
 pub use handoff::HANDOFF_MAX_BYTES;
 mod subagents;
 mod turn;

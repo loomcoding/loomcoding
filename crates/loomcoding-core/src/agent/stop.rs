@@ -104,6 +104,9 @@ pub fn stop_reason(history: &[Message], steps: usize, max_steps: usize) -> Optio
 }
 
 /// Rondas de lectura seguidas, sin escribir, tras las cuales se avisa al modelo de que explora sin avanzar.
+/// Prórrogas de pasos que la persona puede conceder en un mismo turno.
+pub const MAX_STEP_EXTENSIONS: usize = 3;
+
 pub const STUCK_EXPLORATION_ROUNDS: usize = 10;
 
 /// Cuántas rondas de solo lectura van seguidas al final del historial.

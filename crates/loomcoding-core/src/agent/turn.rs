@@ -52,6 +52,8 @@ impl AgentLoop {
         let mut steps = 0usize;
         // Rondas de solo lectura: no gastan el presupuesto de trabajo, pero tienen su propio tope.
         let mut read_steps = 0usize;
+        // Prórrogas concedidas al llegar a un tope: suben ese tope y nada más.
+        let (mut extensions, mut extra_steps, mut extra_read_steps) = (0usize, 0usize, 0usize);
         let mut final_text = String::new();
         let mut compactions = 0usize;
         let mut compaction_failed = false;
@@ -69,16 +71,28 @@ impl AgentLoop {
             self.flush_subagent_notices(session).await?;
             // Ventana, no historial completo: esto se ejecuta en cada paso del bucle.
             history = self.store.recent_messages(session, HISTORY_WINDOW).await?;
-            if crate::agent::stop::stop_reason_budgets(
+            let read_cap = self.limits.read_step_cap(config.max_steps);
+            match crate::agent::stop::stop_reason_budgets(
                 &history,
                 steps,
-                config.max_steps,
+                config.max_steps + extra_steps,
                 read_steps,
-                self.limits.read_step_cap(config.max_steps),
-            )
-            .is_some()
-            {
-                break;
+                read_cap + extra_read_steps,
+            ) {
+                None => {}
+                Some(reason)
+                    if reason != crate::agent::stop::StopReason::RepeatedToolCalls
+                        && extensions < crate::agent::stop::MAX_STEP_EXTENSIONS
+                        && self.ask_to_continue(reason, &cancel).await =>
+                {
+                    extensions += 1;
+                    if reason == crate::agent::stop::StopReason::StepBudget {
+                        extra_steps += config.max_steps.max(1);
+                    } else {
+                        extra_read_steps += config.max_steps.max(1);
+                    }
+                }
+                Some(_) => break,
             }
             // Exploración atascada: tras muchas rondas de lectura seguidas se avisa al modelo una vez
             // (el aviso es un mensaje de usuario, así que rearma la cuenta).
