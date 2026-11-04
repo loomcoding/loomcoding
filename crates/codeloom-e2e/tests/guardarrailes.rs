@@ -28,11 +28,6 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         "pendiente de evaluar en una oleada posterior",
     ),
     (
-        "crates/codeloom-core/src/registry/mod.rs",
-        1800,
-        "pendiente de evaluar en una oleada posterior",
-    ),
-    (
         "crates/codeloom-a2a/src/client.rs",
         1800,
         "pendiente de evaluar en una oleada posterior",
