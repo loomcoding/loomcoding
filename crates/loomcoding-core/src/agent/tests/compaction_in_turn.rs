@@ -371,3 +371,125 @@ async fn tool_call_and_result_stay_paired_in_the_request() {
     assert!(compact::parse_summary(&normal.messages[0]).is_some());
     assert_emparejado(&normal.messages);
 }
+
+#[tokio::test]
+async fn a_llama_cpp_context_rejection_compacts_and_retries_the_request() {
+    let historial = historial_grande(100);
+    let proveedor = proveedor_que_desborda("resumen", 1);
+    *proveedor.texto_desborde.lock().unwrap() = format!(
+        "http 400 Bad Request: {}",
+        "{\"error\":{\"code\":400,\"message\":\"request (54608 tokens) exceeds the available context size (35584 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":54608,\"n_ctx\":35584}}"
+    );
+    let e = entorno_de_turno(
+        proveedor,
+        catalogo_de_ventana(10_000_000),
+        &historial,
+        ToolRegistry::new(),
+    )
+    .await;
+
+    e.agente
+        .run(e.sid, "hi".into(), CancellationToken::new())
+        .await
+        .expect("el turno se recupera del rechazo de llama.cpp");
+
+    let vistas = e.proveedor.seen.lock().unwrap();
+    let normales: Vec<_> = vistas
+        .iter()
+        .filter(|r| !es_peticion_de_resumen(r))
+        .collect();
+    assert_eq!(normales.len(), 2, "la petición rechazada y su reintento");
+    assert_eq!(vistas.len(), 3, "más una de resumen");
+    assert!(compact::parse_summary(&normales[1].messages[0]).is_some());
+}
+
+fn catalogo_con_ventana_declarada(ventana: u64) -> Arc<RwLock<crate::catalog::Catalog>> {
+    Arc::new(RwLock::new(
+        crate::catalog::Catalog::default().with_window_override("http://x", "m", ventana),
+    ))
+}
+
+#[tokio::test]
+async fn a_declared_window_makes_the_turn_summarise_without_any_published_catalog() {
+    let historial = historial_grande(100);
+    let e = entorno_de_turno(
+        proveedor_de("resumen", false, vec![]),
+        catalogo_con_ventana_declarada(1000),
+        &historial,
+        ToolRegistry::new(),
+    )
+    .await;
+
+    e.agente
+        .run(e.sid, "hi".into(), CancellationToken::new())
+        .await
+        .unwrap();
+
+    let vistas = e.proveedor.seen.lock().unwrap();
+    assert_eq!(vistas.len(), 2, "una petición de resumen y una normal");
+    assert!(es_peticion_de_resumen(&vistas[0]));
+    assert!(compact::parse_summary(&vistas[1].messages[0]).is_some());
+}
+
+#[tokio::test]
+async fn a_declaration_for_another_model_does_not_summarise() {
+    let historial = historial_grande(100);
+    let catalogo = Arc::new(RwLock::new(
+        crate::catalog::Catalog::default().with_window_override("http://x", "otro", 1000),
+    ));
+    let e = entorno_de_turno(
+        proveedor_de("resumen", false, vec![]),
+        catalogo,
+        &historial,
+        ToolRegistry::new(),
+    )
+    .await;
+
+    e.agente
+        .run(e.sid, "hi".into(), CancellationToken::new())
+        .await
+        .unwrap();
+
+    let vistas = e.proveedor.seen.lock().unwrap();
+    assert_eq!(
+        vistas.len(),
+        1,
+        "sin ventana para este modelo no hay resumen"
+    );
+}
+
+#[tokio::test]
+async fn a_tiny_declared_window_does_not_loop_on_summaries() {
+    let historial = historial_grande(300);
+    let normales = vec![
+        llamada_relleno(1),
+        llamada_relleno(2),
+        llamada_relleno(3),
+        llamada_relleno(4),
+        vec![
+            StreamChunk::TextDelta("fin".into()),
+            StreamChunk::Done(FinishReason::Stop),
+        ],
+    ];
+    let mut herramientas = ToolRegistry::new();
+    herramientas.register(Arc::new(Relleno));
+    let e = entorno_de_turno(
+        proveedor_de("resumen", false, normales),
+        catalogo_con_ventana_declarada(1),
+        &historial,
+        herramientas,
+    )
+    .await;
+
+    e.agente
+        .run(e.sid, "hi".into(), CancellationToken::new())
+        .await
+        .unwrap();
+
+    let vistas = e.proveedor.seen.lock().unwrap();
+    let resumenes = vistas.iter().filter(|r| es_peticion_de_resumen(r)).count();
+    assert!(
+        resumenes <= compact::MAX_COMPACTIONS_PER_TURN,
+        "{resumenes}"
+    );
+}

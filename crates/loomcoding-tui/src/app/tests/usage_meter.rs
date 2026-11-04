@@ -339,3 +339,25 @@ fn model_prices_none_when_a_price_is_missing() {
     assert_eq!(priced_app("plain", url).model_prices(), None);
     assert_eq!(priced_app("ausente", url).model_prices(), None);
 }
+
+#[test]
+fn a_declared_window_is_what_the_footer_meter_uses() {
+    let mut app = App::new();
+    app.set_provider_settings(ProviderSettings {
+        kind: loomcoding_core::config::ProviderKind::OpenAiCompat,
+        model: "qwen".into(),
+        base_url: "http://127.0.0.1:8091/v1".into(),
+        api_key_env: "K".into(),
+        effort: None,
+    });
+    app.model = "qwen".into();
+    assert_eq!(app.context_window(), None, "sin declaración ni catálogo");
+    app.set_catalog(Arc::new(
+        loomcoding_core::catalog::Catalog::default().with_window_override(
+            "http://127.0.0.1:8091/v1",
+            "qwen",
+            35_584,
+        ),
+    ));
+    assert_eq!(app.context_window(), Some(35_584));
+}

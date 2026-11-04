@@ -52,12 +52,18 @@ fn prompt_cache_enabled(value: Option<&str>, configured: Option<bool>) -> bool {
     }
 }
 
+/// Traduce `[provider] request_timeout_secs` (ya validada por el cargador) al plazo del adaptador.
+fn request_timeout_from_secs(secs: Option<u64>) -> Option<std::time::Duration> {
+    secs.map(std::time::Duration::from_secs)
+}
+
 fn build_provider(
     cfg: &LoomcodingConfig,
     project_env: &HashMap<String, String>,
     prompt_cache: Option<bool>,
+    request_timeout: Option<std::time::Duration>,
 ) -> Result<Arc<dyn Provider>> {
-    Ok(build_provider_state(cfg, project_env, None, prompt_cache)?.0)
+    Ok(build_provider_state(cfg, project_env, None, prompt_cache, request_timeout)?.0)
 }
 
 fn build_provider_state(
@@ -65,6 +71,7 @@ fn build_provider_state(
     project_env: &HashMap<String, String>,
     api_key_override: Option<&str>,
     prompt_cache: Option<bool>,
+    request_timeout: Option<std::time::Duration>,
 ) -> Result<(Arc<dyn Provider>, bool)> {
     let key = api_key_override
         .map(str::to_string)
@@ -77,10 +84,13 @@ fn build_provider_state(
     };
     Ok((
         match cfg.provider.kind {
-            ProviderKind::OpenAiCompat => Arc::new(OpenAiCompatProvider::new(
-                cfg.provider.base_url.clone(),
-                key,
-            )),
+            ProviderKind::OpenAiCompat => {
+                let provider = OpenAiCompatProvider::new(cfg.provider.base_url.clone(), key);
+                Arc::new(match request_timeout {
+                    Some(timeout) => provider.with_request_timeout(timeout),
+                    None => provider,
+                })
+            }
             ProviderKind::OpenAiResponses => Arc::new(OpenAiResponsesProvider::new(
                 cfg.provider.base_url.clone(),
                 key,
@@ -173,9 +183,19 @@ fn apply_provider_settings(
     let prompt_cache = loomcoding_core::config::ProviderCacheConfig::load(config_path)
         .ok()
         .and_then(|config| config.prompt_cache);
-    let (provider, configured) =
-        build_provider_state(&candidate, project_env, api_key, prompt_cache)
-            .map_err(|error| error.to_string())?;
+    let request_timeout = request_timeout_from_secs(
+        loomcoding_core::config::ProviderLimitsConfig::load(config_path)
+            .ok()
+            .and_then(|limits| limits.request_timeout_secs),
+    );
+    let (provider, configured) = build_provider_state(
+        &candidate,
+        project_env,
+        api_key,
+        prompt_cache,
+        request_timeout,
+    )
+    .map_err(|error| error.to_string())?;
     candidate
         .save(config_path)
         .map_err(|error| error.to_string())?;
@@ -196,21 +216,50 @@ async fn main() -> Result<()> {
         server::run_client(cli).await
     }
 }
+/// Ventana declarada: (URL base, modelo, tokens).
+type DeclaredWindow = Option<(String, String, u64)>;
+
+/// Construye la declaración a partir de `[provider] context_window`; sin clave, no hay declaración.
+fn declared_window(
+    limits: &loomcoding_core::config::ProviderLimitsConfig,
+    base_url: &str,
+    model: &str,
+) -> DeclaredWindow {
+    limits
+        .context_window
+        .map(|window| (base_url.to_owned(), model.to_owned(), window))
+}
+
+fn with_declared_window(catalog: Catalog, declared: &DeclaredWindow) -> Catalog {
+    match declared {
+        Some((base_url, model, window)) => catalog.with_window_override(base_url, model, *window),
+        None => catalog,
+    }
+}
+
 /// Entrega a la interfaz el catálogo de models.dev: primero la caché (si existe) y, si falta
 /// o ha caducado, uno descargado. Cada catálogo que llega se copia también en `shared`, el que
 /// usa el agente para fijar los precios de los apuntes. Los fallos se ignoran en silencio: sin
 /// catálogo, `/settings` funciona como antes. Corre en su propia tarea, así que nunca retrasa
 /// el arranque.
+///
+/// `declared` es la ventana de contexto que la persona usuaria fija en `loomcoding.toml`: se
+/// publica antes que nada (así rige sin caché ni red) y se aplica a cada catálogo que llega.
 async fn load_catalog(
     tx: tokio::sync::mpsc::UnboundedSender<Arc<Catalog>>,
     shared: Arc<std::sync::RwLock<Catalog>>,
+    declared: DeclaredWindow,
 ) {
     let publish = |catalog: Catalog| {
+        let catalog = with_declared_window(catalog, &declared);
         if let Ok(mut guard) = shared.write() {
             *guard = catalog.clone();
         }
         let _ = tx.send(Arc::new(catalog));
     };
+    if declared.is_some() {
+        publish(Catalog::default());
+    }
     let Some(path) = cache_path() else {
         return;
     };
@@ -667,6 +716,62 @@ a2a:
             )),
         ]));
         (registro, dir)
+    }
+
+    #[test]
+    fn a_declared_window_is_built_only_from_the_toml_key() {
+        use loomcoding_core::config::ProviderLimitsConfig;
+        let sin = ProviderLimitsConfig::default();
+        assert_eq!(declared_window(&sin, "http://x/v1", "m"), None);
+        let con = ProviderLimitsConfig {
+            context_window: Some(35_584),
+            request_timeout_secs: None,
+        };
+        assert_eq!(
+            declared_window(&con, "http://x/v1", "m"),
+            Some(("http://x/v1".into(), "m".into(), 35_584))
+        );
+    }
+
+    #[test]
+    fn a_declaration_is_applied_to_any_catalog_and_none_leaves_it_alone() {
+        let declared = Some(("http://x/v1".to_string(), "m".to_string(), 35_584));
+        let catalog = with_declared_window(Catalog::default(), &declared);
+        assert_eq!(catalog.context_window("http://x/v1", "m"), Some(35_584));
+        let sin = with_declared_window(Catalog::default(), &None);
+        assert_eq!(sin.context_window("http://x/v1", "m"), None);
+    }
+
+    #[test]
+    fn request_timeout_secs_become_a_duration_only_when_configured() {
+        assert_eq!(request_timeout_from_secs(None), None);
+        assert_eq!(
+            request_timeout_from_secs(Some(600)),
+            Some(std::time::Duration::from_secs(600))
+        );
+    }
+
+    #[test]
+    fn a_configured_timeout_reaches_the_openai_compat_adapter() {
+        let cfg = LoomcodingConfig {
+            provider: loomcoding_core::config::ProviderConfig {
+                kind: ProviderKind::OpenAiCompat,
+                base_url: "http://127.0.0.1:1/v1".into(),
+                api_key_env: "LOOMCODING_TEST_KEY_PLAZO".into(),
+            },
+            model: "m".into(),
+            max_steps: 1,
+            effort: None,
+        };
+        let (_, configured) = build_provider_state(
+            &cfg,
+            &HashMap::new(),
+            Some("sk-test"),
+            None,
+            request_timeout_from_secs(Some(300)),
+        )
+        .unwrap();
+        assert!(configured);
     }
 
     #[test]

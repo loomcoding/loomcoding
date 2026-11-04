@@ -6,6 +6,13 @@ release.
 
 ## Unreleased
 
+### Servidores locales
+
+- Nuevas claves opcionales `[provider] context_window` y `request_timeout_secs` en `loomcoding.toml`
+  (la segunda, de 1 a 3600 s; por defecto 120 s en el adaptador OpenAI-compatible).
+- Reconocido el rechazo por exceso de contexto de llama.cpp, que ahora provoca un resumen y un reintento.
+- Los errores HTTP del adaptador OpenAI-compatible incluyen el cuerpo de la respuesta, acotado a 512 caracteres.
+
 ### Renombrado
 
 - CodeLoom pasa a llamarse **Loomcoding**; la crate `batten`, a `loomcoding-cloth`. Cambian los

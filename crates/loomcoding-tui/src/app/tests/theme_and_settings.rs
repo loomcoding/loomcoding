@@ -489,16 +489,14 @@ fn provider_without_key_variable_keeps_the_current_one() {
     use loomcoding_core::catalog::{Catalog, CatalogProvider};
 
     let mut app = app_with_settings_open();
-    app.set_catalog(Arc::new(Catalog {
-        providers: vec![CatalogProvider {
-            id: "local".into(),
-            name: "Local".into(),
-            kind: loomcoding_core::config::ProviderKind::OpenAiCompat,
-            base_url: "http://localhost:11434/v1".into(),
-            api_key_env: String::new(),
-            models: Vec::new(),
-        }],
-    }));
+    app.set_catalog(Arc::new(Catalog::from_providers(vec![CatalogProvider {
+        id: "local".into(),
+        name: "Local".into(),
+        kind: loomcoding_core::config::ProviderKind::OpenAiCompat,
+        base_url: "http://localhost:11434/v1".into(),
+        api_key_env: String::new(),
+        models: Vec::new(),
+    }])));
     app.open_picker(SettingsPicker::Provider);
     app.picker_choose();
     let settings = app.provider_settings.as_ref().unwrap();

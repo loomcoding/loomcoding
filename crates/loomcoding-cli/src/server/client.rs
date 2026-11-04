@@ -193,10 +193,6 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let (perm_tx, perm_rx) = mpsc::channel(8);
     let (ask_tx, ask_rx) = mpsc::channel(4);
     let (catalog_tx, catalog_rx) = mpsc::unbounded_channel();
-    let catalog = Arc::new(std::sync::RwLock::new(
-        loomcoding_core::catalog::Catalog::default(),
-    ));
-    tokio::spawn(crate::load_catalog(catalog_tx, catalog));
     let pending_settings: PendingSettings = Arc::new(StdMutex::new(HashMap::new()));
     let settings_pending = pending_settings.clone();
     let frame_commands = frame_tx.clone();
@@ -423,6 +419,14 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
             }
         });
     }
+    // La ventana declarada depende del proveedor y del modelo, que solo se conocen ya abierto el agente.
+    let limits =
+        loomcoding_core::config::ProviderLimitsConfig::load(&config_path).unwrap_or_default();
+    let declared = crate::declared_window(&limits, &settings.base_url, &settings.model);
+    let catalog = Arc::new(std::sync::RwLock::new(
+        loomcoding_core::catalog::Catalog::default(),
+    ));
+    tokio::spawn(crate::load_catalog(catalog_tx, catalog, declared));
     let mut app = loomcoding_tui::app::App::with_context(cwd, model).with_ui_config(ui_config);
     app.use_product_default_view();
     app.set_provider_settings(settings);

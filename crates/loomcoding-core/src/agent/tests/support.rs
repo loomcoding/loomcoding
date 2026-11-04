@@ -100,6 +100,8 @@ pub(super) struct PlanProvider {
     pub(super) seen: Mutex<Vec<ProviderRequest>>,
     /// Cuántas peticiones normales (no de resumen) se rechazan aún por exceso de contexto.
     pub(super) desbordes: Mutex<usize>,
+    /// Texto del error con el que se rechazan esas peticiones (por defecto, la redacción de OpenAI).
+    pub(super) texto_desborde: Mutex<String>,
 }
 
 #[async_trait]
@@ -132,8 +134,7 @@ impl Provider for PlanProvider {
             if *desbordes > 0 {
                 *desbordes -= 1;
                 return Err(crate::error::CoreError::Provider(
-                    "http 400 Bad Request: This model's maximum context length is 8192 tokens"
-                        .into(),
+                    self.texto_desborde.lock().unwrap().clone(),
                 ));
             }
         }
@@ -229,6 +230,9 @@ pub(super) fn proveedor_de(
         normales: Mutex::new(VecDeque::from(normales)),
         seen: Mutex::new(Vec::new()),
         desbordes: Mutex::new(0),
+        texto_desborde: Mutex::new(
+            "http 400 Bad Request: This model's maximum context length is 8192 tokens".into(),
+        ),
     }
 }
 

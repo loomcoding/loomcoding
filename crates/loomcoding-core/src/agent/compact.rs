@@ -285,12 +285,12 @@ pub fn should_compact(history: &[Message], system_bytes: usize, window: u64) -> 
 
 /// `true` si el error es el rechazo del proveedor por exceder la ventana de contexto: un `400` o
 /// `413` cuyo cuerpo menciona alguna de las fórmulas habituales («maximum context length»,
-/// «prompt is too long»…). Las fórmulas son las que se recuerdan de los proveedores, sin
-/// contrastarlas contra su documentación; un proveedor con otra redacción no se reconoce y el
-/// error se propaga como siempre. Sólo se examina el texto de `CoreError::Provider`, cuyo formato
+/// «prompt is too long»…). Casi todas son las que se recuerdan de los proveedores, sin contrastarlas
+/// contra su documentación; las dos últimas proceden de una respuesta real de llama-server
+/// (2026-11-04). Un proveedor con otra redacción no se reconoce y el error se propaga como siempre. Sólo se examina el texto de `CoreError::Provider`, cuyo formato
 /// es `http {estado}: {cuerpo}`.
 pub fn is_context_overflow(error: &CoreError) -> bool {
-    const FORMULAS: [&str; 7] = [
+    const FORMULAS: [&str; 9] = [
         "maximum context length",
         "context_length_exceeded",
         "context length",
@@ -298,6 +298,8 @@ pub fn is_context_overflow(error: &CoreError) -> bool {
         "prompt is too long",
         "too many tokens",
         "exceeds the context",
+        "exceeds the available context size",
+        "exceed_context_size_error",
     ];
     let CoreError::Provider(mensaje) = error else {
         return false;
@@ -623,5 +625,28 @@ mod tests {
                 "{texto:?} dio {error:?}"
             );
         }
+    }
+
+    /// Cuerpo literal de un 400 real de llama-server (2026-11-04) al exceder el hueco de contexto.
+    const CUERPO_LLAMA_CPP: &str = "{\"error\":{\"code\":400,\"message\":\"request (54608 tokens) exceeds the available context size (35584 tokens), try increasing it\",\"type\":\"exceed_context_size_error\",\"n_prompt_tokens\":54608,\"n_ctx\":35584}}";
+
+    #[test]
+    fn llama_cpp_overflow_is_recognised() {
+        let error = CoreError::Provider(format!("http 400 Bad Request: {CUERPO_LLAMA_CPP}"));
+        assert!(is_context_overflow(&error));
+    }
+
+    #[test]
+    fn llama_cpp_wording_with_a_500_is_not_an_overflow() {
+        let error = CoreError::Provider(format!(
+            "http 500 Internal Server Error: {CUERPO_LLAMA_CPP}"
+        ));
+        assert!(!is_context_overflow(&error));
+    }
+
+    #[test]
+    fn a_400_without_a_context_wording_is_not_an_overflow() {
+        let error = CoreError::Provider("http 400 Bad Request: {\"error\":\"bad json\"}".into());
+        assert!(!is_context_overflow(&error));
     }
 }

@@ -1,7 +1,14 @@
 # Loomcoding — Servidores locales: ventana de contexto declarada y desbordes reconocibles
 
-> Estado: **propuesta** (2026-11-04). Sin código aún. Las decisiones de §4 son las que se someten a
-> aprobación; lo no decidido consta en §8.
+> Estado: **implementada** (2026-11-04), con un cabo suelto: el criterio 8 (comprobación manual) no se ha
+> verificado. Las decisiones de §4 son las que se sometieron a aprobación; lo no decidido consta en §8.
+>
+> Hallazgos de la implementación: (1) el adaptador OpenAI-compatible emitía `http {estado}` sin cuerpo, de modo que
+> la fórmula de desborde jamás podía casar; ahora incluye el cuerpo acotado a 512 caracteres. (2) El adaptador de
+> Anthropic tampoco casa con `starts_with("http 400")`, por lo que no se reconocen sus desbordes por esa vía; queda
+> fuera de este corte. (3) `..Catalog::default()` no sirve fuera de la crate por el campo privado (E0451): se añadió
+> `Catalog::from_providers`. (4) La declaración rige para el par exacto (URL, modelo) del arranque; si se cambia de
+> modelo en `/settings`, vuelve a mandar el catálogo hasta reiniciar.
 >
 > Ampliada el 2026-11-04 con las medidas de una sesión de pruebas sobre dos GPU (§9): aparece un tercer
 > defecto (C3, plazo de petición fijo) y se matiza el significado de `context_window` (D3). Las decisiones

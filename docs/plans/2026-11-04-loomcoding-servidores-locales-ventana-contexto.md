@@ -1,12 +1,14 @@
 # Plan — Servidores locales: ventana de contexto declarada y desbordes reconocibles
 
-> Estado: **propuesta** (2026-11-04). Pendiente de que se apruebe la spec; sin código aún.
+> Estado: **ejecutado y commiteado** (2026-11-04): tareas 1 a 6 hechas; el criterio 8 (manual) queda sin verificar.
+> Ampliado el mismo día con D6 (plazo configurable). Por indicación de la persona usuaria, **no se hace ningún commit hasta que
+> confirme**: los pasos «commit» de cada tarea quedan en suspenso hasta entonces.
 
-Spec: `docs/specs/2026-11-04-loomcoding-servidores-locales-ventana-contexto.md` (decisiones D1 a D5, criterios 1 a 8).
+Spec: `docs/specs/2026-11-04-loomcoding-servidores-locales-ventana-contexto.md` (decisiones D1 a D6, criterios 1 a 10).
 
 Cabe señalar que cada tarea sigue el procedimiento del repositorio: prueba en rojo primero, implementación
 mínima, y los cuatro checks al terminar (`cargo build`, `cargo test`, `cargo fmt --check`,
-`cargo clippy -- -D warnings`). El árbol de trabajo trae cambios ajenos (`lib.rs`, `gauntlet.rs`, del plan
+`cargo clippy --all-targets -- -D warnings`; sin `--all-targets` no se compilan los tests y se cuelan avisos). El árbol de trabajo trae cambios ajenos (`lib.rs`, `gauntlet.rs`, del plan
 del gauntlet): no se tocan ni se añaden a los commits de este plan.
 
 ## Restricciones globales
@@ -14,7 +16,10 @@ del gauntlet): no se tocan ni se añaden a los commits de este plan.
 - Cuerpo literal de llama.cpp (prueba y spec §1): `{"error":{"code":400,"message":"request (54608 tokens) exceeds the available context size (35584 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":54608,"n_ctx":35584}}`.
 - Fórmulas nuevas (D1): `exceeds the available context size` y `exceed_context_size_error`. La puerta de estado (solo 400 y 413) no cambia.
 - Clave `[provider] context_window`: entero estrictamente positivo; cero, negativo, decimal o cadena son `CoreError::Config` cuyo mensaje nombra la clave (D2).
-- Semántica: tokens por petición (por hueco), no el total (D3).
+- Semántica: tokens por petición que el servidor procesa **con holgura dentro del plazo** (por hueco, no el total; D3 matizada).
+- Clave `[provider] request_timeout_secs`: entero en `1..=3600`; cero, negativo, decimal, cadena o por encima de la cota son `CoreError::Config` cuyo mensaje nombra la clave. Ausente: rigen los 120 s actuales (D6).
+- No se trata `response stream timed out` como desborde recuperable (P5), no cambian `COMPACT_RATIO` ni `MAX_COMPACTIONS_PER_TURN`, y los adaptadores de Anthropic, Gemini y OpenAI Responses (`responses.rs:196` y `:242`, también con 120 s fijos) conservan su plazo propio.
+- Las referencias de línea de la spec son de la fecha de redacción; este plan cita por símbolo cuando una línea se haya movido (`turn.rs` cambió el 2026-11-04 por otro trabajo).
 - La declaración vive en `Catalog` en un campo privado, no serializado; no altera `Catalog::providers` (D4).
 - Precedencia: lo declarado gana a models.dev solo para el mismo par (URL normalizada, modelo) (D5).
 - Comentarios y documentación en español pijo; identificadores y mensajes de error intactos.
@@ -25,16 +30,20 @@ del gauntlet): no se tocan ni se añaden a los commits de este plan.
 - URL declarada con barra final o mayúsculas: debe casar igual que `prices` (tarea 3).
 - Catálogo descargado después de la declaración: no debe borrarla (tarea 4).
 - `/settings` guarda el fichero: la clave `context_window` no desaparece (tarea 2).
-- Ventana minúscula declarada: no hay bucle de resúmenes, manda `MAX_COMPACTIONS_PER_TURN` (tarea 4).
+- Ventana minúscula declarada: no hay bucle de resúmenes, manda `MAX_COMPACTIONS_PER_TURN` (tarea 5).
+- Campo privado nuevo en `Catalog`: rompe todo literal `Catalog { providers }` fuera de `catalog.rs`; hoy hay uno en `loomcoding-tui/src/app/tests/theme_and_settings.rs:492` y otro dentro del módulo (`catalog.rs:147`); ambos se pasan a `..Catalog::default()` (tarea 3).
+- Plazo mal configurado: `request_timeout_secs = 0` o `5000` no deben arrancar con el valor por defecto en silencio, sino dar error que nombre la clave (tareas 2 y 4).
+- `/settings` guarda el fichero: ninguna de las dos claves nuevas desaparece (tarea 2).
 
 ## Estructura de ficheros
 
 | Fichero | Responsabilidad |
 |---|---|
 | `crates/loomcoding-core/src/agent/compact.rs` | `is_context_overflow` con las dos fórmulas nuevas |
-| `crates/loomcoding-core/src/config/mod.rs` | `ProviderLimitsConfig` (cargador de `context_window`) |
+| `crates/loomcoding-core/src/config/mod.rs` | `ProviderLimitsConfig` (cargador de `context_window` y `request_timeout_secs`) |
+| `crates/loomcoding-core/src/provider/openai/compat.rs` | `OpenAiCompatProvider::with_request_timeout` (D6) |
 | `crates/loomcoding-core/src/catalog.rs` | declaración en `Catalog` y precedencia en `context_window` |
-| `crates/loomcoding-cli/src/main.rs` | `load_catalog` aplica la declaración |
+| `crates/loomcoding-cli/src/main.rs`, `server/agent_build.rs`, `server/daemon.rs` | `load_catalog` aplica la declaración; `build_provider_state` recibe el plazo |
 | `crates/loomcoding-core/src/agent/tests/` | pruebas de turno con redacción de llama.cpp y ventana declarada |
 | `docs/`, `CHANGELOG.md` | estado, índice y manual de uso |
 
@@ -60,23 +69,24 @@ configurable (campo nuevo, por defecto el texto actual de OpenAI) para las prueb
 - [ ] **Paso 2:** ejecutar `cargo test -p loomcoding-core compact` y `cargo test -p loomcoding-core compaction_in_turn`; esperado: fallan las pruebas nuevas.
 - [ ] **Paso 3:** ampliar `FORMULAS` a `[&str; 9]` con las dos cadenas de las restricciones globales; actualizar el comentario de la función («una de ellas procede de una respuesta real de llama-server, 2026-11-04»).
 - [ ] **Paso 4:** repetir los comandos del paso 2; esperado: verde. Cuatro checks.
-- [ ] **Paso 5:** commit `feat(core): reconocer el desborde de contexto de llama.cpp`.
+- [ ] **Paso 5:** commit (en suspenso) `feat(core): reconocer el desborde de contexto de llama.cpp`.
 
-## Tarea 2 — Cargador de `[provider] context_window` (D2, D3; criterio 4)
+## Tarea 2 — Cargador de `[provider] context_window` y `request_timeout_secs` (D2, D3, D6; criterios 4 y 9)
 
 **Ficheros:** modifica `config/mod.rs` (junto a `ProviderCacheConfig`, ≈289-318); pruebas en su módulo (patrón ≈679-694).
 
 **Interfaces:** produce
-`pub struct ProviderLimitsConfig { pub context_window: Option<u64> }` con
+`pub struct ProviderLimitsConfig { pub context_window: Option<u64>, pub request_timeout_secs: Option<u64> }` con
 `from_toml(&str) -> Result<ProviderLimitsConfig>` y `load(&Path) -> Result<ProviderLimitsConfig>`.
 
 - [ ] **Paso 1: pruebas en rojo.** `limites_ausentes_dan_none`; `context_window_35584_se_lee`;
   `context_window_invalida_es_error` para `0`, `-1`, `3.5` y `"35k"`, comprobando que el mensaje contiene `context_window`;
-  `guardar_ajustes_conserva_context_window` (guardar con la ruta de `toml_edit` ≈415 un cambio de modelo y releer la clave).
+  `plazo_600_se_lee`; `plazo_invalido_es_error` para `0`, `-1`, `3.5`, `"10m"`, `3601` y `99999999999`, con el mensaje conteniendo `request_timeout_secs` (el mensaje debe salir del error real, no de un prefijo fijo antepuesto a cualquier fallo: añadir una prueba que falle si el mensaje de un TOML roto en otra clave dice `request_timeout_secs`); `el_limite_superior_3600_es_valido`;
+  `guardar_ajustes_conserva_las_dos_claves` (guardar con la ruta de `toml_edit` ≈415 un cambio de modelo y releer ambas claves).
 - [ ] **Paso 2:** `cargo test -p loomcoding-core config`; esperado: no compila o falla.
-- [ ] **Paso 3:** implementar siguiendo `ProviderCacheConfig` (cargador aparte, resto de claves ignorado). Deserializar como `Option<i64>` y convertir, de modo que `0` y los negativos den el error propio y no el genérico de serde; decimales y cadenas fallan en la deserialización, con el mensaje envuelto para que nombre la clave.
+- [ ] **Paso 3:** implementar siguiendo `ProviderCacheConfig` (cargador aparte, resto de claves ignorado). Deserializar ambas como `Option<i64>` y convertir, de modo que `0`, los negativos y, para el plazo, lo que pase de 3600 den el error propio y no el genérico de serde; decimales y cadenas fallan en la deserialización, y el mensaje se envuelve **solo** en ese caso y con el nombre de la clave que falló (no un prefijo fijo para todo error). Sin variables sin usar en las pruebas: `clippy --all-targets` las rechaza.
 - [ ] **Paso 4:** esperado verde; si la prueba de guardado falla, el guardado reescribe la sección y hay que preservar la clave (corregir en `toml_edit`, no en la prueba). Cuatro checks.
-- [ ] **Paso 5:** commit `feat(core): leer [provider] context_window`.
+- [ ] **Paso 5:** commit (en suspenso) `feat(core): leer [provider] context_window y request_timeout_secs`.
 
 ## Tarea 3 — Declaración en el catálogo (D4, D5; criterio 5)
 
@@ -93,12 +103,32 @@ deserialización siguen funcionando sin él.
   `url_declarada_se_compara_como_prices` (`" HTTP://127.0.0.1:8091/v1/ "` contra `http://127.0.0.1:8091/v1`);
   `declaracion_no_se_serializa` (la ida y vuelta a JSON del catálogo no la conserva);
   `declaracion_no_altera_knows_model` (sigue siendo `None` con catálogo vacío).
+  Al añadir el campo privado, pasar a `..Catalog::default()` el literal de `catalog.rs:147` y el de `loomcoding-tui/src/app/tests/theme_and_settings.rs:492`.
 - [ ] **Paso 2:** `cargo test -p loomcoding-core catalog`; esperado: no compila.
 - [ ] **Paso 3:** implementar; `context_window` consulta primero la declaración (mismo par normalizado) y después cae al código actual. El modelo se compara exacto, como en el resto del fichero.
 - [ ] **Paso 4:** esperado verde. Cuatro checks.
-- [ ] **Paso 5:** commit `feat(core): ventana de contexto declarada en el catálogo`.
+- [ ] **Paso 5:** commit (en suspenso) `feat(core): ventana de contexto declarada en el catálogo`.
 
-## Tarea 4 — Conectar con `load_catalog` y probar los consumidores (D4; criterios 6 y 7)
+## Tarea 4 — Plazo de petición configurable (D6; criterios 9 y 10)
+
+**Ficheros:** modifica `provider/openai/compat.rs` (campo `request_timeout`, línea 119; valor por defecto en la 128; aplicado con `.timeout(self.request_timeout)` en la 280; comprobar que siguen siendo esas); `loomcoding-cli/src/main.rs` (`build_provider` y `build_provider_state`, líneas 55-100, y el guardado de ajustes, ≈173-178); `server/agent_build.rs` (≈165-167 y 272) y `server/daemon.rs:102`. Pruebas `wiremock` junto a las del adaptador (`provider/openai/tests/http.rs`).
+
+**Interfaces:** consume `ProviderLimitsConfig::request_timeout_secs` (tarea 2). Produce
+`OpenAiCompatProvider::with_request_timeout(self, Duration) -> Self` y un parámetro nuevo
+`request_timeout: Option<Duration>` en `build_provider_state` y `build_provider`, junto a `prompt_cache`;
+solo lo usa la rama `OpenAiCompat` (las demás lo ignoran, como declara la restricción global).
+
+- [ ] **Paso 1: pruebas en rojo.**
+  - `plazo_configurado_corta_una_respuesta_lenta`: `wiremock` retrasa la respuesta por encima del plazo (por ejemplo 1 s de retraso con plazo de 200 ms) y la petición falla por tiempo.
+  - `plazo_configurado_deja_pasar_una_respuesta_dentro_del_plazo`: retraso de 200 ms con plazo de 2 s; la petición termina bien.
+  - `sin_configuracion_el_plazo_sigue_siendo_120_s`: sin `with_request_timeout`, `request_timeout == Duration::from_secs(120)` (campo `pub(super)`, visible para las pruebas del módulo).
+  - CLI: una función pura que traduzca `Option<u64>` a `Option<Duration>` y que `build_provider_state` con `Some(Duration)` construya el adaptador con ese plazo; con `None` no cambia nada.
+- [ ] **Paso 2:** `cargo test -p loomcoding-core openai` y `cargo test -p loomcoding-cli`; esperado: no compila o falla.
+- [ ] **Paso 3:** implementar `with_request_timeout`; añadir el parámetro `request_timeout` a `build_provider_state` y `build_provider` y actualizar los cinco llamadores (`main.rs:60` y `:177`, `agent_build.rs:167` y `:272`, `daemon.rs:102`): los que ya leen `ProviderCacheConfig::load` leen también `ProviderLimitsConfig::load` (un fichero ilegible en el guardado de ajustes usa el valor por defecto, como hoy con `prompt_cache`; un valor inválido en el arranque **sí** se muestra como error de configuración). `daemon.rs:102` pasa `None`.
+- [ ] **Paso 4:** esperado verde. Cuatro checks (con `--all-targets` en clippy).
+- [ ] **Paso 5:** commit (en suspenso) `feat(provider): plazo de petición configurable para servidores locales`.
+
+## Tarea 5 — Conectar con `load_catalog` y probar los consumidores (D4; criterios 6 y 7)
 
 **Ficheros:** modifica `crates/loomcoding-cli/src/main.rs:204` y sus dos llamadores (`server/client.rs:199`,
 `server/agent_build.rs:205`); pruebas en `agent/tests/` y en `loomcoding-tui` (`app/usage.rs`).
@@ -116,17 +146,17 @@ modelo, ventana); se calcula una sola vez en cada llamador a partir de la config
 - [ ] **Paso 2:** ejecutar las pruebas anteriores por nombre; esperado: fallan.
 - [ ] **Paso 3:** implementar. En `load_catalog`: (a) antes de leer la caché, si hay declaración, publicar `Catalog::default().with_window_override(..)` para que funcione sin caché y sin red; (b) cada catálogo leído o descargado se publica ya con `with_window_override` aplicado. Si en `client.rs:199` el directorio de trabajo no permite resolver `loomcoding.toml`, tomar la ruta del llamador que ya la tiene, sin releer a ciegas. Un error al leer la clave se muestra como el resto de errores de configuración al arrancar, no se ignora en silencio.
 - [ ] **Paso 4:** esperado verde. Cuatro checks.
-- [ ] **Paso 5:** commit `feat(cli): aplicar la ventana declarada al catálogo del agente y de la interfaz`.
+- [ ] **Paso 5:** commit (en suspenso) `feat(cli): aplicar la ventana declarada al catálogo del agente y de la interfaz`.
 
-## Tarea 5 — Documentación y comprobación manual (criterio 8)
+## Tarea 6 — Documentación y comprobación manual (criterio 8)
 
 **Ficheros:** `docs/INDEX.md`, cabeceras de spec y plan, `CHANGELOG.md`, el manual de configuración que documente `[provider]` (localizar con `Grep` de `prompt_cache`), `docs/INVARIANTS.md` solo si procede.
 
 - [ ] **Paso 1:** añadir en `docs/INDEX.md`, tabla «Tanda del 2026-11-01 al 2026-11-05», la fila `| servidores-locales-ventana-contexto (11-04) | propuesta | …|` (formato `nombre (MM-DD)`, requerido por el guardarraíl de cobertura del índice); al ejecutarse, cambiar a `hecho con un cabo suelto` (criterio 8 manual).
-- [ ] **Paso 2:** documentar `context_window` junto a `prompt_cache`, con el ejemplo de la spec §6 y la advertencia sobre `max_model_len`; entrada en `CHANGELOG.md`.
+- [ ] **Paso 2:** documentar `context_window` y `request_timeout_secs` junto a `prompt_cache`, con el ejemplo de la spec §6, la regla de pulgar y la advertencia sobre `max_model_len`; entrada en `CHANGELOG.md`.
 - [ ] **Paso 3:** `cargo test -p loomcoding-e2e` (guardarraíles) y cuatro checks; esperado verde.
 - [ ] **Paso 4:** comprobación manual: `G:\temp\loom-qwen\lanzar-loom.cmd` con `context_window = 35584` en el `loomcoding.toml` de esa carpeta; confirmar que el medidor del pie muestra la ventana y, con una tarea que lea muchos ficheros, que aparece un resumen en lugar de un error. Anotar el resultado en la spec.
-- [ ] **Paso 5:** commit `docs: ventana de contexto declarada para servidores locales`.
+- [ ] **Paso 5:** commit (en suspenso) `docs: ventana de contexto declarada para servidores locales`.
 
 ## Cobertura de la spec
 
@@ -135,10 +165,11 @@ modelo, ventana); se calcula una sola vez en cada llamador a partir de la config
 | D1, criterios 1 a 3 | 1 |
 | D2, D3, criterio 4 | 2 |
 | D4, D5, criterio 5 | 3 |
-| criterios 6 y 7 | 4 |
-| criterio 8, índice y manual | 5 |
+| D6, criterios 9 y 10 | 2 (cargador) y 4 (aplicación en el adaptador) |
+| criterios 6 y 7 | 5 |
+| criterio 8, índice y manual | 6 |
 
-Las preguntas abiertas P1 a P4 de la spec quedan fuera del plan; si se aprueba P3 (mínimo de 4 096), es una línea en la tarea 2.
+Las preguntas abiertas P1 a P7 de la spec quedan fuera del plan; si se aprueba P3 (mínimo de 4 096), es una línea en la tarea 2. P5 (tratar el timeout como desborde) se descarta expresamente en este corte.
 
 ## Verificación
 
@@ -146,5 +177,5 @@ Las preguntas abiertas P1 a P4 de la spec quedan fuera del plan; si se aprueba P
 cargo build
 cargo test
 cargo fmt --check
-cargo clippy -- -D warnings
+cargo clippy --all-targets -- -D warnings
 ```

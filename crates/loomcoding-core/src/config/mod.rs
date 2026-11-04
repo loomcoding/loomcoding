@@ -5,6 +5,8 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 pub mod context;
+mod limits;
+pub use limits::{ProviderLimitsConfig, MAX_REQUEST_TIMEOUT_SECS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum ProviderKind {

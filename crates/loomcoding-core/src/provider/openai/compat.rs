@@ -129,6 +129,13 @@ impl OpenAiCompatProvider {
         }
     }
 
+    /// Sustituye el plazo total de cada petición (por defecto, 120 s). Cabe señalar que quien lo
+    /// configura debe acotarlo antes (`MAX_REQUEST_TIMEOUT_SECS`); aquí se acepta tal cual.
+    pub fn with_request_timeout(mut self, timeout: Duration) -> Self {
+        self.request_timeout = timeout;
+        self
+    }
+
     pub(super) fn build_body(&self, req: &ProviderRequest) -> serde_json::Value {
         let mut messages = vec![serde_json::json!({ "role": "system", "content": req.system })];
         messages.extend(wire_messages(&req.messages));
@@ -168,6 +175,21 @@ impl OpenAiCompatProvider {
         }
         cuerpo
     }
+}
+
+/// Cota del cuerpo de una respuesta de error que viaja en el mensaje (decálogo de contexto y coste).
+const MAX_ERROR_BODY_CHARS: usize = 512;
+
+/// `http {estado}: {cuerpo}`, con el cuerpo acotado por caracteres; sin cuerpo, solo `http {estado}`.
+pub(super) fn http_error_text(status: reqwest::StatusCode, body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        return format!("http {status}");
+    }
+    format!(
+        "http {status}: {}",
+        body.chars().take(MAX_ERROR_BODY_CHARS).collect::<String>()
+    )
 }
 
 pub(super) fn role_str(r: crate::message::Role) -> &'static str {
@@ -294,7 +316,9 @@ impl Provider for OpenAiCompatProvider {
             })?;
         if !resp.status().is_success() {
             let status = resp.status();
-            return Err(CoreError::Provider(format!("http {status}")));
+            // Sin el cuerpo no se puede reconocer el rechazo por exceso de contexto (`is_context_overflow`).
+            let body = resp.text().await.unwrap_or_default();
+            return Err(CoreError::Provider(http_error_text(status, &body)));
         }
 
         struct State<S> {

@@ -163,8 +163,11 @@ pub(super) async fn build_agent(
     let a2a = loomcoding_a2a::config::A2aConfig::load(&config_path)?;
     let prompt_cache =
         loomcoding_core::config::ProviderCacheConfig::load(&config_path)?.prompt_cache;
+    // Un valor inválido de `request_timeout_secs` se muestra como error de configuración al arrancar.
+    let limits = loomcoding_core::config::ProviderLimitsConfig::load(&config_path)?;
+    let request_timeout = crate::request_timeout_from_secs(limits.request_timeout_secs);
     let (provider, api_key_configured) =
-        crate::build_provider_state(&cfg, &project_env, None, prompt_cache)?;
+        crate::build_provider_state(&cfg, &project_env, None, prompt_cache, request_timeout)?;
     let project = format!("{}#loomcoding-agent", cwd.display());
     let bus = loomcoding_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
@@ -202,7 +205,8 @@ pub(super) async fn build_agent(
         loomcoding_core::catalog::Catalog::default(),
     ));
     let (catalog_tx, _catalog_rx) = mpsc::unbounded_channel();
-    tokio::spawn(crate::load_catalog(catalog_tx, catalog.clone()));
+    let declared = crate::declared_window(&limits, &cfg.provider.base_url, &cfg.model);
+    tokio::spawn(crate::load_catalog(catalog_tx, catalog.clone(), declared));
     let project_tool_env = crate::shell_env(&project_env);
     let tools = crate::build_project_tools(project_tool_env);
     let mcp_config_path = data_dir.join("mcp.toml");
@@ -269,7 +273,7 @@ pub(super) async fn build_agent(
         move |profile_provider: &loomcoding_core::config::ProviderConfig| {
             let mut config = profile_config.clone();
             config.provider = profile_provider.clone();
-            crate::build_provider(&config, &profile_env, prompt_cache)
+            crate::build_provider(&config, &profile_env, prompt_cache, request_timeout)
                 .map_err(|error| CoreError::Provider(error.to_string()))
         },
     );

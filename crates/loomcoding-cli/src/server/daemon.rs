@@ -99,7 +99,7 @@ pub async fn run_server() -> anyhow::Result<()> {
                 max_steps: 1,
                 effort: None,
             };
-            crate::build_provider(&config, &HashMap::new(), None)
+            crate::build_provider(&config, &HashMap::new(), None, None)
                 .ok()
                 .map(|provider| (provider, config.model))
         });

@@ -65,6 +65,10 @@ pub struct CatalogProvider {
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Catalog {
     pub providers: Vec<CatalogProvider>,
+    /// Ventana declarada por la persona usuaria para un par (URL base normalizada, modelo): tiene
+    /// prioridad sobre models.dev para ese par y no se serializa ni altera `providers`.
+    #[serde(skip)]
+    window_override: Option<(String, String, u64)>,
 }
 
 /// Errores del catálogo: parseo, caché en disco o descarga.
@@ -144,7 +148,27 @@ impl Catalog {
                 .then_with(|| a.name.cmp(&b.name))
                 .then_with(|| a.id.cmp(&b.id))
         });
-        Ok(Catalog { providers })
+        Ok(Catalog {
+            providers,
+            ..Catalog::default()
+        })
+    }
+
+    /// Catálogo con exactamente estos proveedores y sin ventana declarada.
+    pub fn from_providers(providers: Vec<CatalogProvider>) -> Catalog {
+        Catalog {
+            providers,
+            ..Catalog::default()
+        }
+    }
+
+    /// Devuelve el catálogo con una ventana de contexto declarada para el par (URL base, modelo).
+    ///
+    /// Cabe señalar que lo declarado gana a lo publicado solo para ese par exacto; la URL se compara
+    /// normalizada, como en `prices`, y el modelo tal cual.
+    pub fn with_window_override(mut self, base_url: &str, model: &str, window: u64) -> Catalog {
+        self.window_override = Some((normalize_base_url(base_url), model.to_owned(), window));
+        self
     }
 
     /// Busca un proveedor por su identificador.
@@ -194,6 +218,11 @@ impl Catalog {
     /// compara igual que en `prices`.
     pub fn context_window(&self, base_url: &str, model: &str) -> Option<u64> {
         let wanted = normalize_base_url(base_url);
+        if let Some((url, declared_model, window)) = &self.window_override {
+            if *url == wanted && declared_model == model {
+                return Some(*window);
+            }
+        }
         let provider = self
             .providers
             .iter()
@@ -874,5 +903,74 @@ mod tests {
             None,
             "sin catálogo"
         );
+    }
+
+    /// Catálogo de models.dev con el proveedor `http://x` y un modelo `m` de ventana publicada `ventana`.
+    fn catalog_with_published_window(ventana: u64) -> Catalog {
+        let json = format!(
+            r#"{{"x": {{"id": "x", "npm": "@ai-sdk/openai-compatible", "api": "http://x", "env": ["K"],
+                "models": {{"m": {{"id": "m", "tool_call": true,
+                    "limit": {{"context": {ventana}, "output": 4096}}}}}}}}}}"#
+        );
+        Catalog::from_json(&json).expect("el JSON de ventana es válido")
+    }
+
+    #[test]
+    fn a_declared_window_answers_with_an_empty_catalog() {
+        let catalog =
+            Catalog::default().with_window_override("http://127.0.0.1:8091/v1", "qwen", 35_584);
+        assert_eq!(
+            catalog.context_window("http://127.0.0.1:8091/v1", "qwen"),
+            Some(35_584)
+        );
+    }
+
+    #[test]
+    fn a_declared_window_beats_the_published_one() {
+        let catalog =
+            catalog_with_published_window(200_000).with_window_override("http://x", "m", 35_584);
+        assert_eq!(catalog.context_window("http://x", "m"), Some(35_584));
+    }
+
+    #[test]
+    fn a_declared_window_does_not_leak_to_another_model_or_provider() {
+        let catalog =
+            catalog_with_published_window(200_000).with_window_override("http://x", "m", 35_584);
+        assert_eq!(catalog.context_window("http://x", "otro"), None);
+        assert_eq!(catalog.context_window("http://y", "m"), None);
+        let sin_declarar = Catalog::default().with_window_override("http://x", "m", 1_000);
+        assert_eq!(sin_declarar.context_window("http://y", "m"), None);
+        assert_eq!(sin_declarar.context_window("http://x", "otro"), None);
+    }
+
+    #[test]
+    fn the_declared_url_is_compared_like_the_prices_do() {
+        let catalog =
+            Catalog::default().with_window_override(" HTTP://127.0.0.1:8091/v1/ ", "m", 35_584);
+        assert_eq!(
+            catalog.context_window("http://127.0.0.1:8091/v1", "m"),
+            Some(35_584)
+        );
+        assert_eq!(
+            catalog.context_window("HTTP://127.0.0.1:8091/V1/", "m"),
+            Some(35_584)
+        );
+    }
+
+    #[test]
+    fn the_declaration_is_not_serialised() {
+        let catalog =
+            catalog_with_published_window(200_000).with_window_override("http://x", "m", 35_584);
+        let json = serde_json::to_string(&catalog).unwrap();
+        assert!(!json.contains("35584"), "{json}");
+        let back: Catalog = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.context_window("http://x", "m"), Some(200_000));
+    }
+
+    #[test]
+    fn the_declaration_does_not_alter_the_published_data() {
+        let catalog = Catalog::default().with_window_override("http://x", "m", 35_584);
+        assert!(catalog.providers.is_empty());
+        assert_eq!(catalog.knows_model("http://x", "m"), None);
     }
 }
