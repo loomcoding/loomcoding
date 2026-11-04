@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 pub mod context;
 mod limits;
 pub use limits::{ProviderLimitsConfig, MAX_REQUEST_TIMEOUT_SECS};
+mod agent_limits;
+pub use agent_limits::LimitsConfig;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum ProviderKind {
