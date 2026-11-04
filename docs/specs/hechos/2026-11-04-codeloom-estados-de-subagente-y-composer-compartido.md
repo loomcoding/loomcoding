@@ -3,7 +3,7 @@
 - **Fecha:** 2026-11-04 (revisado 2026-11-05)
 - **Estado:** Propuesta
 - **Ámbito:** `codeloom-core`, `codeloom-tui`, `codeloom-cli`
-- **Relacionado:** se alinea con `docs/specs/2026-11-05-codeloom-organizacion-y-navegabilidad.md`.
+- **Relacionado:** se alinea con `docs/specs/hechos/2026-11-05-codeloom-organizacion-y-navegabilidad.md`.
   Partir `app.rs` (10.769 líneas hoy) es requisito previo razonable para tocar el
   composer con seguridad: hoy el bug vive en un archivo que nadie puede abarcar.
 
@@ -284,7 +284,8 @@ del sistema ni de hilos.
 
 - `SubagentPhaseChanged { id, from, to }` — transición de fase.
 - `SubagentProgress { id, steps, tool_calls, tokens_in, tokens_out }` — heartbeat
-  con contadores (coalescible).
+  con contadores (coalescible). **Descartado en la implementación** (ver Fase 4 del plan): los
+  contadores ya viajan en el descriptor y en las estadísticas del hijo.
 - `SubagentSettled { id, phase: SettledOk|SettledErr, summary }` — resumen final
   con cota de tamaño.
 

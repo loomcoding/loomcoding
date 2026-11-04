@@ -1,6 +1,6 @@
 # Plan: Temas → Efectos → Matrix rain
 
-- **Spec**: `docs/specs/2026-11-02-codeloom-temas-efectos-matrix-rain.md`
+- **Spec**: `docs/specs/hechos/2026-11-02-codeloom-temas-efectos-matrix-rain.md`
 - **Fecha**: 2026-11-02
 
 ## Restricciones globales
@@ -107,7 +107,11 @@ cambiar de preset de tema mantiene la armonía. El default es
 3. Avanzarla en el tick de 50 ms existente.
 4. Test: con `enabled = false` no se pinta nada y `animating()` es `false`.
 
-## Fase 5 — Documentación
+## Fase 5 — Documentación ✅ HECHA (2026-11-05)
+
+**Resultado:** `[effects.matrix]` y las claves de preferencias están documentadas en `crates/batten/README.md`.
+El punto 1 no procede: `2026-10-23-batten-showcase-theme-matrix-design.md` trata de la matriz de componentes
+por tema, no de la lluvia, y no duplica esta configuración.
 
 1. Actualizar `docs/specs/2026-10-23-batten-showcase-theme-matrix-design.md`
    para que apunte a la nueva spec y no duplique la config.

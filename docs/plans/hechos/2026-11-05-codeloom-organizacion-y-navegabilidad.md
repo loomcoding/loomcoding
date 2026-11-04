@@ -1,8 +1,8 @@
 # Plan: organización y navegabilidad del código
 
 - **Fecha:** 2026-11-05
-- **Spec:** `docs/specs/2026-11-05-codeloom-organizacion-y-navegabilidad.md`
-- **Relacionado:** `docs/plans/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`
+- **Spec:** `docs/specs/hechos/2026-11-05-codeloom-organizacion-y-navegabilidad.md`
+- **Relacionado:** `docs/plans/hechos/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`
 - **Principio de orden:** primero lo de riesgo cero y beneficio inmediato (documentar),
   después los guardarraíles, y al final el refactor de monolitos de menor a mayor riesgo.
 

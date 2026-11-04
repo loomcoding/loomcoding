@@ -21,7 +21,7 @@ tabla se ejecutaron el 2026-11-05 y dieron el resultado indicado.
 
 - El guardarraíl automático de tamaño de archivo, de dependencias y de cobertura del índice
   llega en la Fase 1 del plan de organización
-  (`docs/plans/2026-11-05-codeloom-organizacion-y-navegabilidad.md`); hasta entonces, las dos
+  (`docs/plans/hechos/2026-11-05-codeloom-organizacion-y-navegabilidad.md`); hasta entonces, las dos
   primeras filas se comprueban a mano con los comandos de arriba.
 - Si una comprobación deja de dar el resultado esperado, o es la regla la que ha cambiado, o es
   el código el que la viola: no las silencies, decide cuál de las dos cosas y corrígela a

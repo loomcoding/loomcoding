@@ -1,8 +1,8 @@
 # Plan — Watchdog puro de latidos de subagentes (Fase 3)
 
 - **Fecha:** 2026-11-05
-- **Spec:** `docs/specs/2026-11-05-codeloom-watchdog-de-subagentes.md`
-- **Plan madre:** `docs/plans/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`
+- **Spec:** `docs/specs/hechos/2026-11-05-codeloom-watchdog-de-subagentes.md`
+- **Plan madre:** `docs/plans/hechos/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`
 - **Ámbito:** solo Fase 3. NO Fase 4 (eventos / `is_child_relevant`), NO Fase 5
   (supervisor, `runtime_snapshot`, driver del tick), NO Fase 6 (composer).
 
@@ -170,7 +170,7 @@ Commit único en español, p. ej.:
 ## 6. Estado en el plan madre
 
 Al cerrar la fase, anotar en
-`docs/plans/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`:
+`docs/plans/hechos/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`:
 Fase 3 **hecha**, con fecha. (La pregunta abierta 1 ya está marcada como resuelta en el
 spec madre y el test `stall_y_recuperacion` ya está corregido a `Working`.)
 

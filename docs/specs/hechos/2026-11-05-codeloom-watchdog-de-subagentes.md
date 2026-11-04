@@ -2,7 +2,7 @@
 
 - **Fecha:** 2026-11-05
 - **Estado:** propuesta (pendiente de implementar)
-- **Plan madre:** `docs/plans/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md` (Fase 3)
+- **Plan madre:** `docs/plans/hechos/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md` (Fase 3)
 - **Ámbito:** solo Fase 3. Quedan fuera la Fase 4 (eventos / `is_child_relevant`), la Fase 5 (supervisor, `runtime_snapshot`, driver del tick) y la Fase 6 (composer).
 
 ## 1. Problema

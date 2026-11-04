@@ -1,8 +1,8 @@
 # Plan: estados de subagente y composer compartido
 
 - **Fecha:** 2026-11-04 (revisado 2026-11-05)
-- **Spec:** `docs/specs/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`
-- **Relacionado:** `docs/plans/2026-11-05-codeloom-organizacion-y-navegabilidad.md`
+- **Spec:** `docs/specs/hechos/2026-11-04-codeloom-estados-de-subagente-y-composer-compartido.md`
+- **Relacionado:** `docs/plans/hechos/2026-11-05-codeloom-organizacion-y-navegabilidad.md`
 - **Prioridad:** A2A primero. Los mapeos del protocolo van antes que cualquier mejora de UI.
 
 > **Nota de estructura.** `crates/codeloom-core/src/subagent.rs` es un **archivo de
@@ -109,7 +109,7 @@ propio), `last_activity_at_ms: u64`, `steps`, `tool_calls`, `tokens_in`,
 
 ## Fase 3 — Watchdog puro (HECHA 2026-11-05)
 
-Implementada en `subagent_watchdog.rs` y `AgentsConfig`; ver `docs/plans/2026-11-05-codeloom-watchdog-de-subagentes.md`.
+Implementada en `subagent_watchdog.rs` y `AgentsConfig`; ver `docs/plans/hechos/2026-11-05-codeloom-watchdog-de-subagentes.md`.
 
 **Qué cambia:** módulo puro que, dado `now_ms: u64`, devuelve `Stalled`/`Lost` o
 vuelta a la fase previa. Sin reloj real, sin hilos.
@@ -121,7 +121,7 @@ vuelta a la fase previa. Sin reloj real, sin hilos.
 **Test concreto:**
 - `stall_y_recuperacion` — superado `stall_threshold` → `Stalled`; latido → `Working`
   (no "fase previa": `can_transition_to` solo admite `Stalled → Working`; ver
-  `docs/specs/2026-11-05-codeloom-watchdog-de-subagentes.md` §8).
+  `docs/specs/hechos/2026-11-05-codeloom-watchdog-de-subagentes.md` §8).
 - `lost_terminal` — superado `lost_threshold` → `Lost`.
 - `no_falso_positivo` — dentro del umbral no transiciona.
 - `esperar_al_humano_no_es_atasco` — un hijo en `AwaitingParentInput` o
@@ -335,7 +335,7 @@ La Fase 6 necesita las fases de la Fase 4 para decidir el despacho, y es más se
 ## Fuera de alcance
 
 - **Reescritura de `App`** para separar layout/sesión/hijos: va en
-  `docs/plans/2026-11-05-codeloom-organizacion-y-navegabilidad.md`. Aquí solo se tocan
+  `docs/plans/hechos/2026-11-05-codeloom-organizacion-y-navegabilidad.md`. Aquí solo se tocan
   `load_session` y `composer_target` de forma localizada.
 - Política de reintento automático (queda en el padre/modelo).
 - Memoria persistente alimentada por `SubagentSettled.summary`.

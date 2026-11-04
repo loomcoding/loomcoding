@@ -104,7 +104,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | watchdog-de-subagentes (11-05) | hecho | Fase 3 del anterior, commit `70a21f9`; el supervisor y `lost_action` (defecto `notify`) ya están implementados |
 | organizacion-y-navegabilidad (11-05) | hecho | Fases 0 a 8: navegación, guardarraíles y todos los monolitos partidos; lista blanca vacía |
 | avisos-proveedor-spinner (11-03) | hecho | `/verbose` (`commands.rs`) y `provider_in_flight`; el plan lo declara hecho. Abierto en el spec: si `/verbose` debe persistir en `codeloom.toml` |
-| temas-efectos-matrix-rain (11-02) | en curso | Fases 1 a 4 en el código (`MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App`); falta la Fase 5: documentar `[effects.matrix]` en el README |
+| temas-efectos-matrix-rain (11-02) | hecho | `MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App` y `[effects.matrix]` documentado en `crates/batten/README.md` |
 | loomcoding-renombrado (11-02) | propuesta | |
 | help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
 | agents-picker-filters (11-01) | hecho | filtros conectados al teclado y al popup (`app/agents.rs`, `run/keys.rs`, `render/a2a.rs`); cotejado 2026-11-05 |
