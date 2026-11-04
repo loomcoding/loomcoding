@@ -90,7 +90,7 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
    (`event/mod.rs`). El daemon se suscribe (`bus.subscribe()` en `server/agent_build.rs` y `server/client.rs`) y reenvía
    al cliente.
 8. **Persistencia.** Cada mensaje se guarda con `SessionStore::append_message`
-   (`session/mod.rs`; SQLite en `session/sqlite.rs`).
+   (`session/mod.rs`; SQLite en `session/sqlite/`: `mod.rs` solo reenvía y cada tema vive en su módulo; los métodos inherentes llevan prefijo `sql_` porque, sin él, harían sombra al trait para quien use `SqliteStore` a pelo).
 9. **Pintado.** El cliente aplica el evento a `App` y `render/` lo dibuja con los
    widgets de `batten`.
 
@@ -114,7 +114,7 @@ Ojo con el nombre: `crates/codeloom-core/src/registry/` es el **registro de agen
 | Modelo de tarea A2A (`TaskState`) | `crates/codeloom-core/src/task.rs` |
 | Fase local del subagente (`SubagentPhase`) | `crates/codeloom-core/src/subagent/phase.rs` |
 | Vigilante de latidos (`Stalled`/`Lost`) | `crates/codeloom-core/src/subagent/watchdog.rs` |
-| Descriptor de subagente y su persistencia | `crates/codeloom-core/src/session/mod.rs`, `session/sqlite.rs` |
+| Descriptor de subagente y su persistencia | `crates/codeloom-core/src/session/mod.rs`, `session/sqlite/subagents.rs` |
 | Bucle del agente y criterios de parada | `crates/codeloom-core/src/agent/` (`turn.rs`, `entry.rs`, `stop.rs`) |
 | Compactación del contexto | `crates/codeloom-core/src/agent/compact.rs` |
 | Ciclo de vida de subagentes (contrato, admisión, ejecución local, remotos, control) | `crates/codeloom-core/src/subagent/` (`mod.rs`, `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`, `launcher.rs`) |

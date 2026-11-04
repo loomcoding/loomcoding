@@ -23,11 +23,6 @@ const CORTE_INDICE: &str = "2026-11-05";
 /// margen para tocar el archivo sin convertir cada commit en un fallo).
 const LISTA_BLANCA: &[(&str, usize, &str)] = &[
     (
-        "crates/codeloom-core/src/session/sqlite.rs",
-        2400,
-        "pendiente de evaluar en una oleada posterior",
-    ),
-    (
         "crates/codeloom-core/src/provider/anthropic.rs",
         2200,
         "excepción: generador de provider, cohesivo",

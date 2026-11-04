@@ -36,7 +36,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 2. Clasifícala en `is_child_relevant()` (mismo archivo): es lo que decide qué ve el padre.
 3. Publícala donde ocurre el hecho (`EventBus`).
 4. Consumo en la TUI: `crates/codeloom-tui/src/app/events.rs` (`App::apply`).
-5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/codeloom-core/src/session/sqlite.rs`.
+5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/codeloom-core/src/session/sqlite/` (el módulo del tema: `subagents.rs`, `sessions.rs`, `usage.rs` o `workflows.rs`; el esquema, en `schema.rs`).
 6. Si viaja por IPC al cliente, el reenvío está en `crates/codeloom-cli/src/server/` (`worker.rs`: `forward_agent_events`; los tipos del cable, en `protocol.rs`).
 
 ## Quiero añadir una fase de subagente
@@ -45,7 +45,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 2. Completa **todos** los `match` del mismo archivo: `to_task_state`, `from_remote_state`,
    `as_str`, y la tabla de `can_transition_to` (única fuente de verdad de transiciones).
 3. Decide si el vigilante debe ignorarla (esperas al humano): `subagent/watchdog.rs`.
-4. La fase se persiste por su `as_str` (`session/sqlite.rs`); una fase nueva no rompe filas viejas.
+4. La fase se persiste por su `as_str` (`session/sqlite/codec.rs` y `subagents.rs`); una fase nueva no rompe filas viejas.
 5. Si la UI agrupa estados, nombra entre paréntesis los A2A originales
    (`crates/codeloom-tui/src/rail.rs`).
 6. Tests: `todas_las_fases_proyectan` y compañía ya recorren `ALL`.
@@ -88,7 +88,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 ## Quiero añadir una columna persistida
 
 1. Campo en la estructura (p. ej. `SubagentDescriptor` en `crates/codeloom-core/src/session/mod.rs`).
-2. Migración en `crates/codeloom-core/src/session/sqlite.rs`: añade la columna a la lista
+2. Migración en `crates/codeloom-core/src/session/sqlite/schema.rs`: añade la columna a la lista
    `(columna, "ALTER TABLE ... ADD COLUMN ...")` del bucle de migración (idempotente).
 3. Lectura y escritura en el mismo archivo; un valor desconocido debe leerse sin romper.
 4. Test de ida y vuelta con `SqliteStore`.

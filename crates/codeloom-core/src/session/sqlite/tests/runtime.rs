@@ -1,6 +1,6 @@
 //! Persistencia de la fase de ejecución y del latido de los subagentes.
 
-use super::tests::descriptor;
+use super::support::*;
 use super::*;
 use crate::task::{TaskState, TaskStatus};
 
