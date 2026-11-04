@@ -63,8 +63,9 @@ la revisión.
   rondas sin herramientas) contra `max_steps`; y **pasos de lectura** (rondas cuyas llamadas son todas
   `Parallel`) contra un tope propio `max_read_steps`, por defecto un múltiplo generoso de `max_steps`
   (propuesta: 4×). Así leer no consume el presupuesto de trabajo, pero ningún bucle queda sin cota.
-- La detección de repetición (`RepeatedToolCalls`) se extiende a la misma lectura repetida idéntica,
-  porque ahora las lecturas no gastan el contador principal.
+- La detección de repetición (`RepeatedToolCalls`) **no** se extiende a las lecturas: `agent/stop.rs`
+  documenta como decisión deliberada que releer lo mismo es legítimo (una salida truncada obliga a volver
+  a mirar). La cota de las lecturas es `max_read_steps`.
 
 ### 3.2 Al llegar al tope (mío)
 
@@ -109,13 +110,16 @@ se recoge.
 
 ## 5. Preguntas abiertas (no tratar como resueltas)
 
-1. ¿Qué tecla es el modo Dios? Debe comprobarse contra los atajos existentes y contra lo que distingue la
-   consola de Windows (`Ctrl+Mayús` no es fiable).
+1. ¿Qué tecla es el modo Dios? Propuesta **(mía)**: `Ctrl+X`. Está libre fuera del panel de la cola, donde ya
+   significa «pausar la cola y cancelar el turno»; ahí se mantiene. `Ctrl+Mayús` no es fiable en la consola de
+   Windows. Se confirma al implementar.
 2. ¿El subagente pregunta a la persona o solo informa al padre cuando llega al tope? (Aquí: informa; la
    pregunta queda para el principal.)
 3. ¿Los valores por defecto (4× de lectura, 4 peticiones, 8 herramientas) son los correctos? Se fijan con la
    medición.
-4. ¿Los proveedores ya reintentan ante 429? Hay que verificarlo antes de añadir el retroceso.
+4. ~~¿Los proveedores ya reintentan ante 429?~~ Resuelta: `stream_with_retry` (`provider/mod.rs`) existe pero
+   solo lo usa una prueba; en producción no hay reintentos. El retroceso ante 429 es trabajo nuevo y va dentro
+   del envoltorio de §3.3.
 5. ¿Dónde viven los ajustes nuevos: `[agents]`, `[provider]` o una sección propia? Se decide en el proyecto 2
    (ajustes desde la TUI), que tocará los mismos campos.
 6. ¿Una petición extra de traspaso cabe en el presupuesto de contexto de un modelo con ventana corta? Debe
