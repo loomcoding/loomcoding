@@ -119,3 +119,61 @@ async fn the_check_must_be_a_short_string() {
         assert!(error.to_string().contains("check"), "{error}");
     }
 }
+
+#[tokio::test]
+async fn the_same_failure_twice_is_called_out_to_the_builder() {
+    let env = Entorno::nuevo().await;
+    let mut input = start_with_check("echo mismo-error && exit 1");
+    input["max_rounds"] = 3.into();
+    env.run(input).await.unwrap();
+    env.finish_without_reading("hecho").await;
+    let first = env.launcher.last().prompt;
+    assert!(first.contains("mismo-error"));
+    assert!(!first.contains("SAME failure"), "{first}");
+    env.finish_without_reading("hecho otra vez").await;
+    let second = env.launcher.last().prompt;
+    assert!(second.contains("SAME failure"), "{second}");
+    assert!(
+        second.contains("mismo-error"),
+        "la salida sigue viéndose: {second}"
+    );
+}
+
+#[tokio::test]
+async fn a_different_failure_is_not_called_the_same() {
+    let env = Entorno::nuevo().await;
+    let file = env.project.path().join("salida.txt");
+    std::fs::write(&file, "fallo-uno").unwrap();
+    // El comando imprime ese fichero: el test lo cambia entre rondas.
+    let command = if cfg!(windows) {
+        "type salida.txt && exit 1"
+    } else {
+        "cat salida.txt; exit 1"
+    };
+    let mut input = start_with_check(command);
+    input["max_rounds"] = 3.into();
+    env.run(input).await.unwrap();
+    env.finish_without_reading("a").await;
+    assert!(env.launcher.last().prompt.contains("fallo-uno"));
+    std::fs::write(&file, "fallo-dos").unwrap();
+    env.finish_without_reading("b").await;
+    let second = env.launcher.last().prompt;
+    assert!(second.contains("fallo-dos"), "{second}");
+    assert!(!second.contains("SAME failure"), "{second}");
+}
+
+#[tokio::test]
+async fn the_same_failure_is_still_recognised_in_the_third_round() {
+    let env = Entorno::nuevo().await;
+    let mut input = start_with_check("echo mismo-error-largo && exit 1");
+    input["max_rounds"] = 3.into();
+    env.run(input).await.unwrap();
+    env.finish_without_reading("1").await;
+    env.finish_without_reading("2").await;
+    env.finish_without_reading("3").await;
+    // La tercera ronda agota el tope: la brecha de la segunda ya llevaba la advertencia y se acotó.
+    assert_eq!(env.latest().await.phase, GauntletPhase::Stopped);
+    let g = env.latest().await;
+    let gap = g.last_gap.unwrap();
+    assert!(gap.contains("SAME failure"), "{gap}");
+}

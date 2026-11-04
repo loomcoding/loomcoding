@@ -70,7 +70,14 @@ pub(super) async fn action_advance(
             let mut gauntlet =
                 save(&ctx.bus, store.as_ref(), gauntlet, "builder", &finished).await?;
             if let Some((command, check)) = outcome.filter(|(_, check)| !check.passed) {
-                let gap = check_gap(&command, &check.tail);
+                // La misma salida que en la ronda anterior: se le dice al constructor que cambie de enfoque.
+                let probe: String = check.tail.trim().chars().take(80).collect();
+                let repeated = !probe.is_empty()
+                    && gauntlet
+                        .last_gap
+                        .as_deref()
+                        .is_some_and(|previous| previous.contains(&probe));
+                let gap = check_gap(&command, &check.tail, repeated);
                 let next = gauntlet
                     .apply_verdict(Verdict::Gap { biggest_gap: gap })
                     .map_err(problem)?;

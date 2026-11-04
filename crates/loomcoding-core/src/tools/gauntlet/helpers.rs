@@ -9,7 +9,7 @@ pub(super) const MAX_CHECK_BYTES: usize = 1_000;
 /// Plazo de la comprobación; agotado, cuenta como fallo.
 const CHECK_TIMEOUT_SECS: u64 = 600;
 /// Cola de la salida de la comprobación que se entrega al constructor como brecha.
-const CHECK_TAIL_BYTES: usize = 800;
+const CHECK_TAIL_BYTES: usize = 700;
 
 /// Tope de tamaño de un fichero de la pieza o de la barra: son texto que el crítico lee entero.
 const MAX_TEXT_FILE_BYTES: u64 = 1_000_000;
@@ -129,10 +129,16 @@ When you finish, this command must succeed (run it yourself): {command}"
         .unwrap_or_default()
 }
 
-/// Brecha que la comprobación fallida entrega al constructor.
-pub(super) fn check_gap(command: &str, tail: &str) -> String {
+/// Brecha que la comprobación fallida entrega al constructor. Si es el mismo fallo que la ronda
+/// anterior, la frase de aviso va primero: la brecha se acota por la cola y no puede perderla.
+pub(super) fn check_gap(command: &str, tail: &str, repeated: bool) -> String {
+    let warning = if repeated {
+        "This is the SAME failure as the previous round: your last change did not fix it. Try a different approach instead of repeating it. "
+    } else {
+        ""
+    };
     format!(
-        "The check command `{command}` fails. Fix this before anything else. Output (tail):
+        "{warning}The check command `{command}` fails. Fix this before anything else. Output (tail):
 {tail}"
     )
 }

@@ -75,6 +75,8 @@ objetivo, nunca los nombres de las posiciones A/B.
     al acabar cada ronda del constructor, con el mismo permiso que `bash`, plazo de 600 s y cola de salida
     acotada. Si falla, su salida es la brecha: vuelve al constructor (o `stopped` si no quedan rondas) sin
     gastar crítico. Si pasa, juzga el crítico como siempre. No sustituye a la decisión humana.
+    Si el fallo repite el de la ronda anterior, la brecha empieza avisando al constructor de que debe
+    cambiar de enfoque (en el piloto, un 9B recibió el mismo error cinco rondas seguidas).
 11. **Barra oculta opcional** (`hide_bar`, enmienda del piloto): el constructor no recibe la ruta de la barra;
     el crítico sí, sin rotular. Para código, donde una referencia legible se copia.
 

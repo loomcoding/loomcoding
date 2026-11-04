@@ -250,5 +250,30 @@ leyendo un fichero pequeño: cuatro terminaron con explicaciones cuyas citas de 
 ficheros (correctas, con desvíos de 1 o 2 líneas); uno agotó el plazo de 120 s (C3). El perfil de agente con
 `model` y `provider` propios (`.agents/agents/*.md`) cargó y resolvió bien el servidor distinto del principal.
 
+**RX 580, Qwen3.5-9B Q4_K_M (5,3 GiB), KV f16 en VRAM**, mismas condiciones y misma prueba de la clave. Con
+este modelo la tarjeta queda casi llena (unos 7,4 GiB libres) y el rendimiento es sensiblemente peor que con el 4B:
+
+| Contexto | Prompt (tok) | Prefill (tok/s) | Generación (tok/s) | Tiempo | Clave |
+|---|---:|---:|---:|---:|---|
+| 8k | 6 998 | 110 | 8,6 | 66 s | acierta |
+| 16k | 13 949 | 83 | 10,3 | 172 s | acierta |
+| 32k | 27 872 | 102 | 10,8 | 277 s | acierta |
+| 2 huecos de 16k, una petición | 13 949 | 80 | 10,3 | 178 s | acierta |
+| 2 huecos de 16k, **dos simultáneas** | 18 070 en total | 79 agregados | 5,2 por petición | 228 s | 2 de 2 |
+| 48k | 12 311 | 92 | 11,8 | 135 s | acierta |
+| 48k | 27 053 | 81 | 10,4 | 337 s | acierta |
+
+La paralelización no multiplica el rendimiento: con dos peticiones simultáneas el prefill agregado (79 tok/s)
+es el de una sola, y la generación por petición se reduce a la mitad.
+
+**Incidente:** durante la tercera petición de la configuración de 48k (unos 42 000 tokens de prompt, de unos
+nueve minutos), tras más de media hora de carga continua, el equipo se quedó con la pantalla en negro y hubo
+que reiniciarlo a la fuerza (`Kernel-Power 41`, sin evento de restablecimiento del controlador gráfico). Es la
+segunda vez que la RX 580, que además sirve el monitor, deja el equipo inutilizable con este modelo; la primera
+fue repartiendo el modelo entre las dos tarjetas. No se determinó la causa (VRAM al límite, carga sostenida o
+controlador). Consecuencia para esta spec: **un servidor local en la tarjeta que mueve el monitor no es un
+entorno de pruebas fiable con modelos que la llenan**, y los valores de §6 para la RX 580 deben leerse como
+orientativos.
+
 **Limitación de las pruebas:** la clave siempre va al 20 % del texto y rodeada de una frase repetida, sin
 distractores. Un acierto aquí no permite afirmar que el modelo razone bien sobre código real a esa longitud (P7).
