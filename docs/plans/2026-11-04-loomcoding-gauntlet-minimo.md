@@ -1,6 +1,6 @@
 # Plan — Gauntlet mínimo
 
-> Estado: **hecho** (2026-11-04), salvo la revisión visual del paso 8. `max_rounds` por defecto 2; barra solo
+> Estado: **hecho** (2026-11-04). `max_rounds` por defecto 2; barra solo
 > con rutas de texto; comprobación de sesgo solo tras `no_gap`.
 
 Spec: `docs/specs/2026-11-04-loomcoding-gauntlet-minimo.md`.
@@ -36,8 +36,10 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    aceptan. Si cambia el artefacto tras presentarlo, se invalida.
 8. [x] (2026-11-04) **Observabilidad**: `LiveEvent::GauntletChanged` con actor y detalle (único camino `save`), línea
    en el transcript con fase propia, agente con su estado A2A entre paréntesis y ronda, y reenvío al abrir la
-   sesión (`SessionUpdate::Gauntlet`). Pendiente: revisión visual en terminal real (con `LOOMCODING_HOME`
-   aislado) y compilar el binario del cli cuando se cierren los `loom.exe`.
+   sesión (`SessionUpdate::Gauntlet`). Revisión visual hecha con el renderizador real
+   (`render/tests/cabecera_y_pie.rs`): las líneas se parten en el transcript estrecho, sin más. Binario del cli
+   compilado y probado (`cargo test -p loomcoding-cli`, en verde). Un E2E por PTY quedó descartado: exigiría un
+   guion de padre que despierte y llame a `advance`.
 9. [x] (2026-11-04) **E2E con proveedor simulado** (`subagent/tests/gauntlet_e2e.rs`, 3 pruebas): herramienta y
    lanzador reales, proveedor simulado que hace de constructor y de crítico leyendo los ficheros. Cubre el
    gauntlet completo (brecha → reconstrucción → sin brecha → sesgo coherente → aceptación humana), que el

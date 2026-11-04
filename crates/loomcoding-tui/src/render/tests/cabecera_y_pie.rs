@@ -41,6 +41,66 @@ fn development_workflow_status_is_visible_in_the_chat_viewport() {
     );
 }
 
+#[test]
+fn a_gauntlet_run_reads_as_a_story_in_the_chat_viewport() {
+    use loomcoding_core::gauntlet::{GauntletId, GauntletPhase as P, GauntletSummary};
+    let mut app = App::new();
+    app.session_id = Some(loomcoding_core::session::SessionId(7));
+    let paso = |app: &mut App, phase: P, round: u8, actor: &str, detail: &str| {
+        app.apply(loomcoding_core::event::LiveEvent::GauntletChanged {
+            summary: GauntletSummary {
+                id: GauntletId(3),
+                parent: loomcoding_core::session::SessionId(7),
+                phase,
+                round,
+                max_rounds: 2,
+                builder: "constructor".into(),
+                critic: "critico".into(),
+                active_child: None,
+                updated_at_ms: 0,
+            },
+            actor: actor.into(),
+            detail: detail.into(),
+        });
+    };
+    paso(&mut app, P::Building, 1, "parent", "gauntlet started");
+    paso(&mut app, P::Judging, 1, "critic", "critic launched");
+    paso(
+        &mut app,
+        P::Rebuilding,
+        1,
+        "critic",
+        "gap: los márgenes están descuadrados",
+    );
+    paso(
+        &mut app,
+        P::AwaitingFinalAcceptance,
+        2,
+        "critic",
+        "no gap, confirmed with the order swapped",
+    );
+    paso(&mut app, P::Completed, 2, "user", "final acceptance");
+    let screen = buffer_of(&mut app, 120, 30);
+    // El transcript es estrecho y parte las líneas: se comprueban los trozos, no la línea entera.
+    for esperado in [
+        "gauntlet #3 · construyendo",
+        "parent: gauntlet started",
+        "gauntlet #3 · juzgando",
+        "gauntlet #3 · rehaciendo",
+        "gap: los márgenes están descuadrados",
+        "gauntlet #3 · aceptar resultado",
+        "confirmed with the order swapped",
+        "gauntlet #3 · completado",
+        "user: final acceptance",
+    ] {
+        assert!(
+            screen.contains(esperado),
+            "{esperado}
+{screen}"
+        );
+    }
+}
+
 /// App con el tema indicado, un modelo de ventana conocida y una última petición de 142 000
 /// tokens. `model` elige entre `windowed` (200 000) y `bare` (sin ventana).
 fn footer_app(preset: loomcoding_cloth::widgets::ThemePreset, model: &str) -> App {
