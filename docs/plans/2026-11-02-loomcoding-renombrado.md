@@ -4,7 +4,22 @@ Spec: `docs/specs/2026-11-02-loomcoding-renombrado.md`
 
 ## Estado
 
-Pendiente. Ninguna fase ejecutada.
+Pendiente. Ninguna fase ejecutada. **Revisado el 2026-11-05:** se actualiza el inventario, se incorpora
+el renombrado de `batten` → `loomcoding-cloth` y se unen las fases 1 y 2 (ver «Revisión del 2026-11-05»).
+
+## Revisión del 2026-11-05
+
+- **Inventario real:** 506 ficheros y 4.371 apariciones de `codeloom`; 268 ficheros y 2.257 de `batten`.
+- **Las rutas con número de línea** de las fases 3 y 4 (`server.rs:1921`, `app.rs:6860`, `sqlite.rs:2094`…)
+  son del 2026-11-02 y **están obsoletas**: esos ficheros se partieron en directorios. Manda el grep, no la lista.
+- **Fases 1 y 2 van en un solo commit**: renombrar los paquetes sin tocar los `use` no compila, y la regla es
+  que cada commit pase los cuatro checks.
+- **Variables de entorno:** son 18, no 15 (faltan `CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE`,
+  `CODELOOM_MAX_TOOL_CALLS_PER_TURN` y `CODELOOM_TEST_VAR`).
+- **Sitios que el plan no cubría:** `.agents/agents/*.md` y `.agents/mcp/`, `scripts/visual/*`,
+  `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `.github/workflows/` y `Cargo.lock` (se regenera).
+- **Antes de empezar:** reverificar dominios, GitHub y crates.io (los datos de la spec son del 2026-11-02) y
+  cerrar los `loom` abiertos: el daemon viejo no encontrará el perfil nuevo.
 
 ## Restricciones globales
 
@@ -34,7 +49,7 @@ Medido el 2026-11-02 con `grep` sobre el repo (excluyendo `target/`):
 | Ocurrencias totales | 3.937 |
 | Crates del workspace | 8 (7 `codeloom-*` + `batten`) |
 | Crates a renombrar | `codeloom-core`, `-cli`, `-tui`, `-a2a`, `-herdr`, `-mcp`, `-e2e` |
-| + crate interna | `batten` (no se renombra) |
+| + crate de widgets | `batten` → `loomcoding-cloth` (decidido el 2026-11-05) |
 | Variables de entorno | 15 |
 | Fichero de proyecto | `codeloom.toml` (110 apariciones) |
 | Directorio de perfil | `~/.codeloom/` (18 apariciones) |
@@ -55,7 +70,7 @@ grep -rhoE 'CODELOOM_[A-Z0-9_]+' --include='*.rs' --include='*.toml' --include='
 
 1. `Cargo.toml` (raíz)
    - `members`: `crates/codeloom-*` → `crates/loomcoding-*`.
-   - `[workspace.dependencies]`: claves y `path` de los seis paquetes.
+   - `[workspace.dependencies]`: claves y `path` de los ocho paquetes (siete `codeloom-*` y `batten`).
 2. Renombrar los directorios con `git mv` para conservar el historial:
    ```bash
    git mv crates/codeloom-core  crates/loomcoding-core
@@ -66,16 +81,19 @@ grep -rhoE 'CODELOOM_[A-Z0-9_]+' --include='*.rs' --include='*.toml' --include='
    git mv crates/codeloom-mcp   crates/loomcoding-mcp
    git mv crates/codeloom-e2e   crates/loomcoding-e2e
    ```
-   `crates/batten` **no se mueve**.
+   ```bash
+   git mv crates/batten crates/loomcoding-cloth
+   ```
+   (`batten` pasa a `loomcoding-cloth`; la dependencia de `loomcoding-tui` y su `path` se actualizan igual.)
 3. En cada `crates/loomcoding-*/Cargo.toml`:
    - `[package] name`
    - dependencias internas (`path`, claves)
    - `[[bin]] name`: `loom` se mantiene; `codeloom` → `loomcoding`.
 
 **Verificación:** `cargo metadata --no-deps` lista los siete paquetes
-renombrados más `batten`, sin errores de resolución de workspace.
+renombrados (incluido `loomcoding-cloth`), sin errores de resolución de workspace, y `Cargo.lock` se regenera.
 
-### Fase 2 — identificadores Rust
+### Fase 2 — identificadores Rust (mismo commit que la Fase 1)
 
 1. En todo `crates/**/*.rs`:
    - `codeloom_core` → `loomcoding_core`
@@ -85,7 +103,10 @@ renombrados más `batten`, sin errores de resolución de workspace.
    - `codeloom_herdr` → `loomcoding_herdr`
    - `codeloom_mcp` → `loomcoding_mcp`
    - `codeloom_e2e` → `loomcoding_e2e`
+   - `batten` → `loomcoding_cloth` (`use batten::…`, rutas `batten::widgets::…`).
    - Tipos: `CodeLoomConfig` → `LoomcodingConfig`, y cualquier `CodeLoom*`.
+
+   **Esta fase va en el mismo commit que la Fase 1.**
 2. `crates/loomcoding-cli/src/home.rs`
    - `HOME_ENV` pasa a `"LOOMCODING_HOME"`.
    - Comentario de módulo actualizado.
@@ -193,6 +214,7 @@ históricos y este par.
    grep -riE 'codeloom' --include='*.rs' --include='*.toml' --include='*.md' \
      --include='*.json' --include='*.yml' --include='*.sh' . \
      | grep -v 'docs/plans/hechos/' \
+     | grep -v 'docs/specs/hechos/' \
      | grep -v 'loomcoding-renombrado'
    ```
 
@@ -211,13 +233,12 @@ históricos y este par.
 Cada fase es un commit que compila y pasa los cuatro checks. No se hace un
 único commit gigante: si algo falla, hay que poder bisecar.
 
-1. workspace y directorios
-2. identificadores Rust
-3. env vars y perfil
-4. fichero de proyecto
-5. plugin herdr
-6. README experimental
-7. docs y AGENTS.md
+1. workspace, directorios e identificadores Rust (Fases 1 y 2 juntas)
+2. env vars y perfil
+3. fichero de proyecto
+4. plugin herdr
+5. README experimental
+6. docs, AGENTS.md, `.agents/`, scripts y ficheros de comunidad
 
 ## Riesgos operativos
 

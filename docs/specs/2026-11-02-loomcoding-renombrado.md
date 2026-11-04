@@ -33,6 +33,7 @@ que más importa para este proyecto.
 ```
 Marca / producto   Loomcoding          (loomcoding.com, github.com/loomcoding)
 Crates             loomcoding-core, -cli, -tui, -a2a, -herdr, -mcp, -e2e
+Widgets TUI        loomcoding-cloth    (antes `batten`; decidido el 2026-11-05)
 Binarios           loom  y  loomcoding
 Plugin herdr       loomcoding.herdr
 Env vars           LOOMCODING_*
@@ -70,7 +71,7 @@ El usuario escribe `loom` en la terminal, pero declara `loomcoding-core` en el
 ### Dentro
 
 1. Renombrar los siete paquetes `codeloom-*` del workspace y sus dependencias
-   internas. `batten` no se toca.
+   internas, y `batten` → `loomcoding-cloth` (ver más abajo).
 2. Renombrar los binarios: `loom` se mantiene, `codeloom` pasa a `loomcoding`.
 3. Renombrar el fichero de proyecto `codeloom.toml` → `loomcoding.toml`.
 4. Renombrar las variables de entorno `CODELOOM_*` → `LOOMCODING_*`.
@@ -104,7 +105,6 @@ Las que acaban en `_` son prefijos construidos en tiempo de ejecución (p. ej.
   bus de eventos. Este cambio es **solo de nomenclatura**.
 - Publicar en crates.io. El plan deja los nombres reservados pero la
   publicación es una decisión aparte.
-- Renombrar la crate interna `batten`. Se queda como está (ver más abajo).
 - Compatibilidad con `codeloom.toml` o `CODELOOM_*` a largo plazo.
 
 ## Aviso de experimental en el README
@@ -127,15 +127,25 @@ Formato propuesto (GitHub renderiza las alertas nativas):
 
 Y en el cuerpo del README, donde hoy dice «CodeLoom», pasa a «Loomcoding».
 
-## La crate `batten` se queda
+## La crate `batten` pasa a `loomcoding-cloth`
+
+**Decisión (2026-11-05, la persona usuaria):** `batten` se renombra a **`loomcoding-cloth`**,
+identificador Rust `loomcoding_cloth`. Es una pieza real del telar (la maza que aprieta la trama), pero
+en inglés tiene lecturas incómodas y el nombre ya está publicado por un tercero. *Cloth* (tela) sigue la
+analogía del proyecto: los hilos son las líneas de código, el telar es Loomcoding y la **tela** es lo que
+sale de él y lo que se ve en pantalla, que es justo lo que pinta esta crate. Libre en crates.io
+(verificado el 2026-11-05). Se descartaron `loom-cloth` (rompe el prefijo `loomcoding-*` y repite el choque
+con tokio-rs/loom), `swatch`, `motif`, `pattern` (choca con *design pattern*) y `fell`.
+
+Se hace en la misma pasada que el resto, para no repetir una sustitución masiva (2.257 apariciones en 268
+ficheros). Lo que sigue es el razonamiento original, que queda como registro:
 
 `batten` es el nombre de la crate de widgets TUI. Se verificó que
 **ya está publicada en crates.io por un tercero** (`batten` 0.1.0-beta.4,
 autor colinwolff, 45 descargas, 2026-10-22).
 
-Como es una crate **interna** (no se publica, no es API pública), el nombre no
-se toca en este cambio. Queda anotado como pregunta abierta porque, si algún
-día se publica, colisionará.
+Como es una crate **interna** (no se publica, no es API pública), la colisión no
+era urgente, pero era una mina para el día de publicar.
 
 Nota de marca: `batten` en inglés tiene dos lecturas incómodas para uso
 público — `batten on` significa «medrar a costa de alguien», y *Batten
@@ -168,8 +178,7 @@ renombrarlo a mano. Se documenta en la sección de migración del README.
    público.
 2. **Nombre visible de la org.** Hoy es `Loomcoding`. ¿Se prefiere
    `LoomCoding` o `Loom Coding`?
-3. **`batten`**: ¿se renombra a `loomcoding-tui-widgets` o similar antes de
-   cualquier publicación?
+3. ~~**`batten`**~~: **resuelta el 2026-11-05**, pasa a `loomcoding-cloth`.
 4. **Email de commits.** El autor mantiene `valdepeace@gmail.com` por decisión
    explícita. ¿Se añade también un `.mailmap` para el futuro remitente del
    dominio?
