@@ -163,6 +163,7 @@ async fn entorno_recursivo_con_tope(
         crate::tools::subagent_control::SubagentControlTool,
     ));
     tools.register(Arc::new(crate::tools::subagent_list::SubagentListTool));
+    tools.register(Arc::new(crate::tools::gauntlet::GauntletTool));
     tools.register(Arc::new(
         crate::tools::development_workflow::DevelopmentWorkflowTool,
     ));
@@ -246,6 +247,7 @@ async fn with_the_default_ceiling_a_child_never_sees_the_subagent_tools() {
         "subagent_control",
         "subagent_list",
         "development_workflow",
+        "gauntlet",
     ] {
         assert!(!vistas.iter().any(|n| n == fuera), "{fuera} en {vistas:?}");
     }
@@ -303,6 +305,7 @@ async fn ceiling_two_and_a_two_level_profile_let_the_child_launch_a_leaf_grandch
         !del_hijo.iter().any(|n| n == "development_workflow"),
         "{del_hijo:?}"
     );
+    assert!(!del_hijo.iter().any(|n| n == "gauntlet"), "{del_hijo:?}");
     let del_nieto = herramientas_de(&e, "nieto");
     assert!(!del_nieto.iter().any(|n| n == "subagent"), "{del_nieto:?}");
     // El nieto queda guardado como tarea de su padre, con su resultado.

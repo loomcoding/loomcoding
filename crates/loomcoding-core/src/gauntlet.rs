@@ -130,7 +130,7 @@ pub const MAX_REPORT_BYTES: usize = 20_000;
 
 #[derive(Deserialize)]
 struct RawVerdict {
-    verdict: Option<String>,
+    preferred: Option<String>,
     biggest_gap: Option<String>,
 }
 
@@ -156,28 +156,42 @@ fn tail_on_boundary(text: &str, max: usize) -> &str {
     &text[start..]
 }
 
-/// Interpreta el informe del crítico: el último objeto JSON con campo `verdict`.
+/// Interpreta el informe del crítico ciego: el último objeto JSON con campo `preferred`.
 ///
-/// Todo lo que no sea inequívoco es [`Verdict::Malformed`], nunca aprobación: veredicto
-/// desconocido, brecha sin texto, `no_gap` acompañado de una brecha o JSON truncado.
-pub fn parse_verdict(report: &str) -> Verdict {
+/// El crítico no sabe cuál de los dos candidatos es la barra: dice cuál prefiere (`A`, `B` o
+/// `tie`). Quien conoce el `order` traduce: si prefiere la barra, hay brecha y debe describirla en
+/// `biggest_gap`; si prefiere el artefacto o no distingue, no hay brecha.
+///
+/// Todo lo que no sea inequívoco es [`Verdict::Malformed`], nunca aprobación: preferencia
+/// desconocida, brecha sin texto cuando prefiere la barra o JSON truncado.
+pub fn parse_verdict(report: &str, order: AbOrder) -> Verdict {
     let window = tail_on_boundary(report, MAX_REPORT_BYTES);
+    let (artifact_label, bar_label) = match order {
+        AbOrder::ArtifactFirst => ("A", "B"),
+        AbOrder::BarFirst => ("B", "A"),
+    };
     for (start, _) in window.match_indices('{').rev() {
         let mut stream =
             serde_json::Deserializer::from_str(&window[start..]).into_iter::<RawVerdict>();
         let Some(Ok(raw)) = stream.next() else {
             continue;
         };
-        let Some(kind) = raw.verdict else {
+        let Some(preferred) = raw.preferred else {
             continue;
         };
         let gap = raw.biggest_gap.filter(|text| !text.trim().is_empty());
-        return match (kind.as_str(), gap) {
-            ("gap", Some(text)) => Verdict::Gap {
-                biggest_gap: cut_on_boundary(text.trim(), MAX_GAP_BYTES).to_owned(),
-            },
-            ("no_gap", None) => Verdict::NoGap,
-            _ => Verdict::Malformed,
+        let preferred = preferred.trim();
+        return if preferred == bar_label {
+            match gap {
+                Some(text) => Verdict::Gap {
+                    biggest_gap: cut_on_boundary(text.trim(), MAX_GAP_BYTES).to_owned(),
+                },
+                None => Verdict::Malformed,
+            }
+        } else if preferred == artifact_label || preferred == "tie" {
+            Verdict::NoGap
+        } else {
+            Verdict::Malformed
         };
     }
     Verdict::Malformed
@@ -205,6 +219,19 @@ pub struct RoundRecord {
     /// `true` si es la repetición con el orden invertido tras un primer `no_gap`.
     pub bias_check: bool,
     pub verdict: Option<Verdict>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GauntletSummary {
+    pub id: GauntletId,
+    pub parent: SessionId,
+    pub phase: GauntletPhase,
+    pub round: u8,
+    pub max_rounds: u8,
+    pub builder: String,
+    pub critic: String,
+    pub active_child: Option<SessionId>,
+    pub updated_at_ms: i64,
 }
 
 /// Entrada de la bitácora, solo de añadir: una por cada cambio de fase.
@@ -270,6 +297,9 @@ pub struct Gauntlet {
     pub rounds: Vec<RoundRecord>,
     /// Última brecha, la única información que recibe el constructor al rehacer.
     pub last_gap: Option<String>,
+    /// Huella del artefacto cuando se presentó a la persona; la aceptación se liga a ella.
+    #[serde(default)]
+    pub presented_sha256: Option<String>,
     pub created_at_ms: i64,
     pub updated_at_ms: i64,
 }
@@ -315,6 +345,7 @@ impl Gauntlet {
             critic_children: Vec::new(),
             rounds: Vec::new(),
             last_gap: None,
+            presented_sha256: None,
             created_at_ms: data.now_ms,
             updated_at_ms: data.now_ms,
         })
@@ -413,6 +444,21 @@ impl Gauntlet {
 
     pub fn fail(&mut self) -> Result<(), GauntletProblem> {
         self.go(GauntletPhase::Failed)
+    }
+
+    /// Vista corta para la TUI y para `status`: sin objetivo ni rutas.
+    pub fn summary(&self) -> GauntletSummary {
+        GauntletSummary {
+            id: self.id,
+            parent: self.parent,
+            phase: self.phase,
+            round: self.round,
+            max_rounds: self.max_rounds,
+            builder: self.builder.clone(),
+            critic: self.critic.clone(),
+            active_child: self.active_child,
+            updated_at_ms: self.updated_at_ms,
+        }
     }
 
     /// Registra el hijo recién lanzado según la fase que lo ha motivado.
@@ -683,29 +729,47 @@ mod tests {
         }
     }
 
+    // Con `ArtifactFirst` la barra es «B»; con `BarFirst`, «A».
+    const ART: AbOrder = AbOrder::ArtifactFirst;
+
     #[test]
-    fn a_fenced_json_gap_is_parsed() {
-        let informe = "Revisé ambos.\n\n```json\n{\"verdict\":\"gap\",\"biggest_gap\":\"los márgenes\"}\n```\n";
-        assert_eq!(parse_verdict(informe), brecha());
+    fn preferring_the_bar_is_a_gap_and_needs_its_description() {
+        let informe = "Revisé ambos.\n\n```json\n{\"preferred\":\"B\",\"biggest_gap\":\"los márgenes\"}\n```\n";
+        assert_eq!(parse_verdict(informe, ART), brecha());
+        let invertido = "{\"preferred\":\"A\",\"biggest_gap\":\"los márgenes\"}";
+        assert_eq!(parse_verdict(invertido, AbOrder::BarFirst), brecha());
     }
 
     #[test]
-    fn a_bare_json_line_and_no_gap_are_parsed() {
-        let informe = "Todo a la altura.\n{\"verdict\":\"no_gap\"}";
-        assert_eq!(parse_verdict(informe), Verdict::NoGap);
+    fn preferring_the_artifact_or_a_tie_is_no_gap() {
+        assert_eq!(parse_verdict("{\"preferred\":\"A\"}", ART), Verdict::NoGap);
+        assert_eq!(
+            parse_verdict("{\"preferred\":\"B\"}", AbOrder::BarFirst),
+            Verdict::NoGap
+        );
+        assert_eq!(
+            parse_verdict("Iguales.\n{\"preferred\":\"tie\"}", ART),
+            Verdict::NoGap
+        );
     }
 
     #[test]
-    fn the_last_verdict_wins_when_the_critic_quotes_an_earlier_one() {
-        let informe =
-            "Antes dije {\"verdict\":\"gap\",\"biggest_gap\":\"x\"} pero ahora:\n{\"verdict\":\"no_gap\"}";
-        assert_eq!(parse_verdict(informe), Verdict::NoGap);
+    fn the_same_answer_means_the_opposite_when_the_order_is_swapped() {
+        let respuesta = "{\"preferred\":\"B\",\"biggest_gap\":\"x\"}";
+        assert!(matches!(parse_verdict(respuesta, ART), Verdict::Gap { .. }));
+        assert_eq!(parse_verdict(respuesta, AbOrder::BarFirst), Verdict::NoGap);
     }
 
     #[test]
-    fn nested_objects_after_the_verdict_do_not_hide_it() {
-        let informe = "{\"verdict\":\"gap\",\"biggest_gap\":\"los márgenes\",\"evidence\":{\"file\":\"a.md\"}}";
-        assert_eq!(parse_verdict(informe), brecha());
+    fn the_last_answer_wins_when_the_critic_quotes_an_earlier_one() {
+        let informe = "Antes dije {\"preferred\":\"B\",\"biggest_gap\":\"x\"} pero ahora:\n{\"preferred\":\"A\"}";
+        assert_eq!(parse_verdict(informe, ART), Verdict::NoGap);
+    }
+
+    #[test]
+    fn nested_objects_after_the_answer_do_not_hide_it() {
+        let informe = "{\"preferred\":\"B\",\"biggest_gap\":\"los márgenes\",\"evidence\":{\"file\":\"a.md\"}}";
+        assert_eq!(parse_verdict(informe, ART), brecha());
     }
 
     #[test]
@@ -713,23 +777,27 @@ mod tests {
         for informe in [
             "",
             "sin json, solo prosa que dice que todo está bien",
-            "{\"verdict\":\"perfect\"}",
-            "{\"biggest_gap\":\"falta el veredicto\"}",
-            "{\"verdict\":3}",
-            "{\"verdict\":\"gap\"}",
-            "{\"verdict\":\"gap\",\"biggest_gap\":\"   \"}",
-            "{\"verdict\":\"no_gap\",\"biggest_gap\":\"pero hay una brecha\"}",
-            "{\"verdict\":\"no_gap\"",
+            "{\"preferred\":\"C\"}",
+            "{\"preferred\":\"a\"}",
+            "{\"biggest_gap\":\"falta la preferencia\"}",
+            "{\"preferred\":3}",
+            "{\"preferred\":\"B\"}",
+            "{\"preferred\":\"B\",\"biggest_gap\":\"   \"}",
+            "{\"preferred\":\"A\"",
         ] {
-            assert_eq!(parse_verdict(informe), Verdict::Malformed, "{informe:?}");
+            assert_eq!(
+                parse_verdict(informe, ART),
+                Verdict::Malformed,
+                "{informe:?}"
+            );
         }
     }
 
     #[test]
     fn a_long_gap_is_cut_at_the_cap_on_a_character_boundary() {
         let larga = "ñ".repeat(MAX_GAP_BYTES);
-        let informe = format!("{{\"verdict\":\"gap\",\"biggest_gap\":\"{larga}\"}}");
-        let Verdict::Gap { biggest_gap } = parse_verdict(&informe) else {
+        let informe = format!("{{\"preferred\":\"B\",\"biggest_gap\":\"{larga}\"}}");
+        let Verdict::Gap { biggest_gap } = parse_verdict(&informe, ART) else {
             panic!("debía ser una brecha");
         };
         assert!(biggest_gap.len() <= MAX_GAP_BYTES);
@@ -739,10 +807,10 @@ mod tests {
     #[test]
     fn only_the_tail_of_a_huge_report_is_scanned() {
         let relleno = "palabra ".repeat(MAX_REPORT_BYTES);
-        let al_final = format!("{relleno}\n{{\"verdict\":\"no_gap\"}}");
-        assert_eq!(parse_verdict(&al_final), Verdict::NoGap);
-        let al_principio = format!("{{\"verdict\":\"no_gap\"}}\n{relleno}");
-        assert_eq!(parse_verdict(&al_principio), Verdict::Malformed);
+        let al_final = format!("{relleno}\n{{\"preferred\":\"A\"}}");
+        assert_eq!(parse_verdict(&al_final, ART), Verdict::NoGap);
+        let al_principio = format!("{{\"preferred\":\"A\"}}\n{relleno}");
+        assert_eq!(parse_verdict(&al_principio, ART), Verdict::Malformed);
     }
 
     #[test]

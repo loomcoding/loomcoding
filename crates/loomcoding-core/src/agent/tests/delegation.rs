@@ -10,6 +10,7 @@ async fn turno_con_delegacion(
         "subagent_list",
         "artifact_read",
         "development_workflow",
+        "gauntlet",
         "noop",
     ] {
         herramientas.register(Arc::new(NamedTool(nombre)));
@@ -38,6 +39,7 @@ async fn delegation_off_withdraws_the_subagent_tools_from_the_model() {
         "subagent_list",
         "artifact_read",
         "development_workflow",
+        "gauntlet",
     ] {
         assert!(!sin_delegar.iter().any(|n| n == retirada), "{retirada}");
     }

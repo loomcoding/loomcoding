@@ -21,7 +21,10 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    calcada de `workflows.rs` (carga útil JSON, versión optimista, bitácora, un activo por sesión): el riesgo del
    plan se cumple, así que extraer lo común es un plan aparte, no se hace aquí. **Persistencia**: tabla y métodos `create/update/get/active/latest/events` en `SessionStore` y SQLite,
    con migración, siguiendo `update_development_workflow`. Prueba de reapertura del almacén.
-4. [ ] **Herramienta `gauntlet`** (`tools/gauntlet/`, `ExecutionMode::Exclusive`): acciones `start`, `advance`,
+4. [x] (2026-11-04) **Herramienta `gauntlet`** (`tools/gauntlet/`, 27 pruebas; registrada, retirada a los hijos y a
+   `delegation = off`, con la puerta de escritura del padre y fin de turno tras `start`). Corrección de diseño:
+   con el A/B ciego el crítico no sabe cuál es la barra, así que devuelve `preferred` (`A`|`B`|`tie`) y el
+   coordinador, que conoce el orden, lo traduce a brecha o no brecha. **Herramienta `gauntlet`** (`tools/gauntlet/`, `ExecutionMode::Exclusive`): acciones `start`, `advance`,
    `accept`, `cancel`, `status`. Validaciones del §8.1 y rutas legibles. Constructor con
    `start_local_workflow_agent`; crítico con `start_read_only_review`.
 5. [ ] **Prompts de ronda**: al crítico solo rutas A/B, la barra no rotulada y el formato de veredicto; al

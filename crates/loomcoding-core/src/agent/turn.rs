@@ -144,10 +144,7 @@ impl AgentLoop {
                 max_steps: config.max_steps,
             });
             let workflow_active = if self.subagents.is_some() {
-                self.store
-                    .active_development_workflow(session)
-                    .await?
-                    .is_some()
+                dispatch::active_orchestration(self.store.as_ref(), session).await?
             } else {
                 false
             };
@@ -584,7 +581,8 @@ impl AgentLoop {
             for (id, out) in results {
                 if !out.is_error
                     && by_id.get(&id).is_some_and(|(name, input)| {
-                        name == "development_workflow" && input["action"] == "start"
+                        matches!(name.as_str(), "development_workflow" | "gauntlet")
+                            && input["action"] == "start"
                     })
                 {
                     wait_for_workflow = true;

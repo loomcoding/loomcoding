@@ -49,12 +49,13 @@ const MAX_TURN_PROVIDER_STATE_BYTES: usize = 256 * 1024;
 static NEXT_USAGE_REQUEST_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Herramientas que `delegation = "off"` retira de la petición.
-const DELEGATION_TOOLS: [&str; 5] = [
+const DELEGATION_TOOLS: [&str; 6] = [
     "subagent",
     "subagent_control",
     "subagent_list",
     "artifact_read",
     "development_workflow",
+    "gauntlet",
 ];
 
 /// Tope de la sección «Available agents» del prompt de sistema, que crece con el número de

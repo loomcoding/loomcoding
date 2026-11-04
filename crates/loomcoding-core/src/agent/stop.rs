@@ -15,7 +15,7 @@ const REPEAT_THRESHOLD: usize = 6;
 /// Las de solo lectura (`view`, `grep`, `glob`, `ls`) quedan fuera a propósito: un
 /// agente que relee no está atascado, está mirando. Cortarle ahí mataba el turno en
 /// mitad de una tarea normal y el subagente se quedaba sin escribir nada.
-const WRITE_TOOLS: [&str; 8] = [
+const WRITE_TOOLS: [&str; 9] = [
     "write",
     "edit",
     "multiedit",
@@ -24,6 +24,7 @@ const WRITE_TOOLS: [&str; 8] = [
     "job_start",
     "subagent",
     "development_workflow",
+    "gauntlet",
 ];
 
 /// Por qué se detuvo el turno.

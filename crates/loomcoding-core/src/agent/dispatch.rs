@@ -4,6 +4,7 @@ use futures::StreamExt;
 
 pub(crate) const WORKFLOW_PARENT_TOOLS: &[&str] = &[
     "development_workflow",
+    "gauntlet",
     "view",
     "ls",
     "glob",
@@ -11,6 +12,16 @@ pub(crate) const WORKFLOW_PARENT_TOOLS: &[&str] = &[
     "lsp",
     "web",
 ];
+
+/// Si el padre tiene un flujo de desarrollo o un gauntlet en marcha: mientras dure, solo usa las
+/// herramientas de `WORKFLOW_PARENT_TOOLS`.
+pub(crate) async fn active_orchestration(
+    store: &dyn crate::session::SessionStore,
+    session: crate::session::SessionId,
+) -> crate::error::Result<bool> {
+    Ok(store.active_development_workflow(session).await?.is_some()
+        || store.active_gauntlet(session).await?.is_some())
+}
 
 /// Ejecuta tool calls respetando barreras:
 /// las `Exclusive` se ejecutan solas y en orden; las `Parallel` en un lote comun.
@@ -21,9 +32,9 @@ pub async fn execute_tools(
     cancel: tokio_util::sync::CancellationToken,
     bus: EventBus,
 ) -> Vec<(String, ToolOutput)> {
-    let workflow_start_requested = calls
-        .iter()
-        .any(|(_, name, input)| name == "development_workflow" && input["action"] == "start");
+    let workflow_start_requested = calls.iter().any(|(_, name, input)| {
+        matches!(name.as_str(), "development_workflow" | "gauntlet") && input["action"] == "start"
+    });
     let mut batches: Vec<Vec<(String, String, serde_json::Value)>> = Vec::new();
     let mut current: Vec<(String, String, serde_json::Value)> = Vec::new();
     for (id, name, input) in calls {
@@ -60,8 +71,8 @@ pub async fn execute_tools(
                 match tool {
                     Some(t) => {
                         let workflow_active = match &ctx.store {
-                            Some(store) => match store.active_development_workflow(ctx.session).await {
-                                Ok(active) => active.is_some(),
+                            Some(store) => match active_orchestration(store.as_ref(), ctx.session).await {
+                                Ok(active) => active,
                                 Err(error) => {
                                     bus.publish(LiveEvent::ToolFinished {
                                         call_id: id.clone(),
@@ -394,6 +405,139 @@ mod tests {
         assert!(results
             .iter()
             .all(|(_, result)| result.is_error && result.content.contains("blocked")));
+    }
+
+    struct GauntletFlag(Arc<std::sync::atomic::AtomicBool>);
+    #[async_trait]
+    impl Tool for GauntletFlag {
+        fn name(&self) -> &str {
+            "gauntlet"
+        }
+        fn description(&self) -> &str {
+            "coordinate a gauntlet"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        async fn run(
+            &self,
+            _ctx: ToolCtx,
+            _input: serde_json::Value,
+            _cancel: CancellationToken,
+        ) -> crate::error::Result<ToolOutput> {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+            Ok(ToolOutput::ok("coordinated"))
+        }
+    }
+
+    #[tokio::test]
+    async fn parent_writes_are_blocked_while_a_gauntlet_is_active_but_the_gauntlet_tool_runs() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Arc::new(
+            SqliteStore::open(directory.path().join("gauntlet.db").to_str().unwrap())
+                .await
+                .unwrap(),
+        );
+        let session = store.create_session("/project").await.unwrap();
+        store
+            .create_gauntlet(
+                crate::gauntlet::Gauntlet::new(crate::gauntlet::NewGauntlet {
+                    id: crate::gauntlet::GauntletId(0),
+                    parent: session,
+                    goal: "test gate".into(),
+                    artifact: "a.md".into(),
+                    bar: vec!["b.md".into()],
+                    builder: "builder".into(),
+                    critic: "critic".into(),
+                    max_rounds: None,
+                    now_ms: 0,
+                })
+                .unwrap(),
+                "test",
+            )
+            .await
+            .unwrap();
+
+        let wrote = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let coordinated = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(WriteFlag(wrote.clone())));
+        registry.register(Arc::new(SubagentFlag(wrote.clone())));
+        registry.register(Arc::new(GauntletFlag(coordinated.clone())));
+        let ctx = ToolCtx {
+            cwd: ".".into(),
+            store: Some(store),
+            permission: Arc::new(PermissionService::allow_all()),
+            session,
+            jobs: Arc::new(crate::job::LocalJobRegistry::default()),
+            bus: EventBus::new(8),
+            subagents: None,
+        };
+
+        let results = execute_tools(
+            &registry,
+            ctx,
+            vec![
+                ("write".into(), "bash".into(), serde_json::json!({})),
+                ("delegate".into(), "subagent".into(), serde_json::json!({})),
+                ("status".into(), "gauntlet".into(), serde_json::json!({})),
+            ],
+            CancellationToken::new(),
+            EventBus::new(8),
+        )
+        .await;
+
+        assert!(!wrote.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(coordinated.load(std::sync::atomic::Ordering::SeqCst));
+        for (id, result) in &results {
+            if id == "status" {
+                assert!(!result.is_error, "{}", result.content);
+            } else {
+                assert!(
+                    result.is_error && result.content.contains("blocked"),
+                    "{id}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn a_gauntlet_start_in_the_same_batch_blocks_writes_like_a_workflow_start() {
+        let wrote = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut registry = ToolRegistry::new();
+        registry.register(Arc::new(WriteFlag(wrote.clone())));
+        registry.register(Arc::new(GauntletFlag(Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        ))));
+        let ctx = ToolCtx {
+            cwd: ".".into(),
+            store: None,
+            permission: Arc::new(PermissionService::allow_all()),
+            session: crate::session::SessionId(1),
+            jobs: Arc::new(crate::job::LocalJobRegistry::default()),
+            bus: EventBus::new(8),
+            subagents: None,
+        };
+        let results = execute_tools(
+            &registry,
+            ctx,
+            vec![
+                ("write".into(), "bash".into(), serde_json::json!({})),
+                (
+                    "start".into(),
+                    "gauntlet".into(),
+                    serde_json::json!({"action":"start"}),
+                ),
+            ],
+            CancellationToken::new(),
+            EventBus::new(8),
+        )
+        .await;
+        assert!(!wrote.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(results
+            .iter()
+            .find(|(id, _)| id == "write")
+            .is_some_and(|(_, result)| result.is_error));
     }
 
     struct SubagentFlag(Arc<std::sync::atomic::AtomicBool>);

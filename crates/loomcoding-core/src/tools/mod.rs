@@ -11,6 +11,7 @@ pub mod ask_user;
 pub mod bash;
 pub mod development_workflow;
 pub mod edit;
+pub mod gauntlet;
 pub mod glob;
 pub mod grep;
 pub mod job_kill;
@@ -315,6 +316,7 @@ pub fn project_registry(project_env: std::collections::HashMap<String, String>) 
     tools.register(Arc::new(todo_write::TodoWriteTool));
     tools.register(Arc::new(ask_user::AskUserTool));
     tools.register(Arc::new(development_workflow::DevelopmentWorkflowTool));
+    tools.register(Arc::new(gauntlet::GauntletTool));
     tools
 }
 
@@ -324,13 +326,14 @@ mod tests {
     fn project_registry_exposes_the_expected_tools() {
         let registro = super::project_registry(std::collections::HashMap::new());
         let nombres: Vec<String> = registro.specs().into_iter().map(|s| s.name).collect();
-        assert_eq!(nombres.len(), 21, "{nombres:?}");
+        assert_eq!(nombres.len(), 22, "{nombres:?}");
         for esperada in [
             "bash",
             "edit",
             "subagent",
             "artifact_read",
             "development_workflow",
+            "gauntlet",
         ] {
             assert!(nombres.iter().any(|n| n == esperada), "falta {esperada}");
         }

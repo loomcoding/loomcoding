@@ -71,10 +71,13 @@ objetivo, nunca los nombres de las posiciones A/B.
 
 ## 5. Veredicto del crítico
 
-El crítico termina su informe con un objeto JSON: `verdict` (`gap` | `no_gap`) y `biggest_gap` (texto corto,
-obligatorio con `gap` y prohibido con `no_gap`). Se lee el último objeto con `verdict` de la cola del informe
-(20 kB como máximo) y la brecha se recorta a 1 000 bytes. La evidencia (rutas y líneas inspeccionadas) es texto
-libre del informe: se muestra, no se interpreta.
+El crítico no sabe cuál de los dos candidatos es la barra, así que no puede decir «hay brecha»: dice cuál
+prefiere. Termina su informe con un objeto JSON: `preferred` (`A` | `B` | `tie`) y `biggest_gap` (una frase:
+lo más importante que le falta al candidato menos preferido). El coordinador, que conoce el orden sorteado,
+lo traduce: si el crítico prefiere la barra hay brecha (y `biggest_gap` es obligatorio); si prefiere el
+artefacto o no distingue, no hay brecha. Se lee el último objeto con `preferred` de la cola del informe
+(20 kB como máximo) y la brecha se recorta a 1 000 bytes. La evidencia (rutas y líneas inspeccionadas) es
+texto libre del informe: se muestra, no se interpreta.
 
 Comprobación de sesgo de posición: en la primera ronda con veredicto `no_gap`, el coordinador **repite el
 juicio con el orden invertido** una vez. Si el crítico se contradice, el resultado es `inconclusive` y decide

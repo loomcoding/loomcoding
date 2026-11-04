@@ -343,6 +343,135 @@ async fn active_workflow_hides_blocked_tools_from_the_provider() {
 }
 
 #[tokio::test]
+async fn successful_gauntlet_start_ends_the_parent_turn() {
+    let provider = Arc::new(QueueProvider {
+        scripts: Mutex::new(
+            vec![vec![
+                StreamChunk::TextDelta("started".into()),
+                StreamChunk::ToolCallComplete {
+                    id: "start".into(),
+                    name: "gauntlet".into(),
+                    input: serde_json::json!({"action":"start"}),
+                },
+                StreamChunk::Done(FinishReason::ToolCalls),
+            ]]
+            .into(),
+        ),
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        SqliteStore::open(dir.path().join("gauntlet-start.db").to_str().unwrap())
+            .await
+            .unwrap(),
+    );
+    let session = store.create_session("/project").await.unwrap();
+    let mut tools = ToolRegistry::new();
+    tools.register(Arc::new(NamedTool("gauntlet")));
+    let agent = AgentLoop::new(
+        provider,
+        store.clone(),
+        Arc::new(tools),
+        EventBus::new(16),
+        Arc::new(PermissionService::allow_all()),
+        LoomcodingConfig {
+            provider: crate::config::ProviderConfig {
+                kind: crate::config::ProviderKind::OpenAiCompat,
+                base_url: "http://x".into(),
+                api_key_env: "K".into(),
+            },
+            model: "m".into(),
+            max_steps: 5,
+            effort: None,
+        },
+        dir.path().to_path_buf(),
+    );
+
+    let outcome = agent
+        .run(session, "start gauntlet".into(), CancellationToken::new())
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.steps, 1);
+    assert_eq!(outcome.final_text, "started");
+    assert!(store
+        .messages(session)
+        .await
+        .unwrap()
+        .iter()
+        .any(|message| message.role == Role::Tool));
+}
+
+#[tokio::test]
+async fn active_gauntlet_hides_blocked_tools_from_the_provider() {
+    let provider = Arc::new(ToolNamesProvider {
+        seen: Mutex::new(Vec::new()),
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        SqliteStore::open(dir.path().join("gauntlet-tools.db").to_str().unwrap())
+            .await
+            .unwrap(),
+    );
+    let session = store.create_session("/project").await.unwrap();
+    store
+        .create_gauntlet(
+            crate::gauntlet::Gauntlet::new(crate::gauntlet::NewGauntlet {
+                id: crate::gauntlet::GauntletId(0),
+                parent: session,
+                goal: "test gauntlet tool scope".into(),
+                artifact: "a.md".into(),
+                bar: vec!["b.md".into()],
+                builder: "builder".into(),
+                critic: "critic".into(),
+                max_rounds: None,
+                now_ms: 0,
+            })
+            .unwrap(),
+            "test gauntlet tool scope",
+        )
+        .await
+        .unwrap();
+    let mut tools = ToolRegistry::new();
+    for name in ["gauntlet", "view", "job_list", "bash", "subagent"] {
+        tools.register(Arc::new(NamedTool(name)));
+    }
+    let agent = AgentLoop::new(
+        provider.clone(),
+        store,
+        Arc::new(tools),
+        EventBus::new(16),
+        Arc::new(PermissionService::allow_all()),
+        LoomcodingConfig {
+            provider: crate::config::ProviderConfig {
+                kind: crate::config::ProviderKind::OpenAiCompat,
+                base_url: "http://x".into(),
+                api_key_env: "K".into(),
+            },
+            model: "m".into(),
+            max_steps: 5,
+            effort: None,
+        },
+        dir.path().to_path_buf(),
+    );
+
+    agent
+        .run(
+            session,
+            "continue gauntlet".into(),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+
+    let seen = provider.seen.lock().unwrap();
+    assert_eq!(seen.len(), 1);
+    assert!(seen[0].contains(&"gauntlet".into()));
+    assert!(seen[0].contains(&"view".into()));
+    assert!(!seen[0].contains(&"job_list".into()));
+    assert!(!seen[0].contains(&"bash".into()));
+}
+
+#[tokio::test]
 async fn stream_error_preserves_partial_text_and_skips_tool_calls() {
     let provider = Arc::new(QueueProvider {
         scripts: Mutex::new(
