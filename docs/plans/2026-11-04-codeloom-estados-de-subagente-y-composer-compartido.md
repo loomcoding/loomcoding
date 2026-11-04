@@ -44,7 +44,11 @@ OK, `cargo clippy --all-targets -- -D warnings` OK. Recuento verificado por scri
 `crates/**/*.rs`: **2.137** atributos `#[test]`/`#[tokio::test]`, que coincide con la
 cifra de referencia. Nada estaba en rojo, así que no hubo que arreglar nada previo.
 
-## Fase 1 — `SubagentPhase` y mapeos A2A (core puro) — **prioridad A2A**
+## Fase 1 — `SubagentPhase` y mapeos A2A (core puro) — **prioridad A2A** (HECHA)
+
+**Hecho:** `SubagentPhase` y sus mapeos viven en `subagent/phase.rs` (antes `subagent_phase.rs`; el alias
+`subagent_phase` conserva la ruta pública). Los tests conservan la intención del plan, aunque no
+siempre su nombre (p. ej. `todas_las_fases_proyectan`, `desconocido_es_unknown`).
 
 **Qué cambia:** añadir `enum SubagentPhase` en `codeloom-core` (junto a `TaskStatus`,
 sin tocar la wire de A2A), con la tabla de transiciones y **los dos mapeos**:
@@ -69,7 +73,11 @@ variante A2A nueva rompe compilación).
 
 **Criterio de aceptación:** `cargo test -p codeloom-core` verde; `cargo clippy -- -D warnings` limpio.
 
-## Fase 2 — Estado de observabilidad en `SubagentDescriptor`
+## Fase 2 — Estado de observabilidad en `SubagentDescriptor` (HECHA)
+
+**Hecho:** `SubagentDescriptor` lleva `phase`, `last_activity_at_ms`, `steps`, `tool_calls` y los
+contadores de tokens (`session/mod.rs`), persistidos en SQLite con `DEFAULT` en cada columna nueva;
+la fase y el latido se actualizan con `update_subagent_runtime`.
 
 **Qué cambia:** en `SubagentDescriptor`: `phase: SubagentPhase` (**campo tipado**
 propio), `last_activity_at_ms: u64`, `steps`, `tool_calls`, `tokens_in`,
@@ -243,7 +251,7 @@ solo una lista de ids.
 
 **Orden decidido (2026-11-05):** primero **6a** (borrador por sesión), después el troceo
 de `app.rs` (Fase 5 del plan de organización) y por último **6b** (destinatario,
-`Ctrl+T`, `/focus`).
+`Ctrl+G`, `/focus`).
 
 **6a — HECHA.** `load_session` aparta el borrador (composer + `draft_images`) de la
 sesión que se deja y restaura el de la que se abre, en `App::composer_drafts`
@@ -264,7 +272,7 @@ Tests: `app/tests/composer_target.rs`.
 **Correcciones al plan original (comprobadas en el código):**
 - La **Fase 4 no era precondición**: `TaskTracker::transition` ya publica `SubagentChanged`
   con el `TaskState` en cada cambio y la TUI lo guarda; el despacho solo necesita ese estado.
-  La Fase 4 sigue pendiente por su propio valor (padre ciego ante eventos del hijo).
+  La Fase 4 se hizo después, por su propio valor (padre ciego ante eventos del hijo).
 - «Asentado → nuevo turno» **no** se hace: en A2A una tarea terminal no se reinicia. Se
   rechaza con aviso y se continúa abriendo el hijo (rail → Enter), que ya es una sesión.
 - No hay prueba del extremo daemon (`worker.rs`): es un reenvío fino como `cancel_subagent`.
@@ -276,7 +284,7 @@ padre, abrías el hijo y el texto aparecía dentro del hijo.
 **Atajos:**
 - ~~`Ctrl+T` — alternar destinatario.~~ **Falso (comprobado 2026-11-05):** `Ctrl+T` ya abre
   el panel de herramientas (`run.rs`, `tools_open`), y `Tab` lo usan el foco del rail y los
-  diálogos de permiso (`permission_flow.rs`). La tecla del destinatario está **por decidir**.
+  diálogos de permiso (`permission_flow.rs`). La tecla del destinatario quedó decidida: **`Ctrl+G`** (ver 6b).
 - `/focus <id>` — fijar destinatario.
 - `/parent` — volver al padre: **ya existe** (`commands.rs:18` y `:56`); no se añade
   `/back`.
