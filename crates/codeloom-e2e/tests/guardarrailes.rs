@@ -50,13 +50,14 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Líneas de cada `crates/*/src/**/*.rs`, con ruta relativa al raíz y barras `/`.
+/// Líneas de cada `crates/*/{src,examples}/**/*.rs`, con ruta relativa al raíz y barras `/`.
 fn lineas_por_archivo() -> BTreeMap<String, usize> {
     let raiz = raiz();
     let mut mapa = BTreeMap::new();
     for crate_dir in fs::read_dir(raiz.join("crates")).unwrap().flatten() {
         let mut files = Vec::new();
         rust_files(&crate_dir.path().join("src"), &mut files);
+        rust_files(&crate_dir.path().join("examples"), &mut files);
         for file in files {
             let rel = file
                 .strip_prefix(&raiz)
