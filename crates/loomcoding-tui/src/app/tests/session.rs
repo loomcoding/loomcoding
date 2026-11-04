@@ -61,6 +61,109 @@ fn development_workflow_events_show_phase_agent_and_pending_decision() {
     assert!(line.contains("ronda 1"));
 }
 
+fn gauntlet_summary(
+    phase: loomcoding_core::gauntlet::GauntletPhase,
+    active_child: Option<SessionId>,
+) -> loomcoding_core::gauntlet::GauntletSummary {
+    loomcoding_core::gauntlet::GauntletSummary {
+        id: loomcoding_core::gauntlet::GauntletId(3),
+        parent: SessionId(7),
+        phase,
+        round: 1,
+        max_rounds: 2,
+        builder: "constructor".into(),
+        critic: "critico".into(),
+        active_child,
+        updated_at_ms: 0,
+    }
+}
+
+#[test]
+fn gauntlet_events_show_phase_agent_with_its_a2a_state_round_and_actor() {
+    use loomcoding_core::gauntlet::GauntletPhase;
+    let mut app = App::new();
+    app.session_id = Some(SessionId(7));
+    app.apply(LiveEvent::SubagentChanged(
+        loomcoding_core::session::SubagentDescriptor {
+            phase: loomcoding_core::subagent_phase::SubagentPhase::Streaming,
+            last_activity_at_ms: 0,
+            steps: 0,
+            tool_calls: 0,
+            tokens_in: 0,
+            tokens_out: 0,
+            parent: SessionId(7),
+            child: SessionId(11),
+            job_id: "job-11".into(),
+            label: "gauntlet critic".into(),
+            status: loomcoding_core::task::TaskStatus::new(
+                loomcoding_core::task::TaskState::Working,
+            ),
+            artifacts: Vec::new(),
+            notice_delivered: false,
+            agent: Some("critico".into()),
+            agent_origin: None,
+            reference_task_ids: Vec::new(),
+        },
+    ));
+    let before = app.transcript.len();
+    app.apply(LiveEvent::GauntletChanged {
+        summary: gauntlet_summary(GauntletPhase::Judging, Some(SessionId(11))),
+        actor: "critic".into(),
+        detail: "critic launched".into(),
+    });
+    let line = app.transcript.line(before).unwrap().plain();
+    assert!(line.contains("gauntlet #3"), "{line}");
+    assert!(line.contains("juzgando"), "{line}");
+    assert!(line.contains("critico (working)"), "{line}");
+    assert!(line.contains("ronda 1/2"), "{line}");
+    assert!(line.contains("critic: critic launched"), "{line}");
+}
+
+#[test]
+fn gauntlet_without_a_running_child_is_attributed_to_the_coordinator_and_shows_the_gap() {
+    use loomcoding_core::gauntlet::GauntletPhase;
+    let mut app = App::new();
+    app.session_id = Some(SessionId(7));
+    app.apply(LiveEvent::GauntletChanged {
+        summary: gauntlet_summary(GauntletPhase::AwaitingFinalAcceptance, None),
+        actor: "critic".into(),
+        detail: "no gap, confirmed with the order swapped".into(),
+    });
+    let line = app.transcript.line(0).unwrap().plain();
+    assert!(line.contains("aceptar resultado"), "{line}");
+    assert!(line.contains("coordinador"), "{line}");
+    assert!(line.contains("confirmed with the order swapped"), "{line}");
+}
+
+#[test]
+fn a_replayed_gauntlet_without_actor_prints_no_dangling_separator() {
+    use loomcoding_core::gauntlet::GauntletPhase;
+    let mut app = App::new();
+    app.session_id = Some(SessionId(7));
+    app.apply(LiveEvent::GauntletChanged {
+        summary: gauntlet_summary(GauntletPhase::Stopped, None),
+        actor: String::new(),
+        detail: String::new(),
+    });
+    let line = app.transcript.line(0).unwrap().plain();
+    assert!(line.contains("detenido"), "{line}");
+    assert!(!line.trim_end().ends_with('·'), "{line}");
+    assert!(!line.contains(": "), "{line}");
+}
+
+#[test]
+fn gauntlet_events_of_another_session_are_ignored() {
+    use loomcoding_core::gauntlet::GauntletPhase;
+    let mut app = App::new();
+    app.session_id = Some(SessionId(9));
+    app.apply(LiveEvent::GauntletChanged {
+        summary: gauntlet_summary(GauntletPhase::Judging, None),
+        actor: "critic".into(),
+        detail: "x".into(),
+    });
+    assert!(app.transcript.is_empty());
+}
+
 #[test]
 fn scoped_subagent_notices_only_reach_their_session() {
     let mut app = App::new();

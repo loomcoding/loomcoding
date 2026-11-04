@@ -50,6 +50,7 @@ pub(super) async fn send_loaded_session(entry: &AgentEntry, id: SessionId) -> an
         .latest_development_workflow(id)
         .await?
         .map(|w| w.summary());
+    let gauntlet = entry.store.latest_gauntlet(id).await?.map(|g| g.summary());
     let total = messages.len() + usage.len().div_ceil(10) + subagents.len();
     let mut sent = 0usize;
     for message in messages {
@@ -108,6 +109,12 @@ pub(super) async fn send_loaded_session(entry: &AgentEntry, id: SessionId) -> an
         .ui
         .send(ServerEvent::Session(
             loomcoding_tui::run::SessionUpdate::Workflow(id, workflow),
+        ))
+        .await;
+    entry
+        .ui
+        .send(ServerEvent::Session(
+            loomcoding_tui::run::SessionUpdate::Gauntlet(id, gauntlet),
         ))
         .await;
     Ok(())

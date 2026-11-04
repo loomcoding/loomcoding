@@ -3,7 +3,7 @@
 use super::*;
 
 /// Nombre corto del estado A2A (`working`, `input-required`), el mismo que ve la persona usuaria.
-fn state_label(state: TaskState) -> String {
+pub(super) fn state_label(state: TaskState) -> String {
     state
         .proto_name()
         .trim_start_matches("TASK_STATE_")

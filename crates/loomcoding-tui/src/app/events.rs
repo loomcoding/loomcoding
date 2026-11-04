@@ -310,6 +310,56 @@ impl App {
                     );
                 }
             }
+            LiveEvent::GauntletChanged {
+                summary,
+                actor,
+                detail,
+            } => {
+                if Some(summary.parent) == self.session_id {
+                    use loomcoding_core::gauntlet::GauntletPhase as P;
+                    let phase = match summary.phase {
+                        P::Building => "construyendo",
+                        P::Judging => "juzgando",
+                        P::Rebuilding => "rehaciendo",
+                        P::AwaitingFinalAcceptance => "aceptar resultado",
+                        P::Completed => "completado",
+                        P::Stopped => "detenido (rondas agotadas)",
+                        P::Inconclusive => "sin veredicto fiable",
+                        P::Cancelled => "cancelado",
+                        P::Failed => "fallido",
+                    };
+                    // El agente en marcha lleva entre paréntesis su estado A2A real.
+                    let agent = match (summary.active_child, summary.phase) {
+                        (Some(child), phase) => {
+                            let name = if phase == P::Judging {
+                                &summary.critic
+                            } else {
+                                &summary.builder
+                            };
+                            match self.subagents.get(&child.0) {
+                                Some(c) => format!(
+                                    "{name} ({})",
+                                    super::target::state_label(c.status.state)
+                                ),
+                                None => name.clone(),
+                            }
+                        }
+                        (None, _) => "coordinador".to_owned(),
+                    };
+                    let mut line = format!(
+                        "gauntlet #{} · {} · {} · ronda {}/{}",
+                        summary.id.0, phase, agent, summary.round, summary.max_rounds
+                    );
+                    if !actor.is_empty() {
+                        line.push_str(&format!(" · {actor}: {detail}"));
+                    }
+                    self.transcript.push_entry(
+                        loomcoding_cloth::state::LineKind::System,
+                        loomcoding_cloth::state::Format::Plain,
+                        line,
+                    );
+                }
+            }
             LiveEvent::AgentRouted {
                 parent,
                 agent,

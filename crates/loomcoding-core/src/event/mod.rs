@@ -164,6 +164,13 @@ pub enum LiveEvent {
         skills: Vec<crate::skills::SkillLoadStatus>,
     },
     DevelopmentWorkflowChanged(crate::workflow::WorkflowSummary),
+    /// Un gauntlet cambió de fase. `actor` y `detail` son los de su bitácora (el veredicto del crítico
+    /// incluido); vacíos cuando solo se reenvía el estado al abrir una sesión.
+    GauntletChanged {
+        summary: crate::gauntlet::GauntletSummary,
+        actor: String,
+        detail: String,
+    },
     /// El enrutador (A12b) eligió el agente de una delegación que no nombraba ninguno. Queda a la
     /// vista de la persona usuaria: qué agente, por qué y quién decidió (`rule` o `classifier`).
     AgentRouted {
@@ -277,6 +284,7 @@ impl LiveEvent {
             | LiveEvent::JobChanged(_)
             | LiveEvent::SubagentChanged(_)
             | LiveEvent::DevelopmentWorkflowChanged(_)
+            | LiveEvent::GauntletChanged { .. }
             | LiveEvent::A2aServed { .. }
             | LiveEvent::AgentRouted { .. }
             | LiveEvent::AgentCardsRefreshed { .. }

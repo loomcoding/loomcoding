@@ -204,6 +204,7 @@ pub(super) struct Entorno {
     pub(super) store: Arc<SqliteStore>,
     pub(super) session: SessionId,
     pub(super) launcher: Arc<TestLauncher>,
+    pub(super) bus: crate::event::EventBus,
 }
 
 impl Entorno {
@@ -231,6 +232,7 @@ impl Entorno {
             store,
             session,
             launcher: Arc::new(TestLauncher::new()),
+            bus: crate::event::EventBus::new(64),
         }
     }
 
@@ -243,7 +245,7 @@ impl Entorno {
             )),
             session: self.session,
             jobs: Arc::new(crate::job::LocalJobRegistry::default()),
-            bus: crate::event::EventBus::new(32),
+            bus: self.bus.clone(),
             subagents: Some(self.launcher.clone()),
         }
     }

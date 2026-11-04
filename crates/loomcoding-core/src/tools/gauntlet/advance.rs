@@ -29,11 +29,9 @@ pub(super) async fn action_advance(
         if matches!(state, TaskState::Canceled | TaskState::Rejected) {
             gauntlet.cancel().map_err(problem)?;
             gauntlet.active_child = None;
-            store
-                .update_gauntlet(gauntlet, "coordinator", &reason)
-                .await?;
+            save(&ctx.bus, store.as_ref(), gauntlet, "coordinator", &reason).await?;
         } else {
-            return fail_gauntlet(store.as_ref(), gauntlet, &reason).await;
+            return fail_gauntlet(&ctx.bus, store.as_ref(), gauntlet, &reason).await;
         }
         return Ok(ToolOutput::err(
             "gauntlet child did not complete successfully; nothing was advanced",
@@ -44,6 +42,7 @@ pub(super) async fn action_advance(
         .filter(|report| !report.trim().is_empty())
     else {
         return fail_gauntlet(
+            &ctx.bus,
             store.as_ref(),
             gauntlet,
             "child completed without a result; no further round was started",
@@ -55,14 +54,23 @@ pub(super) async fn action_advance(
         GauntletPhase::Building | GauntletPhase::Rebuilding => {
             let order = gauntlet.begin_judging(draw_seed()).map_err(problem)?;
             let round = gauntlet.round;
-            let gauntlet = store
-                .update_gauntlet(
-                    gauntlet,
-                    "builder",
-                    &format!("builder finished round {round}"),
-                )
-                .await?;
-            launch_critic(store.as_ref(), launcher.as_ref(), gauntlet, order, cancel).await?;
+            let gauntlet = save(
+                &ctx.bus,
+                store.as_ref(),
+                gauntlet,
+                "builder",
+                &format!("builder finished round {round}"),
+            )
+            .await?;
+            launch_critic(
+                &ctx.bus,
+                store.as_ref(),
+                launcher.as_ref(),
+                gauntlet,
+                order,
+                cancel,
+            )
+            .await?;
             Ok(ToolOutput::ok(format!(
                 "Builder finished round {round}; the critic is judging. End this turn and wait for its completion notice, then call advance."
             )))
@@ -100,18 +108,33 @@ async fn advance_judging(
     match next {
         Next::Rebuild => {
             let gap = gauntlet.last_gap.clone().unwrap_or_default();
-            let gauntlet = store.update_gauntlet(gauntlet, "critic", &detail).await?;
+            let gauntlet = save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
             let prompt = rebuild_prompt(&gauntlet, &gap);
-            let gauntlet =
-                launch_builder(store.as_ref(), launcher.as_ref(), gauntlet, prompt, cancel).await?;
+            let gauntlet = launch_builder(
+                &ctx.bus,
+                store.as_ref(),
+                launcher.as_ref(),
+                gauntlet,
+                prompt,
+                cancel,
+            )
+            .await?;
             Ok(ToolOutput::ok(format!(
                 "The critic found a gap; round {} of {} started with the builder. End this turn and wait for its completion notice, then call advance.",
                 gauntlet.round, gauntlet.max_rounds
             )))
         }
         Next::Recheck(swapped) => {
-            let gauntlet = store.update_gauntlet(gauntlet, "critic", &detail).await?;
-            launch_critic(store.as_ref(), launcher.as_ref(), gauntlet, swapped, cancel).await?;
+            let gauntlet = save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
+            launch_critic(
+                &ctx.bus,
+                store.as_ref(),
+                launcher.as_ref(),
+                gauntlet,
+                swapped,
+                cancel,
+            )
+            .await?;
             Ok(ToolOutput::ok(
                 "The critic saw no gap; a fresh critic is re-judging with the order swapped to rule out position bias. End this turn and wait for its completion notice, then call advance.",
             ))
@@ -119,25 +142,26 @@ async fn advance_judging(
         Next::Accept => {
             let hash = artifact_hash(&ctx.cwd, &gauntlet.artifact)?;
             gauntlet.presented_sha256 = Some(hash);
-            store
-                .update_gauntlet(
-                    gauntlet,
-                    "critic",
-                    "no gap, confirmed with the order swapped",
-                )
-                .await?;
+            save(
+                &ctx.bus,
+                store.as_ref(),
+                gauntlet,
+                "critic",
+                "no gap, confirmed with the order swapped",
+            )
+            .await?;
             Ok(ToolOutput::ok(
                 "Both judgments found no gap. Present the result to the user and call accept to ask for the final decision.",
             ))
         }
         Next::Stop => {
-            store.update_gauntlet(gauntlet, "critic", &detail).await?;
+            save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
             Ok(ToolOutput::ok(
                 "The round limit was reached with a gap remaining. Report the remaining gap to the user and let them decide; do not start another round.",
             ))
         }
         Next::Inconclusive => {
-            store.update_gauntlet(gauntlet, "critic", &detail).await?;
+            save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
             Ok(ToolOutput::ok(
                 "The critic's verdict was unreadable or contradicted itself when the order was swapped. Report this to the user and let them decide.",
             ))

@@ -62,9 +62,21 @@ pub(super) async fn action_start(
     })
     .map_err(problem)?;
     let gauntlet = store.create_gauntlet(gauntlet, "gauntlet started").await?;
+    ctx.bus.publish(crate::event::LiveEvent::GauntletChanged {
+        summary: gauntlet.summary(),
+        actor: "parent".into(),
+        detail: "gauntlet started".into(),
+    });
     let prompt = first_builder_prompt(&gauntlet);
-    let gauntlet =
-        launch_builder(store.as_ref(), launcher.as_ref(), gauntlet, prompt, cancel).await?;
+    let gauntlet = launch_builder(
+        &ctx.bus,
+        store.as_ref(),
+        launcher.as_ref(),
+        gauntlet,
+        prompt,
+        cancel,
+    )
+    .await?;
     Ok(ToolOutput::ok(format!(
         "Started gauntlet {} (round 1 of {}). The builder is running; end this turn and wait for its completion notice, then call advance. Do not poll or use sleep.",
         gauntlet.id.0, gauntlet.max_rounds

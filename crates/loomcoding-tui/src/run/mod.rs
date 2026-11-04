@@ -70,6 +70,10 @@ pub enum SessionUpdate {
         loomcoding_core::session::SessionId,
         Option<loomcoding_core::workflow::WorkflowSummary>,
     ),
+    Gauntlet(
+        loomcoding_core::session::SessionId,
+        Option<loomcoding_core::gauntlet::GauntletSummary>,
+    ),
     Capabilities(crate::app::RuntimeCapabilities),
     Error(String),
 }
@@ -260,6 +264,16 @@ pub async fn run(
                             app.apply(loomcoding_core::event::LiveEvent::DevelopmentWorkflowChanged(workflow));
                         }
                         let _ = session;
+                    }
+                    Some(SessionUpdate::Gauntlet(_session, gauntlet)) => {
+                        // Al abrir la sesión se reenvía el estado sin actor ni detalle.
+                        if let Some(summary) = gauntlet {
+                            app.apply(loomcoding_core::event::LiveEvent::GauntletChanged {
+                                summary,
+                                actor: String::new(),
+                                detail: String::new(),
+                            });
+                        }
                     }
                     Some(SessionUpdate::Capabilities(capabilities)) => {
                         app.runtime_capabilities = Some(capabilities);

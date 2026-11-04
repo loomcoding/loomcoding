@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 mod decide;
+mod events;
 mod rounds;
 mod start;
 mod support;

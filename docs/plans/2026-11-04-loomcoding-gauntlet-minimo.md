@@ -34,8 +34,10 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    `inconclusive`. Pruebas de ambos caminos.
 7. [x] (2026-11-04, dentro del paso 4: `tests/decide.rs`) **Aceptación humana**: `accept` con `ask_user` y huella del artefacto; silencio, timeout y cancelación no
    aceptan. Si cambia el artefacto tras presentarlo, se invalida.
-8. [ ] **Observabilidad**: eventos al bus y al transcript con actor; la TUI muestra la fase propia y, entre
-   paréntesis, el estado A2A del hijo. Revisión visual en terminal real.
+8. [x] (2026-11-04) **Observabilidad**: `LiveEvent::GauntletChanged` con actor y detalle (único camino `save`), línea
+   en el transcript con fase propia, agente con su estado A2A entre paréntesis y ronda, y reenvío al abrir la
+   sesión (`SessionUpdate::Gauntlet`). Pendiente: revisión visual en terminal real (con `LOOMCODING_HOME`
+   aislado) y compilar el binario del cli cuando se cierren los `loom.exe`.
 9. [ ] **E2E con proveedor simulado**: un gauntlet completo (constructor → crítico `gap` → reconstrucción →
    crítico `no_gap` → sesgo coherente → aceptación) y el camino del tope de rondas. Sin red real.
 10. [ ] **Documentación**: `ARCHITECTURE.md`, `CODE-MAP.md` e `INVARIANTS.md` si procede, README del crate, fila

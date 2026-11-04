@@ -11,7 +11,7 @@ pub(super) async fn action_cancel(
 ) -> Result<ToolOutput> {
     let running = gauntlet.active_child.take();
     gauntlet.cancel().map_err(problem)?;
-    store.update_gauntlet(gauntlet, "user", "cancelled").await?;
+    save(&ctx.bus, store.as_ref(), gauntlet, "user", "cancelled").await?;
     if let Some(child) = running {
         // Parar el hijo no está garantizado ni es condición de la cancelación: se pide y se sigue.
         let _ = launcher.cancel(ctx.session, child).await;
@@ -65,17 +65,18 @@ pub(super) async fn action_accept(
     } else {
         gauntlet.cancel().map_err(problem)?;
     }
-    store
-        .update_gauntlet(
-            gauntlet,
-            "user",
-            if accepted {
-                "final acceptance"
-            } else {
-                "final acceptance declined"
-            },
-        )
-        .await?;
+    save(
+        &ctx.bus,
+        store.as_ref(),
+        gauntlet,
+        "user",
+        if accepted {
+            "final acceptance"
+        } else {
+            "final acceptance declined"
+        },
+    )
+    .await?;
     Ok(ToolOutput::ok(if accepted {
         "Gauntlet completed."
     } else {

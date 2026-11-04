@@ -108,33 +108,59 @@ pub(super) fn critic_prompt(gauntlet: &Gauntlet, order: AbOrder) -> String {
     )
 }
 
+/// Guarda el cambio de fase y lo publica con su actor y su detalle: es el único camino por el que el
+/// gauntlet cambia, así que nada queda sin verse en la conversación.
+pub(super) async fn save(
+    bus: &crate::event::EventBus,
+    store: &dyn crate::session::SessionStore,
+    gauntlet: Gauntlet,
+    actor: &str,
+    detail: &str,
+) -> Result<Gauntlet> {
+    let saved = store.update_gauntlet(gauntlet, actor, detail).await?;
+    bus.publish(crate::event::LiveEvent::GauntletChanged {
+        summary: saved.summary(),
+        actor: actor.to_owned(),
+        detail: detail.to_owned(),
+    });
+    Ok(saved)
+}
+
 /// Guarda el cambio de fase y, si falla, deja el gauntlet fallido en vez de colgado.
 async fn launch_failed(
+    bus: &crate::event::EventBus,
     store: &dyn crate::session::SessionStore,
     mut gauntlet: Gauntlet,
     error: CoreError,
 ) -> CoreError {
     if gauntlet.fail().is_ok() {
         gauntlet.active_child = None;
-        let _ = store
-            .update_gauntlet(gauntlet, "coordinator", &format!("launch failed: {error}"))
-            .await;
+        let _ = save(
+            bus,
+            store,
+            gauntlet,
+            "coordinator",
+            &format!("launch failed: {error}"),
+        )
+        .await;
     }
     error
 }
 
 async fn attach(
+    bus: &crate::event::EventBus,
     store: &dyn crate::session::SessionStore,
     mut gauntlet: Gauntlet,
     child: crate::session::SessionId,
     detail: &str,
 ) -> Result<Gauntlet> {
     gauntlet.attach_child(child);
-    store.update_gauntlet(gauntlet, "coordinator", detail).await
+    save(bus, store, gauntlet, "coordinator", detail).await
 }
 
 /// Lanza al constructor (con escritura) y registra el hijo.
 pub(super) async fn launch_builder(
+    bus: &crate::event::EventBus,
     store: &dyn crate::session::SessionStore,
     launcher: &dyn crate::subagent::SubagentLauncher,
     gauntlet: Gauntlet,
@@ -151,13 +177,14 @@ pub(super) async fn launch_builder(
         )
         .await
     {
-        Ok((child, _)) => attach(store, gauntlet, child, "builder launched").await,
-        Err(error) => Err(launch_failed(store, gauntlet, error).await),
+        Ok((child, _)) => attach(bus, store, gauntlet, child, "builder launched").await,
+        Err(error) => Err(launch_failed(bus, store, gauntlet, error).await),
     }
 }
 
 /// Lanza un crítico nuevo, de solo lectura, y registra el hijo.
 pub(super) async fn launch_critic(
+    bus: &crate::event::EventBus,
     store: &dyn crate::session::SessionStore,
     launcher: &dyn crate::subagent::SubagentLauncher,
     gauntlet: Gauntlet,
@@ -174,22 +201,21 @@ pub(super) async fn launch_critic(
         )
         .await
     {
-        Ok((child, _)) => attach(store, gauntlet, child, "critic launched").await,
-        Err(error) => Err(launch_failed(store, gauntlet, error).await),
+        Ok((child, _)) => attach(bus, store, gauntlet, child, "critic launched").await,
+        Err(error) => Err(launch_failed(bus, store, gauntlet, error).await),
     }
 }
 
 /// Cierra el gauntlet como fallido con el motivo y avisa al padre de que no continúe por su cuenta.
 pub(super) async fn fail_gauntlet(
+    bus: &crate::event::EventBus,
     store: &dyn crate::session::SessionStore,
     mut gauntlet: Gauntlet,
     reason: &str,
 ) -> Result<ToolOutput> {
     gauntlet.fail().map_err(problem)?;
     gauntlet.active_child = None;
-    store
-        .update_gauntlet(gauntlet, "coordinator", reason)
-        .await?;
+    save(bus, store, gauntlet, "coordinator", reason).await?;
     Ok(ToolOutput::err(format!(
         "Gauntlet failed: {reason}. Do not edit the artifact as the parent; report this blocker to the user."
     )))
