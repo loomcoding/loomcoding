@@ -38,6 +38,8 @@ pub enum StopReason {
     StepBudget,
     /// El agente repitió la misma tool call de escritura demasiadas veces seguidas.
     RepeatedToolCalls,
+    /// Se agotó el tope de rondas de solo lectura.
+    ReadBudget,
 }
 
 fn signature(m: &Message) -> Option<Vec<String>> {
@@ -122,6 +124,38 @@ pub fn exploration_streak(history: &[Message]) -> usize {
 /// Para si se superó `max_steps` o si se repite una escritura dentro del turno actual.
 pub fn should_stop(history: &[Message], steps: usize, max_steps: usize) -> bool {
     stop_reason(history, steps, max_steps).is_some()
+}
+
+/// Si el mensaje es una ronda de solo lectura: asistente, con al menos una llamada a herramienta,
+/// y ninguna de esas llamadas es de escritura.
+pub fn is_read_round(message: &Message) -> bool {
+    message.role == Role::Assistant
+        && !message.parts.is_empty()
+        && message
+            .parts
+            .iter()
+            .any(|p| matches!(p, ContentPart::ToolCall { .. }))
+        && message.parts.iter().all(|p| {
+            if let ContentPart::ToolCall { name, .. } = p {
+                !WRITE_TOOLS.contains(&name.as_str())
+            } else {
+                true
+            }
+        })
+}
+
+/// Motivo por el que hay que parar, si lo hay, considerando también el presupuesto de lecturas.
+pub fn stop_reason_budgets(
+    history: &[Message],
+    steps: usize,
+    max_steps: usize,
+    read_steps: usize,
+    max_read_steps: usize,
+) -> Option<StopReason> {
+    if read_steps >= max_read_steps {
+        return Some(StopReason::ReadBudget);
+    }
+    stop_reason(history, steps, max_steps)
 }
 
 #[cfg(test)]
@@ -262,5 +296,56 @@ mod tests {
         ));
         h.push(with_call("view", json!({"path":"b"})));
         assert_eq!(exploration_streak(&h), 2);
+    }
+
+    fn with_calls(names: &[&str]) -> Message {
+        Message::assistant(
+            names
+                .iter()
+                .map(|name| ContentPart::ToolCall {
+                    id: "x".into(),
+                    name: (*name).into(),
+                    input: json!({}),
+                })
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn a_round_of_only_reads_is_a_read_round() {
+        assert!(is_read_round(&with_calls(&["view", "grep"])));
+    }
+
+    #[test]
+    fn a_round_with_a_write_is_not_a_read_round() {
+        assert!(!is_read_round(&with_calls(&["view", "edit"])));
+    }
+
+    #[test]
+    fn a_round_with_bash_is_not_a_read_round() {
+        let h = [with_call("bash", json!({"command":"ls"}))];
+        assert!(!is_read_round(&h[0]));
+    }
+
+    #[test]
+    fn a_message_without_tool_calls_is_not_a_read_round() {
+        let h = [Message::assistant(vec![])];
+        assert!(!is_read_round(&h[0]));
+    }
+
+    #[test]
+    fn read_budget_stops_at_the_cap() {
+        assert_eq!(
+            stop_reason_budgets(&[], 0, 30, 5, 5),
+            Some(StopReason::ReadBudget)
+        );
+    }
+
+    #[test]
+    fn work_budget_still_wins_first() {
+        assert_eq!(
+            stop_reason_budgets(&[], 30, 30, 0, 100),
+            Some(StopReason::StepBudget)
+        );
     }
 }
