@@ -96,6 +96,29 @@ pub fn stop_reason(history: &[Message], steps: usize, max_steps: usize) -> Optio
     None
 }
 
+/// Rondas de lectura seguidas, sin escribir, tras las cuales se avisa al modelo de que explora sin avanzar.
+pub const STUCK_EXPLORATION_ROUNDS: usize = 10;
+
+/// Cuántas rondas de solo lectura van seguidas al final del historial.
+///
+/// Cuenta hacia atrás las rondas del asistente con llamadas a herramientas y ninguna de escritura; se
+/// detiene en un mensaje de usuario (también un aviso anterior, que rearma la cuenta) y en cualquier ronda
+/// que escriba o que no llame a herramientas.
+pub fn exploration_streak(history: &[Message]) -> usize {
+    let mut streak = 0;
+    for message in history.iter().rev() {
+        match message.role {
+            Role::Tool => continue,
+            Role::Assistant => match signature(message) {
+                Some(sig) if !es_escritura(&sig) => streak += 1,
+                _ => break,
+            },
+            _ => break,
+        }
+    }
+    streak
+}
+
 /// Para si se superó `max_steps` o si se repite una escritura dentro del turno actual.
 pub fn should_stop(history: &[Message], steps: usize, max_steps: usize) -> bool {
     stop_reason(history, steps, max_steps).is_some()
@@ -192,5 +215,52 @@ mod tests {
             None,
             "un turno nuevo no hereda el bucle del anterior"
         );
+    }
+
+    #[test]
+    fn exploration_streak_counts_trailing_read_rounds() {
+        let h = vec![
+            Message::user("hola"),
+            with_call("view", json!({"path":"a"})),
+            with_call("grep", json!({"pattern":"x"})),
+            with_call("view", json!({"path":"b"})),
+        ];
+        assert_eq!(exploration_streak(&h), 3);
+    }
+
+    #[test]
+    fn exploration_streak_stops_at_a_write_round() {
+        let h = vec![
+            with_call("view", json!({"path":"a"})),
+            with_call("edit", json!({"path":"a"})),
+            with_call("view", json!({"path":"b"})),
+        ];
+        assert_eq!(exploration_streak(&h), 1);
+    }
+
+    #[test]
+    fn exploration_streak_is_rearmed_by_a_user_message() {
+        let h = vec![
+            with_call("view", json!({"path":"a"})),
+            with_call("view", json!({"path":"b"})),
+            Message::user("[aviso]"),
+            with_call("view", json!({"path":"c"})),
+        ];
+        assert_eq!(exploration_streak(&h), 1);
+    }
+
+    #[test]
+    fn exploration_streak_ignores_tool_results_between_rounds() {
+        let mut h = vec![with_call("view", json!({"path":"a"}))];
+        h.push(Message::new(
+            Role::Tool,
+            vec![ContentPart::ToolResult {
+                call_id: "x".into(),
+                content: "ok".into(),
+                is_error: false,
+            }],
+        ));
+        h.push(with_call("view", json!({"path":"b"})));
+        assert_eq!(exploration_streak(&h), 2);
     }
 }

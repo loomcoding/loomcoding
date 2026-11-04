@@ -70,6 +70,26 @@ impl AgentLoop {
             if crate::agent::stop::should_stop(&history, steps, config.max_steps) {
                 break;
             }
+            // Exploración atascada: tras muchas rondas de lectura seguidas se avisa al modelo una vez
+            // (el aviso es un mensaje de usuario, así que rearma la cuenta).
+            let streak = crate::agent::stop::exploration_streak(&history);
+            if streak >= crate::agent::stop::STUCK_EXPLORATION_ROUNDS {
+                let warning = Message::user(format!(
+                    "[Notice] You have made {streak} rounds of reading without writing anything. Stop exploring: \
+                     make the change with what you already know, or answer stating exactly what you still need."
+                ));
+                self.store.append_message(session, &warning).await?;
+                self.bus.publish(LiveEvent::SessionMessageAdded {
+                    session,
+                    message: warning.clone(),
+                });
+                self.bus.publish(LiveEvent::RuntimeNotice {
+                    message: format!(
+                        "exploración atascada: {streak} lecturas seguidas, aviso enviado al modelo"
+                    ),
+                });
+                history.push(warning);
+            }
             // Tope duro opcional: con `hard_stop`, agotado el presupuesto de la familia no se pide otra
             // respuesta al modelo. Sin él no se toca el almacén, de modo que el coste es nulo.
             if self.budget.hard_stop {

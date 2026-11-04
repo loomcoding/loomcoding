@@ -1,8 +1,9 @@
 use super::*;
 
 /// Ejecuta un turno con el guion dado y devuelve el resultado, los mensajes guardados y los avisos.
-async fn run_script(
+pub(super) async fn run_script_with_steps(
     scripts: Vec<Vec<StreamChunk>>,
+    max_steps: usize,
 ) -> (crate::agent::TurnOutcome, Vec<Message>, Vec<String>) {
     let provider = Arc::new(QueueProvider {
         scripts: Mutex::new(scripts.into()),
@@ -23,10 +24,10 @@ async fn run_script(
             api_key_env: "K".into(),
         },
         model: "m".into(),
-        max_steps: 5,
+        max_steps,
         effort: None,
     };
-    let bus = EventBus::new(64);
+    let bus = EventBus::new(4096);
     let mut events = bus.subscribe();
     let agent = AgentLoop::new(
         provider,
@@ -42,12 +43,20 @@ async fn run_script(
         .await
         .unwrap();
     let mut notices = Vec::new();
-    while let Ok(event) = events.try_recv() {
-        if let LiveEvent::RuntimeNotice { message } = event {
-            notices.push(message);
+    loop {
+        match events.try_recv() {
+            Ok(LiveEvent::RuntimeNotice { message }) => notices.push(message),
+            Ok(_) | Err(broadcast::error::TryRecvError::Lagged(_)) => {}
+            Err(_) => break,
         }
     }
     (outcome, store.messages(sid).await.unwrap(), notices)
+}
+
+async fn run_script(
+    scripts: Vec<Vec<StreamChunk>>,
+) -> (crate::agent::TurnOutcome, Vec<Message>, Vec<String>) {
+    run_script_with_steps(scripts, 5).await
 }
 
 fn text_of(message: &Message) -> String {

@@ -22,6 +22,7 @@ mod budget;
 mod compaction;
 mod compaction_in_turn;
 mod delegation;
+mod exploration;
 mod notices;
 mod reasoning;
 mod spill;
