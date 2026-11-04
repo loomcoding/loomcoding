@@ -23,6 +23,7 @@ mod compaction;
 mod compaction_in_turn;
 mod delegation;
 mod notices;
+mod reasoning;
 mod spill;
 mod system_prompt;
 mod turn;

@@ -2,6 +2,21 @@
 
 use super::*;
 
+/// Cota del razonamiento que se conserva por si hay que recuperarlo como respuesta (decálogo de contexto).
+const MAX_RECOVERED_REASONING_BYTES: usize = 16 * 1024;
+
+/// Añade `piece` y, si se pasa de `cap` bytes, conserva solo la cola: la respuesta va al final.
+pub(super) fn push_tail_capped(buf: &mut String, piece: &str, cap: usize) {
+    buf.push_str(piece);
+    if buf.len() > cap {
+        let mut cut = buf.len() - cap;
+        while !buf.is_char_boundary(cut) {
+            cut += 1;
+        }
+        buf.drain(..cut);
+    }
+}
+
 impl AgentLoop {
     /// Ejecuta el turno. Los avisos pendientes los entrega el llamante antes de
     /// llamar aquí; el bucle solo los vuelve a vaciar entre pasos.
@@ -295,6 +310,7 @@ impl AgentLoop {
                 }
             };
             let mut text_buf = String::new();
+            let mut reasoning_buf = String::new();
             let mut tool_calls: Vec<(String, String, serde_json::Value)> = Vec::new();
             let mut provider_usage: Option<Usage> = None;
             let mut provider_usage_final = false;
@@ -327,6 +343,7 @@ impl AgentLoop {
                         );
                     }
                     StreamChunk::ReasoningDelta(r) => {
+                        push_tail_capped(&mut reasoning_buf, &r, MAX_RECOVERED_REASONING_BYTES);
                         self.bus.publish(LiveEvent::ReasoningDelta { text: r });
                     }
                     StreamChunk::Usage(chunk) => {
@@ -495,6 +512,22 @@ impl AgentLoop {
             }
             if stream_error.is_some() {
                 finish = FinishReason::Error;
+            }
+
+            // Un modelo con razonamiento puede cerrar con `Stop` habiendo escrito la respuesta dentro
+            // del razonamiento, sin cerrar el bloque de pensamiento: `content` llega vacío. Si el turno
+            // acaba sin texto ni llamadas, se recupera ese razonamiento como respuesta y se avisa.
+            if text_buf.is_empty()
+                && tool_calls.is_empty()
+                && stream_error.is_none()
+                && !cancel.is_cancelled()
+                && matches!(finish, FinishReason::Stop)
+                && !reasoning_buf.trim().is_empty()
+            {
+                text_buf = reasoning_buf.trim().to_string();
+                self.bus.publish(LiveEvent::RuntimeNotice {
+                    message: "sin texto: respuesta recuperada del razonamiento del modelo".into(),
+                });
             }
 
             let mut parts = Vec::new();
