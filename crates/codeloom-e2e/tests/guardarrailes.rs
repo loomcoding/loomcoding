@@ -47,11 +47,6 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         1100,
         "excepción: tabla de datos del tema, cohesiva",
     ),
-    (
-        "crates/codeloom-core/src/registry/profile.rs",
-        1100,
-        "pendiente de evaluar en una oleada posterior",
-    ),
 ];
 
 fn raiz() -> PathBuf {
