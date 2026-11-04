@@ -1,6 +1,6 @@
 # Sesiones vacías en el runtime local
 
-> Estado: **parcial**. Implementado: `session_belongs_to_project` y su regresión; los cuatro checks pasan. Falta repetir la prueba normal de tool en la TUI cuando OpenRouter responda.
+> Estado: **hecho** (2026-11-04). Implementado: `session_belongs_to_project` y su regresión; los cuatro checks pasan. La prueba manual de tool en la TUI con OpenRouter queda como opcional, sin bloquear nada.
 
 ## Objetivo
 

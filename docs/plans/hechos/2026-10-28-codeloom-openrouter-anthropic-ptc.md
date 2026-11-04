@@ -1,8 +1,8 @@
 # Plan: PTC de Anthropic Haiku vía OpenRouter
 
-> Estado: **parcial**. La compatibilidad PTC real vía OpenRouter está sin confirmar (HTTP 400 en la prueba autorizada del 2026-10-28); queda como intento opt-in con upstream Anthropic fijado.
+> Estado: **hecho con resultado negativo** (2026-11-04). La compatibilidad PTC vía OpenRouter no se confirmó (rechazada en las dos pruebas autorizadas del 2026-10-28); queda como intento opt-in con upstream Anthropic fijado y no se afirma ahorro. Se reabre solo si OpenRouter anuncia soporte.
 
-> Spec: `docs/specs/2026-10-28-codeloom-openrouter-anthropic-ptc.md`.
+> Spec: `docs/specs/hechos/2026-10-28-codeloom-openrouter-anthropic-ptc.md`.
 
 ## Decisiones
 

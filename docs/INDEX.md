@@ -78,8 +78,6 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 ## Sin hacer o sin cierre claro
 
-- **Parciales:** sesion-vacia-runtime (falta la prueba de tool en la TUI con OpenRouter) y
-  openrouter-anthropic-ptc (compatibilidad PTC sin confirmar).
 - **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,
   kpis-prompt-compression, memory, skills-ponytail-superpowers, static-decision-signals,
   tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
