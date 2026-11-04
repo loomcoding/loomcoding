@@ -103,6 +103,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | temas-efectos-matrix-rain (11-02) | hecho | `MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App` y `[effects.matrix]` documentado en `crates/loomcoding-cloth/README.md` |
 | loomcoding-renombrado (11-02) | hecho | renombrado mecánico ejecutado el 2026-11-05 (CodeLoom → Loomcoding, `batten` → `loomcoding-cloth`); pendiente solo la búsqueda de marca y el anuncio público |
 | gauntlet-minimo (11-04) | hecho | recorte de `gauntlet-loop`: herramienta `gauntlet` (constructor + crítico ciego), persistencia, observabilidad y E2E (pasos 1 a 10 del plan). Revisión visual hecha con el renderizador real (las líneas se parten en el transcript estrecho; cosmético); sin E2E por PTY, que exigiría un guion de padre que llame a `advance` |
+| autonomia-y-limite-de-pasos (11-04) | propuesta | pasos con progreso, traspaso al llegar al tope, techo de paralelismo por proveedor y modo Dios de stop; primero de tres proyectos (después, ajustes desde la TUI y selector de agentes); sin plan ni código |
 | servidores-locales-ventana-contexto (11-04) | propuesta | `[provider] context_window` y reconocimiento del desborde de llama.cpp, para usar Loomcoding con servidores locales; spec y plan escritos, sin código |
 | help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
 | agents-picker-filters (11-01) | hecho | filtros conectados al teclado y al popup (`app/agents.rs`, `run/keys.rs`, `render/a2a.rs`); cotejado 2026-11-05 |
