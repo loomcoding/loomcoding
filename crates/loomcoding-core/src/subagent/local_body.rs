@@ -132,11 +132,31 @@ pub(super) fn cuerpo_local(ejecucion: EjecucionLocal) -> JobBody {
                     return Ok(None);
                 }
             };
+            let steps = outcome.steps;
+            let mut text = outcome.final_text;
+            if text.trim().is_empty() && !job_cancel.is_cancelled() && !parent_cancel.is_cancelled()
+            {
+                // Traspaso: una petición sin herramientas para no perder lo que el hijo llevaba. Si el
+                // modelo contesta, el trabajo termina como parcial y el padre lo ve rotulado.
+                let why = if steps >= child_max_steps {
+                    format!("step limit ({steps}/{child_max_steps})")
+                } else {
+                    format!("turn cut early after {steps} steps")
+                };
+                match child_agent.handoff_report(child, &why, &child_cancel).await {
+                    Ok(report) if !report.trim().is_empty() => {
+                        text = format!(
+                            "[PARTIAL: {why}]
+{report}"
+                        );
+                    }
+                    Ok(_) => {}
+                    Err(error) => tracing::warn!("subagent hand-off failed: {error}"),
+                }
+            }
             // El agente ya no emite: soltarlo cierra el bus del hijo y permite
             // que la tarea de reenvío termine.
             drop(child_agent);
-            let steps = outcome.steps;
-            let text = outcome.final_text;
             if text.trim().is_empty() {
                 // El motivo importa: antes todo se reportaba como "sin respuesta
                 // final tras N pasos", que sonaba a presupuesto agotado incluso

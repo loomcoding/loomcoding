@@ -25,6 +25,8 @@ use tokio_util::sync::CancellationToken;
 mod builder;
 mod compaction;
 mod entry;
+mod handoff;
+pub use handoff::HANDOFF_MAX_BYTES;
 mod subagents;
 mod turn;
 mod usage;

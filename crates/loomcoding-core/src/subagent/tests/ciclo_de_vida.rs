@@ -188,6 +188,82 @@ async fn child_at_step_limit_without_final_text_fails_instead_of_completing_empt
 }
 
 #[tokio::test]
+async fn child_at_step_limit_hands_off_a_partial_report_instead_of_failing() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        SqliteStore::open(dir.path().join("handoff-partial.db").to_str().unwrap())
+            .await
+            .unwrap(),
+    );
+    let parent = store.create_session("/project").await.unwrap();
+    let provider: Arc<dyn Provider> = Arc::new(QueueProvider {
+        scripts: std::sync::Mutex::new(
+            vec![
+                vec![
+                    StreamChunk::ToolCallComplete {
+                        id: "c1".into(),
+                        name: "echo".into(),
+                        input: serde_json::json!({"text": "inspect"}),
+                    },
+                    StreamChunk::Done(FinishReason::ToolCalls),
+                ],
+                vec![
+                    StreamChunk::TextDelta("leí los ficheros; falta escribir".into()),
+                    StreamChunk::Done(FinishReason::Stop),
+                ],
+            ]
+            .into(),
+        ),
+    });
+    let mut tools = ToolRegistry::new();
+    tools.register(Arc::new(EchoTool));
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let runtime = InProcessSubagentLauncher::new(
+        Arc::new(RwLock::new(provider)),
+        store.clone(),
+        Arc::new(tools),
+        Arc::new(PermissionService::allow_all()),
+        Arc::new(RwLock::new(LoomcodingConfig {
+            provider: ProviderConfig {
+                kind: ProviderKind::OpenAiCompat,
+                base_url: "http://localhost".into(),
+                api_key_env: "KEY".into(),
+            },
+            model: "test".into(),
+            max_steps: 1,
+            effort: None,
+        })),
+        dir.path().to_path_buf(),
+        jobs.clone(),
+        EventBus::new(64),
+    );
+
+    let (child, job) = runtime
+        .start(
+            parent,
+            "review".into(),
+            "inspect files".into(),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let outcome = jobs.wait(parent, &job).await.unwrap();
+    assert_eq!(outcome.status, JobStatus::Completed);
+    espera_estado_del_hijo(&store, parent, child, TaskState::Completed).await;
+    let descriptor = store
+        .list_subagents(parent)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|descriptor| descriptor.child == child)
+        .unwrap();
+    let result = descriptor.result_text().unwrap();
+    assert!(result.starts_with("[PARTIAL: step limit (1/1)"), "{result}");
+    assert!(result.contains("leí los ficheros; falta escribir"));
+}
+
+#[tokio::test]
 async fn reviewer_cannot_execute_a_model_requested_write_tool() {
     let dir = tempfile::tempdir().unwrap();
     let global = tempfile::tempdir().unwrap();
