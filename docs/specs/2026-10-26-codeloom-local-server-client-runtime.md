@@ -1,4 +1,4 @@
-# Servidor local CodeLoom y clientes TUI
+# Servidor local Loomcoding y clientes TUI
 
 > Estado: aprobado para implementación el 2026-10-26.
 >
@@ -6,22 +6,22 @@
 
 ## Objetivo
 
-CodeLoom es dueño de su runtime compartido. El servidor local aloja un agente supervisor de runtime: conoce el conjunto de agentes registrados y su estado, los vigila, controla el runtime y atiende solicitudes de coordinación. No toma las tareas de trabajo de los agentes.
+Loomcoding es dueño de su runtime compartido. El servidor local aloja un agente supervisor de runtime: conoce el conjunto de agentes registrados y su estado, los vigila, controla el runtime y atiende solicitudes de coordinación. No toma las tareas de trabajo de los agentes.
 
 La primera ejecución de `loom.exe` inicia el servidor local y abre su TUI como cliente; las siguientes ejecuciones se conectan a ese mismo servidor y registran o seleccionan un agente asociado al directorio desde el que se lanzó. El registro se representa con AgentCards A2A. El transporte entre agentes y las operaciones de agentes usan A2A; las decisiones internas del supervisor y el IPC entre TUI y servidor no se presentan como operaciones A2A.
 
-Herdr puede inspirar el patrón daemon + IPC, pero CodeLoom funciona sin Herdr instalado, ejecutándose o configurado.
+Herdr puede inspirar el patrón daemon + IPC, pero Loomcoding funciona sin Herdr instalado, ejecutándose o configurado.
 
 ## Modelo
 
 ```text
 loom.exe (proyecto A) ─┐                 ┌─ TUI A
-loom.exe (proyecto B) ─┼─ IPC local ─────┤  servidor CodeLoom
+loom.exe (proyecto B) ─┼─ IPC local ─────┤  servidor Loomcoding
 loom.exe (proyecto C) ─┘                 │  agentes, sesiones, tools y eventos
                                           └─ registro común de agentes
 ```
 
-- Un servidor por perfil local de usuario; todos los clientes CodeLoom de ese perfil usan el mismo endpoint. El servidor supervisor mantiene el registro de AgentCards y estado de los agentes de runtime. Cada invocación interactiva registra un agente con ID propio; `--attach <id>` permite volver a conectarse a uno existente.
+- Un servidor por perfil local de usuario; todos los clientes Loomcoding de ese perfil usan el mismo endpoint. El servidor supervisor mantiene el registro de AgentCards y estado de los agentes de runtime. Cada invocación interactiva registra un agente con ID propio; `--attach <id>` permite volver a conectarse a uno existente.
 - El servidor posee los `AgentLoop`, providers, ejecución de tools, sesiones, permisos, trabajos y estado de agentes. El proceso cliente se ocupa de terminal, renderizado, teclado y diálogos; reenvía comandos y recibe eventos.
 - El agente supervisor puede usar provider y modelo propios, configurados a nivel del perfil de usuario/runtime. No hereda la configuración ni el `.env` del primer proyecto que inicia el servidor, ni la de los agentes registrados. El registro y la vigilancia de estado son deterministas y no llaman al LLM; el supervisor lo consume solo para razonamiento o coordinación que lo requiera. Sus llamadas y coste se registran en una sesión propia.
 - El LLM del supervisor nunca es requisito para iniciar, mantener o usar el servidor ni para que los agentes trabajen. Si falta configuración, el provider falla o vence el tiempo de espera, el runtime sigue con el flujo clásico determinista; se omite solo la decisión asistida por LLM y se informa del fallo. No se esperan reintentos indefinidos.
@@ -29,7 +29,7 @@ loom.exe (proyecto C) ─┘                 │  agentes, sesiones, tools y eve
 - Cada agente conserva su propio `cwd`, configuración de proyecto, sesión, permisos, presupuesto y estado. Compartir servidor no mezcla contextos ni historial.
 - El servidor abre y escribe SQLite. Las TUI no abren directamente la misma base de datos: el `SqliteStore` actual asume un solo proceso por base.
 - Los cambios de estado y resultados llegan a los clientes por eventos del servidor, no por polling.
-- El descubrimiento y la comunicación entre agentes usan las tarjetas y operaciones A2A implementadas por CodeLoom. No se añaden herramientas `local_agents`/`ask_local_agent` como protocolo alternativo ni métodos JSON-RPC propios.
+- El descubrimiento y la comunicación entre agentes usan las tarjetas y operaciones A2A implementadas por Loomcoding. No se añaden herramientas `local_agents`/`ask_local_agent` como protocolo alternativo ni métodos JSON-RPC propios.
 - El registro de tarjetas es una estructura interna del runtime. Para una interfaz A2A compartida, cada tarjeta anuncia su `tenant` estándar y el servidor enruta las operaciones A2A soportadas con ese valor; no se añade una operación A2A de listado de agentes.
 - Los agentes del runtime son internos: su dirección A2A se limita al runtime local autorizado y no se publica fuera de él por defecto. A2A no define un campo estándar `internal`; esa clasificación pertenece al registro/política local y no se inventa un campo en AgentCard. La tarjeta contiene únicamente campos A2A válidos y capacidades que el agente realmente sirve.
 
@@ -47,10 +47,10 @@ La CLI inicia un proceso oculto `loom --server` si no logra conectar. La creaci�
 
 ## Separación de componentes existentes
 
-- `codeloom-core` sigue siendo el motor reusable, sin dependencia de Ratatui ni de Herdr. El servidor lo aloja.
-- `codeloom-tui` pasa a ser cliente de eventos y comandos del runtime; ya no crea un `AgentLoop` independiente por proceso TUI.
-- `codeloom-cli` conserva los binarios `loom` y `codeloom` y añade la selección/conexión al servidor propio.
-- `codeloom-herdr` continúa opcional. Puede reportar estado o integrarse con el host, pero no arranca, localiza ni autentica el servidor CodeLoom.
+- `loomcoding-core` sigue siendo el motor reusable, sin dependencia de Ratatui ni de Herdr. El servidor lo aloja.
+- `loomcoding-tui` pasa a ser cliente de eventos y comandos del runtime; ya no crea un `AgentLoop` independiente por proceso TUI.
+- `loomcoding-cli` conserva los binarios `loom` y `loomcoding` y añade la selección/conexión al servidor propio.
+- `loomcoding-herdr` continúa opcional. Puede reportar estado o integrarse con el host, pero no arranca, localiza ni autentica el servidor Loomcoding.
 - El servidor A2A existente es la implementación de protocolo A2A para agentes. El servidor supervisor del runtime es el dueño del estado y puede alojar/dirigir esas interfaces; no se crean operaciones A2A propias para UI, registro, control interno ni TUI.
 
 ## Aislamiento y seguridad

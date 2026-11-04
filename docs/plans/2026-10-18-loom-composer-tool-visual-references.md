@@ -1,4 +1,4 @@
-# Plan: inventariar MastraCode y Crush para CodeLoom
+# Plan: inventariar MastraCode y Crush para Loomcoding
 
 > Estado (anotado en la higiene del 2026-11-01): inventario completado según la spec gemela; sin trabajo de código pendiente.
 

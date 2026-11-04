@@ -9,7 +9,7 @@
 - No cambiar decisiones aceptadas en las specs anteriores salvo los dos cambios
   explícitos de esta spec: streaming visible y apertura por defecto de hijos
   activos.
-- `codeloom-core` sigue sin depender de ratatui/crossterm. No usar red real en
+- `loomcoding-core` sigue sin depender de ratatui/crossterm. No usar red real en
   pruebas. Mantener límites de contexto, herramientas, concurrencia y memoria.
 - En el TUI no ocultar la diferencia entre cifra confirmada, estimada y ausente.
 - No commitear.
@@ -18,8 +18,8 @@
 
 ### 1. Inventario de contratos de uso por provider
 
-**Archivos principales:** `crates/codeloom-core/src/provider/{anthropic,openai,gemini}.rs`,
-`crates/codeloom-core/src/provider/mod.rs`, `crates/codeloom-core/src/agent/mod.rs`.
+**Archivos principales:** `crates/loomcoding-core/src/provider/{anthropic,openai,gemini}.rs`,
+`crates/loomcoding-core/src/provider/mod.rs`, `crates/loomcoding-core/src/agent/mod.rs`.
 
 - Documentar para cada adapter cuándo llega `Usage`, si sus eventos son deltas o
   snapshots acumulados, si necesita habilitar una opción para emitir uso en
@@ -33,8 +33,8 @@ contrato interno normalizado antes de tocar el render.
 
 ### 2. Contrato normalizado de actualización por respuesta
 
-**Archivos principales:** `crates/codeloom-core/src/message/`,
-`crates/codeloom-core/src/provider/`, `crates/codeloom-core/src/event/mod.rs`.
+**Archivos principales:** `crates/loomcoding-core/src/message/`,
+`crates/loomcoding-core/src/provider/`, `crates/loomcoding-core/src/event/mod.rs`.
 
 - Representar actualizaciones acumuladas por `request_id`, con ámbito de sesión,
   tokens de entrada/salida, origen (`provider`/`estimate`) y carácter final.
@@ -50,8 +50,8 @@ repetido, final que corrige estimación, provider sin uso y stream cancelado.
 
 ### 3. Registro durable y contadores de familia
 
-**Archivos principales:** `crates/codeloom-core/src/session/{mod.rs,sqlite.rs}`,
-`crates/codeloom-core/src/agent/mod.rs`, `crates/codeloom-tui/src/app.rs`.
+**Archivos principales:** `crates/loomcoding-core/src/session/{mod.rs,sqlite.rs}`,
+`crates/loomcoding-core/src/agent/mod.rs`, `crates/loomcoding-tui/src/app.rs`.
 
 - Mantener una fila final por respuesta; ampliar el ledger para fuente,
   finalización e identidad de respuesta si hace falta reemplazar/recuperar una
@@ -71,9 +71,9 @@ estimación, error de almacenamiento y recarga sin doble suma.
 
 ### 4. Registro de tokens en vivo en la TUI
 
-**Archivos principales:** `crates/codeloom-tui/src/app.rs`,
-`crates/codeloom-tui/src/render.rs`, `crates/codeloom-tui/src/rail.rs`,
-`crates/codeloom-tui/src/run.rs`.
+**Archivos principales:** `crates/loomcoding-tui/src/app.rs`,
+`crates/loomcoding-tui/src/render.rs`, `crates/loomcoding-tui/src/rail.rs`,
+`crates/loomcoding-tui/src/run.rs`.
 
 - Mostrar la petición activa y actualizar entrada/salida al recibir eventos.
 - Presentar estado y fuente con etiquetas distinguibles: confirmado,
@@ -89,9 +89,9 @@ doble suma; familia padre+hijos; dimensiones estrechas; reabrir sesión.
 
 ### 5. Actividad en vivo del subagente
 
-**Archivos principales:** `crates/codeloom-core/src/event/mod.rs`,
-`crates/codeloom-core/src/subagent.rs`, `crates/codeloom-tui/src/app.rs`,
-`crates/codeloom-tui/src/rail.rs`, `crates/codeloom-tui/src/render.rs`.
+**Archivos principales:** `crates/loomcoding-core/src/event/mod.rs`,
+`crates/loomcoding-core/src/subagent.rs`, `crates/loomcoding-tui/src/app.rs`,
+`crates/loomcoding-tui/src/rail.rs`, `crates/loomcoding-tui/src/render.rs`.
 
 - Reenviar deltas de texto visibles del asistente y eventos de herramienta con
   identidad del hijo. No reenviar `ReasoningDelta`.
@@ -110,8 +110,8 @@ sentidos, plegado todavía activo, recuperación tras lag y carga grande acotada
 
 ### 6. Parada directa de un subagente
 
-**Archivos principales:** `crates/codeloom-tui/src/run.rs`,
-`crates/codeloom-tui/src/app.rs`, `crates/codeloom-core/src/subagent.rs` y el
+**Archivos principales:** `crates/loomcoding-tui/src/run.rs`,
+`crates/loomcoding-tui/src/app.rs`, `crates/loomcoding-core/src/subagent.rs` y el
 canal de comandos UI/runtime que ya use el cliente.
 
 - Añadir una acción directa sobre el hijo seleccionado desde la vista del padre;
@@ -128,9 +128,9 @@ del nodo al estado final.
 
 ### 7. Estado verdadero del workflow y dashboard
 
-**Archivos principales:** `crates/codeloom-core/src/tools/development_workflow.rs`,
-`crates/codeloom-core/src/workflow.rs`, `crates/codeloom-tui/src/app.rs`,
-`crates/codeloom-tui/src/render.rs`.
+**Archivos principales:** `crates/loomcoding-core/src/tools/development_workflow.rs`,
+`crates/loomcoding-core/src/workflow.rs`, `crates/loomcoding-tui/src/app.rs`,
+`crates/loomcoding-tui/src/render.rs`.
 
 - Hacer que `development_workflow status` consulte el estado real del hijo
   activo y devuelva una descripción accionable si ya terminó.
@@ -177,6 +177,6 @@ persona usuaria apruebe esta spec y este plan.
 - [x] Preparar contrato y tareas con pruebas de aceptación.
 - [x] Aprobación de la spec y el plan.
 - [x] Implementación secuencial conforme a las dependencias.
-- [x] Checks automatizados: suite del workspace (1.739 pasados, 14 ignorados, un hilo); tras los últimos ajustes, `codeloom-core` + `codeloom-tui` (1.008 pasados, 2 ignorados); `cargo build`, `cargo fmt --all -- --check` y `cargo clippy -- -D warnings`.
+- [x] Checks automatizados: suite del workspace (1.739 pasados, 14 ignorados, un hilo); tras los últimos ajustes, `loomcoding-core` + `loomcoding-tui` (1.008 pasados, 2 ignorados); `cargo build`, `cargo fmt --all -- --check` y `cargo clippy -- -D warnings`.
 - [ ] Prueba interactiva en terminal Windows con el provider/modelo de la persona usuaria;
   pendiente de reiniciar los daemons activos, que rechazaron el protocolo del binario nuevo.

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Context for agents working in the `codeloom` repository. Read this before acting.
+Context for agents working in the `loomcoding` repository. Read this before acting.
 
 ## Reading map
 
@@ -13,9 +13,9 @@ Context for agents working in the `codeloom` repository. Read this before acting
 
 A change that invalidates `ARCHITECTURE.md` or `CODE-MAP.md` updates them in the same commit.
 
-## What CodeLoom is
+## What Loomcoding is
 
-CodeLoom is a code agent written in **Rust** with a **ratatui** TUI, whose
+Loomcoding is a code agent written in **Rust** with a **ratatui** TUI, whose
 orchestration model (**agent -> subagents -> jobs**, shown in the header) is
 **based on deepseek-harness (dsh)**. It reuses dsh's *design* but improves
 *execution* with Rust's real parallelism. It integrates optionally with `herdr`
@@ -23,10 +23,10 @@ orchestration model (**agent -> subagents -> jobs**, shown in the header) is
 
 ## Current state: implemented and in use
 
-The workspace builds and has tests. Crates: `batten` (TUI widgets/state),
-`codeloom-core` (engine), `codeloom-a2a` (A2A wire edge, card, JSON-RPC client),
-`codeloom-tui`, `codeloom-herdr`, `codeloom-cli`. Subagents run as A2A tasks; remote
-A2A agents can be consumed (A8a, with client-side auth A8d) and CodeLoom can be served as a
+The workspace builds and has tests. Crates: `cloth` (TUI widgets/state),
+`loomcoding-core` (engine), `loomcoding-a2a` (A2A wire edge, card, JSON-RPC client),
+`loomcoding-tui`, `loomcoding-herdr`, `loomcoding-cli`. Subagents run as A2A tasks; remote
+A2A agents can be consumed (A8a, with client-side auth A8d) and Loomcoding can be served as a
 read-only A2A agent (A8b). Streaming over SSE (A8c, serving and consuming) and the automatic agent
 router (A12b, rule plus optional classifier) are done, as is the remote-agents closure (A8d-2:
 OAuth2/OIDC, mTLS and card-signature checks; remote `input-required`; live cards). The status of
@@ -57,14 +57,14 @@ cargo fmt --check
 cargo clippy -- -D warnings
 ```
 
-The binaries are `loom` and `codeloom` (`cargo run -p codeloom-cli --bin loom`).
+The binaries are `loom` and `loomcoding` (`cargo run -p loomcoding-cli --bin loom`).
 Toolchain is pinned by `rust-toolchain.toml` (edition 2021).
 
 ## Architecture rules (hard)
 
-- **`codeloom-core` must NOT depend on `ratatui` or `crossterm`.** The engine is a
+- **`loomcoding-core` must NOT depend on `ratatui` or `crossterm`.** The engine is a
   pure, testable library (spec §2). TUI, host integrations, voice, decision,
-  compression live in **optional crates** (`codeloom-tui`, `codeloom-herdr`, ...), never
+  compression live in **optional crates** (`loomcoding-tui`, `loomcoding-herdr`, ...), never
   in the core.
 - Library errors use `thiserror`; the binary may use `anyhow`.
 - Tools that write are `ExecutionMode::Exclusive` (they form a barrier); read-only
@@ -74,23 +74,23 @@ Toolchain is pinned by `rust-toolchain.toml` (edition 2021).
 - **Nothing unbounded reaches the model**: every tool output, prompt section and loop has a
   cap (spec `docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`). Read the
   decalogue before adding or changing a tool.
-- One binary pair, two modes: `codeloom-cli` builds both `loom` and `codeloom`,
+- One binary pair, two modes: `loomcoding-cli` builds both `loom` and `loomcoding`,
   which autodetect standalone vs `herdr` plugin.
 
 ## Conventions
 
 - **Language**: the specs and the README are **Spanish**; code comments and CLI
   strings follow the file you touch. Match the file, don't convert it.
-- **Naming**: product **CodeLoom**; crates.io `codeloom-core` / `codeloom-cli` /
-  `codeloom-tui`; binaries `loom` and `codeloom` (`loom` is the short command for
-  the same brand); integration crate **`codeloom-herdr`**, plugin
-  **`codeloom.herdr`**; the set of subagents is the **"flock"** shown in the header.
+- **Naming**: product **Loomcoding**; crates.io `loomcoding-core` / `loomcoding-cli` /
+  `loomcoding-tui`; binaries `loom` and `loomcoding` (`loom` is the short command for
+  the same brand); integration crate **`loomcoding-herdr`**, plugin
+  **`loomcoding.herdr`**; the set of subagents is the **"flock"** shown in the header.
 - Follow the patterns already written in the specs (message model, `trait
   Provider`, tool registry, event bus) rather than inventing new ones.
 
 ## Gotchas
 
-- **Never run the real binary without `CODELOOM_HOME`** pointing at a temporary directory: on
+- **Never run the real binary without `LOOMCODING_HOME`** pointing at a temporary directory: on
   Windows `dirs::home_dir()` ignores `USERPROFILE`, and the client attaches to the user's real
   daemon. E2E tests and screenshots must use an isolated profile (`docs/visual-e2e.md`).
 - Don't invent build/test commands beyond the four above; they are the plan's

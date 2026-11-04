@@ -24,7 +24,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 ## Hecho
 
-- **Fundamentos (10-13 a 10-20):** MVP, `batten` (v0, primitivas, showcase, sidebar-logo,
+- **Fundamentos (10-13 a 10-20):** MVP, `cloth` (v0, primitivas, showcase, sidebar-logo,
   composer-editing, spinner-styles), modified-files, permission-dialog, input-loop,
   markdown, ansi-sanitize, color-depth, osc8-links, transcript (focus, geometry,
   selection, virtual, activity), look-layout, look-presets, todos-and-questions.
@@ -38,7 +38,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   context-meter, context-summary; el decálogo está vigente. Se suma `cache-usage-ledger` (fase 1:
   registro de los tokens de caché comunicados por el proveedor; desglose y TUI quedan pendientes) y
   `mcp-schema-cost` (herramientas y tokens estimados por servidor MCP al conectar, con aviso por umbrales) y
-  `prompt-cache-points` (dos puntos de caché en el adaptador de Anthropic, medido en real; configurable con `[provider] prompt_cache`, por debajo de `CODELOOM_PROMPT_CACHE`: `prompt-cache-config`) y
+  `prompt-cache-points` (dos puntos de caché en el adaptador de Anthropic, medido en real; configurable con `[provider] prompt_cache`, por debajo de `LOOMCODING_PROMPT_CACHE`: `prompt-cache-config`) y
   `context-breakdown-ui` (desglose estimado de la petición y caché acumulada en el panel de uso, solo con datos) y
   `delegation-control` (aprobación por código de cada delegación con `confirm_delegation = always` y mando
   `[agents] delegation = off | on_request | proactive`; solo `off` es garantía de código) y
@@ -74,7 +74,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | tool-atoms, context-meter, budget-warning, context-summary | verlos en terminal real |
 | scrollable-capability-widgets | revisión visual en terminal real (la suite del workspace ya pasa) |
 | e2e-visual (PTY y ttyd) | captura de píxeles con Chrome: `Page.captureScreenshot` agotó el tiempo |
-| codeloom-m3 (herdr) | validar el pane en una sesión herdr no elevada |
+| loomcoding-m3 (herdr) | validar el pane en una sesión herdr no elevada |
 
 ## Sin hacer o sin cierre claro
 
@@ -84,12 +84,12 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   openrouter-anthropic-ptc (compatibilidad PTC sin confirmar).
 - **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,
   kpis-prompt-compression, memory, skills-ponytail-superpowers, static-decision-signals,
-  tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
+  tool-skill-discovery, turn-summary, voice-prompt-input, cloth-selection,
   agent-profile-a2a, agentic-fetch, turn-status-line.
 - **Borradores y estudios sin aprobar (2026-10-31):** `decalogo-agent-first` (principios candidatos, a discusión) y
   `ecc-agent-workforce-research` (investigación de la persona usuaria; no autoriza cambios).
 - **Fuera de este inventario hasta revisarlas:** `self-hosting-bootstrap` (evaluación), `mcp-skills-hot-reload`,
-  `decision-experiments` (borradores), `composer-tool-visual-references` y `batten-reference-findings-showcase`
+  `decision-experiments` (borradores), `composer-tool-visual-references` y `cloth-reference-findings-showcase`
   (análisis ya completados, sin código asociado).
 - **`agent-autonomy`, verificado el 2026-11-01:** A, B, C, D y `follow_up_of` están hechos (la B con `child-progress-artifacts`). La restricción de `send_message`
   se descartó a propósito (`answer` ya cubre `input-required`). Detalle en la cabecera de la spec.
@@ -100,16 +100,16 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 | Documento | Estado | Nota |
 |---|---|---|
-| estados-de-subagente-y-composer-compartido (11-04) | hecho | Fases 0 a 6 hechas, con los matices que el plan declara; supervisor probado con un remoto en `codeloom-a2a/tests/supervised_remote.rs` (cotejado 2026-11-05) |
+| estados-de-subagente-y-composer-compartido (11-04) | hecho | Fases 0 a 6 hechas, con los matices que el plan declara; supervisor probado con un remoto en `loomcoding-a2a/tests/supervised_remote.rs` (cotejado 2026-11-05) |
 | watchdog-de-subagentes (11-05) | hecho | Fase 3 del anterior, commit `70a21f9`; el supervisor y `lost_action` (defecto `notify`) ya están implementados |
 | organizacion-y-navegabilidad (11-05) | hecho | Fases 0 a 8: navegación, guardarraíles y todos los monolitos partidos; lista blanca vacía |
-| avisos-proveedor-spinner (11-03) | hecho | `/verbose` (`commands.rs`) y `provider_in_flight`; el plan lo declara hecho. Abierto en el spec: si `/verbose` debe persistir en `codeloom.toml` |
-| temas-efectos-matrix-rain (11-02) | hecho | `MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App` y `[effects.matrix]` documentado en `crates/batten/README.md` |
+| avisos-proveedor-spinner (11-03) | hecho | `/verbose` (`commands.rs`) y `provider_in_flight`; el plan lo declara hecho. Abierto en el spec: si `/verbose` debe persistir en `loomcoding.toml` |
+| temas-efectos-matrix-rain (11-02) | hecho | `MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App` y `[effects.matrix]` documentado en `crates/loomcoding-cloth/README.md` |
 | loomcoding-renombrado (11-02) | propuesta | |
 | help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
 | agents-picker-filters (11-01) | hecho | filtros conectados al teclado y al popup (`app/agents.rs`, `run/keys.rs`, `render/a2a.rs`); cotejado 2026-11-05 |
 | edit-line-endings (11-01) | hecho | `match_line_endings` (`tools/mod.rs`) usado por `edit` y `multiedit` |
-| session-picker-rows, session-project-identity, tool-loop-turn-scope (11-01) | hecho | lista sin ajuste de línea (`render/settings.rs`); clave `cwd#codeloom-agent` con lectura de la anterior por prefijo (`session/sqlite/sessions.rs`); detección de bucles desde el último mensaje de usuario (`agent/stop.rs`) |
+| session-picker-rows, session-project-identity, tool-loop-turn-scope (11-01) | hecho | lista sin ajuste de línea (`render/settings.rs`); clave `cwd#loomcoding-agent` con lectura de la anterior por prefijo (`session/sqlite/sessions.rs`); detección de bucles desde el último mensaje de usuario (`agent/stop.rs`) |
 | deuda-tecnica (10-16) | referencia | registro vivo de limitaciones |
 | development-workflow-interactive-reliability, runtime-capabilities-dashboard (10-29) | sin cierre declarado | anotado en la higiene del 11-01 |
 | local-server-client-runtime (10-26) | hecho | es el «Runtime R1 a R6» de más arriba |
@@ -124,7 +124,7 @@ incluya, ha de borrarse la sección `[patch.crates-io]` y comprobar el pegado co
 
 ## Qué puede verificar ya el E2E en PTY
 
-Con `crates/codeloom-cli/tests/tui_pty.rs` (véase `docs/visual-e2e.md`) se pueden añadir escenarios
+Con `crates/loomcoding-cli/tests/tui_pty.rs` (véase `docs/visual-e2e.md`) se pueden añadir escenarios
 automáticos para: multiline-chat-composer, image-attachments, atribución `You`
 (user-attribution-internal-messages) y subagent-empty-final-response. Cada cabo suelto se cierra
 al añadir su escenario; hoy hay cinco cubiertos: arranque, turno con `You`, pegado grande, composer

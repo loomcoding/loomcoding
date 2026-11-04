@@ -86,7 +86,7 @@ anterior más lo que vino después.
 
 - `LiveEvent::ContextCompacted { replaced: usize, tokens_before: u64, summary_bytes: usize }`.
 - La TUI muestra el mensaje de resumen como **aviso propio** («contexto compactado»), no como
-  texto de la persona usuaria, y rotula que es una función de CodeLoom, no de A2A.
+  texto de la persona usuaria, y rotula que es una función de Loomcoding, no de A2A.
 - Los subagentes heredan el mecanismo: usan el mismo bucle, con la ventana de su modelo.
 
 ## Qué queda fuera (declarado)
@@ -160,7 +160,7 @@ propio en la TUI) y `cd04d13` (apunte del consumo de la llamada de resumen).
 - **Interfaz:** `Command::Compact`. Solo con sesión abierta y sin turno, despertar ni otra
   compactación en curso; si no, el motivo sale en el aviso del composer y se conserva el texto
   escrito. Mientras dura, la cola de prompts y los despertares esperan (`compact_in_flight`).
-- **Trabajador (`codeloom-cli`):** canal propio (`compact_tx`), junto al de despertares.
+- **Trabajador (`loomcoding-cli`):** canal propio (`compact_tx`), junto al de despertares.
 - **Rotulado como propio:** nada de esto viene de A2A; es mando de la interfaz.
 - **No consta / límites:** no se puede cancelar con `Esc` mientras resume (la cancelación de la
   interfaz solo actúa sobre turnos); no se ha visto en una terminal real; con la compactación

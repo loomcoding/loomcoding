@@ -1,6 +1,6 @@
 # Diagnóstico: resultados que desaparecen y comandos que se cortan
 
-Fecha: 2026-11-05. Sesión de dogfooding: CodeLoom trabajando sobre su propio
+Fecha: 2026-11-05. Sesión de dogfooding: Loomcoding trabajando sobre su propio
 repositorio.
 
 ## Síntomas
@@ -13,7 +13,7 @@ repositorio.
 
 ## Causa raíz 1 (principal): la limpieza no protege el turno en curso
 
-`crates/codeloom-core/src/agent/clear.rs` sustituye resultados de herramienta por un
+`crates/loomcoding-core/src/agent/clear.rs` sustituye resultados de herramienta por un
 marcador. La protección del trabajo en curso depende de `provider_state`:
 
 ```rust
@@ -28,7 +28,7 @@ if index < cutoff
     && !continuation_calls.contains(call_id.as_str())         // <-- protección
 ```
 
-El proveedor configurado en `codeloom.toml` es `openai_compat`
+El proveedor configurado en `loomcoding.toml` es `openai_compat`
 (`OpenAiCompatProvider::stream`, `provider/openai.rs:276`), y **ese camino nunca
 emite `ProviderState`**: las únicas emisiones están en `openai.rs:758` y `:773`,
 dentro de `OpenAiResponsesProvider::stream` (`:657`).
@@ -55,7 +55,7 @@ frontera el último mensaje `User`.
 
 ## Causa raíz 2: comillas dobles escapadas de más
 
-`crates/codeloom-core/src/tools/bash.rs` **no** escapa nada: pasa el comando literal
+`crates/loomcoding-core/src/tools/bash.rs` **no** escapa nada: pasa el comando literal
 a `cmd.exe /C` (líneas 41-49, `.arg(command)`). Sin embargo la ejecución reproduce
 el doble escapado:
 

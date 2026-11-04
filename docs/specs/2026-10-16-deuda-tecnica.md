@@ -1,4 +1,4 @@
-# Deuda técnica conocida (batten + loom)
+# Deuda técnica conocida (cloth + loom)
 
 > Estado: **registro vivo**. Cada entrada señala un comentario `limitación:` en el
 > código. Al abordar una, se diseña (spec/plan) y se borra de aquí y del código.
@@ -7,10 +7,10 @@
 
 | # | Dónde | Limitación | Impacto | Dirección del arreglo |
 |---|---|---|---|---|
-| 7 | `batten/src/state/markdown.rs` (tablas) | Las tablas salen como texto con ` │ ` sin alinear. | Tablas ilegibles. | Widget de tabla con anchos por columna y wrap. |
-| 8 | `codeloom-tui/src/permission_flow.rs` | En el diff de `edit`, los números de línea son relativos al fragmento `old`/`new`. | Números que no coinciden con el fichero. | Que el core adjunte el contexto del fichero (o que la TUI lo lea) para numerar con la posición real. |
-| 9 | `codeloom-cli/src/main.rs` | `-p` (no interactivo) deniega todas las tools salvo con `--yolo`. | El modo print no puede usar tools sin `--yolo`. | Política de permisos configurable (`codeloom.toml`): lista de tools permitidas en modo print. |
-| 10 | `batten/src/widgets/fx.rs` | Los efectos de tachyonfx interpolan en RGB aunque el tema tenga menos profundidad. | Colores RGB transitorios en terminales de 256/16 colores o `NO_COLOR`. | Desactivar los presets con `NoColor` y aplicar el efecto `ansi256` de tachyonfx con profundidades reducidas. |
+| 7 | `cloth/src/state/markdown.rs` (tablas) | Las tablas salen como texto con ` │ ` sin alinear. | Tablas ilegibles. | Widget de tabla con anchos por columna y wrap. |
+| 8 | `loomcoding-tui/src/permission_flow.rs` | En el diff de `edit`, los números de línea son relativos al fragmento `old`/`new`. | Números que no coinciden con el fichero. | Que el core adjunte el contexto del fichero (o que la TUI lo lea) para numerar con la posición real. |
+| 9 | `loomcoding-cli/src/main.rs` | `-p` (no interactivo) deniega todas las tools salvo con `--yolo`. | El modo print no puede usar tools sin `--yolo`. | Política de permisos configurable (`loomcoding.toml`): lista de tools permitidas en modo print. |
+| 10 | `cloth/src/widgets/fx.rs` | Los efectos de tachyonfx interpolan en RGB aunque el tema tenga menos profundidad. | Colores RGB transitorios en terminales de 256/16 colores o `NO_COLOR`. | Desactivar los presets con `NoColor` y aplicar el efecto `ansi256` de tachyonfx con profundidades reducidas. |
 
 Resueltas el 2026-10-16: 1, 2, 3 (ver 2026-10-16-transcript-virtual-design.md), 4 (ver docs/plans/hechos/2026-10-16-color-depth.md), 5 (ver docs/plans/hechos/2026-10-16-ansi-sanitize.md) y 6 (ver docs/plans/hechos/2026-10-16-osc8-links.md).
 

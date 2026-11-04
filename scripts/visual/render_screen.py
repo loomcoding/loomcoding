@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pinta en PNG el volcado JSON de una pantalla (`codeloom_e2e::Snapshot`).
+"""Pinta en PNG el volcado JSON de una pantalla (`loomcoding_e2e::Snapshot`).
 
 Uso: python scripts/visual/render_screen.py <snapshot.json> <salida.png> [--font-size 16]
 

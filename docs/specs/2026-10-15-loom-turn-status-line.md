@@ -1,4 +1,4 @@
-# CodeLoom — Idea: línea de estado de turno (proveedor · modelo · tiempo)
+# Loomcoding — Idea: línea de estado de turno (proveedor · modelo · tiempo)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -38,10 +38,10 @@ transportarlo a la UI.
 - **Core**: emitir un evento al cerrar el turno, p. ej.
   `LiveEvent::TurnFinished { provider, model, elapsed_ms }` (o ampliar
   `TurnEnded`).
-- **batten**: una línea de estilo `Banner`/`Muted` con una regla de guiones
+- **cloth**: una línea de estilo `Banner`/`Muted` con una regla de guiones
   (`─`/`Glyphs::field`) hasta el ancho. Puede ser un widget `status_line` o un
   `LineKind` ya existente (`Banner`).
-- **codeloom-tui**: `App::apply` la añade al transcript; el render ya soporta
+- **loomcoding-tui**: `App::apply` la añade al transcript; el render ya soporta
   líneas con prefijo/estilo.
 
 ## 3. Gotchas
@@ -56,5 +56,5 @@ transportarlo a la UI.
 
 - ¿Se pinta **siempre** al cerrar cada turno, o solo bajo demanda/verbose?
 - ¿Formato exacto (separador `:` y regla `─`) y en qué idioma?
-- ¿Componente nuevo en batten (`status_line`) o reutilizar `Banner` con spans?
+- ¿Componente nuevo en cloth (`status_line`) o reutilizar `Banner` con spans?
 - ¿El tiempo se cuenta desde el prompt del usuario o desde el primer token?

@@ -5,7 +5,7 @@ Estado: implementado; pendiente de verificación final y prueba visual en la TUI
 ## Objetivo
 
 Evitar que un pegado grande ocupe todo el composer mostrando un marcador breve,
-sin perder ni alterar el contenido original que CodeLoom enviará al modelo.
+sin perder ni alterar el contenido original que Loomcoding enviará al modelo.
 
 ## Comportamiento
 

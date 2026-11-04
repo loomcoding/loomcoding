@@ -1,6 +1,6 @@
 # Código de conducta
 
-CodeLoom quiere que participar en el proyecto sea una experiencia respetuosa y libre de acoso,
+Loomcoding quiere que participar en el proyecto sea una experiencia respetuosa y libre de acoso,
 independientemente de la identidad, origen, experiencia o características personales de cada quien.
 
 Se espera que las personas participantes traten a las demás con respeto, acepten las críticas de
@@ -9,7 +9,7 @@ acoso, las amenazas, los ataques personales, el lenguaje discriminatorio ni la p
 privados sin permiso.
 
 Este código se aplica a issues, pull requests, revisiones, discusiones y a cualquier espacio donde
-alguien represente oficialmente a CodeLoom. La persona mantenedora puede editar o retirar contenido
+alguien represente oficialmente a Loomcoding. La persona mantenedora puede editar o retirar contenido
 y limitar la participación cuando sea necesario para proteger a la comunidad.
 
 Para reportar una conducta, contacta a la persona mantenedora desde el [perfil de GitHub de

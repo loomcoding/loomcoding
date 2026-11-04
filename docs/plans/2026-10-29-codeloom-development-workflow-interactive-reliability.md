@@ -20,7 +20,7 @@
 
 ## Verificación
 
-- Tests unitarios dirigidos de `codeloom-core`, sin proveedores ni red reales.
+- Tests unitarios dirigidos de `loomcoding-core`, sin proveedores ni red reales.
 - `cargo fmt --all --check` y `git diff --check`.
 - Los checks globales de `AGENTS.md` quedan pendientes si el ejecutable local
   sigue bloqueado por el servidor activo; no detenerlo para liberar el archivo.
@@ -40,15 +40,15 @@
 
 | Comando | Resultado |
 |---|---|
-| `cargo test -p codeloom-core --lib` (target aislado en `%TEMP%`) | 545 pasaron, 2 ignorados. |
-| `cargo clippy -p codeloom-core --lib -- -D warnings` (target aislado) | 0 errores; Cargo informa 1 warning existente por el `main.rs` compartido entre `loom` y `codeloom`. |
-| `cargo build -p codeloom-cli --bin codeloom` (target aislado) | Correcto; mismo warning existente de targets duplicados. |
+| `cargo test -p loomcoding-core --lib` (target aislado en `%TEMP%`) | 545 pasaron, 2 ignorados. |
+| `cargo clippy -p loomcoding-core --lib -- -D warnings` (target aislado) | 0 errores; Cargo informa 1 warning existente por el `main.rs` compartido entre `loom` y `loomcoding`. |
+| `cargo build -p loomcoding-cli --bin loomcoding` (target aislado) | Correcto; mismo warning existente de targets duplicados. |
 | `cargo fmt --all --check` | Correcto. |
 | `git diff --check` | Correcto. |
 
-El servidor CodeLoom antiguo se detuvo después de compilar el binario actualizado
+El servidor Loomcoding antiguo se detuvo después de compilar el binario actualizado
 en el target aislado. El cliente TUI viejo sigue abierto como PID 25752 y mantiene
-bloqueado `target/debug/codeloom.exe`; la prueba interactiva debe usar el binario
+bloqueado `target/debug/loomcoding.exe`; la prueba interactiva debe usar el binario
 aislado o esperar a que se cierre ese cliente.
 
 ## Límite conocido

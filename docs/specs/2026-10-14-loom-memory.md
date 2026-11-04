@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: memoria (proyecto, general y otras)
+# Loomcoding — Idea/spec: memoria (proyecto, general y otras)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -13,7 +13,7 @@
 
 ## 0. La idea
 
-Que CodeLoom tenga **memoria**: de **proyecto** (convenciones, decisiones,
+Que Loomcoding tenga **memoria**: de **proyecto** (convenciones, decisiones,
 trampas), **general** (preferencias y procedimientos del usuario, entre
 proyectos) y, si hace falta, otros tipos (episódica/sesión, semántica/grafo de
 código). Y que un **sistema de decisión** (jevalan) resuelva **cuándo cargar cada
@@ -50,7 +50,7 @@ caveman penaliza). Por tanto:
 | **Episódica / sesión** | el historial del turno | `SessionStore` (§4.4, ya diseñado) | una sesión |
 | **Semántica / grafo** | estructura del código (quién llama a quién) | `codebase-memory` (MCP) | un repo |
 
-- **Proyecto**: CodeLoom ya menciona el contexto `AGENTS.md` en `config/contexto`
+- **Proyecto**: Loomcoding ya menciona el contexto `AGENTS.md` en `config/contexto`
   (§2). Aquí se formaliza: índice de una línea por entrada + ficheros de tema
   enlazados (como `MEMORY.md`), con **límite de truncado** (lo que pasa del
   límite no se carga).
@@ -75,7 +75,7 @@ en `~/.serena/memories/global/`. Herramientas MCP: `write_memory`, `read_memory`
 El agente recibe **la lista de nombres** de memoria al arrancar y **lee bajo
 demanda** lo que necesita (referencias por el prefijo `mem:`). En su
 `.serena/project.yml` (visto en `jevalan`/`tipsy-assistant`) hay dos cosas que
-CodeLoom debe copiar:
+Loomcoding debe copiar:
 
 - Las memorias se cargan **bajo demanda**: el propio fichero dice *"contrary to
   the memories, which are loaded on demand"* (el `initial_prompt` sí es siempre
@@ -117,7 +117,7 @@ evolución en el tiempo**.
 | MCP | sí | sí (carpeta `mcp_server`) |
 | Licencia | MIT | Apache-2.0 |
 
-Encaje en CodeLoom:
+Encaje en Loomcoding:
 
 - **codebase-memory** = la memoria **semántica/estructural** (§2). Determinista,
   barata, encaja con "consultar, no inyectar".
@@ -126,7 +126,7 @@ Encaje en CodeLoom:
   lugar de (o además de) el `SessionStore` plano. Es **más caro** (LLM +
   embeddings + BD de grafo), así que va **detrás del router** y solo donde la
   temporalidad importa; no por defecto.
-- Ambos son **MCP**: CodeLoom los consume por protocolo, el lenguaje de cada uno da
+- Ambos son **MCP**: Loomcoding los consume por protocolo, el lenguaje de cada uno da
   igual.
 
 ### 2.3 codebase-memory vs LSP vs AST (¿chocan?)
@@ -145,7 +145,7 @@ language server). Es **estático**, sin runtime, y da a cada arista una
 | Coste | proceso por lenguaje, pesado | binario único + SQLite, barato | barato, sin resolver |
 | Huecos | necesita language server por lenguaje | macros, dispatch dinámico y reflexión **no** representados; no guarda el código fuente | nada de semántica |
 
-**Reparto en CodeLoom (precedencia, no competencia):**
+**Reparto en Loomcoding (precedencia, no competencia):**
 
 - **LSP = autoritativo** cuando hay language server: definiciones, referencias y
   diagnósticos exactos, "qué se hace" con tipos. Es la fuente de verdad (m4 ya
@@ -180,7 +180,7 @@ llamada cara:
 - **Si jevalan no responde**: por defecto, **memoria de proyecto sí** (barata y
   casi siempre útil) y el resto no; nunca cargar todo a ciegas.
 
-## 4. Mecánica en CodeLoom
+## 4. Mecánica en Loomcoding
 
 - **`MemoryIndex` versionado** con watcher: editar `AGENTS.md`/`MEMORY.md` se
   reindexa **en caliente** (ver `2026-10-14-loom-mcp-skills-hot-reload.md`),
@@ -256,7 +256,7 @@ budget_tokens = 2000
 
 ## 9. Preguntas abiertas
 
-- ¿La memoria general vive en el repo, en `~/.config/codeloom`, o en un servicio?
+- ¿La memoria general vive en el repo, en `~/.config/loomcoding`, o en un servicio?
 - ¿Cuándo se **destila** episódica a proyecto/general: al cerrar el turno, al
   cerrar la sesión, o por un comando?
 - ¿El grafo (`codebase-memory`) entra como MCP (reutiliza hot-reload de MCP) o

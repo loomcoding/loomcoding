@@ -1,4 +1,4 @@
-# batten — Hallazgos de referencias y composición CodeLoom en el showcase
+# cloth — Hallazgos de referencias y composición Loomcoding en el showcase
 
 > Estado: **propuesta para análisis**, no aprobación de dependencias ni plan ejecutado.
 >
@@ -9,13 +9,13 @@
 
 ## 1. Objetivo y relación con el diseño existente
 
-Convertir el showcase de batten en un lugar donde analizar y validar las
-primitivas que componen CodeLoom, tanto aisladas como juntas, sin proveedores,
+Convertir el showcase de cloth en un lugar donde analizar y validar las
+primitivas que componen Loomcoding, tanto aisladas como juntas, sin proveedores,
 red, herramientas reales ni motor de agentes.
 
 Esta spec complementa, sin sustituir sus decisiones aprobadas:
 
-- [Diseño de batten](hechos/2026-10-14-batten-design.md).
+- [Diseño de cloth](hechos/2026-10-14-batten-design.md).
 - [Showcase navegable](hechos/2026-10-15-batten-showcase-design.md).
 - [Primitivas](hechos/2026-10-15-batten-primitives-design.md).
 - [Composer editable](hechos/2026-10-15-batten-composer-editing-design.md).
@@ -30,7 +30,7 @@ migración a otro editor.
 
 ## 2. Estado observado en nuestro checkout
 
-- `batten/src/lib.rs` separa estado puro de widgets ratatui con tema.
+- `cloth/src/lib.rs` separa estado puro de widgets ratatui con tema.
 - El catálogo de `examples/showcase/demos/mod.rs` ya contiene demos de
   transcript, composer, herramientas, sidebar, cambios, temas, efectos y otros.
 - `demos/chat.rs` compone transcript, una herramienta, sidebar y composer.
@@ -49,7 +49,7 @@ migración a otro editor.
   features. No hace falta volver a introducirlos.
 - `Demo::handle_key` recibe `KeyCode`, no modificadores ni eventos de ratón.
   Demostrar Ctrl+J, Shift+selección o pegado exige revisar el transporte de
-  eventos del ejemplo; no implica acoplar el estado de batten a crossterm.
+  eventos del ejemplo; no implica acoplar el estado de cloth a crossterm.
 
 ## 3. Referencias y aportación concreta
 
@@ -79,7 +79,7 @@ antes de incorporar código se debe registrar el commit exacto utilizado.
   elevar memoria y CPU; no se ha medido. No copiar el módulo entero por defecto.
 - La selección de reviewr depende de sus tipos de diff y navegación. Su modelo
   conceptual encaja, pero el archivo no es una primitiva independiente lista
-  para pegar en batten.
+  para pegar en cloth.
 
 ## 4. Decisiones propuestas para analizar
 
@@ -129,10 +129,10 @@ Mermaid, imágenes y árboles quedan fuera de esta primera composición.
 
 Mantener `FileChanges` como resumen. Si se necesita inspeccionar contenido,
 crear una primitiva distinta con filas de contexto/altas/bajas y números de línea.
-La app suministra datos: batten no ejecuta Git ni lee archivos para obtenerlos.
+La app suministra datos: cloth no ejecuta Git ni lee archivos para obtenerlos.
 Plegado y énfasis por palabras se añaden solo después de validar el diff básico.
 
-## 5. Composición CodeLoom en el showcase
+## 5. Composición Loomcoding en el showcase
 
 Evolucionar la demo `chat` existente, manteniendo el catálogo y las demos
 aisladas. La composición muestra:
@@ -141,12 +141,12 @@ aisladas. La composición muestra:
 2. Transcript con respuesta progresiva y herramientas visibles en su contexto.
 3. Composer editable y foco explícito.
 4. Sidebar con información de sesión; resumen de cambios cuando los haya.
-5. Flock simulado en la ubicación definida por el diseño de CodeLoom cuando
+5. Flock simulado en la ubicación definida por el diseño de Loomcoding cuando
    se valide esa representación; no se implementa orquestación real.
 
 La composición reutiliza los widgets públicos: nada de renderizadores paralelos
 exclusivos del showcase. Los adaptadores de escenario permanecen en el ejemplo.
-No convertir esta demo en una segunda aplicación CodeLoom.
+No convertir esta demo en una segunda aplicación Loomcoding.
 
 ### Escenarios reproducibles
 
@@ -173,7 +173,7 @@ interferir con escritura, navegación del catálogo ni salida.
   scrollbar; módulos/exports solo cuando la solución lo requiera.
 - Showcase: `demo.rs`, `app.rs`, `main.rs`, catálogo y demos `chat`,
   `composer`, `transcript`; selección/Markdown/diff cuando se aprueben.
-- Consumidores: revisar `codeloom-tui` al modificar firmas o comportamiento
+- Consumidores: revisar `loomcoding-tui` al modificar firmas o comportamiento
   público. No migrar su layout como efecto colateral de mejorar una demo.
 - Configuración: `Cargo.toml`/lockfile solo si se decide añadir dependencia.
 - Pruebas y fixtures de los comportamientos afectados; actualizar la spec
@@ -191,7 +191,7 @@ cargo fmt --check
 cargo clippy -- -D warnings
 ```
 
-Para inspección interactiva: `cargo run -p batten --example showcase`.
+Para inspección interactiva: `cargo run -p loomcoding-cloth --example showcase`.
 Los tests de buffer/estado no sustituyen la inspección de teclado, resize,
 cursor y streaming en un terminal real. Registrar terminal, tamaño, escenario
 y resultado; no declarar validación visual sin realizarla.
@@ -209,7 +209,7 @@ diff y ratón pueden entregarse después, sin bloquear ese resultado.
 - ¿Se mantiene el composer recortado o se aprueba wrap visual?
 - ¿Compensa adaptar `ratatui-textarea` preservando estado puro y API existente?
 - ¿Qué mecanismo mínimo de geometría permite anclar transcript y selección?
-- ¿Markdown pertenece a batten como capacidad opcional o lo suministra la app?
+- ¿Markdown pertenece a cloth como capacidad opcional o lo suministra la app?
 - ¿Cuándo necesita la composición un visor de diff además del resumen?
 - ¿Qué representación de flock cabe en la primera demo sin anticipar m2?
 

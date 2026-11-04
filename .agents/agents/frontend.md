@@ -13,7 +13,7 @@ persona:
   backstory: Cree que el teclado es la interfaz principal y que el estado de la UI debe poder explicarse en una línea.
 ---
 
-Trabaja en `crates/codeloom-tui` y `crates/batten`. Lee la spec y el plan aplicables antes de
+Trabaja en `crates/loomcoding-tui` y `crates/loomcoding-cloth`. Lee la spec y el plan aplicables antes de
 cambiar código. Mantén la coherencia de los estilos del tema y no dupliques texto que ya muestra
 el estado. Resume los archivos modificados y la verificación realizada.
 
@@ -23,7 +23,7 @@ Repo Windows (PowerShell). Usa `view`, `ls`, `glob`, `grep`; no des por disponib
 
 ## Reglas duras
 
-- **`codeloom-core` no puede depender de `ratatui` ni `crossterm`.** Si tu cambio necesita algo del
+- **`loomcoding-core` no puede depender de `ratatui` ni `crossterm`.** Si tu cambio necesita algo del
   core, va como dato o evento nuevo, no como dependencia.
 - Toda lista, buffer y árbol que crezca **necesita cota** (decalogo de contexto y coste).
 - Accesibilidad: cada acción debe tener atajo de teclado **y** camino por paleta. Nada accesible
@@ -46,6 +46,6 @@ Máximo 20 llamadas, máximo 3 por respuesta. Si agotas, entrega y declara lo qu
 
 Cierra con `cargo build`, `cargo test`, `cargo fmt --check`, `cargo clippy -- -D warnings`.
 
-**Aviso de entorno**: hay procesos `codeloom` en ejecución que bloquean la reescritura del `.exe`.
+**Aviso de entorno**: hay procesos `loomcoding` en ejecución que bloquean la reescritura del `.exe`.
 Si `cargo build` falla con "Acceso denegado" / "os error 5" al enlazar, usa `cargo check --workspace`
-y `cargo test -p codeloom-tui` y decláralo en el informe.
+y `cargo test -p loomcoding-tui` y decláralo en el informe.

@@ -14,14 +14,14 @@
 
 Hacer efectiva la declaración local `scope.mcp` de cada perfil: el agente solo puede
 descubrir y llamar herramientas pertenecientes a servidores MCP que su perfil autoriza y
-que CodeLoom tenga configurados y disponibles.
+que Loomcoding tenga configurados y disponibles.
 
-`scope.mcp` es una regla propia de CodeLoom. No es un campo de A2A ni una capacidad del
+`scope.mcp` es una regla propia de Loomcoding. No es un campo de A2A ni una capacidad del
 protocolo MCP. Configurar el nombre de un servidor en el perfil no lo instala, no lo inicia
 y no concede permiso para ejecutar su proceso.
 
-La primera versión añade un cliente MCP stdio en el crate opcional `codeloom-mcp`. Los
-servidores se configuran en `~/.codeloom/mcp.toml`, que es global del usuario; perfiles de
+La primera versión añade un cliente MCP stdio en el crate opcional `loomcoding-mcp`. Los
+servidores se configuran en `~/.loomcoding/mcp.toml`, que es global del usuario; perfiles de
 proyecto solo pueden referenciar sus IDs. La spec existente de hot-reload sigue siendo el
 diseño para recarga y otros transportes, que aún no están incluidos aquí.
 
@@ -29,7 +29,7 @@ diseño para recarga y otros transportes, que aún no están incluidos aquí.
 
 Hay tres decisiones separadas:
 
-1. **Configuración de CodeLoom:** qué servidores MCP conoce el runtime y cuáles fueron
+1. **Configuración de Loomcoding:** qué servidores MCP conoce el runtime y cuáles fueron
    aprobados para iniciarse.
 2. **Scope del perfil:** cuáles de esos IDs puede usar este agente (`scope.mcp`).
 3. **Permiso de la llamada:** si la persona usuaria debe aprobar una operación concreta,
@@ -67,7 +67,7 @@ servidores MCP configurados por el usuario
 
 ## 4. Integración con el registro de herramientas
 
-CodeLoom debe mantener el ID del servidor como parte de la identidad interna de cada tool
+Loomcoding debe mantener el ID del servidor como parte de la identidad interna de cada tool
 MCP. Dos servidores pueden publicar tools con el mismo nombre; sus identidades internas no
 deben colisionar. El nombre presentado al provider se genera de forma determinista y se
 resuelve al servidor y al nombre MCP originales.
@@ -89,14 +89,14 @@ una tool.
 
 ## 5. Servidores y confianza
 
-- Los perfiles solo pueden referenciar IDs existentes en `~/.codeloom/mcp.toml`.
+- Los perfiles solo pueden referenciar IDs existentes en `~/.loomcoding/mcp.toml`.
 - Solo se soporta transporte `stdio` en esta entrega. El fichero global del usuario contiene
   el comando y sus argumentos. Un perfil, incluido uno de proyecto, nunca puede ordenar por
-  sí solo que CodeLoom ejecute un comando.
+  sí solo que Loomcoding ejecute un comando.
 - El proceso hijo recibe un entorno limpio, `PATH` y variables base del sistema; otras
   variables solo se pasan mediante el mapa `env` que referencia nombres presentes en el
-  entorno del proceso CodeLoom. No se leen secretos del `.env` del proyecto.
-- Secretos de transporte se resuelven desde los mecanismos de credenciales de CodeLoom; no
+  entorno del proceso Loomcoding. No se leen secretos del `.env` del proyecto.
+- Secretos de transporte se resuelven desde los mecanismos de credenciales de Loomcoding; no
   se copian al perfil, prompt, tarjeta A2A, errores ni eventos.
 - El contenido recibido del servidor se trata como salida de herramienta no confiable y
   respeta el límite de salida común del Decálogo de contexto y coste.
@@ -136,7 +136,7 @@ scope:
 ```
 
 El perfil no contiene comandos, endpoints, cabeceras ni valores secretos. El valor de
-`SERENA_TOKEN` se lee del entorno del proceso CodeLoom y no se serializa ni registra.
+`SERENA_TOKEN` se lee del entorno del proceso Loomcoding y no se serializa ni registra.
 
 ## 8. Errores y comportamiento visible
 

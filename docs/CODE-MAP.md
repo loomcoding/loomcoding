@@ -10,92 +10,92 @@ Antes de nada, para cualquier tarea: lee el decálogo de contexto y coste
 
 ## Quiero añadir una herramienta (tool)
 
-1. Crea `crates/codeloom-core/src/tools/<nombre>.rs` e implementa `trait Tool`
+1. Crea `crates/loomcoding-core/src/tools/<nombre>.rs` e implementa `trait Tool`
    (`name`, `description`, `schema`, `execution_mode`, `run`), tomando como modelo
    `tools/glob.rs` (lectura) o `tools/write.rs` (escritura).
 2. Decláralo con `mod <nombre>;` y regístralo en `project_registry`
-   (`crates/codeloom-core/src/tools/mod.rs`, `tools.register(Arc::new(...))`).
+   (`crates/loomcoding-core/src/tools/mod.rs`, `tools.register(Arc::new(...))`).
 3. `execution_mode`: **`Exclusive` si escribe**, `Parallel` si solo lee.
 4. **Pon cota a la salida** (decálogo); si puede ser grande, mira `tools/spill.rs`.
 5. Test en el propio archivo (`#[cfg(test)]`), sin red real.
-6. Si necesita render propio en la TUI: `crates/batten/src/state/tool_atom/`.
+6. Si necesita render propio en la TUI: `crates/loomcoding-cloth/src/state/tool_atom/`.
 
-Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es el de agentes.
+Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, es el de agentes.
 
 ## Quiero añadir un provider
 
-1. Variante en `ProviderKind` (`crates/codeloom-core/src/config/mod.rs`).
-2. Cliente en `crates/codeloom-core/src/provider/<nombre>.rs` implementando `trait Provider`
+1. Variante en `ProviderKind` (`crates/loomcoding-core/src/config/mod.rs`).
+2. Cliente en `crates/loomcoding-core/src/provider/<nombre>.rs` implementando `trait Provider`
    (`capabilities`, `stream`); `provider/sse.rs` tiene el análisis de SSE común.
-3. Selección en `build_provider` (`crates/codeloom-cli/src/main.rs`).
+3. Selección en `build_provider` (`crates/loomcoding-cli/src/main.rs`).
 4. Tests con `wiremock`; nada de red real. Los `tests/*_live.rs` son opt-in.
 
 ## Quiero añadir un evento al bus
 
-1. Variante en `LiveEvent` (`crates/codeloom-core/src/event/mod.rs`).
+1. Variante en `LiveEvent` (`crates/loomcoding-core/src/event/mod.rs`).
 2. Clasifícala en `is_child_relevant()` (mismo archivo): es lo que decide qué ve el padre.
 3. Publícala donde ocurre el hecho (`EventBus`).
-4. Consumo en la TUI: `crates/codeloom-tui/src/app/events.rs` (`App::apply`).
-5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/codeloom-core/src/session/sqlite/` (el módulo del tema: `subagents.rs`, `sessions.rs`, `usage.rs` o `workflows.rs`; el esquema, en `schema.rs`).
-6. Si viaja por IPC al cliente, el reenvío está en `crates/codeloom-cli/src/server/` (`worker.rs`: `forward_agent_events`; los tipos del cable, en `protocol.rs`).
+4. Consumo en la TUI: `crates/loomcoding-tui/src/app/events.rs` (`App::apply`).
+5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/loomcoding-core/src/session/sqlite/` (el módulo del tema: `subagents.rs`, `sessions.rs`, `usage.rs` o `workflows.rs`; el esquema, en `schema.rs`).
+6. Si viaja por IPC al cliente, el reenvío está en `crates/loomcoding-cli/src/server/` (`worker.rs`: `forward_agent_events`; los tipos del cable, en `protocol.rs`).
 
 ## Quiero añadir una fase de subagente
 
-1. Variante en `SubagentPhase` y en `ALL` (`crates/codeloom-core/src/subagent/phase.rs`).
+1. Variante en `SubagentPhase` y en `ALL` (`crates/loomcoding-core/src/subagent/phase.rs`).
 2. Completa **todos** los `match` del mismo archivo: `to_task_state`, `from_remote_state`,
    `as_str`, y la tabla de `can_transition_to` (única fuente de verdad de transiciones).
 3. Decide si el vigilante debe ignorarla (esperas al humano): `subagent/watchdog.rs`.
 4. La fase se persiste por su `as_str` (`session/sqlite/codec.rs` y `subagents.rs`); una fase nueva no rompe filas viejas.
 5. Si la UI agrupa estados, nombra entre paréntesis los A2A originales
-   (`crates/codeloom-tui/src/rail/`, sección `subagents.rs`).
+   (`crates/loomcoding-tui/src/rail/`, sección `subagents.rs`).
 6. Tests: `todas_las_fases_proyectan` y compañía ya recorren `ALL`.
 
 ## Quiero añadir un widget de TUI
 
-1. Estado puro y testeable en `crates/batten/src/state/<nombre>.rs` (sin `ratatui`).
-2. Widget en `crates/batten/src/widgets/<nombre>.rs`; decláralo en `widgets/mod.rs`.
-3. Colores del tema en `crates/batten/src/widgets/theme/`; no uses colores sueltos.
-4. Úsalo desde la zona que corresponda en `crates/codeloom-tui/src/render/` (`chrome.rs` cabecera y pie, `transcript.rs`, `sidebar.rs`, `settings.rs`, `overlays.rs`, `a2a.rs`); `render/mod.rs` solo orquesta.
-5. Si es específico de CodeLoom y no genérico, va en `crates/codeloom-tui/src/widgets/`.
+1. Estado puro y testeable en `crates/loomcoding-cloth/src/state/<nombre>.rs` (sin `ratatui`).
+2. Widget en `crates/loomcoding-cloth/src/widgets/<nombre>.rs`; decláralo en `widgets/mod.rs`.
+3. Colores del tema en `crates/loomcoding-cloth/src/widgets/theme/`; no uses colores sueltos.
+4. Úsalo desde la zona que corresponda en `crates/loomcoding-tui/src/render/` (`chrome.rs` cabecera y pie, `transcript.rs`, `sidebar.rs`, `settings.rs`, `overlays.rs`, `a2a.rs`); `render/mod.rs` solo orquesta.
+5. Si es específico de Loomcoding y no genérico, va en `crates/loomcoding-tui/src/widgets/`.
 
 ## Quiero añadir un comando de composer (`/algo`)
 
-1. Variante en `Command` y fila en la tabla de `crates/codeloom-tui/src/commands.rs`.
-2. Su ejecución, en el `match` de comandos de `crates/codeloom-tui/src/run/slash.rs`
+1. Variante en `Command` y fila en la tabla de `crates/loomcoding-tui/src/commands.rs`.
+2. Su ejecución, en el `match` de comandos de `crates/loomcoding-tui/src/run/slash.rs`
    (ejemplo: `Command::Verbose`).
-3. Estado que necesite: `crates/codeloom-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
+3. Estado que necesite: `crates/loomcoding-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
 4. El composer no puede parpadear ni ir con retraso: comprueba con `tui_pty` si tocas teclas.
 
 ## Quiero cambiar el flujo de permisos
 
-1. Política y servicio: `crates/codeloom-core/src/permission/mod.rs` (`PermissionService`,
+1. Política y servicio: `crates/loomcoding-core/src/permission/mod.rs` (`PermissionService`,
    `PermissionRequest`, `Decision`).
-2. Llamada desde la ejecución de tools: `crates/codeloom-core/src/agent/dispatch.rs`.
-3. Diálogo: `crates/codeloom-tui/src/permission_flow.rs`,
-   `crates/codeloom-tui/src/widgets/permission.rs` y `crates/batten/src/widgets/permission.rs`.
+2. Llamada desde la ejecución de tools: `crates/loomcoding-core/src/agent/dispatch.rs`.
+3. Diálogo: `crates/loomcoding-tui/src/permission_flow.rs`,
+   `crates/loomcoding-tui/src/widgets/permission.rs` y `crates/loomcoding-cloth/src/widgets/permission.rs`.
 
 ## Quiero tocar A2A (cliente o servidor)
 
-1. Nombres del cable y tarjeta: `crates/codeloom-a2a/src/card.rs`, `wire.rs`.
-2. Cliente (consumir agentes remotos): `crates/codeloom-a2a/src/client/` (`mod.rs` llama; `stream.rs` sigue el SSE; `factory.rs` construye clientes), `remote.rs`,
+1. Nombres del cable y tarjeta: `crates/loomcoding-a2a/src/card.rs`, `wire.rs`.
+2. Cliente (consumir agentes remotos): `crates/loomcoding-a2a/src/client/` (`mod.rs` llama; `stream.rs` sigue el SSE; `factory.rs` construye clientes), `remote.rs`,
    `oauth.rs`, `security/`, `signing.rs`.
-3. Servidor (servir CodeLoom): `crates/codeloom-a2a/src/serve/` (`rpc/`, `auth.rs`, `host/`).
-4. Streaming: `crates/codeloom-a2a/src/sse.rs`.
-5. Modelo interno de tarea: `crates/codeloom-core/src/task.rs`, `task_events.rs`.
+3. Servidor (servir Loomcoding): `crates/loomcoding-a2a/src/serve/` (`rpc/`, `auth.rs`, `host/`).
+4. Streaming: `crates/loomcoding-a2a/src/sse.rs`.
+5. Modelo interno de tarea: `crates/loomcoding-core/src/task.rs`, `task_events.rs`.
 6. **No inventes estados**: contrasta con el proto normativo y rotula lo propio como propio.
 7. Anota el avance en `docs/plans/2026-10-22-codeloom-a2a-roadmap.md`.
 
 ## Quiero añadir una columna persistida
 
-1. Campo en la estructura (p. ej. `SubagentDescriptor` en `crates/codeloom-core/src/session/mod.rs`).
-2. Migración en `crates/codeloom-core/src/session/sqlite/schema.rs`: añade la columna a la lista
+1. Campo en la estructura (p. ej. `SubagentDescriptor` en `crates/loomcoding-core/src/session/mod.rs`).
+2. Migración en `crates/loomcoding-core/src/session/sqlite/schema.rs`: añade la columna a la lista
    `(columna, "ALTER TABLE ... ADD COLUMN ...")` del bucle de migración (idempotente).
 3. Lectura y escritura en el mismo archivo; un valor desconocido debe leerse sin romper.
 4. Test de ida y vuelta con `SqliteStore`.
 
 ## Quiero añadir un umbral o ajuste en `[agents]`
 
-1. Campo `Option<...>` en `AgentsConfig` (`crates/codeloom-core/src/config/mod.rs`); la clave del
+1. Campo `Option<...>` en `AgentsConfig` (`crates/loomcoding-core/src/config/mod.rs`); la clave del
    TOML **es el nombre del campo**.
 2. Constantes `DEFAULT_*`/`MIN_*`/`MAX_*` y un método que acote con `clamp` (patrón de
    `active_subagents` y `stall_threshold_ms`).

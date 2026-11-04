@@ -13,7 +13,7 @@
 ## 1. Objetivo
 
 Crear un inventario completo y verificable de las características que MastraCode
-y Crush exponen al usuario, para identificar cuáles pueden inspirar CodeLoom.
+y Crush exponen al usuario, para identificar cuáles pueden inspirar Loomcoding.
 El composer y la presentación de herramientas son prioritarios, dentro de un
 recorrido más amplio de la interfaz y sus interacciones. Usar dos fuentes de
 evidencia separadas:
@@ -32,10 +32,10 @@ código ni implementar automáticamente todas las funciones inventariadas.
 
 ### 2.1 Evidencia por código ya disponible
 
-- El composer de Loom vive en `batten::state::Composer` y
-  `batten::widgets::composer`; Loom decide su espacio en
-  `crates/codeloom-tui/src/render.rs`. Batten ya recibe el tema para sus
-  widgets. La configuración general de `codeloom-core` aún no tiene una opción
+- El composer de Loom vive en `loomcoding_cloth::state::Composer` y
+  `loomcoding_cloth::widgets::composer`; Loom decide su espacio en
+  `crates/loomcoding-tui/src/render.rs`. Cloth ya recibe el tema para sus
+  widgets. La configuración general de `loomcoding-core` aún no tiene una opción
   de estilo de interfaz.
 - La instalación local de MastraCode inspeccionada usa `pi-tui` `Editor`. Su
   adaptador admite entrada multilínea, submit con Enter, nueva línea con
@@ -120,7 +120,7 @@ el CLI con el runtime compatible ya disponible.
   sesiones, contexto/archivos, configuración, estado del agente y extensiones.
 - Capturar flujos representativos en ejecución, incluyendo composer y estados
   de herramientas.
-- Mapear cada función a CodeLoom: existente, adaptable, posterior (m2+) o fuera
+- Mapear cada función a Loomcoding: existente, adaptable, posterior (m2+) o fuera
   de encaje; anotar evidencia, valor visual/funcional, coste/riesgo y prioridad.
 - Recomendar qué adoptar primero y cómo exponer variantes visuales en la
   configuración de Loom, si la evidencia lo justifica.

@@ -7,7 +7,7 @@ max_turns: 200
 
 # Orchestrator
 
-Eres el coordinador del ciclo de desarrollo de CodeLoom. **No implementas**: repartes,
+Eres el coordinador del ciclo de desarrollo de Loomcoding. **No implementas**: repartes,
 ordenas, verificas y reportas. Tu producto es que el trabajo avance sin colisiones y
 sin pasos a medias.
 
@@ -46,8 +46,8 @@ Cada tarea debe tener:
 | Tipo de tarea | Agente |
 |---|---|
 | Diseño, diagnóstico, validar spec/plan, decisiones de arquitectura | `architect` |
-| Rust de `codeloom-core`, CLI, runtime, A2A | `backend` |
-| TUI, `batten`, `codeloom-tui`, composer, render | `frontend` |
+| Rust de `loomcoding-core`, CLI, runtime, A2A | `backend` |
+| TUI, `cloth`, `loomcoding-tui`, composer, render | `frontend` |
 | Implementación guiada por TDD, guardarraíles, scripts | `implementer` |
 | Revisión de protocolo A2A y mapeos de estado | `a2a-reviewer` |
 | Revisión de tests, cotas, los cuatro checks | `qa-reviewer` |
@@ -120,11 +120,11 @@ Informe breve, sin relleno:
 
 ## Contexto del proyecto
 
-CodeLoom es un agente de código en Rust con TUI (`ratatui`), orquestación
+Loomcoding es un agente de código en Rust con TUI (`ratatui`), orquestación
 agente → subagentes → jobs, e integración opcional con `herdr`. Reglas duras que
 debes hacer cumplir en cada tarea:
 
-- `codeloom-core` **no** depende de `ratatui` ni `crossterm`.
+- `loomcoding-core` **no** depende de `ratatui` ni `crossterm`.
 - Tools que escriben son `ExecutionMode::Exclusive`; las de solo lectura, `Parallel`.
 - Nada sin cota llega al modelo (decálogo de contexto).
 - Sin red real en tests: mock o `wiremock`.

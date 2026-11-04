@@ -35,7 +35,7 @@ Se usó `git clone --depth 1`; los SHA fijan exactamente qué snapshot se revis�
   El manifest habilita Ratatui de forma opcional y también usa
   `ratatui-textarea`.
 
-## Lectura para CodeLoom
+## Lectura para Loomcoding
 
 1. Para tool calls mientras corren, seguir primero el recorrido de eventos de
    Martty y Mindfork: el transcript debe recibir inicio, actualizaciones y
@@ -52,30 +52,30 @@ Se usó `git clone --depth 1`; los SHA fijan exactamente qué snapshot se revis�
    el MVP de Loom. Estudiar widgets y flujo de estado, sin arrastrar sus
    subsistemas de chat, almacenamiento, ACP o proveedores.
 
-## Paletas del showcase Batten
+## Paletas del showcase Cloth
 
-La cobertura de componentes por aplicación, con demos Batten, estado de
+La cobertura de componentes por aplicación, con demos Cloth, estado de
 importación, superficies pendientes y SHAs de referencia, está en
 [`showcase-components.md`](showcase-components.md). Actualizar ese inventario
 cuando se revise uno de los checkouts o se añada una demo.
 
-Batten expone `ThemePreset` para comparar seis paletas desde el showcase: Batten,
+Cloth expone `ThemePreset` para comparar seis paletas desde el showcase: Cloth,
 Martty, Mindfork, Pawan, Crush/Charmtone y MastraCode. F7 y Shift+F7 recorren
 las opciones; todas las demos reciben la paleta activa, y la demo `themes`
 muestra una fila de muestras para cada una.
 
-Los valores se mapean a los tokens semánticos existentes de Batten. Martty usa
+Los valores se mapean a los tokens semánticos existentes de Cloth. Martty usa
 su base DeepSeek bluish y sus tokens de marca/estado; Mindfork usa el canvas y
 roles dark publicados en `src/shared/theme.rs`; Pawan usa su `DEFAULT` de
 `crates/pawan-cli/src/tui/theme.rs`; Crush usa los colores Charmtone declarados
 en `internal/ui/styles/themes.go` y sus valores de la dependencia charmtone;
 MastraCode usa `darkSurface` y `darkTheme` del source map local. Se usan valores
-de sus temas dark para los tokens de Batten, no se trasladó código fuente.
+de sus temas dark para los tokens de Cloth, no se trasladó código fuente.
 
 Son **paletas de referencia**, no perfiles 1:1: el layout, el espaciado, los
 fondos específicos por componente, los marcos y el render de cada app siguen
-siendo los de Batten. Los temas personalizados claro/oscuro y la selección
-persistente en la aplicación CodeLoom quedan fuera de esta galería inicial.
+siendo los de Cloth. Los temas personalizados claro/oscuro y la selección
+persistente en la aplicación Loomcoding quedan fuera de esta galería inicial.
 
 No se copió código de los repositorios ni se ejecutaron sus binarios o pruebas.
 Esta nota registra el análisis de fuentes y las rutas de inspección, no una

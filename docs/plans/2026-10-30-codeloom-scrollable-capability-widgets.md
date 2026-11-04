@@ -24,8 +24,8 @@ correspondientes; ambos se etiquetan como estimaciones y no cambian el total.
 - [x] Crear esta spec y este plan antes del código.
 - [x] Renderizar Activity compacto y widgets MCP/LSP/Skills con datos reales.
 - [x] Añadir foco y scroll independiente con mouse/teclado.
-- [x] `cargo fmt --all --check`, `cargo clippy -p codeloom-cli -- -D warnings` y build del binario `codeloom`.
+- [x] `cargo fmt --all --check`, `cargo clippy -p loomcoding-cli -- -D warnings` y build del binario `loomcoding`.
 - [x] Test de geometría del dashboard y scroll independiente de widgets MCP/LSP/Skills.
 - [x] Build workspace, `cargo fmt --all -- --check` y `cargo clippy -- -D warnings`.
-- [x] `cargo test --workspace`: dos tests del composer/slash menu fallan en `codeloom-tui`. Resuelto el 2026-10-30: `cargo fmt --check`, `clippy -D warnings`, `build` y `test` completos en verde (0 fallos, `codeloom-cli` incluido) con `CARGO_TARGET_DIR=target/e2e`; los dos fallos ya no se reproducen.
+- [x] `cargo test --workspace`: dos tests del composer/slash menu fallan en `loomcoding-tui`. Resuelto el 2026-10-30: `cargo fmt --check`, `clippy -D warnings`, `build` y `test` completos en verde (0 fallos, `loomcoding-cli` incluido) con `CARGO_TARGET_DIR=target/e2e`; los dos fallos ya no se reproducen.
 - [ ] Revisión visual en terminal real.

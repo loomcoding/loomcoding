@@ -5,10 +5,10 @@ Barrido estático del checkout local `E:\workspace\personal\crush`,
 El alcance es cada superficie y renderer visual de `internal/ui/`, no las
 funciones de agente, configuración o transporte que no producen UI. Las pruebas
 de layout y snapshots sirven para ubicar estados y límites, pero todavía no se
-hizo comparación de capturas con Batten.
+hizo comparación de capturas con Cloth.
 
-**Estados Batten:** `Parcial` = hay demo Crush pero faltan estados/medidas;
-`Pendiente` = aún no hay variante Crush dedicada. Una primitiva Batten con
+**Estados Cloth:** `Parcial` = hay demo Crush pero faltan estados/medidas;
+`Pendiente` = aún no hay variante Crush dedicada. Una primitiva Cloth con
 aspecto parecido no equivale a importar el componente de Crush. El preset
 Crush existente aporta colores Charmtone, no su layout.
 
@@ -21,7 +21,7 @@ produce la superficie cuando se pudo identificar; las filas marcadas
 **composición** combinan varios renderers y no representan un widget aislado.
 Esto documenta la referencia visual, no una dependencia ni código importado.
 
-| Entrada en showcase | Implementación Batten | Crush: archivo y renderer/componente correspondiente |
+| Entrada en showcase | Implementación Cloth | Crush: archivo y renderer/componente correspondiente |
 |---|---|---|
 | Composer · Crush | `demos/crush_composer.rs`; `widgets/composer.rs::render_crush` | `internal/ui/model/ui.go` — `(*UI).renderEditorView`; editor Bubble `textarea.Model` |
 | Chat · Crush full layout | `demos/crush_chat.rs` (`new(true)`) | **Composición:** `internal/ui/model/ui.go` — `(*UI).Draw`; `model/sidebar.go` — `(*UI).drawSidebar`; `model/chat.go` — `(*Chat).Draw`; `model/status.go` — `(*Status).Draw` |
@@ -51,7 +51,7 @@ Esto documenta la referencia visual, no una dependencia ni código importado.
 | Onboarding · Crush initialize | `demos/crush_misc.rs` — `Initialize` | `internal/ui/model/onboarding.go` — vista `initializeView` |
 | Session details · Crush compact overlay | `demos/crush_misc.rs` — `SessionDetails` | `internal/ui/model/ui.go` — `(*UI).drawSessionDetails` |
 | Exit banner · Crush | `demos/crush_misc.rs` — `ExitBanner` | `internal/ui/exitbanner/exitbanner.go` — `exitbanner.Render` y `logoSection` |
-| Inline editor · Crush | `demos/crush_misc.rs` — `InlineEditor` | Contrato y layout: `internal/ui/dialog/inline_editor.go` y `internal/ui/model/ui.go` (`activeInline`); implementaciones visibles: `dialog/plan_handoff_inline.go` y `dialog/question_{form,freetext,editor}.go`. La muestra Batten es una aproximación estática. |
+| Inline editor · Crush | `demos/crush_misc.rs` — `InlineEditor` | Contrato y layout: `internal/ui/dialog/inline_editor.go` y `internal/ui/model/ui.go` (`activeInline`); implementaciones visibles: `dialog/plan_handoff_inline.go` y `dialog/question_{form,freetext,editor}.go`. La muestra Cloth es una aproximación estática. |
 | Sidebar scroll · Crush | `demos/crush_misc.rs` — `SidebarScroll` | `internal/ui/model/sidebar.go` — `(*UI).drawSidebar`; lista en `internal/ui/list/`; scrollbar en `internal/ui/common/scrollbar.go` |
 | Help · Crush expanded hints | `demos/crush_misc.rs` — `Help` | Bubbles `help.Model`; integración de status/help en `internal/ui/model/status.go` — `(*Status).Draw` |
 | Context sidebar · Crush | `demos/crush_context_sidebar.rs` | `internal/ui/model/sidebar.go` — `(*UI).drawSidebar`; datos de contexto se componen desde el modelo de sesión |
@@ -84,7 +84,7 @@ reproduzca todos esos renderers. Para esos límites, ver la columna “Qué incl
 
 ## Composición de pantalla
 
-| Superficie | Referencia de fuente | Batten | Qué incluye / faltante |
+| Superficie | Referencia de fuente | Cloth | Qué incluye / faltante |
 |---|---|---|---|
 | Estados de aplicación | `internal/ui/model/ui.go` (`uiOnboarding`, `uiInitialize`, `uiLanding`, `uiChat`) | Parcial · demos Crush de landing, initialize y chat | Se ven estados principales; falta enlazar sus transiciones y datos |
 | Header compacto | `model/header.go`, `model/ui.go` | Parcial · `Compact header / Crush` | Marca, separadores, ruta/rama, uso y ctrl+d; faltan LSP errors, créditos, recorte real por ancho y captura |
@@ -103,7 +103,7 @@ reproduzca todos esos renderers. Para esos límites, ver la columna “Qué incl
 
 ## Mensajes, actividad y llamadas de herramientas
 
-| Componente | Referencia | Batten | Qué hay que capturar |
+| Componente | Referencia | Cloth | Qué hay que capturar |
 |---|---|---|---|
 | Mensaje de usuario | `ui/chat/user.go` | Parcial · `Transcript / Crush` | Emisor/contenido; faltan Markdown, rail de foco/selección, Skill y adjuntos |
 | Mensaje de asistente | `ui/chat/assistant.go`, `streaming_markdown.go` | Parcial · `Transcript / Crush` | Emisor, texto y salida de archivo; falta Markdown incremental y cache/resize |
@@ -139,7 +139,7 @@ Crush implementa diálogos como overlays apilables (`ui/dialog/dialog.go`);
 los componentes se dibujan sobre la pantalla activa. Cada fila
 siguiente es una superficie a cotejar, incluso si se compone de una base común:
 
-| Familia | Diálogos / fuentes | Batten |
+| Familia | Diálogos / fuentes | Cloth |
 |---|---|---|
 | Comandos y archivos | `commands.go`, `commands_item.go`, `filepicker.go` | Parcial · `Command menu / Crush`, `File picker / Crush`; falta filtro real, iconos, detalles y empty state |
 | Sesiones | `sessions.go`, `sessions_item.go` | Parcial · `Conversation list / Crush` — lista y foco; faltan filtros, metadatos y acciones reales |
@@ -159,7 +159,7 @@ siguiente es una superficie a cotejar, incluso si se compone de una base común:
 
 ## Elementos pequeños y estados
 
-| Pieza | Fuente | Batten |
+| Pieza | Fuente | Cloth |
 |---|---|---|
 | Autocompletado | `ui/completions/{completions,item,keys}.go` | Parcial · `Autocomplete / Crush` — popup, tipos y foco; faltan filtro incremental, match highlights y posición ligada al cursor |
 | Chips de adjuntos | `ui/attachments/attachments.go` | Parcial · `Attachment chips / Crush` — nombres, indicador de tipo, contador y quitar; faltan iconos exactos y hit testing |
@@ -189,10 +189,10 @@ siguiente es una superficie a cotejar, incluso si se compone de una base común:
 5. **Familias especializadas:** tools LSP/MCP/web/agent, diff, imágenes,
    animación y salida.
 
-Cada nueva demo se registra en `crates/batten/examples/showcase/demos/mod.rs`,
+Cada nueva demo se registra en `crates/loomcoding-cloth/examples/showcase/demos/mod.rs`,
 con familia y variante en el índice. Marcar `Importado` solo al cubrir la
 superficie; usar `Parcial` si quedan estados o geometría. La comprobación 1:1
-requiere capturas del Crush y Batten con terminal de igual tamaño, contenido,
+requiere capturas del Crush y Cloth con terminal de igual tamaño, contenido,
 tema, foco y estado; por ahora todas las comparaciones visuales de este
 inventario están pendientes.
 

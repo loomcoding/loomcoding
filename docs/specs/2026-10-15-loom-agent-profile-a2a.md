@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: profile de agentes y comunicación A2A
+# Loomcoding — Idea/spec: profile de agentes y comunicación A2A
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -35,7 +35,7 @@ Reparto de responsabilidades:
   del que se **deriva** la Agent Card pública y del que se **ingieren** las
   remotas.
 - **Scope** (qué MCP/skills/tools ve) -> **local**, sin equivalente en A2A. Es la
-  aportación de CodeLoom.
+  aportación de Loomcoding.
 
 ## 1. Estado del arte (evidencia, no opinión)
 
@@ -88,7 +88,7 @@ dónde copiar el formato, por credibilidad:
 | **OSSA** (`openstandardagents.org`) | gobernanza: `tool_permissions`, `risk_level`, allow-list de red | **solo minar ideas** (5 stars, ~42 descargas/sem, un vendor). **No depender.** |
 
 Lectura clave: el **scope** (qué MCP/skills/tools puede tocar un agente) **no** cabe
-en la Agent Card; es lo que A2A deja fuera y lo que CodeLoom aporta. Por eso el
+en la Agent Card; es lo que A2A deja fuera y lo que Loomcoding aporta. Por eso el
 *profile* es **interno** y la card es su **proyección pública**.
 
 ## 2. AgentProfile (formato)
@@ -162,7 +162,7 @@ Reglas:
 > sección «Estado (2026-10-22)». Esta nota no reescribe lo anterior: la tabla y las reglas de
 > arriba siguen siendo la intención del formato.
 
-## 3. Scope = allowlist (la aportación de CodeLoom)
+## 3. Scope = allowlist (la aportación de Loomcoding)
 
 - **Lo fuera de scope no se carga**: los MCP/skills fuera de la allowlist no entran
   en el prefijo (conecta con la puerta única y con hot-reload).
@@ -204,20 +204,20 @@ La card es la **vista externa**; el `AgentProfile` es la **vista interna**.
 
 **Nota (2026-10-22):** los tipos de la tarjeta (`AgentCard`, `AgentProvider`,
 `AgentCapabilities`, `AgentExtension`, `AgentInterface` y `AgentSkill`) ya existen en
-`crates/codeloom-core/src/card.rs` (commit `77b8de1`). El cargador de `AgentProfile`
+`crates/loomcoding-core/src/card.rs` (commit `77b8de1`). El cargador de `AgentProfile`
 desde fichero **no** existe aún: queda pendiente y es prerrequisito de A12. El formato
 del perfil es el de la sección 2 de este documento. Estado y limitaciones de la tarjeta:
 `docs/specs/hechos/2026-10-22-codeloom-a2a-agent-card-design.md`, sección «Estado».
 
 ## 5. A2A como transporte
 
-- **Dónde vive**: crate **opcional** `codeloom-a2a` (como `codeloom-herdr`,
-  `codeloom-decide`). **El core no conoce A2A.**
+- **Dónde vive**: crate **opcional** `loomcoding-a2a` (como `loomcoding-herdr`,
+  `loomcoding-decide`). **El core no conoce A2A.**
 - **SDK**: `a2a-lf` como base (Agent Card, operaciones, tipos).
 - **Dos transportes, mismo contrato** detrás de `AgentTransport`:
   - `InProcess`: mensajes en memoria, **sin socket**. Es lo que usan los tests.
   - `A2aRemote`: HTTP JSON-RPC + SSE (y gRPC como opción).
-- **Roles**: `serve | consume | both`, en `codeloom.toml`, **default off**. El caso
+- **Roles**: `serve | consume | both`, en `loomcoding.toml`, **default off**. El caso
   común (standalone, un proceso) nunca levanta un server.
 - **Mapeo de ciclo de vida**: `Task` A2A <-> subagente/job del núcleo:
   `working` = step en curso, `input-required` = pregunta pendiente en el buzón
@@ -230,7 +230,7 @@ del perfil es el de la sección 2 de este documento. Estado y limitaciones de la
 
 ### Estado de tarea (2026-10-22)
 
-Ciertamente, el estado de un subagente **es** `codeloom_core::task::TaskState`, el
+Ciertamente, el estado de un subagente **es** `loomcoding_core::task::TaskState`, el
 enumerado de los ocho estados de tarea de A2A, acompañado de su `TaskStatus`
 (`state`, `message`, `timestamp_ms`). No existe enum paralelo ni proyección en el
 núcleo: `SubagentStatus`, `Killed` y `Unfinished` ya no existen. El estado persistido
@@ -243,7 +243,7 @@ el adaptador (A4), no el núcleo.
 El runtime produce los ocho estados (`submitted`, `working`, `input-required`,
 `auth-required`, `completed`, `failed`, `canceled`, `rejected`) mediante un único punto
 de transición que valida las reglas de A2A. La interfaz deriva su aspecto de
-`TaskState` a través de `batten::state::AgentState`, sin alterar el modelo.
+`TaskState` a través de `loomcoding_cloth::state::AgentState`, sin alterar el modelo.
 
 Nota (historial): hasta el 2026-10-22 el subagente tenía un enum propio
 (`SubagentStatus`) que se proyectaba a `TaskState` en el borde, con `Killed` como
@@ -306,7 +306,7 @@ interrumpidos. Sí dice que los cambios de estado los notifica el agente
 - Las etiquetas del rail y del showcase usan los nombres de la v0.3 como texto de
   pantalla; los nombres del cable los fija el adaptador.
 - Los glifos y colores, la línea de causa del despertar del padre y los ficheros
-  por hijo son interfaz y extensiones de CodeLoom, no parte del protocolo.
+  por hijo son interfaz y extensiones de Loomcoding, no parte del protocolo.
 
 ### Lectura de la especificación: ciclo de vida, cancelación y multiturno (2026-10-22)
 
@@ -474,7 +474,7 @@ Fuentes: `spec.md` y `a2a.proto` de la copia local del 2026-10-22. Leídos en li
 - La discrepancia de cierre del flujo no es solo de la página `streaming-and-async`: §11.7 coincide con ella y §3.1.2 no.
 - Nombres JSON: "All JSON serializations of the A2A protocol data model **MUST** use **camelCase** naming" (§5.5). El cable no usa los nombres del proto.
 
-**Consecuencias para CodeLoom**
+**Consecuencias para Loomcoding**
 
 - A4 (adaptador de nombres): camelCase en JSON; `TASK_STATE_*`; `reason` `TASK_*` y códigos -32001 a -32009.
 - A5 (tipos): los campos `optional` tienen presencia explícita; `tenant` es opaco.
@@ -544,7 +544,7 @@ ni las secciones de bindings (§9–§13), de las que solo se dispone de resumen
 
 - El core define **traits puros**: `AgentProfile` (dato), `AgentRegistry`
   (catálogo: locales + remotos uniformados), `AgentTransport`.
-- `codeloom-core` **no** depende de A2A, ni de HTTP, ni de red. Cumple AGENTS.md:
+- `loomcoding-core` **no** depende de A2A, ni de HTTP, ni de red. Cumple AGENTS.md:
   motor honesto, integraciones en crates opcionales.
 - **No red en tests, por construcción**: los tests usan `InProcess`; los casos
   remotos usan fixtures/cassettes de Agent Card, como hoy se mockea el provider.
@@ -572,7 +572,7 @@ ni las secciones de bindings (§9–§13), de las que solo se dispone de resumen
   scope; confías en su card y en su gate. La frontera dura aplica **dentro** de
   cada agente, no a través del protocolo.
 - **No dejar que el protocolo dicte el modelo interno**: `turn/step`, mensajes y
-  `ToolResult` siguen siendo de CodeLoom; A2A es un **seam de traducción** en el
+  `ToolResult` siguen siendo de Loomcoding; A2A es un **seam de traducción** en el
   borde.
 - **Autenticación de remotos**: `securitySchemes` (OAuth2/mTLS) obligatorios para
   remotos reales; un remoto sin auth es un agente sin puerta.
@@ -582,7 +582,7 @@ ni las secciones de bindings (§9–§13), de las que solo se dispone de resumen
 
 ## 9. Preguntas abiertas
 
-- **Profile**: ¿frontmatter YAML (de-facto) o un `codeloom.toml` propio? ¿Se
+- **Profile**: ¿frontmatter YAML (de-facto) o un `loomcoding.toml` propio? ¿Se
   reutiliza el parser de skills?
 - **Transporte por defecto**: ¿JSON-RPC sobre HTTP, o gRPC?
 - **Card local**: ¿se sirve por defecto cuando el rol es `serve`, o solo bajo

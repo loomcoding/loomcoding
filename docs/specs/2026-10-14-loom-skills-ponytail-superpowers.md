@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: consumo y activación de skills (ponytail, superpowers)
+# Loomcoding — Idea/spec: consumo y activación de skills (ponytail, superpowers)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -13,10 +13,10 @@
 
 ## 0. La idea
 
-CodeLoom debe poder **consumir skills** de base (empezando por `superpowers` y
+Loomcoding debe poder **consumir skills** de base (empezando por `superpowers` y
 `ponytail`) y **decidir cuáles están activas** en cada momento: activas siempre,
 apagadas, invocadas a mano, o **elegidas por un clasificador** (jevalan). Como
-las dos familias pueden **contradecirse**, CodeLoom necesita también una **regla de
+las dos familias pueden **contradecirse**, Loomcoding necesita también una **regla de
 arbitraje** explícita, no dejar que se pisen.
 
 ## 1. Qué son las dos familias
@@ -66,7 +66,7 @@ puede ser tan escueto que no deje configurar la arquitectura.**
 - **En tarea acotada gana `ponytail` (`full`)**; de `superpowers` solo lo barato
   (`verification-before-completion`, la comprobación runnable).
 
-## 3. Modelo de skills en CodeLoom
+## 3. Modelo de skills en Loomcoding
 
 Una skill es un **`SKILL.md` con frontmatter** que aporta **fragmentos de prompt
 (policy)** y, opcionalmente, scripts/tools. Encaja con lo ya diseñado:
@@ -127,7 +127,7 @@ Pieza central, porque las dos familias pueden pisarse. Reglas, en orden:
    una en su eje; el conflicto real (spec vs minimalismo) se resuelve por **tipo
    de tarea** (§2).
 3. **Dos skills del mismo eje en conflicto**: gana la más específica a la tarea;
-   empate -> la que fije `codeloom.toml`.
+   empate -> la que fije `loomcoding.toml`.
 4. **Nunca apilar sin presupuesto**: cada fragmento de skill consume contexto y
    puede cambiar el prefijo de la petición (prompt cache). El resolver tiene un
    **tope** y prioriza.
@@ -178,15 +178,15 @@ architectural_ponytail = "lite"
 - **`ponytail` no es descuidada**: no usa su "pereza" para saltarse validación,
   manejo de errores, seguridad ni lo pedido explícitamente.
 - **Dependencia externa**: las skills viven fuera del repo (`~/.agents/skills`),
-  como herdr/jevalan; CodeLoom las consume, no las vendoriza.
+  como herdr/jevalan; Loomcoding las consume, no las vendoriza.
 
 ## 10. Preguntas abiertas
 
-- ¿El resolver vive en `codeloom-core` (con las skills como datos) o en un crate
+- ¿El resolver vive en `loomcoding-core` (con las skills como datos) o en un crate
   opcional?
 - ¿La precedencia se resuelve por tipo de tarea (clasificador) o por un orden
   fijo declarado?
 - ¿Cómo se representa una skill que trae **tools/scripts** (no solo prompt)?
-- ¿Se expone la activación en la TUI (`/ponytail ultra`) o solo en `codeloom.toml`?
+- ¿Se expone la activación en la TUI (`/ponytail ultra`) o solo en `loomcoding.toml`?
 - ¿Firma la skill de gobernanza (ponytail) su propia degradación, o la decide el
   clasificador?

@@ -1,0 +1,768 @@
+//! Puesta al día de las tarjetas de los agentes remotos del registro (A8a, T3b).
+//!
+//! Cabe señalar que el registro del núcleo no sabe de HTTP: guarda el resultado de consultar cada
+//! tarjeta y ata la aprobación a su huella. Este módulo es quien hace la consulta. Ni descargar la
+//! tarjeta ni cambiarla aprueba nada: la persona usuaria aprueba lo que ha visto.
+
+use std::collections::BTreeMap;
+
+use futures::stream::{self, StreamExt};
+use loomcoding_core::event::EventBus;
+use loomcoding_core::registry::{AgentRegistry, Execution, RemoteFetched};
+use reqwest::Client;
+
+use crate::config::A2aConfig;
+use crate::remote::{fetch_card, http_client_with_identity, leer_pem, RemoteCard, RemoteError};
+use crate::security::AuthPlan;
+use crate::signing::TrustedKeys;
+
+/// Peticiones de tarjeta simultáneas como máximo.
+const CONSULTAS_SIMULTANEAS: usize = 4;
+
+/// Identidad TLS que el perfil declara, si la hay: la primera credencial cuya variable nombra un
+/// fichero `.pem` con certificado y clave utilizables. Se mira la extensión antes de abrir nada para
+/// no tratar como ruta una clave de API o un token.
+fn identidad_declarada(
+    credenciales: &BTreeMap<String, String>,
+    env: &dyn Fn(&str) -> Option<String>,
+) -> Option<Vec<u8>> {
+    credenciales.values().find_map(|variable| {
+        let ruta = env(variable)?;
+        let ruta = ruta.trim();
+        if !ruta.to_ascii_lowercase().ends_with(".pem") {
+            return None;
+        }
+        let pem = leer_pem(ruta).ok()?;
+        reqwest::Identity::from_pem(&pem).ok()?;
+        Some(pem)
+    })
+}
+
+/// Descarga la tarjeta de un remoto. Un remoto con mTLS puede exigir certificado también para la
+/// tarjeta, y su seguridad solo se conoce al leerla: si la descarga falla en la red y el perfil
+/// declara una identidad TLS utilizable, se reintenta una vez presentándola.
+pub async fn fetch_remote_card(
+    client: &Client,
+    config: &A2aConfig,
+    endpoint: &str,
+    credenciales: &BTreeMap<String, String>,
+    env: &(dyn Fn(&str) -> Option<String> + Sync),
+) -> Result<RemoteCard, RemoteError> {
+    match fetch_card(client, endpoint, config.max_card_bytes).await {
+        Err(error @ RemoteError::Network(_)) => {
+            let Some(pem) = identidad_declarada(credenciales, env) else {
+                return Err(error);
+            };
+            match http_client_with_identity(config, &pem) {
+                Ok(con_identidad) => fetch_card(&con_identidad, endpoint, config.max_card_bytes)
+                    .await
+                    .map_err(|_| error),
+                Err(_) => Err(error),
+            }
+        }
+        otro => otro,
+    }
+}
+
+/// Qué remotos se consultaron bien y cuáles no.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RefreshReport {
+    pub ok: Vec<String>,
+    pub failed: Vec<String>,
+}
+
+/// Consulta la tarjeta de cada agente remoto de la instantánea vigente y anota el resultado en el
+/// registro, que recalcula su instantánea y publica el cambio. Un fallo de un remoto no afecta a
+/// los demás: queda como problema de carga de ese agente.
+pub async fn refresh_remote_cards(
+    registry: &AgentRegistry,
+    bus: &EventBus,
+    client: &Client,
+    config: &A2aConfig,
+) -> RefreshReport {
+    refresh_remote_cards_with_env(registry, bus, client, config, &|variable| {
+        std::env::var(variable).ok()
+    })
+    .await
+}
+
+/// Como [`refresh_remote_cards`], leyendo las credenciales con `env` (inyectable para las pruebas).
+/// Además de la tarjeta, anota si el cliente podría autenticarse con lo que el perfil declara.
+pub async fn refresh_remote_cards_with_env(
+    registry: &AgentRegistry,
+    bus: &EventBus,
+    client: &Client,
+    config: &A2aConfig,
+    env: &(dyn Fn(&str) -> Option<String> + Sync),
+) -> RefreshReport {
+    // Con `trusted_jwks` se exigen firmas. Si el fichero no se puede usar, falla cerrado: ningún
+    // remoto queda utilizable y el motivo lo dice, en vez de dejar de verificar sin avisar.
+    let claves: Option<Result<TrustedKeys, String>> = config.trusted_jwks.as_deref().map(|ruta| {
+        TrustedKeys::from_file(ruta).map_err(|motivo| format!("[a2a] trusted_jwks: {motivo}"))
+    });
+    let remotos: Vec<(String, String, BTreeMap<String, String>, bool)> = registry
+        .snapshot()
+        .entries()
+        .into_iter()
+        .filter_map(|entrada| match &entrada.execution {
+            Execution::Remote(spec) => Some((
+                entrada.name.clone(),
+                spec.endpoint.clone(),
+                spec.credentials.clone(),
+                spec.fetched.is_some(),
+            )),
+            Execution::Local(_) => None,
+        })
+        .collect();
+
+    let resultados: Vec<_> = stream::iter(remotos)
+        .map(|(nombre, endpoint, credenciales, tenia_buena)| async move {
+            let resultado = fetch_remote_card(client, config, &endpoint, &credenciales, env).await;
+            (nombre, endpoint, credenciales, tenia_buena, resultado)
+        })
+        .buffer_unordered(CONSULTAS_SIMULTANEAS)
+        .collect()
+        .await;
+
+    let mut informe = RefreshReport::default();
+    for (nombre, endpoint, credenciales, tenia_buena, resultado) in resultados {
+        let anotado = match resultado {
+            Ok(remota) => {
+                informe.ok.push(nombre.clone());
+                // El problema de firma va antes que el de autenticación: un remoto cuya tarjeta
+                // no se puede creer no llega a pedirnos credenciales.
+                let problema_de_firma = match &claves {
+                    None => None,
+                    Some(Err(motivo)) => Some(motivo.clone()),
+                    Some(Ok(claves)) => claves.verify(&remota.signatures).err(),
+                };
+                let auth_problem = problema_de_firma.or_else(|| {
+                    AuthPlan::for_card(
+                        remota.security.as_deref(),
+                        remota.requires_auth,
+                        &credenciales,
+                        env,
+                    )
+                    .err()
+                });
+                let streaming = remota.card.capabilities.streaming == Some(true);
+                Ok((
+                    remota.card,
+                    RemoteFetched {
+                        card_hash: remota.hash,
+                        jsonrpc_url: remota.jsonrpc_url,
+                        tenant: remota.tenant,
+                        requires_auth: remota.requires_auth,
+                        security: remota.security,
+                        auth_problem,
+                        streaming,
+                    },
+                ))
+            }
+            Err(error) => {
+                informe.failed.push(nombre.clone());
+                // Un fallo de red no estropea lo que funciona: si ya había una tarjeta buena, se
+                // conserva la última y el remoto sigue utilizable. Solo el que nunca se descargó
+                // queda como problema de carga.
+                if tenia_buena {
+                    continue;
+                }
+                Err(error.to_string())
+            }
+        };
+        registry.set_remote_card(bus, &nombre, &endpoint, anotado);
+    }
+    informe.ok.sort();
+    informe.failed.sort();
+    informe
+}
+
+/// Refresca las tarjetas cada `intervalo` mientras viva el proceso. La primera pasada es al arrancar
+/// (la hace quien llama), así que la espera va primero. Es una tarea para lanzar con `tokio::spawn`.
+pub async fn refresh_loop(
+    registry: std::sync::Arc<AgentRegistry>,
+    bus: EventBus,
+    client: Client,
+    config: A2aConfig,
+    intervalo: std::time::Duration,
+) {
+    refresh_loop_with_env(registry, bus, client, config, intervalo, |variable| {
+        std::env::var(variable).ok()
+    })
+    .await;
+}
+
+/// Como [`refresh_loop`], resolviendo las credenciales con la fuente local del cliente.
+pub async fn refresh_loop_with_env(
+    registry: std::sync::Arc<AgentRegistry>,
+    bus: EventBus,
+    client: Client,
+    config: A2aConfig,
+    intervalo: std::time::Duration,
+    env: impl Fn(&str) -> Option<String> + Send + Sync + 'static,
+) {
+    let env = std::sync::Arc::new(env);
+    loop {
+        tokio::time::sleep(intervalo).await;
+        let _ = refresh_remote_cards_with_env(&registry, &bus, &client, &config, &*env).await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::A2aRole;
+    use crate::remote::http_client;
+    use loomcoding_core::registry::{
+        Approval, BuiltInSource, FileSource, LoadProblem, ProfileLevel, TrustStore,
+    };
+    use serde_json::{json, Value};
+    use std::path::Path;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const TARJETA: &str = include_str!("../tests/fixtures/agent-card.sample.json");
+
+    fn config() -> A2aConfig {
+        A2aConfig {
+            role: A2aRole::Consume,
+            request_timeout_secs: 2,
+            ..A2aConfig::default()
+        }
+    }
+
+    fn tarjeta_para(servidor: &MockServer, descripcion: &str) -> Value {
+        let mut valor: Value = serde_json::from_str(TARJETA).unwrap();
+        valor["description"] = json!(descripcion);
+        for interfaz in valor["supportedInterfaces"].as_array_mut().unwrap() {
+            interfaz["url"] = json!(format!("{}/a2a/v1", servidor.uri()));
+        }
+        valor
+    }
+
+    async fn servir(servidor: &MockServer, cuerpo: Value) {
+        Mock::given(method("GET"))
+            .and(path("/.well-known/agent-card.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(cuerpo))
+            .mount(servidor)
+            .await;
+    }
+
+    fn perfil(dir: &Path, nombre: &str, endpoint: &str) {
+        std::fs::write(
+            dir.join(format!("{nombre}.md")),
+            format!(
+                "---\nname: {nombre}\ndescription: Alta manual\ntransport: a2a-remote\na2a:\n  endpoint: {endpoint}\n---\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    fn registro(dir: &Path, datos: &Path) -> AgentRegistry {
+        AgentRegistry::new(vec![
+            Box::new(BuiltInSource),
+            Box::new(FileSource::new(dir.to_path_buf(), ProfileLevel::Global)),
+        ])
+        .with_trust(
+            TrustStore::open(datos.to_path_buf()).unwrap(),
+            dir.to_path_buf(),
+            false,
+        )
+    }
+
+    #[test]
+    fn only_a_pem_file_that_is_a_valid_identity_is_taken_as_the_declared_identity() {
+        let identidad = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/mtls-test-identity.pem"
+        );
+        let creds = |pares: &[(&str, &str)]| -> BTreeMap<String, String> {
+            pares
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
+        };
+        let con_valor = |valor: &'static str| move |_: &str| Some(valor.to_string());
+
+        // Un token, una clave de API o una ruta que no es .pem no se tratan como identidad.
+        assert!(identidad_declarada(&creds(&[("a", "V")]), &con_valor("token-secreto")).is_none());
+        assert!(identidad_declarada(&creds(&[("a", "V")]), &con_valor("/etc/hosts")).is_none());
+        assert!(identidad_declarada(&creds(&[("a", "V")]), &con_valor("/no/existe.pem")).is_none());
+        // Un .pem válido sí.
+        assert!(identidad_declarada(&creds(&[("a", "V")]), &con_valor(identidad)).is_some());
+        // Sin variable definida, nada.
+        assert!(identidad_declarada(&creds(&[("a", "V")]), &|_: &str| None).is_none());
+    }
+
+    #[tokio::test]
+    async fn a_network_failure_is_retried_with_the_declared_identity_only_once_and_keeps_the_first_error(
+    ) {
+        // Un servidor HTTP plano contestando a un cliente TLS: el apretón falla en la red.
+        let plano = wiremock::MockServer::start().await;
+        let cerrado = plano.address().port();
+        let identidad = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/mtls-test-identity.pem"
+        );
+        let cliente = http_client(&config()).unwrap().unwrap();
+        let creds = BTreeMap::from([("tls".to_string(), "V".to_string())]);
+
+        let con = fetch_remote_card(
+            &cliente,
+            &config(),
+            &format!("https://127.0.0.1:{cerrado}"),
+            &creds,
+            &|_: &str| Some(identidad.to_string()),
+        )
+        .await;
+        let sin = fetch_remote_card(
+            &cliente,
+            &config(),
+            &format!("https://127.0.0.1:{cerrado}"),
+            &creds,
+            &|_: &str| None,
+        )
+        .await;
+
+        assert!(matches!(con, Err(RemoteError::Network(_))), "{con:?}");
+        assert!(matches!(sin, Err(RemoteError::Network(_))));
+    }
+
+    #[tokio::test]
+    async fn the_card_of_each_remote_is_fetched_and_left_pending_until_approved() {
+        let servidor = MockServer::start().await;
+        servir(&servidor, tarjeta_para(&servidor, "Rutas")).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil(dir.path(), "rutas", &servidor.uri());
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+
+        let informe = refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+
+        assert_eq!(informe.ok, vec!["rutas".to_string()]);
+        assert!(informe.failed.is_empty());
+        let instantanea = registro.snapshot();
+        assert_eq!(
+            instantanea.get("rutas").unwrap().card.name,
+            "GeoSpatial Route Planner Agent"
+        );
+        assert_eq!(instantanea.approval("rutas"), Some(Approval::Pending));
+
+        registro.approve("rutas").unwrap();
+        assert_eq!(
+            registro.snapshot().approval("rutas"),
+            Some(Approval::Approved)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_card_that_changes_between_refreshes_returns_to_pending() {
+        let servidor = MockServer::start().await;
+        servir(&servidor, tarjeta_para(&servidor, "Rutas")).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil(dir.path(), "rutas", &servidor.uri());
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+        refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+        registro.approve("rutas").unwrap();
+        assert_eq!(
+            registro.snapshot().approval("rutas"),
+            Some(Approval::Approved)
+        );
+
+        servidor.reset().await;
+        servir(&servidor, tarjeta_para(&servidor, "Ahora hago otra cosa")).await;
+        refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+
+        assert_eq!(
+            registro.snapshot().approval("rutas"),
+            Some(Approval::Pending)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_refresh_keeps_the_last_good_card_and_its_approval() {
+        let servidor = MockServer::start().await;
+        servir(&servidor, tarjeta_para(&servidor, "Rutas")).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil(dir.path(), "rutas", &servidor.uri());
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+        refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+        registro.approve("rutas").unwrap();
+
+        // El remoto se cae: el refresco falla, pero lo que ya funcionaba sigue funcionando.
+        servidor.reset().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&servidor)
+            .await;
+        let informe = refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+
+        assert_eq!(informe.failed, vec!["rutas".to_string()]);
+        let instantanea = registro.snapshot();
+        assert_eq!(instantanea.approval("rutas"), Some(Approval::Approved));
+        assert!(instantanea.get("rutas").is_some());
+        assert!(!instantanea
+            .problems()
+            .iter()
+            .any(|p| matches!(p, LoadProblem::Remote { name, .. } if name == "rutas")));
+    }
+
+    #[tokio::test]
+    async fn the_periodic_loop_refreshes_again_and_again() {
+        let servidor = MockServer::start().await;
+        servir(&servidor, tarjeta_para(&servidor, "Rutas")).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil(dir.path(), "rutas", &servidor.uri());
+        let registro = std::sync::Arc::new(registro(dir.path(), datos.path()));
+        let cliente = http_client(&config()).unwrap().unwrap();
+
+        let tarea = tokio::spawn(refresh_loop(
+            registro.clone(),
+            EventBus::new(16),
+            cliente,
+            config(),
+            std::time::Duration::from_millis(40),
+        ));
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        tarea.abort();
+
+        let peticiones = servidor.received_requests().await.unwrap().len();
+        assert!(peticiones >= 3, "solo {peticiones} peticiones");
+        assert!(registro.snapshot().get("rutas").is_some());
+    }
+
+    #[tokio::test]
+    async fn one_failing_remote_does_not_affect_the_others() {
+        let bueno = MockServer::start().await;
+        servir(&bueno, tarjeta_para(&bueno, "Bueno")).await;
+        let malo = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&malo)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil(dir.path(), "bueno", &bueno.uri());
+        perfil(dir.path(), "malo", &malo.uri());
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+
+        let informe = refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+
+        assert_eq!(informe.ok, vec!["bueno".to_string()]);
+        assert_eq!(informe.failed, vec!["malo".to_string()]);
+        let instantanea = registro.snapshot();
+        assert!(instantanea.problems().contains(&LoadProblem::Remote {
+            name: "malo".into(),
+            error: "remote answered with HTTP status 500".into(),
+        }));
+        registro.approve("bueno").unwrap();
+        assert_eq!(
+            registro.snapshot().approval("bueno"),
+            Some(Approval::Approved)
+        );
+        assert_eq!(
+            registro.snapshot().approval("malo"),
+            Some(Approval::Pending)
+        );
+    }
+
+    #[tokio::test]
+    async fn a_registry_without_remotes_makes_no_request() {
+        let servidor = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&servidor)
+            .await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+
+        let informe = refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+
+        assert_eq!(informe, RefreshReport::default());
+    }
+
+    fn perfil_con_credenciales(dir: &Path, nombre: &str, endpoint: &str, esquema: &str) {
+        std::fs::write(
+            dir.join(format!("{nombre}.md")),
+            format!(
+                "---\nname: {nombre}\ndescription: Alta manual\ntransport: a2a-remote\na2a:\n  endpoint: {endpoint}\n  credentials:\n    {esquema}: AGENTE_KEY\n---\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    fn tarjeta_con_clave_de_api(servidor: &MockServer) -> Value {
+        let mut valor = tarjeta_para(servidor, "Rutas");
+        valor["securitySchemes"] = json!({
+            "claveApi": { "apiKeySecurityScheme": { "location": "header", "name": "X-Api-Key" } }
+        });
+        valor["securityRequirements"] = json!([{ "schemes": { "claveApi": { "list": [] } } }]);
+        valor
+    }
+
+    fn problema_de(registro: &AgentRegistry, nombre: &str) -> Option<String> {
+        match &registro.snapshot().get(nombre).unwrap().execution {
+            Execution::Remote(spec) => spec.fetched.as_ref().unwrap().auth_problem.clone(),
+            Execution::Local(_) => panic!("no es remoto"),
+        }
+    }
+
+    #[tokio::test]
+    async fn refresh_records_why_a_secured_remote_cannot_be_used() {
+        let servidor = MockServer::start().await;
+        servir(&servidor, tarjeta_con_clave_de_api(&servidor)).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil_con_credenciales(dir.path(), "rutas", &servidor.uri(), "claveApi");
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+
+        refresh_remote_cards_with_env(&registro, &bus, &cliente, &config(), &|_| None).await;
+        let sin_variable = problema_de(&registro, "rutas");
+        refresh_remote_cards_with_env(&registro, &bus, &cliente, &config(), &|v| {
+            (v == "AGENTE_KEY").then(|| "valor".to_string())
+        })
+        .await;
+        let con_variable = problema_de(&registro, "rutas");
+
+        assert!(sin_variable.unwrap().contains("AGENTE_KEY"));
+        assert_eq!(con_variable, None);
+    }
+
+    #[tokio::test]
+    async fn refresh_flags_the_missing_credential_of_an_openid_connect_card() {
+        let servidor = MockServer::start().await;
+        // La tarjeta de ejemplo de la especificación pide OpenID Connect.
+        servir(&servidor, tarjeta_para(&servidor, "Rutas")).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil(dir.path(), "rutas", &servidor.uri());
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+
+        refresh_remote_cards_with_env(&registro, &bus, &cliente, &config(), &|_| None).await;
+
+        let problema = problema_de(&registro, "rutas").unwrap();
+        // OpenID Connect ya se soporta (A8d-2): lo que falta es la credencial.
+        assert!(problema.contains("a2a.credentials"), "{problema}");
+    }
+
+    #[tokio::test]
+    async fn a_card_that_changes_its_security_returns_to_pending() {
+        let servidor = MockServer::start().await;
+        servir(&servidor, tarjeta_con_clave_de_api(&servidor)).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil_con_credenciales(dir.path(), "rutas", &servidor.uri(), "claveApi");
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config()).unwrap().unwrap();
+        refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+        registro.approve("rutas").unwrap();
+
+        servidor.reset().await;
+        let mut otra = tarjeta_con_clave_de_api(&servidor);
+        otra["securitySchemes"]["claveApi"]["apiKeySecurityScheme"]["name"] = json!("X-Otra");
+        servir(&servidor, otra).await;
+        refresh_remote_cards(&registro, &bus, &cliente, &config()).await;
+
+        assert_eq!(
+            registro.snapshot().approval("rutas"),
+            Some(Approval::Pending)
+        );
+    }
+
+    // ---- Firmas de la tarjeta (D17) ----
+
+    use crate::signing::pruebas::{firma_con_cabecera, firmada, par};
+
+    /// Tarjeta sin requisitos de seguridad ni la firma de adorno del ejemplo: así el único problema
+    /// posible es el de la firma que cada prueba le ponga.
+    fn tarjeta_abierta(servidor: &MockServer) -> Value {
+        let mut valor = tarjeta_para(servidor, "Rutas");
+        let objeto = valor.as_object_mut().unwrap();
+        for clave in [
+            "securitySchemes",
+            "securityRequirements",
+            "security",
+            "signatures",
+        ] {
+            objeto.remove(clave);
+        }
+        valor
+    }
+
+    fn con_claves(dir: &Path, jwks: &str) -> A2aConfig {
+        let ruta = dir.join("jwks.json");
+        std::fs::write(&ruta, jwks).unwrap();
+        A2aConfig {
+            trusted_jwks: Some(ruta.display().to_string()),
+            ..config()
+        }
+    }
+
+    /// Consulta el remoto «rutas» (que sirve `tarjeta`) con la configuración dada y devuelve su
+    /// problema de uso.
+    async fn problema_con(
+        servidor: &MockServer,
+        tarjeta: Value,
+        config: &A2aConfig,
+    ) -> (AgentRegistry, Option<String>) {
+        servir(servidor, tarjeta).await;
+        let dir = tempfile::tempdir().unwrap();
+        let datos = tempfile::tempdir().unwrap();
+        perfil(dir.path(), "rutas", &servidor.uri());
+        let registro = registro(dir.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(config).unwrap().unwrap();
+        refresh_remote_cards_with_env(&registro, &bus, &cliente, config, &|_| None).await;
+        let problema = problema_de(&registro, "rutas");
+        // Los directorios temporales viven lo que dura la prueba: el registro ya tiene todo en memoria.
+        (registro, problema)
+    }
+
+    #[tokio::test]
+    async fn a_card_with_a_valid_signature_is_usable_when_keys_are_required() {
+        let servidor = MockServer::start().await;
+        let (clave, jwks) = par("k");
+        let dir = tempfile::tempdir().unwrap();
+        let tarjeta = firmada(tarjeta_abierta(&servidor), &clave, "k");
+
+        let (_, problema) = problema_con(&servidor, tarjeta, &con_claves(dir.path(), &jwks)).await;
+
+        assert_eq!(problema, None);
+    }
+
+    #[tokio::test]
+    async fn an_unsigned_or_tampered_card_makes_the_remote_unusable_when_keys_are_required() {
+        let dir = tempfile::tempdir().unwrap();
+        let (clave, jwks) = par("k");
+        let config = con_claves(dir.path(), &jwks);
+
+        let servidor = MockServer::start().await;
+        let (_, sin_firma) = problema_con(&servidor, tarjeta_abierta(&servidor), &config).await;
+        assert!(
+            sin_firma
+                .as_deref()
+                .unwrap_or("")
+                .contains("no está firmada"),
+            "{sin_firma:?}"
+        );
+
+        let otro = MockServer::start().await;
+        let mut manipulada = firmada(tarjeta_abierta(&otro), &clave, "k");
+        manipulada["description"] = json!("Descripción cambiada tras firmar");
+        let (_, alterada) = problema_con(&otro, manipulada, &config).await;
+        assert!(
+            alterada.as_deref().unwrap_or("").contains("ninguna firma"),
+            "{alterada:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unusable_jwks_file_fails_closed_for_every_remote_and_says_why() {
+        let servidor = MockServer::start().await;
+        let (clave, _) = par("k");
+        let dir = tempfile::tempdir().unwrap();
+        let config = con_claves(dir.path(), "esto no es un JWKS");
+        let tarjeta = firmada(tarjeta_abierta(&servidor), &clave, "k");
+
+        let (_, problema) = problema_con(&servidor, tarjeta, &config).await;
+
+        let problema = problema.unwrap();
+        assert!(problema.contains("trusted_jwks"), "{problema}");
+    }
+
+    #[tokio::test]
+    async fn without_trusted_keys_signatures_are_ignored_even_if_they_are_garbage() {
+        let servidor = MockServer::start().await;
+        let mut tarjeta = tarjeta_abierta(&servidor);
+        tarjeta["signatures"] = json!([{ "protected": "e30", "signature": "AA" }]);
+
+        let (_, problema) = problema_con(&servidor, tarjeta, &config()).await;
+
+        assert_eq!(problema, None);
+    }
+
+    #[tokio::test]
+    async fn the_jku_of_a_card_is_never_fetched() {
+        let servidor = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/jwks.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("{}"))
+            .expect(0)
+            .mount(&servidor)
+            .await;
+        let (clave, jwks) = par("k");
+        let base = tarjeta_abierta(&servidor);
+        let cabecera = json!({
+            "alg": "EdDSA", "kid": "k", "jku": format!("{}/jwks.json", servidor.uri()),
+        });
+        let mut tarjeta = base.clone();
+        tarjeta["signatures"] = json!([firma_con_cabecera(&base, &clave, cabecera)]);
+        let dir = tempfile::tempdir().unwrap();
+
+        let (_, problema) = problema_con(&servidor, tarjeta, &con_claves(dir.path(), &jwks)).await;
+
+        assert_eq!(problema, None);
+        servidor.verify().await;
+    }
+
+    #[tokio::test]
+    async fn re_signing_the_same_card_does_not_invalidate_its_approval() {
+        let servidor = MockServer::start().await;
+        let (clave, jwks) = par("k");
+        let dir = tempfile::tempdir().unwrap();
+        let config = con_claves(dir.path(), &jwks);
+        let base = tarjeta_abierta(&servidor);
+        let mut primera = base.clone();
+        primera["signatures"] = json!([firma_con_cabecera(
+            &base,
+            &clave,
+            json!({ "alg": "EdDSA", "kid": "k", "typ": "JOSE" })
+        )]);
+        let mut segunda = base.clone();
+        segunda["signatures"] = json!([firma_con_cabecera(
+            &base,
+            &clave,
+            json!({ "alg": "EdDSA", "kid": "k", "typ": "otro" })
+        )]);
+        assert_ne!(primera["signatures"], segunda["signatures"]);
+        servir(&servidor, primera).await;
+        let datos = tempfile::tempdir().unwrap();
+        let perfiles = tempfile::tempdir().unwrap();
+        perfil(perfiles.path(), "rutas", &servidor.uri());
+        let registro = registro(perfiles.path(), datos.path());
+        let bus = EventBus::new(16);
+        let cliente = http_client(&config).unwrap().unwrap();
+        refresh_remote_cards(&registro, &bus, &cliente, &config).await;
+        registro.approve("rutas").unwrap();
+
+        servidor.reset().await;
+        servir(&servidor, segunda).await;
+        refresh_remote_cards(&registro, &bus, &cliente, &config).await;
+
+        assert_eq!(
+            registro.snapshot().approval("rutas"),
+            Some(Approval::Approved)
+        );
+        assert_eq!(problema_de(&registro, "rutas"), None);
+    }
+}

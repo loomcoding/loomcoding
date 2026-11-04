@@ -1,4 +1,4 @@
-# CodeLoom — Documento de referencia: análisis de herdr, crush y deepseek-harness
+# Loomcoding — Documento de referencia: análisis de herdr, crush y deepseek-harness
 
 > Estado: notas de investigación. No es el spec de diseño; es la base de
 > conocimiento de la que saldrá el diseño.
@@ -7,7 +7,7 @@
 
 ## 1. Propósito
 
-CodeLoom quiere construir un agente de código en **Rust + ratatui** cuyo valor
+Loomcoding quiere construir un agente de código en **Rust + ratatui** cuyo valor
 diferencial es el modelo de orquestación de **deepseek-harness (dsh)**:
 agente -> subagentes -> jobs, con una UI que muestre en el header qué
 subagentes están trabajando y cuáles terminaron, más los jobs. La referencia
@@ -28,7 +28,7 @@ referencia durante el diseño y la implementación.
 - **dsh** es un harness TS "todo es plugin" (Cordis). Aporta el modelo de
   subagentes y jobs, el ciclo turn/step y su representación en el front. El
   diseño es bueno; el rendimiento está limitado por el runtime de eventos de JS.
-- **Conclusión**: no existe una pieza reutilizable que ya haga lo que CodeLoom
+- **Conclusión**: no existe una pieza reutilizable que ya haga lo que Loomcoding
   quiere. El plan es reimplementar el modelo de dsh (subagentes + jobs + bus de
   eventos) en Rust, usando a herdr como referencia de stack/UI y a crush como
   referencia funcional.
@@ -66,7 +66,7 @@ grok, crush, …); no los envuelve ni los reemplaza.
 - **LLM/agente propio**: **ninguno**. `grep openai` solo aparece en rutas de
   instalación de codex. No hay `reqwest`/`ureq`.
 
-**Puntos útiles para CodeLoom**: ratatui/crossterm, tokio, patrón daemon+socket,
+**Puntos útiles para Loomcoding**: ratatui/crossterm, tokio, patrón daemon+socket,
 EventHub, capa de panes/PTY (útil para la tool `bash` y para hostear agentes),
 manifiestos declarativos y persistencia/restore.
 
@@ -121,7 +121,7 @@ Asistente de código, referencia funcional completa.
   (AppWorkspace vs ClientWorkspace). `RunComplete` es la señal autoritativa de
   fin de run.
 
-**Puntos útiles para CodeLoom**: modelo de tools y permisos, modelo de mensajes,
+**Puntos útiles para Loomcoding**: modelo de tools y permisos, modelo de mensajes,
 catálogo de providers, SQLite/sesiones, config con archivo de contexto, hooks y
 skills. Todo esto es la "paridad funcional" a la que aspirar *después* del
 motor.
@@ -251,7 +251,7 @@ El header es un **árbol de slots**, no un componente monolítico:
 ## 6. Por qué dsh es lento (hallazgos de rendimiento)
 
 No es el concepto del loop; son ineficiencias de implementación. Son la lista
-de cosas a evitar en CodeLoom.
+de cosas a evitar en Loomcoding.
 
 | Causa | Dónde | Efecto |
 |---|---|---|
@@ -280,7 +280,7 @@ de cosas a evitar en CodeLoom.
 
 ### 7.2 Mapa de componentes
 
-| Componente | Referencia | En CodeLoom (Rust) |
+| Componente | Referencia | En Loomcoding (Rust) |
 |---|---|---|
 | Provider LLM | crush `buildProvider` (`coordinator.go:1889`) | `reqwest` + SSE; `trait Provider` |
 | Step-loop | fantasy `Agent.Stream` + `PrepareStep`/`StopWhen` | `tokio`; loop propio |
@@ -304,7 +304,7 @@ de cosas a evitar en CodeLoom.
 
 ## 8. Decisiones abiertas
 
-1. ~~**Objetivo de build**~~ — **RESUELTO (2026-10-13)**: CodeLoom es un
+1. ~~**Objetivo de build**~~ — **RESUELTO (2026-10-13)**: Loomcoding es un
    crate/binario propio. Se integra con herdr **sin parchearlo**, como plugin
    (pane de terminal que ejecuta `loom`) + socket API/CLI. Así herdr queda
    vanilla y se puede actualizar sin merges.

@@ -4,7 +4,7 @@ Estado: implementado; el build y los tests del workspace pasan. Falta la revisi�
 
 ## Objetivo
 
-Permitir adjuntar imágenes locales a un prompt de CodeLoom y enviarlas como
+Permitir adjuntar imágenes locales a un prompt de Loomcoding y enviarlas como
 contenido multimodal a los proveedores OpenAI-compatible y Anthropic.
 
 ## Interacción
@@ -27,7 +27,7 @@ contenido multimodal a los proveedores OpenAI-compatible y Anthropic.
 - El tamaño máximo del frame IPC admite hasta cuatro imágenes con ese límite.
 - El nombre visible es solo el nombre base del archivo, nunca su ruta completa.
 - Los modelos o endpoints que no acepten imágenes pueden rechazar el mensaje;
-  CodeLoom muestra el error del proveedor.
+  Loomcoding muestra el error del proveedor.
 
 ## Alcance excluido
 

@@ -2,8 +2,8 @@
 
 > Fecha: 2026-10-31. Autorizada por el usuario con un tope de 1,00 USD; gasto ≈ 0,266 USD.
 > Spec: `docs/specs/hechos/2026-10-31-codeloom-reasoning-effort-benchmark.md`. Plan: `docs/plans/hechos/2026-10-31-codeloom-reasoning-effort-benchmark.md`.
-> Código: `crates/codeloom-core/tests/effort_by_phase_live.rs` (etapas 0 y 1) y `stage2_low_effort_on_execution` en
-> `crates/codeloom-core/tests/reproduce_first_live.rs` (etapa 2). Ambas ignoradas por defecto.
+> Código: `crates/loomcoding-core/tests/effort_by_phase_live.rs` (etapas 0 y 1) y `stage2_low_effort_on_execution` en
+> `crates/loomcoding-core/tests/reproduce_first_live.rs` (etapa 2). Ambas ignoradas por defecto.
 
 ## Resumen
 
@@ -113,5 +113,5 @@ Tres repeticiones por caso y nivel.
 
 ## Siguiente paso posible
 
-Repetir `high` de la batería difícil (≈ 0,2 USD) cuando haya crédito en OpenRouter, con `cargo test -p codeloom-core --test effort_by_phase_live stage3_hard_battery_high_only -- --ignored --nocapture` (solo `high`, tope 0,40 USD; aborta ante un 402). El gasto de esta tarea por mi cuenta ronda
+Repetir `high` de la batería difícil (≈ 0,2 USD) cuando haya crédito en OpenRouter, con `cargo test -p loomcoding-core --test effort_by_phase_live stage3_hard_battery_high_only -- --ignored --nocapture` (solo `high`, tope 0,40 USD; aborta ante un 402). El gasto de esta tarea por mi cuenta ronda
 0,5 USD, pero el saldo real de la cuenta es el que manda.

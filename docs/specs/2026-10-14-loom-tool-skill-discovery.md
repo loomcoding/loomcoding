@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: una sola puerta de descubrimiento (tools/skills/MCP)
+# Loomcoding — Idea/spec: una sola puerta de descubrimiento (tools/skills/MCP)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -101,7 +101,7 @@ tokens **indirectamente** (menos esquemas cargados).
   necesita un fallback ("mostrar todo" o una pista del porqué).
 - **Seguridad**: cargar una tool **no** concede permisos; el gate (`tool.risk`)
   sigue aplicando.
-- **No inventar un MCP que lo envuelva todo**: es una **capa de CodeLoom**
+- **No inventar un MCP que lo envuelva todo**: es una **capa de Loomcoding**
   (resolución + subset), no un servidor nuevo; y el subset se resuelve local.
 
 ## 6. Relación con lo ya documentado

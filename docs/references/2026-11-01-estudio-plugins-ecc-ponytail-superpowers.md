@@ -1,4 +1,4 @@
-# Estudio: plugins de ECC, ponytail y superpowers, y su encaje en CodeLoom
+# Estudio: plugins de ECC, ponytail y superpowers, y su encaje en Loomcoding
 
 > Fecha: 2026-11-01. Estado: **estudio**, sin decisiones tomadas ni código. Los datos de las tres columnas salen de leer
 > los ficheros locales de cada plugin (rutas al final); lo que es propuesta va rotulado como tal.
@@ -10,7 +10,7 @@
 ## 1. Qué es un «plugin» en estos tres casos
 
 No es un formato único ni un concepto de A2A: es una **carpeta con un manifiesto y varios tipos de componente**, definida por
-Claude Code y copiada por otros arneses. Lo que CodeLoom llama «A2A» solo aparece, en estos plugins, en las tarjetas de agente
+Claude Code y copiada por otros arneses. Lo que Loomcoding llama «A2A» solo aparece, en estos plugins, en las tarjetas de agente
 que algún perfil declare; el plugin como unidad no existe en A2A y no debe presentarse como tal.
 
 | | superpowers 7.0.0 | ponytail 5.3.3 | ECC 2.2.3 |
@@ -24,7 +24,7 @@ que algún perfil declare; el plugin como unidad no existe en A2A y no debe pres
 | Configuración tipada (`userConfig`) | no | sí (incluye un token marcado como sensible, que guarda en el llavero del sistema) | sí (`hooks_enabled`, `hook_profile`) |
 | Otros arneses | carpetas para Codex, Cursor, OpenCode, Kimi, Pi, Hermes, Gemini… | las mismas más Windsurf, Kiro, Cline, Qoder… | Codex, Pi, scripts de conversión de agentes |
 
-Observación que importa: **los tres convergen en `.agents/`** (carpeta neutral) además de la propia de cada arnés. CodeLoom ya lee
+Observación que importa: **los tres convergen en `.agents/`** (carpeta neutral) además de la propia de cada arnés. Loomcoding ya lee
 `.agents/agents` y `.agents/skills`, así que el punto de contacto más barato ya existe.
 
 ## 2. Qué hace cada hook (lo medido)
@@ -42,9 +42,9 @@ Observación que importa: **los tres convergen en `.agents/`** (carpeta neutral)
 
 Resumen: de 32 hooks, **ninguno de superpowers ni de ponytail ejecuta lógica de proyecto**; ECC sí.
 
-## 3. Qué tiene hoy CodeLoom (verificado en el código)
+## 3. Qué tiene hoy Loomcoding (verificado en el código)
 
-| Componente de plugin | En CodeLoom hoy |
+| Componente de plugin | En Loomcoding hoy |
 |---|---|
 | Skills (`SKILL.md`) | Sí, pero **solo las que declara un perfil de agente** (`scope.skills`), con topes de tamaño; de `.agents/skills` del proyecto y del usuario, y del catálogo externo. La sesión raíz **no tiene skills siempre activas** |
 | Agentes | Sí: registro con perfiles globales, de proyecto y de catálogo, aprobación por huella |
@@ -52,7 +52,7 @@ Resumen: de 32 hooks, **ninguno de superpowers ni de ponytail ejecuta lógica de
 | Hooks | **No existen.** El diseño base los nombra como posteriores («hooks pre/post-tool-use como middleware») |
 | MCP | Sí |
 | Configuración tipada con secretos en llavero | No |
-| Instalación selectiva (módulos, perfiles) | Fuera de CodeLoom: es el catálogo del usuario |
+| Instalación selectiva (módulos, perfiles) | Fuera de Loomcoding: es el catálogo del usuario |
 
 ## 4. Encaje por componente (propuesta)
 
@@ -66,7 +66,7 @@ expresar porque la sesión raíz no carga skills.
 **Hooks: tres capas, de menos a más riesgo.**
 
 1. *Intención declarativa, sin ejecutar nada.* Dos de los tres plugins (superpowers y ponytail) usan los hooks para una sola cosa:
-   inyectar texto en el prompt al empezar la sesión o al arrancar un hijo. CodeLoom puede ofrecer eso como **paquetes de contexto
+   inyectar texto en el prompt al empezar la sesión o al arrancar un hijo. Loomcoding puede ofrecer eso como **paquetes de contexto
    acotados** (un texto con tope, activado por evento, visible en el desglose de contexto), sin shell. Cubre los 3 hooks de
    superpowers y ponytail que inyectan contexto (`SessionStart` de ambos y `SubagentStart` de ponytail), con los topes del decálogo.
 2. *Eventos declarativos de modo.* El cambio de nivel de ponytail es estado de sesión (un nivel y su texto), no un programa. Se
@@ -80,10 +80,10 @@ expresar porque la sesión raíz no carga skills.
 **Comandos.** Un comando de plugin es una plantilla de prompt. Equivale a una skill invocable por el usuario; no hace falta un
 concepto aparte, y de hecho ponytail ya los publica como skills.
 
-**`userConfig`.** Los ajustes simples (booleanos, cadenas) caben en `codeloom.toml`. Los secretos en llavero no existen en
-CodeLoom y no se proponen aquí.
+**`userConfig`.** Los ajustes simples (booleanos, cadenas) caben en `loomcoding.toml`. Los secretos en llavero no existen en
+Loomcoding y no se proponen aquí.
 
-**Instalación de plugins como tal (leer `plugin.json`, marketplaces).** No recomendado: acopla CodeLoom a un validador ajeno y
+**Instalación de plugins como tal (leer `plugin.json`, marketplaces).** No recomendado: acopla Loomcoding a un validador ajeno y
 «estricto y no documentado» (las notas de ECC lo admiten). Mejor que **el catálogo del usuario exporte** cada plugin al formato
 `.agents/` y deje constancia de lo que *no* importa (los hooks de shell), como ya hace con ECC.
 
@@ -95,20 +95,20 @@ sesión y su propio contexto, visible dentro de la conversación principal como 
 estudio proponía antes (skills de sesión y paquetes de contexto por evento), que sí ensuciaban el prompt principal, y hace
 innecesario el arbitraje entre superpowers y ponytail: nunca comparten prompt.
 
-Lo que ya cubre CodeLoom: perfil con `scope.skills` cargadas solo en ese agente, sesión de hijo con su contexto, nodo en la
+Lo que ya cubre Loomcoding: perfil con `scope.skills` cargadas solo en ese agente, sesión de hijo con su contexto, nodo en la
 conversación con el estado A2A exacto, `input-required` del hijo hacia la persona usuaria, delegación recursiva (superpowers
 reparte trabajo; necesita `max_depth` ≥ 2 en la configuración y en su perfil) y catálogo con aprobación por huella.
 
 | Paso | Dónde | Qué | Riesgo |
 |---|---|---|---|
-| A | catálogo del usuario | exportar `superpowers` y `ponytail` como **agentes** con sus skills declaradas en `scope.skills`, anotando los hooks no importados | ninguno en CodeLoom |
-| B | CodeLoom, spec propia | **invocación directa por la persona usuaria** (`/agent <nombre> <tarea>` y `@nombre`), sin pasar por el modelo principal. **Hecho:** `specs/hechos/2026-11-01-codeloom-user-invoked-agents.md` | bajo |
-| C | CodeLoom, spec propia | **elegir skills al invocar** (`--skills a,b`), como subconjunto de las que el perfil declara (así la aprobación por huella las sigue cubriendo). **Hecho**, misma spec | bajo |
+| A | catálogo del usuario | exportar `superpowers` y `ponytail` como **agentes** con sus skills declaradas en `scope.skills`, anotando los hooks no importados | ninguno en Loomcoding |
+| B | Loomcoding, spec propia | **invocación directa por la persona usuaria** (`/agent <nombre> <tarea>` y `@nombre`), sin pasar por el modelo principal. **Hecho:** `specs/hechos/2026-11-01-codeloom-user-invoked-agents.md` | bajo |
+| C | Loomcoding, spec propia | **elegir skills al invocar** (`--skills a,b`), como subconjunto de las que el perfil declara (así la aprobación por huella las sigue cubriendo). **Hecho**, misma spec | bajo |
 | D | solo si hace falta | hooks de shell de terceros, tras aprobación, con sandbox | alto; sin decidir |
 
 ## 6. Lo que este estudio no resuelve
 
-- No mide cuánto ahorran o cuestan estas skills en CodeLoom: medirlo exigiría uso real de un modelo y su autorización.
+- No mide cuánto ahorran o cuestan estas skills en Loomcoding: medirlo exigiría uso real de un modelo y su autorización.
 - No clasifica los 28 hooks de ECC por efecto.
 - No decide el arbitraje definitivo de superpowers y ponytail; solo remite a la propuesta de 2026-10-14.
 - Las skills de ponytail y superpowers son texto que guía al modelo, no un control mecánico: el cumplimiento depende del modelo.

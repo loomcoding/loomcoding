@@ -13,7 +13,7 @@ marcador.
 
 ## Pasos
 
-1. Revisar los usos de `batten::state::Composer` y elegir una representación de
+1. Revisar los usos de `loomcoding_cloth::state::Composer` y elegir una representación de
    pegado atómico compatible con los editores de cola y ajustes ya existentes.
 2. Insertar pegados largos como elementos con identidad, etiqueta visible y
    payload íntegro en memoria; conservar pegados cortos como texto ordinario.
@@ -30,8 +30,8 @@ marcador.
 - [x] Insertar pegados largos como elementos con identidad y conservar el payload.
 - [x] Adaptar movimiento, selección, copia, borrado y envío.
 - [x] Añadir pruebas de umbral, Unicode, orden, texto literal y borrado atómico.
-- [x] Ejecutar la suite de `batten`, la prueba de integración de `App`, formato y clippy.
-- [x] `cargo build` y `cargo test` del workspace cuando Windows permita reemplazar `target/debug/codeloom.exe`; verificar la presentación en la TUI real. Build y tests hechos el 2026-10-30 con `CARGO_TARGET_DIR` aparte; el marcador y la edición posterior los cubre `tui_pty::large_multiline_paste_keeps_composer_alive`. Queda solo la revisión de aspecto por una persona.
+- [x] Ejecutar la suite de `cloth`, la prueba de integración de `App`, formato y clippy.
+- [x] `cargo build` y `cargo test` del workspace cuando Windows permita reemplazar `target/debug/loomcoding.exe`; verificar la presentación en la TUI real. Build y tests hechos el 2026-10-30 con `CARGO_TARGET_DIR` aparte; el marcador y la edición posterior los cubre `tui_pty::large_multiline_paste_keeps_composer_alive`. Queda solo la revisión de aspecto por una persona.
 
 ## Riesgos y límites
 

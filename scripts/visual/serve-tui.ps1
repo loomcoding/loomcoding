@@ -4,12 +4,12 @@ Sirve por web un comando de terminal con ttyd (xterm.js), solo en 127.0.0.1, par
 abrirlo con Chrome y capturar su interfaz.
 
 .EXAMPLE
-pwsh -NoProfile -File scripts/visual/serve-tui.ps1 -Port 7681 -Cwd E:\proyecto -Run 'codeloom.exe --yolo'
+pwsh -NoProfile -File scripts/visual/serve-tui.ps1 -Port 7681 -Cwd E:\proyecto -Run 'loomcoding.exe --yolo'
 
 .EXAMPLE
 pwsh -NoProfile -File scripts/visual/serve-tui.ps1 -Port 7681 -Stop
 
-Las variables de entorno que deba ver el comando (por ejemplo CODELOOM_HOME) se definen
+Las variables de entorno que deba ver el comando (por ejemplo LOOMCODING_HOME) se definen
 en el shell que invoca este script: ttyd y su hijo las heredan.
 Sale con 1 si ttyd no se encuentra o el puerto está ocupado.
 #>

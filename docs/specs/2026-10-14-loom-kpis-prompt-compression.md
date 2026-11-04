@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: KPIs y compresión de prompts/contexto
+# Loomcoding — Idea/spec: KPIs y compresión de prompts/contexto
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -23,7 +23,7 @@ Dos piezas que van juntas:
    RAG, ficheros, historial), **RTK** (la salida de *comandos*), y **Caveman**
    (la *prosa*). Reducir tokens sin romper la calidad.
 
-Ambas encajan con lo ya documentado: jevalan ya mide en su laboratorio y CodeLoom
+Ambas encajan con lo ya documentado: jevalan ya mide en su laboratorio y Loomcoding
 tiene bus durable + sesión para agregar.
 
 ## 1. KPIs: qué medir
@@ -69,17 +69,17 @@ Python, JS/TS, Go, **Rust**, Java, C/C++, C#, PHP), `Kompress-v2-base` (texto, M
 bajo demanda). Se integra como librería, proxy FastAPI, **servidor MCP** o
 envoltura del agente.
 
-Encaje en CodeLoom:
+Encaje en Loomcoding:
 
 - Es una capa **entre la tool y el provider**, opcional (crate/servicio), fuera
-  de `codeloom-core`.
+  de `loomcoding-core`.
 - **`CacheAligner` es la pieza que conecta con lo ya documentado**: evita que
   comprimir cambie el prefijo de la petición y rompa el prompt cache (misma
   preocupación que en hot-reload y skills).
 - **`CCR` resuelve el riesgo central**: si comprime de más, el original se
   **recupera** por demanda; no se pierde información, se mueve fuera del prompt.
 - Se puede consumir como **servidor MCP** → encaja con la idea de hot-reload de
-  MCP (CodeLoom ya lo trata como tools).
+  MCP (Loomcoding ya lo trata como tools).
 
 ## 3. Compresión de la salida de comandos — RTK (Rust Token Killer)
 
@@ -90,7 +90,7 @@ con **cuatro estrategias** (filtrado inteligente, agrupación, truncado,
 deduplicación) sobre 100+ comandos (git, cargo, npm, pytest, Docker, k8s, AWS,
 Terraform…). `git diff` 10k -> 2.5k; `pytest` 8k -> 800. Da soporte a 18 agentes.
 
-Encaje en CodeLoom: en la tool **`bash`** (§5.3). CodeLoom ya ejecuta y devuelve
+Encaje en Loomcoding: en la tool **`bash`** (§5.3). Loomcoding ya ejecuta y devuelve
 `ToolResult`; se añade un **filtro de salida por tipo de comando**. Crítico: el
 `exit code` y las líneas de error **deben sobrevivir** (misma regla que caveman:
 "payload verbatim, errores exactos"); y el original debe quedar recuperable.
@@ -129,7 +129,7 @@ inferido** (`caveman-evidence-review`: *inferred daily headroom*), NO el compres
 - **Licencias**: Headroom Apache-2.0; **RTK Apache-2.0 + BUSL-1.1** (reventa
   comercial requiere contacto) → revisar antes de **embeber**, no solo consumir.
 - **Verificar las cifras**: las estrellas/porcentajes vienen de la web; confirmar
-  contra el repo y una medición real en CodeLoom con los KPIs de §1.
+  contra el repo y una medición real en Loomcoding con los KPIs de §1.
 
 ## 7. Config (borrador)
 
@@ -158,7 +158,7 @@ intensity = "full"          # lite | full | ultra
 
 - ¿Headroom entra como **MCP** (reutiliza la idea de hot-reload de MCP) o como
   crate/proxy?
-- ¿Los KPIs viven en `codeloom-core` (siempre) o en una capa opcional?
+- ¿Los KPIs viven en `loomcoding-core` (siempre) o en una capa opcional?
 - ¿Se comprime **antes** de persistir el `ToolResult` o solo en la petición?
   (afecta a replay y a la verdad de la sesión).
 - ¿Quién decide comprimir: config fija, el modelo (por tipo de contenido) o

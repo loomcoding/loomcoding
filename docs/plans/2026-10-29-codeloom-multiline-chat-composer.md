@@ -23,8 +23,8 @@ Spec: [`docs/specs/2026-10-29-codeloom-multiline-chat-composer.md`](../specs/202
 - [x] Ejecutar `cargo fmt --check` y las pruebas de los crates afectados.
 - [ ] Verificar el comportamiento en la TUI.
 
-Verificación tras los ajustes: 45 pruebas del composer (batten), la prueba de
-inserción de `Event::Paste`, `cargo check -p codeloom-cli` y la compilación del
+Verificación tras los ajustes: 45 pruebas del composer (cloth), la prueba de
+inserción de `Event::Paste`, `cargo check -p loomcoding-cli` y la compilación del
 binario pasaron; también
 `cargo fmt --check` y `git diff --check`.
 

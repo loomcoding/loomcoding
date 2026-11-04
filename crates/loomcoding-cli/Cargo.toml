@@ -1,0 +1,45 @@
+[package]
+name = "loomcoding-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "loom"
+path = "src/main.rs"
+
+[[bin]]
+name = "loomcoding"
+path = "src/main.rs"
+
+[dependencies]
+loomcoding-core = { path = "../loomcoding-core" }
+loomcoding-tui = { path = "../loomcoding-tui" }
+loomcoding-herdr = { path = "../loomcoding-herdr" }
+loomcoding-a2a = { path = "../loomcoding-a2a" }
+loomcoding-mcp = { path = "../loomcoding-mcp" }
+base64 = "0.22"
+tokio.workspace = true
+tokio-util.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+toml = "0.8"
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+clap = { version = "4", features = ["derive"] }
+dirs = "6"
+dotenvy = "0.15"
+getrandom = "0.3"
+tracing.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Security_Credentials"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+wiremock = "0.6"
+tempfile = "3"
+loomcoding-e2e = { path = "../loomcoding-e2e" }

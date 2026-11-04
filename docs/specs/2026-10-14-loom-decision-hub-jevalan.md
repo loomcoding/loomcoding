@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: hub de decisiones local (jevalan + Kev/Laya/Jev)
+# Loomcoding — Idea/spec: hub de decisiones local (jevalan + Kev/Laya/Jev)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -11,16 +11,16 @@
 
 ## 0. La idea
 
-Usar **jevalan** como el hub de decisiones de CodeLoom: un proceso local al que el
+Usar **jevalan** como el hub de decisiones de Loomcoding: un proceso local al que el
 agente le pregunta *antes de actuar* y que responde con una **decisión tipada**,
 resuelta con reglas fijas + clasificadores pequeños, **sin gastar una llamada al
-LLM grande**. Así CodeLoom decide riesgo, enrutado de modelo y despertares sin pagar
+LLM grande**. Así Loomcoding decide riesgo, enrutado de modelo y despertares sin pagar
 tokens ni latencia de nube.
 
 jevalan es exactamente eso: "un hub local de decisiones. Los agentes le
 preguntan; jevalan decide —o hace que decida un especialista— y devuelve una
 respuesta tipada. **Nunca ejecuta el efecto**: eso queda en quien pregunta"
-(`jevalan/README.md`). Es el mismo principio que CodeLoom: el motor decide, las
+(`jevalan/README.md`). Es el mismo principio que Loomcoding: el motor decide, las
 tools ejecutan.
 
 ## 1. Por qué ahorra llamadas al LLM
@@ -59,35 +59,35 @@ una llamada grande.
 | **Laya** | `G:\dev\jev\laya` | 8021 | CPU (421M) | Encoder + cabeza de decisión; entrada máx. 8192 tokens |
 
 Los tres sirven `POST /v1/systemone`, el mismo contrato que Jev, así que jevalan
-los trata como cualquier backend y CodeLoom no necesita saber cuál es cuál.
+los trata como cualquier backend y Loomcoding no necesita saber cuál es cuál.
 
-## 3. Dónde encaja cada capacidad en CodeLoom
+## 3. Dónde encaja cada capacidad en Loomcoding
 
-| Capacidad | Seam de CodeLoom | Efecto |
+| Capacidad | Seam de Loomcoding | Efecto |
 |---|---|---|
 | `tool.risk` | `PermissionService` (§5.4) | Decidir `allow/ask/deny` **antes** de ejecutar una tool, sin llamada al LLM |
 | `model.route` (nuevo) | selección de modelo/step (§4.2-4.3) | Enrutar tarea trivial -> modelo barato; difícil -> caro. Menos llamadas caras |
 | `agent.wakeup` | subagentes/jobs dormidos (§6, m2) | Despertar (y gastar un paso de LLM) solo cuando el evento lo justifica |
 
-`tool.risk` es el encaje inmediato: CodeLoom ya diseña un gate de permisos (§5.4) y
+`tool.risk` es el encaje inmediato: Loomcoding ya diseña un gate de permisos (§5.4) y
 jevalan ya trae la capacidad hecha (`capabilities/tool.risk.yaml`,
-`flows/tool-risk-local.yaml`). Su entrada es justo lo que CodeLoom tiene a mano
+`flows/tool-risk-local.yaml`). Su entrada es justo lo que Loomcoding tiene a mano
 (`tool_name`, `tool_input`, `cwd`, `session_id`, `transcript_path`) y su salida
 es `{ verdict: allow|ask|deny, reason, source, probabilities }`.
 
 `model.route` es idea nueva: el flujo `flows/model-route.yaml` ya clasifica
 dificultad (`score`, criterios trivial..muy difícil) y riesgo, y devuelve
-`{ model, effort }`. CodeLoom puede usar el resultado para elegir provider/modelo por
+`{ model, effort }`. Loomcoding puede usar el resultado para elegir provider/modelo por
 turno (o por step), que es donde de verdad se ahorran llamadas.
 
 `agent.wakeup` (`flows/agent-wakeup.yaml`) resuelve "¿merece la pena despertar a
-un agente dormido?". Encaja con el modelo de subagentes de CodeLoom (§6): un
+un agente dormido?". Encaja con el modelo de subagentes de Loomcoding (§6): un
 subagente que espera puede quedarse dormido y solo despertar (gastando un step)
 cuando el evento lo justifica.
 
 ### 3.1 Una capa transversal: sí, pero no "para todo"
 
-La intuición es buena: casi toda decisión de CodeLoom es un *clasificar y actuar*, y
+La intuición es buena: casi toda decisión de Loomcoding es un *clasificar y actuar*, y
 jevalan es exactamente el seam de clasificación. Los puntos candidatos, todos
 "¿qué hago? -> decide una capacidad":
 
@@ -122,7 +122,7 @@ que ya la resuelva**. Empezar en `shadow`, congelar umbrales y validarlos en
 held-out. Ante `abstain`/`error`, fallback conservador. Así es una **capa
 transversal útil**, no un peaje en cada paso.
 
-## 4. Arquitectura: `codeloom-decide`
+## 4. Arquitectura: `loomcoding-decide`
 
 **Primero, encuadrar jevalan**: no es un servicio pesado, es **un router
 configurable**. Su núcleo es pequeño y declarativo: `capacidad -> flujo`
@@ -131,16 +131,16 @@ configurable**. Su núcleo es pequeño y declarativo: `capacidad -> flujo`
 infraestructura**, se configura entero en YAML. El valor no está en el motor (es
 sencillo), sino en **qué se configura** y en **medirlo** (el lab).
 
-Consecuencia: CodeLoom puede (a) **consumir el daemon de jevalan**, o (b) **llevar su
+Consecuencia: Loomcoding puede (a) **consumir el daemon de jevalan**, o (b) **llevar su
 propio router en proceso** con el mismo modelo de datos (capacidad + flujo +
 backend). Es una decisión de **despliegue, no de diseño**: el seam de decisión
 (`capacidad por nombre -> decisión tipada`) es el mismo.
 
-Crate opcional, igual que `codeloom-herdr` y `codeloom-voice`: **el core no conoce ni
+Crate opcional, igual que `loomcoding-herdr` y `loomcoding-voice`: **el core no conoce ni
 jevalan ni el router** (regla de arquitectura §2 del spec principal).
 
 ```
- CodeLoom (codeloom-core)                      jevalan (daemon local)
+ Loomcoding (loomcoding-core)                      jevalan (daemon local)
  ┌──────────────┐   POST /v1/hub       ┌────────────────────────────┐
  │ Permission   │   { capability,      │ capacidades -> flujos       │
  │ Service      │     input }          │  tool.risk -> reglas + Kev  │
@@ -157,9 +157,9 @@ jevalan ni el router** (regla de arquitectura §2 del spec principal).
 - **Modos** copiados de jevalan: `shadow` (solo registra el veredicto, no
   bloquea — útil para calibrar con datos reales) y `enforce` (aplica).
 - **Degradación**: si el daemon no responde, `tool.risk` cae a `ask` (nunca
-  `allow` a ciegas), y `model.route` cae al modelo por defecto de CodeLoom. Mismo
+  `allow` a ciegas), y `model.route` cae al modelo por defecto de Loomcoding. Mismo
   criterio que el hook de jevalan (`error/abstain/plazo -> ASK`).
-- **Nunca ejecuta**: jevalan devuelve la decisión; CodeLoom aplica el efecto.
+- **Nunca ejecuta**: jevalan devuelve la decisión; Loomcoding aplica el efecto.
 
 ## 5. Contrato (el de jevalan, sin inventar)
 
@@ -173,11 +173,11 @@ jevalan ni el router** (regla de arquitectura §2 del spec principal).
 - Así mismo para `model.route` (`{ model, effort }`) y `agent.wakeup`
   (`{ wake, reason, probability? }`).
 - Hay **hook de Claude Code y de Crush** ya hechos
-  (`jevalan hook claude-code`, `docs/crush-hook-install.md`): CodeLoom puede
+  (`jevalan hook claude-code`, `docs/crush-hook-install.md`): Loomcoding puede
   consumirlos o hablar `/v1/hub` directamente. Hablar el hub directamente es
   preferible (una capa menos).
 
-## 6. Config (`codeloom.toml`)
+## 6. Config (`loomcoding.toml`)
 
 ```toml
 [decide]
@@ -194,7 +194,7 @@ agent_wakeup = "agent.wakeup"   # m2
 ```
 
 El daemon de jevalan se declara aparte (sus backends `kev`/`laya`/`ollama`), como
-en `jevalan/config.example.yaml`; CodeLoom solo apunta a su URL.
+en `jevalan/config.example.yaml`; Loomcoding solo apunta a su URL.
 
 ## 7. Qué llamadas al LLM se ahorran, en concreto
 
@@ -208,7 +208,7 @@ en `jevalan/config.example.yaml`; CodeLoom solo apunta a su URL.
 ## 8. Relación con otras piezas
 
 - **Hot-reload** (`2026-10-14-loom-mcp-skills-hot-reload.md`): jevalan ya
-  **recarga los flujos en caliente** al cambiar el fichero; CodeLoom podría refrescar
+  **recarga los flujos en caliente** al cambiar el fichero; Loomcoding podría refrescar
   el set de capacidades que consulta sin reiniciar.
 - **Permisos** (§5.4): jevalan es un *proveedor* del gate, no un reemplazo;
   sigue habiendo allowlist, prompt de UI y modo `--yolo`.
@@ -222,26 +222,26 @@ en `jevalan/config.example.yaml`; CodeLoom solo apunta a su URL.
 - **`abstain`/`error` no llevan decisión**: tratarlos como "sin opinión", no como
   permiso.
 - **Kev y Laya no caben juntos en una GPU de 8 GB** (`docs/local-models.md`):
-  Laya va en CPU. CodeLoom no arranca estos servidores; solo consume jevalan.
-- **No meter esto en `codeloom-core`**: igual que herdr y voz, es integración
+  Laya va en CPU. Loomcoding no arranca estos servidores; solo consume jevalan.
+- **No meter esto en `loomcoding-core`**: igual que herdr y voz, es integración
   opcional por URL.
 - **La entrada puede llevar secretos** (comandos con tokens): jevalan registra
   los eventos **sin la entrada ni la decisión**, pero conviene respetar ese
-  límite también en los logs de CodeLoom.
+  límite también en los logs de Loomcoding.
 
 ## 10. Preguntas abiertas / a verificar
 
 - ¿Consultar `tool.risk` por tool-call o cachear el veredicto por `tool_use_id`?
 - ¿`model.route` decide por turno o por step? Impacto en cache de prompt.
-- ¿CodeLoom habla `/v1/hub` directo (recomendado) o reutiliza el hook de jevalan?
-- ¿El set de capacidades se descubre de jevalan o se declara en `codeloom.toml`?
+- ¿Loomcoding habla `/v1/hub` directo (recomendado) o reutiliza el hook de jevalan?
+- ¿El set de capacidades se descubre de jevalan o se declara en `loomcoding.toml`?
 - ¿Se soporta Jev en la nube (privacidad) además de Kev/Laya en local?
 
 ## 11. Trabajo previo (prior art)
 
 Sí, la idea no es nueva y hay literatura y proyectos. Lo sólido, verificado:
 
-| Trabajo | URL | Qué aporta a CodeLoom |
+| Trabajo | URL | Qué aporta a Loomcoding |
 |---|---|---|
 | **FrugalGPT** (Chen, Zaharia, Zou; 2023) | arXiv:2305.05176 | El patrón **cascade accept/escalate** seminal: probar barato y escalar al caro |
 | **RouteLLM** (LMSYS/Anyscale) | arXiv:2406.18665, `lm-sys/RouteLLM` | Router entrenado por preferencias para elegir modelo; ~85 % de ahorro |
@@ -262,39 +262,39 @@ Foros: hay hilos de HN/Reddit sobre RouteLLM y los cascades, pero **no** hay un
 hilo canónico que describa "un hub local que decida todo". Es una síntesis
 nuestra, no un consenso con nombre propio.
 
-**Conclusión**: el patrón existe y está estudiado; lo que CodeLoom añade es
+**Conclusión**: el patrón existe y está estudiado; lo que Loomcoding añade es
 **juntarlo en un solo seam local** (con Kev/Laya/Jev) y **presupuestarlo** con la
 evidencia de errores correlacionados en contra de usarlo "para todo".
 
-## 12. Reparto: qué se aprovecha en jevalan y qué en CodeLoom
+## 12. Reparto: qué se aprovecha en jevalan y qué en Loomcoding
 
 La capa de decisión se parte en **tres escalones**, según coste y estado:
 
 | Escalón | Dónde | Qué | Por qué ahí |
 |---|---|---|---|
-| 1. **Señales heurísticas** | **CodeLoom, en proceso** | forma de la petición: `keyword`, `language`, `structure`, `context` (ventana), `conversation` (tool-heavy), `metadata`, `authz`, `event` | son deterministas y CodeLoom **ya tiene** el request; no merece un viaje al daemon |
+| 1. **Señales heurísticas** | **Loomcoding, en proceso** | forma de la petición: `keyword`, `language`, `structure`, `context` (ventana), `conversation` (tool-heavy), `metadata`, `authz`, `event` | son deterministas y Loomcoding **ya tiene** el request; no merece un viaje al daemon |
 | 2. **Señales aprendidas + decisión** | **jevalan** | `classifier`, `domain`, `complexity`, `pii`, `jailbreak`, `safety`, `preference`, `reask`, `kb`; `projections` (bandas); `rules` AND/OR + `priority` -> **decisión tipada + clase/conjunto de candidatos** | texto -> probabilidad; encaja con `noul/choice/score`; stateless |
-| 3. **Selección y efecto** | **CodeLoom (selección/serving)** | ranking entre candidatos (`hybrid`/score ponderado), **afinidad de cache**, coste/KPIs, **routing al backend concreto** | necesita **estado** (sesión, `prompt_cache_key`, modelo previo) y pertenece al **efecto** |
+| 3. **Selección y efecto** | **Loomcoding (selección/serving)** | ranking entre candidatos (`hybrid`/score ponderado), **afinidad de cache**, coste/KPIs, **routing al backend concreto** | necesita **estado** (sesión, `prompt_cache_key`, modelo previo) y pertenece al **efecto** |
 
 Mapeo directo de las capas de `semantic-router`:
 
 | Capa SR | Se aprovecha en |
 |---|---|
-| `signals` heurísticas | CodeLoom en proceso |
+| `signals` heurísticas | Loomcoding en proceso |
 | `signals` aprendidas | jevalan |
 | `projections` | jevalan (bandas/umbrales) |
 | `decisions` (rules + priority) | jevalan |
-| `algorithm` (`hybrid`) | CodeLoom (selección/serving) |
-| `plugins` | CodeLoom (tools/hooks) |
+| `algorithm` (`hybrid`) | Loomcoding (selección/serving) |
+| `plugins` | Loomcoding (tools/hooks) |
 
 Dos reglas para no equivocarse:
 
 - **No mandes a jevalan lo que decide una regex o un dato del request**: eso es
   escalón 1, en proceso. Ahorra el round-trip.
 - **No metas estado ni efecto en jevalan**: selección stateful, afinidad de cache
-  y routing son escalón 3, de CodeLoom. Si no, jevalan deja de ser un hub de
+  y routing son escalón 3, de Loomcoding. Si no, jevalan deja de ser un hub de
   decisiones y pasa a ser un serving router.
 
 **En una frase**: jevalan responde **"qué toca"** (señales aprendidas + decisión);
-CodeLoom responde **"cuál concreto y cómo"** (selección, cache, efecto), y lo trivial
+Loomcoding responde **"cuál concreto y cómo"** (selección, cache, efecto), y lo trivial
 se decide **en proceso** sin molestar a nadie.

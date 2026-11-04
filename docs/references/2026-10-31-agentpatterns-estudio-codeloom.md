@@ -1,4 +1,4 @@
-# Estudio de agentpatterns.ai aplicado a CodeLoom (primera pasada)
+# Estudio de agentpatterns.ai aplicado a Loomcoding (primera pasada)
 
 **Fecha de corte:** 31 de octubre de 2026
 **Fuente:** [agentpatterns.ai](https://agentpatterns.ai), catálogo de patrones y antipatrones para agentes de código.
@@ -11,7 +11,7 @@ Licencia del corpus: [CC BY 4.0](https://github.com/agentpatterns-ai/website/blo
 ## 1. Cobertura y límites (leer primero)
 
 - El sitio tiene 1.926 páginas; `patterns/` suma 615 (336 de diseño de agentes, 220 antipatrones, 59 multiagente).
-- Se puntuaron las 615 por palabras clave relacionadas con CodeLoom (heurística mía, no juicio de valor) y se
+- Se puntuaron las 615 por palabras clave relacionadas con Loomcoding (heurística mía, no juicio de valor) y se
   leyeron **22 páginas, truncadas a las primeras 2.700–4.200 caracteres** cada una. No se han leído enteras, ni se han
   leído `security/`, `verification/` ni `workflows/`.
 - Las cifras son las que cada página atribuye a un artículo o informe. **No se han contrastado con las fuentes
@@ -19,16 +19,16 @@ Licencia del corpus: [CC BY 4.0](https://github.com/agentpatterns-ai/website/blo
   está replicado.
 - El contraste con el código se hizo con lecturas puntuales (`config/mod.rs`, `subagent.rs`, `permission/mod.rs`,
   `tools/edit.rs`, `workflow.rs`, nombres de tests). Donde pone «a verificar» no se comprobó.
-- Esto es una primera pasada. No concluye que CodeLoom «aplique bien» ningún patrón: solo señala coincidencias,
+- Esto es una primera pasada. No concluye que Loomcoding «aplique bien» ningún patrón: solo señala coincidencias,
   huecos y preguntas.
 
-## 2. Matriz patrón → CodeLoom
+## 2. Matriz patrón → Loomcoding
 
 Estado: **Aplicado** (hay mecanismo en código), **Parcial**, **Ausente**, **A verificar**.
 
 ### Delegación y topología
 
-| Patrón (página original) | Qué sostiene | CodeLoom | Estado |
+| Patrón (página original) | Qué sostiene | Loomcoding | Estado |
 |---|---|---|---|
 | [Over-Orchestrated Agent Architecture](https://agentpatterns.ai/patterns/anti-patterns/prefer-simplest-agent-architecture/) | Un solo bucle antes que multiagente; el multiagente rinde entre +80,8 % y -70,0 % según la tarea (Kim et al.) | Los hijos no reciben la herramienta `subagent` (`subagent.rs`, comentario sobre `max_depth`): profundidad efectiva 1 | Parcial: límite estructural sí; falta justificar por datos cuándo delegar |
 | [Delegation Threshold Calibration](https://agentpatterns.ai/patterns/agent-design/delegation-threshold-calibration/) | La delegación cuesta coordinación, unos 15 veces más tokens (Anthropic) y revisión; Codex expone `disabled`, `explicit-request-only` y `proactive` | `[agents] confirm_delegation = doubt/always/never` controla **cuándo se pregunta**, no **cuánto se delega** | Ausente el mando de agresividad |
@@ -39,7 +39,7 @@ Estado: **Aplicado** (hay mecanismo en código), **Parcial**, **Ausente**, **A v
 
 ### Contexto heredado por los hijos
 
-| Patrón | Qué sostiene | CodeLoom | Estado |
+| Patrón | Qué sostiene | Loomcoding | Estado |
 |---|---|---|---|
 | [Forked vs Fresh Subagents](https://agentpatterns.ai/patterns/multi-agent/forked-vs-fresh-subagents/) | Revisor con contexto limpio; fork cuando el modelo mental del padre es un activo | El hijo arranca con el mensaje de tarea (`subagent.rs`, `Message::user`); no hay fork | Aplicado el «fresco»; el fork no existe |
 | [Role-Declared Context Mode](https://agentpatterns.ai/patterns/multi-agent/role-declared-context-mode/) | El modo de contexto debe declararlo el rol, no cada despacho; con contexto heredado, la revisión pierde F1 (28,6 % frente a 23,8 % en un estudio) | El perfil fija modelo, esfuerzo, turnos y skills, pero no un modo de contexto | Parcial: falta el campo declarado |
@@ -47,7 +47,7 @@ Estado: **Aplicado** (hay mecanismo en código), **Parcial**, **Ausente**, **A v
 
 ### Aprobación, permisos y límites
 
-| Patrón | Qué sostiene | CodeLoom | Estado |
+| Patrón | Qué sostiene | Loomcoding | Estado |
 |---|---|---|---|
 | [Binding an Agent's Effect to the Approval It Claims](https://agentpatterns.ai/patterns/agent-design/interaction-effect-obligations/) | La aprobación debe ligarse a la revisión de la tarea, no solo a argumentos válidos | Aprobación de spec y plan ligada a SHA-256; cambiar el artefacto la invalida (`changing_an_approved_artifact_invalidates_its_hash`) | Aplicado en el flujo; no en permisos de herramienta |
 | [Trusting Claimed Prior Approval](https://agentpatterns.ai/patterns/anti-patterns/trusting-claimed-prior-approval/) | Un revisor que da por buena una aprobación afirmada en el texto deja pasar código malicioso (hasta 55 % en el peor caso) | La aprobación llega por respuesta exacta de `ask_user`, no por texto; los mensajes llevan origen y los antiguos fallan cerrados | Aplicado en lo central; **a verificar** si un artefacto que afirme estar «ya aprobado» engaña al revisor |
@@ -55,13 +55,13 @@ Estado: **Aplicado** (hay mecanismo en código), **Parcial**, **Ausente**, **A v
 | [Enforcement Modes in Spec-First Frameworks](https://agentpatterns.ai/patterns/agent-design/spec-first-framework-enforcement-modes/) | Ordenar los controles por si el agente puede editarlos: persuasión, estructura inicial, control fuera de su alcance | Las transiciones del flujo viven en código (`can_transition_to`). En cambio, `confirm_delegation` solo cambia el texto del prompt, como admite su comentario | Mixto: el flujo es del tercer modo; la delegación es del primero |
 | [Specification Authority Boundary](https://agentpatterns.ai/patterns/agent-design/specification-authority-boundary/) | El agente propone; solo evidencia validada escribe el estado de «hecho»; los modelos declararon completo y el verificador rechazó 28,7 %–37,9 % | El agente no puede mover fases; la aceptación final es del usuario | Aplicado en lo esencial |
 | [Deterministic Precondition Gates](https://agentpatterns.ai/patterns/agent-design/deterministic-precondition-gates/) | Predicado puro sobre el estado antes de escribir | `edit` exige coincidencia única; no hay «leer antes de escribir» | Parcial |
-| [bypassPermissions Overrides allowedTools](https://agentpatterns.ai/patterns/anti-patterns/bypass-permissions-overrides-allowlist/) | Con el modo de omisión, la lista de herramientas permitidas no restringe | Existe `--yolo` (`codeloom-cli`) | **A verificar** si `--yolo` afecta a los bloqueos del flujo |
+| [bypassPermissions Overrides allowedTools](https://agentpatterns.ai/patterns/anti-patterns/bypass-permissions-overrides-allowlist/) | Con el modo de omisión, la lista de herramientas permitidas no restringe | Existe `--yolo` (`loomcoding-cli`) | **A verificar** si `--yolo` afecta a los bloqueos del flujo |
 | [Classifier-Subagent Run Mode](https://agentpatterns.ai/patterns/agent-design/classifier-subagent-run-mode/) | Lista, caja de arena y clasificador; con tres veredictos (permitir, sugerir alternativa, escalar) | El enrutador `classifier` elige agente, no decide permisos | Ausente. La propia página recomienda lista + sandbox + humano si no se cumplen sus condiciones |
 | [Unbounded Agent Feedback Paths](https://agentpatterns.ai/patterns/anti-patterns/unbounded-agent-feedback-paths/) | 68 bucles infinitos en 47 proyectos; el 95,6 % agotó coste | `max_steps = 30`, compactaciones por turno 3, dos rondas de corrección | Aplicado |
 
 ### Roster, plan y fronteras
 
-| Patrón | CodeLoom | Estado |
+| Patrón | Loomcoding | Estado |
 |---|---|---|
 | [Static Roster vs Runtime Definition](https://agentpatterns.ai/patterns/multi-agent/static-roster-vs-runtime-subagent-definition/): lista estática como opción segura | Perfiles en ficheros (`.agents/`), con aprobación de los de proyecto | Aplicado |
 | [Plan as Control Flow](https://agentpatterns.ai/patterns/agent-design/plan-as-control-flow/): solo el 22 %–45 % de las trayectorias conserva la estructura del plan si va en el prompt | El flujo despacha por fases (planificador, implementador, revisor), pero dentro del implementador el plan va en contexto | Parcial |
@@ -78,7 +78,7 @@ Las páginas respaldan un conjunto concreto, con una condición que no conviene 
 - **Preajustes por forma de tarea**, pero **la elección automática exige estimar la dificultad antes de ejecutar y
   haber medido cada estructura sobre carga propia** ([topología según dificultad](https://agentpatterns.ai/patterns/agent-design/difficulty-aware-topology-selection/)).
 
-CodeLoom ya tiene los mandos sueltos: `confirm_delegation`, `routing`, `effort`, `max_steps`, `trust_project_agents`,
+Loomcoding ya tiene los mandos sueltos: `confirm_delegation`, `routing`, `effort`, `max_steps`, `trust_project_agents`,
 `--yolo` y el flujo de desarrollo. **No tiene un concepto de «modo» que los agrupe**. Un modo sería un preajuste con
 nombre sobre mandos existentes, sin semántica nueva. Habría que rotularlo como diseño propio, no de A2A.
 
@@ -101,7 +101,7 @@ La elección automática de modo debe quedar **apagada** hasta tener medición p
   cinco componentes a la vez se obtuvo más que con cualquiera por separado, aunque dos de ellos perdían puntos solos,
   y no se probaron subconjuntos. **Una ablación componente a componente puede subestimar o invertir el efecto real**;
   hay que incluir combinaciones.
-- Es un estudio único, con modelos de pesos abiertos. No es base suficiente para fijar umbrales de CodeLoom.
+- Es un estudio único, con modelos de pesos abiertos. No es base suficiente para fijar umbrales de Loomcoding.
 
 ## 5. Preguntas que salen y no se han resuelto
 

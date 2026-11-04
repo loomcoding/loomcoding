@@ -88,7 +88,7 @@ con el estado terminal persistido.
 - Replicar cuerpos ilimitados de herramientas en el transcript del padre; se
   mantienen vistas detalladas y límites de tamaño.
 - Cambiar el protocolo A2A. La selección, presentación y control local son
-  funciones de CodeLoom; la cancelación remota respeta la respuesta del peer.
+  funciones de Loomcoding; la cancelación remota respeta la respuesta del peer.
 - Cambiar permisos de herramientas, ejecución exclusiva o límites de
   concurrencia.
 

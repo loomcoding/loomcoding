@@ -5,12 +5,12 @@
 ## Objetivo
 
 Probar y, si la ruta lo admite, habilitar la orquestación programática de tools (PTC) de
-Anthropic desde CodeLoom usando OpenRouter, empezando por `anthropic/claude-haiku-5.5`.
+Anthropic desde Loomcoding usando OpenRouter, empezando por `anthropic/claude-haiku-5.5`.
 Comparar la ruta directa de tool calling con PTC bajo el mismo modelo y una ruta upstream fija.
 
 ## Distinción de responsabilidades
 
-- CodeLoom sigue siendo dueño de las tools cliente, validación, permisos, resultados y eventos.
+- Loomcoding sigue siendo dueño de las tools cliente, validación, permisos, resultados y eventos.
 - Anthropic ejecuta el código programático en su runtime cuando el proveedor upstream acepta
   `code_execution` con `allowed_callers`.
 - OpenRouter es el gateway que recibe Anthropic Messages y enruta al proveedor indicado.
@@ -21,7 +21,7 @@ Comparar la ruta directa de tool calling con PTC bajo el mismo modelo y una ruta
 
 1. Mantener el transporte de Anthropic Messages y apuntar `base_url` a `https://openrouter.ai/api`.
 2. Permitir la prueba PTC solo con el ID exacto `anthropic/claude-haiku-5.5`, el opt-in ya
-   existente `CODELOOM_PROGRAMMATIC_TOOL_CALLING=1` y `provider.order=["anthropic"]` con
+   existente `LOOMCODING_PROGRAMMATIC_TOOL_CALLING=1` y `provider.order=["anthropic"]` con
    `allow_fallbacks=false`. Así se evita comparar backends distintos o un fallback opaco.
 3. No interpretar la presencia de `tools` en el catálogo de OpenRouter como prueba de PTC.
    La lista de compatibilidad de Haiku 5.5 en Anthropic acredita el modelo, no que OpenRouter
@@ -54,7 +54,7 @@ Comparar la ruta directa de tool calling con PTC bajo el mismo modelo y una ruta
 - Pruebas locales verifican modelo elegible, pin estricto del proveedor, cuerpos Anthropic
   normales sin cambios y fallback únicamente en rechazo explícito de PTC.
 - Haiku PTC solo se anuncia como soportado tras una respuesta PTC observada a través de
-  OpenRouter con upstream Anthropic; se registra el uso de al menos una tool cliente de CodeLoom.
+  OpenRouter con upstream Anthropic; se registra el uso de al menos una tool cliente de Loomcoding.
 - Si OpenRouter/upstream rechaza el formato, el turno pasa a tool calling directo sin repetir una
   ejecución ambigua.
 - El benchmark se detiene antes de superar USD 1 y deja mediciones reproducibles. Si no hay key
@@ -84,6 +84,6 @@ Comparar la ruta directa de tool calling con PTC bajo el mismo modelo y una ruta
 ## Fuera de alcance
 
 - Soporte PTC genérico de todos los modelos Anthropic a través de OpenRouter.
-- Ejecutar `openrouter:bash` o `openrouter:shell` desde el runtime CodeLoom.
+- Ejecutar `openrouter:bash` o `openrouter:shell` desde el runtime Loomcoding.
 - Inferir compatibilidad de PTC desde los parámetros estándar `tools` o desde un endpoint
   distinto al proveedor realmente fijado.

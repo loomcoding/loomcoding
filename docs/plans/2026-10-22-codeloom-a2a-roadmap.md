@@ -1,4 +1,4 @@
-# A2A en CodeLoom: índice y tareas pendientes
+# A2A en Loomcoding: índice y tareas pendientes
 
 Estado: documento de referencia del 2026-10-22. No es un plan de ejecución para
 agentes: cada tarea que se emprenda necesita antes su spec y su plan
@@ -9,7 +9,7 @@ Complementario, pero deliberadamente separado, de
 
 ## Premisa
 
-Cabe señalar que el modelo de agentes de CodeLoom parte del protocolo A2A y no se
+Cabe señalar que el modelo de agentes de Loomcoding parte del protocolo A2A y no se
 inventa nada propio donde el protocolo ya dice algo. La fuente normativa es
 `https://a2a-protocol.org/latest/definitions/` (proto `lf.a2a.v1`). Lo que no conste
 allí se rotula como decisión nuestra, y ante la duda se cita el texto literal o se
@@ -19,10 +19,10 @@ dice que no consta.
 
 | Tema | Documento |
 |---|---|
-| Diseño general de A2A (profile, scope, Agent Card, transportes, crate opcional `codeloom-a2a`, SDK `a2a-lf`) | `docs/specs/2026-10-15-loom-agent-profile-a2a.md` |
+| Diseño general de A2A (profile, scope, Agent Card, transportes, crate opcional `loomcoding-a2a`, SDK `a2a-lf`) | `docs/specs/2026-10-15-loom-agent-profile-a2a.md` |
 | Estados de tarea: definiciones literales del proto y decisiones nuestras | misma spec, secciones «Estado de tarea» y «Fuente normativa de los estados» |
-| Proyección interna → `TaskState` (código) | `crates/codeloom-core/src/task.rs` |
-| Estados en pantalla: `AgentState`, glifos, colores | `crates/batten/src/state/agent_state.rs`, `crates/batten/src/widgets/theme/`; rail en `crates/codeloom-tui/src/rail/`; demo «Agent state» del showcase |
+| Proyección interna → `TaskState` (código) | `crates/loomcoding-core/src/task.rs` |
+| Estados en pantalla: `AgentState`, glifos, colores | `crates/loomcoding-cloth/src/state/agent_state.rs`, `crates/loomcoding-cloth/src/widgets/theme/`; rail en `crates/loomcoding-tui/src/rail/`; demo «Agent state» del showcase |
 | `input-required`: pregunta del hijo al padre | `docs/specs/hechos/2026-10-21-codeloom-subagent-input-required-design.md` |
 | Autonomía: despertar del padre (Fase A), artefactos (B), tareas enlazadas (C) | `docs/specs/hechos/2026-10-21-codeloom-agent-autonomy-design.md` |
 | Observabilidad: métricas por agente, navegación, causalidad y ficheros (O1 a O3) | `docs/specs/hechos/2026-10-21-codeloom-agent-observability-design.md`, `...-o2-design.md`, `2026-10-22-codeloom-agent-observability-o3-design.md` |
@@ -83,7 +83,7 @@ después el transporte (A7, A8).
   sección «Lectura de la especificación: descubrimiento, bindings y seguridad (2026-10-22)».
   Las dudas que siguen abiertas están en esa misma sección.
 - [x] **A4. Adaptador de nombres del cable.** Hecho el 2026-10-23 solo para la v1.0, en el
-  crate `codeloom-a2a` (módulo `wire`): enumerados, `Part`, `Message`, `Artifact`, `TaskStatus` y
+  crate `loomcoding-a2a` (módulo `wire`): enumerados, `Part`, `Message`, `Artifact`, `TaskStatus` y
   `Task`. La v0.3 queda para A8. Spec `2026-10-23-codeloom-a2a-wire-names-design.md`. Texto
   original: v0.3 en `kebab-case`, v1.0 en `TASK_STATE_*`. Vive en el borde (crate del
   adaptador), nunca en el núcleo.
@@ -101,23 +101,23 @@ después el transporte (A7, A8).
     visual en terminal real está pendiente.
 - [x] **A6. Tarjeta del agente (`AgentCard`)** y capacidades declaradas.
   - **Hecho el 2026-10-22** en el commit `77b8de1` (`feat(core): los tipos de la tarjeta de agente de A2A`),
-    módulo `crates/codeloom-core/src/card.rs`. Spec y plan en `cf82838`. Spec:
+    módulo `crates/loomcoding-core/src/card.rs`. Spec y plan en `cf82838`. Spec:
     `docs/specs/hechos/2026-10-22-codeloom-a2a-agent-card-design.md`, sección «Estado». Plan:
     `docs/plans/hechos/2026-10-22-codeloom-a2a-agent-card.md`.
   - **Fuera de A6:** seguridad, firmas e icono de la tarjeta, que quedan para A8.
 - [x] **A7. Transporte `InProcess`** detrás de `AgentTransport`: mensajes en memoria,
   sin socket, para los tests. **Hecho el 2026-10-23** (`3101452`, `1106c3c`): contrato
   `AgentTransport`, `InProcessTransport` y suite de contrato. Spec y plan
-  `2026-10-23-codeloom-a2a-inprocess-transport-*`.
+  `2026-10-23-loomcoding-a2a-inprocess-transport-*`.
 - [ ] **A8. Transporte `A2aRemote`** (HTTP JSON-RPC y SSE; gRPC opcional) con roles
   `serve | consume | both`, por defecto desactivados, en el crate opcional
-  `codeloom-a2a`. Aquí cobra sentido `auth-required`. Spec y plan preparados el 2026-10-23
-  (`2026-10-23-codeloom-a2a-remote-transport-*`), cortados en fases A8a–A8d y con preguntas
+  `loomcoding-a2a`. Aquí cobra sentido `auth-required`. Spec y plan preparados el 2026-10-23
+  (`2026-10-23-loomcoding-a2a-remote-transport-*`), cortados en fases A8a–A8d y con preguntas
   abiertas para la persona usuaria; requiere A4, A7 y A9.
   - **A8a (consumir) hecha el 2026-10-23, sin cablear en el CLI** (`651e792`, `7fcf4b7`, `4591883`,
     `8d22eb3`, `b319cac`, `3d84c4e`, `f35cc32`, `4bbfad5`): configuración `[a2a]`, tarjeta remota,
     perfiles `a2a-remote` con aprobación atada a la tarjeta, cliente JSON-RPC y espejo en el
-    lanzador. Quedan A8d (seguridad; A8b servir y A8c SSE ya están hechas) y el cableado en `codeloom-cli` y la
+    lanzador. Quedan A8d (seguridad; A8b servir y A8c SSE ya están hechas) y el cableado en `loomcoding-cli` y la
     TUI; véase la sección «Estado» de la spec.
   - **A8d (autenticación hacia remotos, lado cliente) hecha el 2026-10-23** (`513a814`, `d915619`,
     `dc8145c`, `bb094ac`): clave de API en cabecera o consulta y `Bearer`/`Basic`, con la credencial en
@@ -133,7 +133,7 @@ después el transporte (A7, A8).
     vivas con refresco periódico y `/refresh-agents` (`5b177be`, `56e09ef`). Verificado en vivo contra
     el SDK oficial de Python; ningún proveedor OAuth2/OIDC real de terceros. Véase «Estado» de la spec.
   - **A8b (servir) hecha el 2026-10-23** (`af11149`, `6d80e07`, `4b01b7f`, `520324d`): con
-    `[a2a] role = "serve"` (o `both`) y `[a2a.serve]`, CodeLoom escucha solo en bucle local, exige
+    `[a2a] role = "serve"` (o `both`) y `[a2a.serve]`, Loomcoding escucha solo en bucle local, exige
     autenticación (`Bearer` o clave de API en cabecera, secreto en una variable de entorno) y atiende
     `SendMessage`, `GetTask` y `CancelTask` con un agente de solo lectura (`view` confinado al
     proyecto, `glob`, `grep`). Cada tarea entrante aparece en la conversación. Verificada con el cliente
@@ -143,7 +143,7 @@ después el transporte (A7, A8).
 - [x] **A9. Flujo de eventos** `TaskStatusUpdateEvent` y de artefactos sobre el bus de
   eventos existente, sin canal de interfaz paralelo. **Hecho el 2026-10-23** (`6a5c457`, `3f00cc4`,
   `a20e07a`, `9fdf358`): eventos derivados del bus, `subscribe_task` y tipos del cable. Spec y plan
-  `2026-10-23-codeloom-a2a-task-events-*`.
+  `2026-10-23-loomcoding-a2a-task-events-*`.
 - [x] **A10. Cancelar y reanudar.** **Hecho el 2026-10-23** (decisiones nuestras, rotuladas):
   spec `docs/specs/hechos/2026-10-23-codeloom-a2a-cancel-design.md`, plan
   `docs/plans/hechos/2026-10-23-codeloom-a2a-cancel.md`. `SubagentLauncher::cancel` devuelve la tarea
@@ -182,7 +182,7 @@ después el transporte (A7, A8).
     - **A12b hecha el 2026-10-24: regla (2026-10-23) y clasificador** (idea del usuario). Con
       `[agents] routing = "rule"` (apagado por defecto) la herramienta `subagent` elige agente por
       etiquetas, nombre y ejemplos de las tarjetas aprobadas cuando no se nombra ninguno, y lo anuncia en
-      la conversación con su motivo. Spec y plan `2026-10-23-codeloom-a2a-agent-router-*`; el
+      la conversación con su motivo. Spec y plan `2026-10-23-loomcoding-a2a-agent-router-*`; el
       clasificador (`routing = "classifier"`) consulta a `routing_model` solo si la regla se abstiene y
       se abstiene él ante cualquier anomalía. La medida del ahorro y de los umbrales sigue sin hacer.
 - [x] **Árbol de subagentes (2026-10-22).** El subagente es un nodo plegable de la conversación,
@@ -226,7 +226,7 @@ después el transporte (A7, A8).
        que los decide el agente remoto, y un `model` en un perfil remoto se ignora con
        aviso.
   - **Hecho el 2026-10-22** en los commits `1f4787a`, `73a4e41`, `a492f73`, `128cfcd`,
-    `89329b7`, `f3f0240`, `27dd8e4` y `05dc0ac`. Módulo `crates/codeloom-core/src/registry/`.
+    `89329b7`, `f3f0240`, `27dd8e4` y `05dc0ac`. Módulo `crates/loomcoding-core/src/registry/`.
     Spec: `docs/specs/hechos/2026-10-22-codeloom-a2a-agent-registry-design.md`, sección «Estado
     (2026-10-22)». Plan: `docs/plans/hechos/2026-10-22-codeloom-a2a-agent-registry.md`.
   - **Abierto:**

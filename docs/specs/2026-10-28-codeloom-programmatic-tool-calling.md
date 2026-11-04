@@ -6,7 +6,7 @@
 >
 > Relacionado: `2026-10-13-loom-design.md` (§4, Provider y bucle de tools),
 > `2026-10-14-loom-mcp-skills-hot-reload.md` y las implementaciones en
-> `crates/codeloom-core/src/provider/` y `crates/codeloom-core/src/agent/`.
+> `crates/loomcoding-core/src/provider/` y `crates/loomcoding-core/src/agent/`.
 >
 > Referencias de proveedores, consultadas el 2026-10-28:
 > [Anthropic: Programmatic tool calling](https://platform.claude.com/docs/es/agents-and-tools/tool-use/programmatic-tool-calling),
@@ -27,14 +27,14 @@ reducirán latencia y coste y podrían mejorar algunas respuestas al reservar co
 decisión final. No se considera garantía: el código generado puede ser incorrecto y el
 resultado puede ser peor. El efecto se debe medir por provider/modelo y tipo de tarea.
 
-CodeLoom ofrece una única idea de producto —**orquestación programática de herramientas**—
+Loomcoding ofrece una única idea de producto —**orquestación programática de herramientas**—
 pero no presupone un protocolo común. Cada adapter declara y traduce las funciones nativas
 que soporta. La función se determina por la combinación **provider + modelo + API/endpoint +
 herramientas elegibles**; no por el nombre del provider solamente.
 
 ## 2. Qué significa y qué no
 
-Una llamada de herramienta normal pide al modelo una tool call, CodeLoom la ejecuta y luego
+Una llamada de herramienta normal pide al modelo una tool call, Loomcoding la ejecuta y luego
 envía el resultado al modelo. La llamada programática añade una ejecución de código que puede
 invocar una o más herramientas y procesar los resultados entre llamadas, sin pedir al modelo
 una nueva decisión después de cada una.
@@ -46,19 +46,19 @@ Function calling estándar y tool calls en paralelo tampoco implican soporte pro
 
 ## 3. Evidencia por provider
 
-| Provider | Función documentada | Diferencia relevante para CodeLoom |
+| Provider | Función documentada | Diferencia relevante para Loomcoding |
 |---|---|---|
 | Anthropic | `code_execution` con `allowed_callers` para permitir llamadas a herramientas desde el contenedor; `caller` enlaza cada llamada con la ejecución que la originó. Requiere versión compatible de la herramienta y un modelo que lo admita. | La respuesta puede pausar el código esperando `tool_result`; hay que continuar con el contenedor y el mismo conjunto de tools. Las herramientas de MCP Connector no se pueden llamar programáticamente. |
-| OpenAI | Programmatic Tool Calling ejecuta JavaScript en un runtime V8 hospedado; tools habilitadas declaran `allowed_callers: ["programmatic"]`. La API Responses y Agents tienen contratos distintos. | El adapter actual de CodeLoom usa compatibilidad OpenAI Chat Completions; no equivale a la API Responses ni demuestra soporte de esta función. No declarar soporte en un endpoint compatible sin evidencia explícita. |
+| OpenAI | Programmatic Tool Calling ejecuta JavaScript en un runtime V8 hospedado; tools habilitadas declaran `allowed_callers: ["programmatic"]`. La API Responses y Agents tienen contratos distintos. | El adapter actual de Loomcoding usa compatibilidad OpenAI Chat Completions; no equivale a la API Responses ni demuestra soporte de esta función. No declarar soporte en un endpoint compatible sin evidencia explícita. |
 | Google Gemini | Code Execution permite ejecutar Python; determinadas versiones/modelos combinan esa herramienta integrada con function calling. | Es un flujo nativo diferente; no comparte `allowed_callers`, `caller` ni el protocolo de continuación de Anthropic. Debe tener adapter y soporte verificado propios. |
 
 El inventario anterior es evidencia de que hay mecanismos parecidos en más de un proveedor,
 no prueba de paridad ni de disponibilidad para todos sus modelos, endpoints, regiones o
-planes. CodeLoom no anuncia soporte si el adapter no puede confirmarlo.
+planes. Loomcoding no anuncia soporte si el adapter no puede confirmarlo.
 
 Decisiones aprobadas para la primera versión:
 
-- Opt-in global del proceso mediante `CODELOOM_PROGRAMMATIC_TOOL_CALLING=1`; apagado por
+- Opt-in global del proceso mediante `LOOMCODING_PROGRAMMATIC_TOOL_CALLING=1`; apagado por
   defecto. No se hereda de tarjetas A2A ni se habilita por petición del modelo.
 - OpenAI usa Responses API nativa en adapter separado. OpenAI Compat conserva llamadas
   directas y muestra aviso cuando se solicita PTC.
@@ -70,7 +70,7 @@ Decisiones aprobadas para la primera versión:
 - Gemini 3/4 usa combinación documentada de code execution y function calling; no se declara
   ejecución de funciones cliente desde el código Python del provider.
 
-## 4. Contrato de CodeLoom
+## 4. Contrato de Loomcoding
 
 ### 4.1 Capacidad consultable
 
@@ -82,7 +82,7 @@ API OpenAI-compatible no hereda PTC.
 La respuesta de capacidad debe distinguir al menos:
 
 - **soportada**: adapter y modelo pueden usarla en esta petición;
-- **no soportada**: se usa el bucle normal de CodeLoom;
+- **no soportada**: se usa el bucle normal de Loomcoding;
 - **desconocida/no verificable**: se usa el bucle normal y se informa sin adivinar.
 
 No se fija aquí un enum ni una abstracción para homogeneizar formatos incompatibles. Cada
@@ -91,11 +91,11 @@ turno.
 
 ### 4.2 Selección y fallback
 
-- La ejecución programática es opt-in mediante `CODELOOM_PROGRAMMATIC_TOOL_CALLING=1`; queda
+- La ejecución programática es opt-in mediante `LOOMCODING_PROGRAMMATIC_TOOL_CALLING=1`; queda
   apagada por defecto.
-- CodeLoom resuelve la capacidad antes de construir la solicitud y selecciona solo tools
+- Loomcoding resuelve la capacidad antes de construir la solicitud y selecciona solo tools
   compatibles con esa vía.
-- Si el modelo, endpoint o una tool no admite esta vía, CodeLoom mantiene el flujo actual de
+- Si el modelo, endpoint o una tool no admite esta vía, Loomcoding mantiene el flujo actual de
   llamadas directas. La razón queda observable en la TUI/log, sin fallar el turno.
 - La ruta normal sigue disponible para tools que solo pueden invocarse directamente.
 - El comportamiento nunca cambia por un fallback silencioso que amplíe el conjunto de
@@ -104,9 +104,9 @@ turno.
 ### 4.3 Ejecución y continuidad
 
 - El código generado por el modelo se ejecuta únicamente en el entorno aislado del provider
-  que ofrece la función. CodeLoom no ejecuta ese código en el host ni lo convierte en una
+  que ofrece la función. Loomcoding no ejecuta ese código en el host ni lo convierte en una
   shell local.
-- Las llamadas a tools propiedad de CodeLoom regresan a CodeLoom para aplicar validación,
+- Las llamadas a tools propiedad de Loomcoding regresan a Loomcoding para aplicar validación,
   `PermissionService`, `ExecutionMode` y registro de eventos. El código orquestador no
   aprueba ni sortea esas puertas.
 - La respuesta conserva la relación entre invocación de código, tool calls y resultados,
@@ -166,7 +166,7 @@ Propuesta de fases:
    existentes, mantener las barreras `Exclusive` y acotar ciclos y salidas.
 3. **Observabilidad y fallback:** distinguir el modo de invocación y cubrir modelo no
    compatible, tool no elegible, denegación, error y expiración.
-4. **Adapters futuros:** evaluar OpenAI Responses y Gemini por separado cuando CodeLoom tenga
+4. **Adapters futuros:** evaluar OpenAI Responses y Gemini por separado cuando Loomcoding tenga
    esos adapters/endpoints. Un adapter compatible OpenAI no hereda PTC automáticamente.
 
 Las fases no autorizan a activar el modo por defecto. La fecha exacta de disponibilidad por
@@ -178,7 +178,7 @@ modelos en el núcleo.
 - Ejecutar código generado en el equipo local o implementar un sandbox local.
 - Prometer una API común de proveedores o modificar A2A para representar esta función.
 - Tratar el code interpreter de un proveedor como acceso a shell, archivos locales, red o
-  MCP de CodeLoom.
+  MCP de Loomcoding.
 - Habilitar MCP programático en Anthropic: la documentación consultada excluye herramientas
   provistas por MCP Connector; cualquier integración MCP local requiere su propio diseño de
   elegibilidad y permisos.
@@ -191,7 +191,7 @@ modelos en el núcleo.
 2. El adapter no declara soporte por provider genérico: la capacidad depende del modelo, API
    y tools de la petición.
 3. Las llamadas programáticas conservan IDs y continuidad del protocolo nativo, y sus
-   tools pasan por validación, permisos y barreras de ejecución de CodeLoom.
+   tools pasan por validación, permisos y barreras de ejecución de Loomcoding.
 4. Una denegación, timeout o error no se convierte en aprobación ni produce un reintento
    automático de una tool con posibles efectos laterales.
 5. El número de invocaciones, tiempo, concurrencia y bytes están acotados.

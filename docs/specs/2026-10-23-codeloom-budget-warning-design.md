@@ -20,7 +20,7 @@ modo `warn` de mastra, dirigido a la persona usuaria. Las cifras y los nombres d
 
 ### Configuración
 
-Sección opcional `[budget]` de `codeloom.toml`, aparte de la configuración principal, igual que
+Sección opcional `[budget]` de `loomcoding.toml`, aparte de la configuración principal, igual que
 `[agents]`. Sin ella, o con ambas claves ausentes, **no hay presupuesto ni aviso** (por defecto
 ilimitado, como qwen-code).
 
@@ -51,7 +51,7 @@ el aviso lo dice («según los precios conocidos») en lugar de afirmar un total
 ### Observabilidad
 
 - `LiveEvent::BudgetWarning { metric, level_percent, used, limit }`.
-- La TUI lo muestra como línea de sistema rotulada como aviso **de CodeLoom** («aviso de
+- La TUI lo muestra como línea de sistema rotulada como aviso **de Loomcoding** («aviso de
   presupuesto»), nunca como estado de A2A ni como texto de la persona usuaria.
 
 ## Fuera de alcance, declarado

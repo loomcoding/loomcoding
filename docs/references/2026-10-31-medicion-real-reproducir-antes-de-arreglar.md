@@ -1,7 +1,7 @@
 # Medición real: ¿reproducir antes de arreglar? (D4, prueba 3)
 
 > Fecha: 2026-10-31. Autorizada por el usuario; gasto ≈ 0,159 USD (acumulado de la sesión ≈ 0,21 de los 0,50 USD).
-> Prueba: `crates/codeloom-core/tests/reproduce_first_live.rs` (`#[ignore]`; necesita `OPENROUTER_API_KEY`).
+> Prueba: `crates/loomcoding-core/tests/reproduce_first_live.rs` (`#[ignore]`; necesita `OPENROUTER_API_KEY`).
 > Origen de la hipótesis: [Premature Completion](https://agentpatterns.ai/patterns/anti-patterns/premature-completion/),
 > que cita un caso donde exigir reproducir primero subió un modelo pequeño del 24 % al 77 %.
 

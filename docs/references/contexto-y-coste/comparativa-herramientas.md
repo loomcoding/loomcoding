@@ -20,7 +20,7 @@ imagen upstream, `herdr` es un multiplexor de terminal, `martty` es un cliente A
 | deepseek-harness | 12 500 tokens genéricos; shell 64 000 bytes por flujo | cabeza y cola; shell, cola | **sí**: hasta 64 MiB, ruta en el aviso; `read` exento para evitar bucles |
 | mastra | 2 000 tokens, 200 líneas | cola (modo «sándwich»: 10 % cabeza) | no |
 | pawan | 8 000 caracteres; bash 50 000 bytes | cabeza | no (y corta por bytes sin respetar UTF-8) |
-| **Codeloom** | 20 000 bytes (≈ 5 000 tokens) | solo cabeza | **no** |
+| **Loomcoding** | 20 000 bytes (≈ 5 000 tokens) | solo cabeza | **no** |
 
 ## Listados y búsquedas
 
@@ -31,7 +31,7 @@ imagen upstream, `herdr` es un multiplexor de terminal, `martty` es un cliente A
 | qwen-code | 100 (recoge 1 000) | 20 000 caracteres | sí |
 | deepseek-harness | 100 | 250 y 2 000 bytes por línea | no consta |
 | pawan | 50 | 100 líneas | no consta |
-| **Codeloom** | 300 | 200 y 300 caracteres por línea | sí |
+| **Loomcoding** | 300 | 200 y 300 caracteres por línea | sí |
 
 ## Compactación del historial
 
@@ -72,13 +72,13 @@ genérico de resultados de herramienta. crush, mastra, pawan: sin tope propio.
 
 codex 32 KiB en total (corta la cola y solo lo registra, sin marcador en el texto); deepseek-harness
 64 KiB; mastra 1 000 tokens por recordatorio. crush, opencode, pawan, qwen-code: sin tope.
-**Codeloom: sin tope.**
+**Loomcoding: sin tope.**
 
 ## Lo que aprendemos (lectura propia)
 
 1. **Cuatro de los cinco agentes con bucle propio guardan la salida completa en disco y ponen la
    ruta en el marcador** (crush, opencode, qwen-code, deepseek-harness). Lo recortado no se pierde:
-   el modelo puede volver a leerlo con `read` o `grep`. Codeloom hoy lo pierde.
+   el modelo puede volver a leerlo con `read` o `grep`. Loomcoding hoy lo pierde.
 2. Conservar **cabeza y cola** es lo habitual; solo cabeza (lo nuestro) pierde la conclusión de un
    comando largo. Para resultados de subagente, qwen-code conserva la cola.
 3. La poda de resultados antiguos sin resumir tiene dos precedentes (qwen-code, deepseek-harness);

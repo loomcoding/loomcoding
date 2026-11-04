@@ -1,4 +1,4 @@
-# CodeLoom — Plan de experimentos: qué probar de los papers
+# Loomcoding — Plan de experimentos: qué probar de los papers
 
 > Estado: **borrador para revisión**. No implementar hasta aprobar.
 >
@@ -12,7 +12,7 @@
 De todo el prior art, quedarse con lo **probable y medible**: cada idea de paper
 se convierte en un experimento con hipótesis, diseño, métricas y guardas. El
 principio es el del lab: **medir antes de adoptar**, con umbrales congelados y
-held-out. Nada entra en CodeLoom por "suena bien".
+held-out. Nada entra en Loomcoding por "suena bien".
 
 Y una lección transversal de los papers, que ordena todo: los modelos
 **fallan juntos** (errores correlacionados), así que un cascade **ahorra coste,
@@ -21,11 +21,11 @@ no da precisión**. Eso convierte un experimento en **P0**.
 ## 1. El harness: reutilizar `jevalan lab`, no reinventarlo
 
 El laboratorio ya existe (`offline` / `record` / `live`, fixtures, cassettes,
-presupuesto, `runs/<id>/report.md`, Brier). CodeLoom **no** construye su propio
+presupuesto, `runs/<id>/report.md`, Brier). Loomcoding **no** construye su propio
 banco de pruebas: usa el lab para decidir qué capacidad/umbral funciona.
 
 - **`shadow.jsonl`** ya acumula decisiones reales -> de ahí salen los **fixtures**.
-- Los **KPIs** de CodeLoom (`loom-kpis-prompt-compression.md`) alimentan el mismo
+- Los **KPIs** de Loomcoding (`loom-kpis-prompt-compression.md`) alimentan el mismo
   informe (coste, latencia, calidad), para poder enfrentar brazos.
 
 **Nota de coste de infraestructura**: el router es **simple y configurable**
@@ -40,7 +40,7 @@ infraestructura, solo el router y datos. Lo caro no es el router; es **medir**.
 
 - **Papers**: *Correlated Errors in LLMs* (arXiv:2506.07962, ICML 2025);
   *JEV-as-a-Judge* (arXiv:2609.26550).
-- **Hipótesis**: decide si **tiene sentido** cualquier cascade en CodeLoom. Si el
+- **Hipótesis**: decide si **tiene sentido** cualquier cascade en Loomcoding. Si el
   decision model y el LLM fallan en los mismos casos, un cascade no mejora la
   precisión: solo ahorra coste/latencia.
 - **Diseño**: mismo conjunto de casos (fixtures del lab + shadow) evaluados por
@@ -124,11 +124,11 @@ infraestructura, solo el router y datos. Lo caro no es el router; es **medir**.
 - **Contrapeso de calidad**: una sesión más barata que **falla más** no es un
   ahorro.
 
-## 5. Qué se implementa en CodeLoom (mapeo)
+## 5. Qué se implementa en Loomcoding (mapeo)
 
-| Experimento | Capacidad | Seam de CodeLoom | Efecto |
+| Experimento | Capacidad | Seam de Loomcoding | Efecto |
 |---|---|---|---|
-| P0 | (medición) | `codeloom-decide` + lab | ninguno (decide diseño) |
+| P0 | (medición) | `loomcoding-decide` + lab | ninguno (decide diseño) |
 | P1 | `tool.risk` | `PermissionService` (§5.4) | gate de tools |
 | P2 | `model.route` | selección de modelo (§4.2-4.3) | coste |
 | P3 | `gauntlet.route` + filtro | crítico del Gauntlet | coste/calidad |

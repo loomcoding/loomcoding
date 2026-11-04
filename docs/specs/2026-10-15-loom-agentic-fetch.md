@@ -1,4 +1,4 @@
-# CodeLoom — Idea: tool de red con sub-agente (`fetch` / `agentic_fetch`)
+# Loomcoding — Idea: tool de red con sub-agente (`fetch` / `agentic_fetch`)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -17,7 +17,7 @@ muestra como un tool item con el dominio y el resultado.
 
 ## 1. Por qué es un bloque grande
 
-Hoy CodeLoom **no tiene** ni tool de red ni subagentes:
+Hoy Loomcoding **no tiene** ni tool de red ni subagentes:
 
 - No existe `fetch`/`download` (`tools/` = bash, edit, glob, grep, view).
 - **Subagentes/jobs = m2**, fuera del MVP (`loom-design.md`).

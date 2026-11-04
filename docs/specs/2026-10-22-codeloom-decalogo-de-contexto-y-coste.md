@@ -46,7 +46,7 @@ Las URL consultadas, con fecha y lo que respalda cada una, están en
 
 Consecuencia: las reglas 1, 3, 4, 5 y 8 tienen respaldo de Anthropic; la 7 lo tiene solo en parte
 (OWASP cubre timeouts y cuotas, **no** el límite de pasos ni el presupuesto de tokens, que son
-decisión propia); la 2, la 6, la 9 y la 10 son propias. Las cifras de Codeloom (20 000 bytes
+decisión propia); la 2, la 6, la 9 y la 10 son propias. Las cifras de Loomcoding (20 000 bytes
 ≈ 5 000 tokens, 300 coincidencias, 200 elementos) son **decisiones propias**, deliberadamente
 más prudentes que los 25 000 tokens de Claude Code.
 
@@ -87,7 +87,7 @@ que no tiene cota acabará, tarde o temprano, desbordándose.**
    (`2026-10-23-codeloom-background-compaction-design.md`); su coste real está sin medir. Véase
    también `2026-10-14-loom-kpis-prompt-compression.md`.*
 6. **El prompt de sistema también tiene cota.** Ficheros de contexto (`AGENTS.md`,
-   `CODELOOM.md`), lista de agentes, habilidades y memoria se inyectan en cada petición.
+   `LOOMCODING.md`), lista de agentes, habilidades y memoria se inyectan en cada petición.
    *Estado: **parcial** (2026-10-23). Cada fichero de contexto se lee con tope de 16 000 bytes
    (`MAX_CONTEXT_FILE_BYTES`; se conserva el principio y se avisa del corte), la sección de agentes
    se limita a 8 000 y el prompt propio de un agente a 16 000 (recorte por cabeza y cola, con
@@ -108,7 +108,7 @@ que no tiene cota acabará, tarde o temprano, desbordándose.**
    *Tope de llamadas: hasta el 2026-11-02 el límite de llamadas por respuesta estaba fijado en
    código (32 por respuesta, 64 por turno) y cortaba a los modelos que encadenan herramientas.
    Ahora el valor por defecto es 128/256 y se puede subir sin recompilar con
-   `CODELOOM_MAX_TOOL_CALLS_PER_RESPONSE` y `CODELOOM_MAX_TOOL_CALLS_PER_TURN`. Un valor menor o
+   `LOOMCODING_MAX_TOOL_CALLS_PER_RESPONSE` y `LOOMCODING_MAX_TOOL_CALLS_PER_TURN`. Un valor menor o
    igual a cero, o no numérico, se ignora y se usa el valor por defecto.*
 8. **Lo que cruza de un agente a otro también se acota.** El resultado de un subagente vuelve al
    padre y lo paga cada paso siguiente. *Estado: hecho: el aviso de finalización del hijo se recorta a 8 000 bytes.*
@@ -125,7 +125,7 @@ que no tiene cota acabará, tarde o temprano, desbordándose.**
 - Al revisar: se buscan `read_to_string`, `collect`, `join` y recorridos de directorio sin
   límite; y todo `format!` que meta contenido externo en un mensaje.
 - Ante un 400 del proveedor: se mira primero el **tamaño** de lo enviado (por ejemplo, el campo
-  `payload` de la tabla `messages` de `~/.codeloom/sessions.db`), antes de culpar al proveedor
+  `payload` de la tabla `messages` de `~/.loomcoding/sessions.db`), antes de culpar al proveedor
   o al modelo.
 - Los avisos de recorte y los topes se rotulan como lo que son: decisiones propias, no de A2A.
 

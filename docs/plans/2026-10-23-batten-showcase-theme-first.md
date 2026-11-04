@@ -1,4 +1,4 @@
-# Showcase de Batten con el tema primero: plan de implementación
+# Showcase de Cloth con el tema primero: plan de implementación
 
 > Estado: **hecho**, según el spec gemelo; verificado el 2026-10-30 que los commits que cita están en `master`. Detalle en el `Estado` de `docs/specs/2026-10-23-batten-showcase-theme-first-design.md`.
 
@@ -14,8 +14,8 @@ completo.
 
 Las de `2026-10-23-batten-showcase-theme-matrix.md` (entorno de build, LF, `rustfmt --edition 2021
 <ruta>` sobre ficheros concretos —ojo: sobre `main.rs` del showcase sigue los `mod` hijos, comprueba
-`git status`—, no tocar `codeloom.toml`, `git add` de rutas concretas, comentarios en español
-formal, `cargo test -p batten --examples`, `cargo clippy -p batten -- -D warnings`). No se tocan los
+`git status`—, no tocar `loomcoding.toml`, `git add` de rutas concretas, comentarios en español
+formal, `cargo test -p loomcoding-cloth --examples`, `cargo clippy -p loomcoding-cloth -- -D warnings`). No se tocan los
 demos ni el orden del catálogo. Los tests de navegación y de matriz que ya existen se adaptan solo
 cuando el diseño anterior desaparece (`F8`, `p`, filtro de proveedor), marcándolos
 `// ADAPTADO: <motivo>` o eliminándolos con el motivo en el commit; los demás no se tocan.
@@ -24,13 +24,13 @@ cuando el diseño anterior desaparece (`F8`, `p`, filtro de proveedor), marcánd
 
 ### Tarea 1: derivación de la lista de un tema
 
-**Ficheros:** `crates/batten/examples/showcase/matrix.rs` (o un `theme_view.rs` nuevo si queda más
+**Ficheros:** `crates/loomcoding-cloth/examples/showcase/matrix.rs` (o un `theme_view.rs` nuevo si queda más
 limpio, con `mod theme_view;` en `main.rs`).
 
 ```rust
 pub struct ThemeEntry {
     pub component: &'static str,
-    pub generic: bool,                 // true = solo el genérico de Batten (◐)
+    pub generic: bool,                 // true = solo el genérico de Cloth (◐)
     pub examples: Vec<ThemeExample>,   // al menos uno
 }
 pub struct ThemeExample { pub catalog_index: usize, pub label: String }
@@ -39,24 +39,24 @@ pub fn theme_view(items: &[CatalogItem], column: usize) -> ThemeView;
 ```
 
 Reglas: usa `build`/`Cell` ya existentes. `Own(_)` → los demos del proveedor de la columna, en
-orden de catálogo; `Generic` → los demos del proveedor Batten de ese componente; `Missing` no
+orden de catálogo; `Generic` → los demos del proveedor Cloth de ese componente; `Missing` no
 entra y suma a `missing`. `label` = variante sin el prefijo del proveedor y sin separadores
 iniciales (` · `, ` - `, espacios); vacío → `principal`. Orden de `entries` = el de las filas de la
 matriz.
 
 **Tests:** `crush_lists_its_own_components` (Composer es propio, `generic == false`);
-`pawan_lists_composer_as_generic_with_the_batten_demo`; `missing_components_are_not_listed_but_counted`;
+`pawan_lists_composer_as_generic_with_the_cloth_demo`; `missing_components_are_not_listed_but_counted`;
 `label_strips_the_provider_prefix` (`Crush · pending` → `pending`; `Crush` → `principal`);
 `mastracode_has_only_generic_entries`; `every_example_points_to_an_existing_demo`;
 `entries_plus_missing_equal_the_matrix_rows`.
 
-**Commit:** `feat(batten): lista de componentes de un tema para el showcase`.
+**Commit:** `feat(cloth): lista de componentes de un tema para el showcase`.
 
 ---
 
 ### Tarea 2: estado y teclas con el tema primero
 
-**Ficheros:** `crates/batten/examples/showcase/app.rs`.
+**Ficheros:** `crates/loomcoding-cloth/examples/showcase/app.rs`.
 
 - `Showcase` gana `theme_column: usize` (índice en `matrix::COLUMNS`, por defecto 0) y la
   `ThemeView` vigente (recalculada al cambiar de tema). `theme_preset` pasa a derivarse de la
@@ -82,13 +82,13 @@ matriz.
 `matrix_enter_switches_theme_and_selects_the_example`. Se adaptan o eliminan los de `F8`, `p` y
 proveedor.
 
-**Commit:** `refactor(batten): el showcase elige tema y lista sus componentes`.
+**Commit:** `refactor(cloth): el showcase elige tema y lista sus componentes`.
 
 ---
 
 ### Tarea 3: dibujo (cabecera, índice y pie)
 
-**Ficheros:** `crates/batten/examples/showcase/main.rs` (y `matrix.rs` para reutilizar
+**Ficheros:** `crates/loomcoding-cloth/examples/showcase/main.rs` (y `matrix.rs` para reutilizar
 `status_note`/`glyph`).
 
 - Cabecera, primera fila: pestañas con los siete temas (`COLUMNS`), la activa resaltada (Accent +
@@ -98,7 +98,7 @@ proveedor.
   `draw_matrix`), las filas hijas sangradas con su etiqueta, la seleccionada marcada como hoy.
 - Pie: línea 1, `Tema: {nombre} · {n} componentes: {a} ● · {b} ◐ · faltan {m} (m: matriz)`; línea
   2, solo si el seleccionado es genérico: la nota «◐ … parcialmente implementado (genérico de
-  Batten con la paleta de {tema})» (`status_note`). Sin genérico, el pie vuelve a una línea.
+  Cloth con la paleta de {tema})» (`status_note`). Sin genérico, el pie vuelve a una línea.
   Elimina la tira de F8 y `component_view`.
 - Ayuda de cabecera de cada foco actualizada (`←/→: tema`, sin `F8` ni `p`).
 
@@ -107,13 +107,13 @@ proveedor.
 `footer_counts_components_and_missing`; `footer_notes_partial_implementation_for_generic`;
 `footer_is_one_line_for_an_own_component`; `narrow_terminal_does_not_panic` (60×20 y 30×8).
 
-**Commit:** `feat(batten): pestañas de tema, índice de componentes y pie de recuento`.
+**Commit:** `feat(cloth): pestañas de tema, índice de componentes y pie de recuento`.
 
 ---
 
 ### Tarea 4: ratón
 
-**Ficheros:** `crates/batten/examples/showcase/main.rs` (`handle_mouse` y el bucle),
+**Ficheros:** `crates/loomcoding-cloth/examples/showcase/main.rs` (`handle_mouse` y el bucle),
 `app.rs` si hace falta exponer el cursor de la matriz.
 
 - El bucle atiende `ScrollUp`/`ScrollDown` además de `Down(Left)`.
@@ -132,7 +132,7 @@ proveedor.
 `click_outside_the_matrix_does_not_close_it`; `mouse_and_draw_share_the_same_geometry` (para varios
 tamaños, la fila bajo el clic coincide con la que se pintó).
 
-**Commit:** `feat(batten): ratón completo en el showcase`.
+**Commit:** `feat(cloth): ratón completo en el showcase`.
 
 ---
 

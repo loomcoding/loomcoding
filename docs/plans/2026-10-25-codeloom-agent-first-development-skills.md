@@ -1,4 +1,4 @@
-# Plan — Documentar CodeLoom agent-first y evaluar skills de desarrollo
+# Plan — Documentar Loomcoding agent-first y evaluar skills de desarrollo
 
 > Estado: marco y estudio comparativo documentados; evaluación en runtime pendiente.
 > Spec: `docs/specs/2026-10-25-codeloom-agent-first-development-skills.md`.

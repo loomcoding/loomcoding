@@ -92,18 +92,18 @@ su composer/footer.
 
 | Aspecto | pi-tui 0.80.6 / MastraCode | Loom actual |
 |---|---|---|
-| Buffer y cursor | Multilínea; cursores lógico y visual; conserva columna al subir/bajar | `batten::state::Composer` multilínea, cursor por índice de carácter y columna preferida en líneas lógicas |
+| Buffer y cursor | Multilínea; cursores lógico y visual; conserva columna al subir/bajar | `loomcoding_cloth::state::Composer` multilínea, cursor por índice de carácter y columna preferida en líneas lógicas |
 | Ajuste al ancho | Wrap por palabras/grafemas; navegación sigue las filas visuales | Widget `Paragraph` con texto del buffer; no implementa wrap/navegación sobre filas visuales |
 | Altura y scroll | Límite visible proporcional a la altura del terminal (mínimo 5 filas), desplaza para seguir el cursor e indica contenido oculto | `render.rs` reserva altura a partir del número de líneas lógicas; el widget no desplaza internamente el texto largo |
 | Teclas | Enter submit; combinaciones modificadas insertan línea; historial y edición extendida | Enter submit; Ctrl+J inserta línea; flechas editan líneas lógicas o navegan historial |
 | Pegado | Modo bracketed paste y marcador para pegados grandes con expansión disponible | Evento `Paste` inserta el texto multilínea completo; no hay marcador/resumen para pegado grande |
-| Integración | TypeScript; `Editor` requiere `TUI`, tema, terminal y bucle de render de pi | Rust; Batten/Ratatui y `crossterm`, estado independiente de Ratatui |
+| Integración | TypeScript; `Editor` requiere `TUI`, tema, terminal y bucle de render de pi | Rust; Cloth/Ratatui y `crossterm`, estado independiente de Ratatui |
 
 **Conclusión:** el editor de pi-tui es una buena referencia de comportamiento y
 es funcionalmente más completo; no se puede importar como crate Rust ni montar
 dentro de Ratatui como widget. Adoptarlo literalmente exigiría mover el control
-del terminal a Node o sostener dos runtimes de TUI. Para CodeLoom, conviene
-reproducir primero en Batten wrap visual, scroll con cursor visible, indicadores
+del terminal a Node o sostener dos runtimes de TUI. Para Loomcoding, conviene
+reproducir primero en Cloth wrap visual, scroll con cursor visible, indicadores
 de overflow y pegado largo, conservando el contrato de teclas de Loom. El wrap
 requiere ampliar el modelo de cursor actual y validar Unicode/anchuras antes de
 prometer paridad.
@@ -139,11 +139,11 @@ el marco sin borde y el resto del composer.
 
 **Recomendación revisada:** antes de portar a mano el algoritmo de wrap de
 pi-tui, hacer un prototipo mínimo con `ratatui-textarea` en el composer de
-`codeloom-tui`. Mantener `batten::state::Composer` como contrato del core y
+`loomcoding-tui`. Mantener `loomcoding_cloth::state::Composer` como contrato del core y
 comprobar la forma menos duplicada de sincronizar texto/cursor con el estado del
 widget. Si ese adaptador causa doble estado o rompe la independencia del core,
 portar solo las piezas necesarias (wrap Unicode, navegación de filas visuales,
-scroll/cursor) a Batten. Comprobar en el prototipo el submit Enter, Ctrl+J,
+scroll/cursor) a Cloth. Comprobar en el prototipo el submit Enter, Ctrl+J,
 historial, pegado, foco del transcript, cursor real y terminal estrecho antes
 de decidir adopción.
 
@@ -158,19 +158,19 @@ streaming y tool calls; Mindfork describe bloques de thoughts plegables. Son
 referencias de aplicaciones completas, no una librería enchufable de
 transcript.
 
-Loom/Batten ya ofrece las primitivas y el showcase ahora compone una tarjeta de
+Loom/Cloth ya ofrece las primitivas y el showcase ahora compone una tarjeta de
 tool con thinking para recorrer el flujo de actividad. Esto es un ejemplo de
-widget en Batten, no integración con los eventos de CodeLoom:
+widget en Cloth, no integración con los eventos de Loomcoding:
 
-- `batten::state::ToolItem` conserva nombre, estado, resumen, salida y estado
-  plegado. `batten::widgets::tool_item` dibuja cabecera, resumen, estado de
+- `loomcoding_cloth::state::ToolItem` conserva nombre, estado, resumen, salida y estado
+  plegado. `loomcoding_cloth::widgets::tool_item` dibuja cabecera, resumen, estado de
   ejecución y preview; al expandir presenta las líneas de salida disponibles.
-- `batten::widgets::thinking` presenta una fila de actividad animada. El demo
+- `loomcoding_cloth::widgets::thinking` presenta una fila de actividad animada. El demo
   `chat` la alterna con una tarjeta de tool simulada y respuesta en streaming;
   `tool_item` permite recorrer todos los estados y expandir resultados.
-- `codeloom-core::event::LiveEvent` declara `ReasoningDelta`, `ToolStarted` y
+- `loomcoding-core::event::LiveEvent` declara `ReasoningDelta`, `ToolStarted` y
   `ToolFinished`, pero AgentLoop actualmente solo emite los deltas de reasoning;
-  los eventos de inicio/fin de tool no se publican. `codeloom-tui::App::apply`
+  los eventos de inicio/fin de tool no se publican. `loomcoding-tui::App::apply`
   ignora reasoning, tool events y mensajes no-user, aunque `Message` contiene
   `ContentPart::ToolCall` y `ToolResult`.
 - El transcript persiste mensajes como texto derivado por `LineKind`; todavía
@@ -193,7 +193,7 @@ Como guía visual de esta primitiva, Pawan describe tarjetas enmarcadas de 6
 líneas contraídas y 40 expandidas; Martty enseña el recorrido de eventos y
 expansión del transcript; Mindfork agrupa thoughts y tools en el feed. Son
 referencias de aplicación, no dependencias reutilizables ni prueba de paridad
-visual con MastraCode/Crush. Batten aún muestra todo el resultado expandido
+visual con MastraCode/Crush. Cloth aún muestra todo el resultado expandido
 dentro del alto que reserve el consumidor; no tiene viewport/scroll propio por
 tarjeta.
 
@@ -240,10 +240,10 @@ parte de su responsive layout y debe incluirse en las capturas comparables.
 
 ## Decisión técnica que sí está sustentada
 
-En Loom, `batten::widgets::Theme` define estilos semánticos, glifos y carga
-parcial de colores desde TOML. Batten tiene ahora seis `ThemePreset` inspirados
+En Loom, `loomcoding_cloth::widgets::Theme` define estilos semánticos, glifos y carga
+parcial de colores desde TOML. Cloth tiene ahora seis `ThemePreset` inspirados
 en los repositorios y el showcase permite recorrerlos con F7/Shift+F7. Aún son
-paletas aplicadas a los widgets/layout de Batten; `codeloom-tui::render` decide
+paletas aplicadas a los widgets/layout de Cloth; `loomcoding-tui::render` decide
 cabecera, transcript, sidebar, cambios de archivos y composer y todavía no
 selecciona perfiles desde la configuración de TUI. `Theme::from_toml` y los
 presets asignan principalmente tokens de color; no cubren todas las
@@ -263,11 +263,11 @@ superficies, fondos por componente y geometrías de los referentes. Por tanto:
 
 | Parte visible | MastraCode | Crush | Base actual en Loom | Trabajo para acercarse al referente |
 |---|---|---|---|---|
-| Prompt | Flecha/indicador cromático, panel sombreado sin marco rígido, editor wrap/scroll | Textarea con prompt/placeholders y altura dinámica | Batten composer con borde, tema y cursor; Loom reserva su área en `render.rs` | Dos renderers/layouts; medir alto, padding, cursor, scroll y prompts con capturas |
-| Transcript | Markdown fluido con separación temática y thinking opcional | Chat como lista virtual con thinking, contenido y error separados | Transcript Batten con Markdown, scroll y selección | Ajustar indentación, separadores, densidad y estados por perfil |
-| Tools | Compacto/expandido, preview específico, salida/error y aprobación inline | Estado de permiso/ejecución/final; renderers dedicados por familia de tool | Batten `tool_item`/transcript y modelo de permisos Loom | Comparar por herramienta y estado; no reducir todo a un único bloque |
+| Prompt | Flecha/indicador cromático, panel sombreado sin marco rígido, editor wrap/scroll | Textarea con prompt/placeholders y altura dinámica | Cloth composer con borde, tema y cursor; Loom reserva su área en `render.rs` | Dos renderers/layouts; medir alto, padding, cursor, scroll y prompts con capturas |
+| Transcript | Markdown fluido con separación temática y thinking opcional | Chat como lista virtual con thinking, contenido y error separados | Transcript Cloth con Markdown, scroll y selección | Ajustar indentación, separadores, densidad y estados por perfil |
+| Tools | Compacto/expandido, preview específico, salida/error y aprobación inline | Estado de permiso/ejecución/final; renderers dedicados por familia de tool | Cloth `tool_item`/transcript y modelo de permisos Loom | Comparar por herramienta y estado; no reducir todo a un único bloque |
 | Marco general | Fila de estado inferior con modo/modelo/contexto; sin sidebar visible en el frame base observado | Logo/header, sidebar con proyecto/modelo/recursos, compact mode y help inferior | Header y sidebar Loom propios | Perfil Mastra: reducir/rehacer chrome; perfil Crush: regiones, sidebar y compacto |
-| Apariencia | Dark/light, pares de temas y JSON con fondos/superficies/contraste | Paleta semántica, 2 temas incluidos + JSON derivados de base | Tokens TOML y seis paletas de referencia en Batten; showcase las recorre con F7 | Llevar la selección a CodeLoom y extender estilos a superficies/layout por perfil |
+| Apariencia | Dark/light, pares de temas y JSON con fondos/superficies/contraste | Paleta semántica, 2 temas incluidos + JSON derivados de base | Tokens TOML y seis paletas de referencia en Cloth; showcase las recorre con F7 | Llevar la selección a Loomcoding y extender estilos a superficies/layout por perfil |
 
 El perfil “MastraCode” o “Crush” significa reproducir composición y reglas de
 presentación con componentes propios. Los dos no deben reducirse a un selector
@@ -287,8 +287,8 @@ TUI depende de capacidades, fuente, terminal, tema activo y estado de la sesión
   [editor.ts](https://github.com/earendil-works/pi/blob/main/packages/tui/src/components/editor.ts),
   [package.json](https://github.com/earendil-works/pi/blob/main/packages/tui/package.json)
   y [licencia del repositorio](https://github.com/earendil-works/pi/blob/main/LICENSE).
-- Loom: `crates/batten/src/state/composer.rs`,
-  `crates/batten/src/widgets/composer.rs`, `crates/codeloom-tui/src/app.rs`,
+- Loom: `crates/loomcoding-cloth/src/state/composer.rs`,
+  `crates/loomcoding-cloth/src/widgets/composer.rs`, `crates/loomcoding-tui/src/app.rs`,
   `run.rs` y `render.rs`.
 - `awesome-ratatui` y repositorio oficial de
   [ratatui-textarea](https://github.com/ratatui/ratatui-textarea),

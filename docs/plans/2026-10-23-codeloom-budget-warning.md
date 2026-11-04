@@ -12,15 +12,15 @@
 ## Restricciones globales
 
 Las del plan `2026-10-23-codeloom-context-summary.md` (entorno de build, LF, `rustfmt --edition
-2021 <ruta>`, no tocar `codeloom.toml`, `git add` de rutas concretas, comentarios en español
-formal, `codeloom-core` sin `ratatui`/`crossterm`, sin red en tests, clippy sin `--all-targets`).
+2021 <ruta>`, no tocar `loomcoding.toml`, `git add` de rutas concretas, comentarios en español
+formal, `loomcoding-core` sin `ratatui`/`crossterm`, sin red en tests, clippy sin `--all-targets`).
 
 ---
 
 ### Tarea 1: configuración y función pura
 
-**Ficheros:** crear `crates/codeloom-core/src/budget.rs`; `pub mod budget;` en
-`crates/codeloom-core/src/lib.rs`.
+**Ficheros:** crear `crates/loomcoding-core/src/budget.rs`; `pub mod budget;` en
+`crates/loomcoding-core/src/lib.rs`.
 
 **Produce (firmas exactas):**
 
@@ -83,8 +83,8 @@ orden de métrica (Tokens, luego CostUsd) y nivel.
 
 ### Tarea 2: integrarlo en el bucle
 
-**Ficheros:** `crates/codeloom-core/src/event/mod.rs`, `crates/codeloom-core/src/agent/mod.rs`,
-`crates/codeloom-cli/src/main.rs`.
+**Ficheros:** `crates/loomcoding-core/src/event/mod.rs`, `crates/loomcoding-core/src/agent/mod.rs`,
+`crates/loomcoding-cli/src/main.rs`.
 
 **Produce:**
 - `LiveEvent::BudgetWarning { metric: BudgetMetric, level_percent: u8, used: f64, limit: f64,
@@ -97,9 +97,9 @@ orden de métrica (Tokens, luego CostUsd) y nivel.
   guardarlo, `budget_crossings(&self.budget, &anteriores, &registro)` y publicar un
   `LiveEvent::BudgetWarning` por aviso. Con `budget.is_empty()` no se lee nada del almacén. Un
   error al leer el consumo se registra con `tracing::warn!` y no afecta a nada más.
-- En `codeloom-cli/src/main.rs`: leer `[budget]` del mismo fichero y mismo punto donde se lee
+- En `loomcoding-cli/src/main.rs`: leer `[budget]` del mismo fichero y mismo punto donde se lee
   `AgentsConfig`, con la misma tolerancia a errores (aviso por stderr o `tracing`, y se sigue sin
-  presupuesto), y encadenar `.with_budget(..)`. **No** leer el `codeloom.toml` del repo en tests.
+  presupuesto), y encadenar `.with_budget(..)`. **No** leer el `loomcoding.toml` del repo en tests.
 
 **Tests** (módulo de pruebas de `agent/mod.rs`, con `SummaryProvider`/`PlanProvider` como patrón
 y un proveedor que declare `Usage`):
@@ -114,14 +114,14 @@ y un proveedor que declare `Usage`):
 
 ### Tarea 3: mostrarlo en la TUI y documentarlo
 
-**Ficheros:** `crates/codeloom-tui/src/app.rs`, `docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`,
+**Ficheros:** `crates/loomcoding-tui/src/app.rs`, `docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`,
 la spec de esta función (sección «Estado»).
 
 **TUI:** el brazo de `LiveEvent::BudgetWarning` en `apply` añade una línea de sistema (mira cómo
 se pinta `Error` o un aviso de sistema ya existente y reutiliza ese mecanismo; no inventes otro):
 `aviso de presupuesto: {nivel} % de {limite} {unidad} de la sesión ({usado} usados)`; unidad
 «tokens» o «USD»; con `partial`, añadir « (según los precios conocidos)». Formatea los tokens con
-`format_tokens`. Rótulo de CodeLoom, nunca de A2A.
+`format_tokens`. Rótulo de Loomcoding, nunca de A2A.
 
 **Tests:** `budget_warning_renders_as_a_system_line_not_as_user_text`;
 `budget_warning_for_cost_mentions_partial_prices`.

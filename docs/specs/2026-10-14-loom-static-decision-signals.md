@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: la capa estática de decisión (señales + reglas)
+# Loomcoding — Idea/spec: la capa estática de decisión (señales + reglas)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -94,7 +94,7 @@ Diferencia: jevalan es **más programable** (umbrales, `batch` de preguntas en u
 llamada, CEL), semantic-router es **más declarativo** (señales + reglas +
 prioridad). Los dos evitan el LLM en la decisión.
 
-## 3. Qué adopta CodeLoom
+## 3. Qué adopta Loomcoding
 
 Una sola forma declarativa para **toda** decisión:
 
@@ -109,13 +109,13 @@ señales  ->  reglas (AND/OR + prioridad)  ->  objetivo
   **modelo**, **skills**, **memoria** o **gate de tool** (`allow/ask/deny`) — es
   la "capa transversal" del hub (§3.1), pero **estática y configurable**.
 - Reutiliza el modelo de jevalan (flujos) o el de semantic-router (signals +
-  decisions); CodeLoom formaliza **uno** y lo aplica a todas las capacidades.
+  decisions); Loomcoding formaliza **uno** y lo aplica a todas las capacidades.
 
 Ventajas: **cero LLM** en el camino de decisión, declarativo, testeable, y el
 mismo motor para todo. Límites: las señales clasificadoras son **aproximadas**
 (errores correlacionados, ver el hub §3.1) y hay que **medirlas** (el lab).
 
-## 4. Ejemplo en CodeLoom (borrador)
+## 4. Ejemplo en Loomcoding (borrador)
 
 ```toml
 [decide.strategy]
@@ -163,7 +163,7 @@ decide el `algorithm` (`strategy`), y aquí está la joya que interesa.
   marca la petición como continuación; sin modelo previo, se favorece el que sirvió
   la misma key en la recipe; cada réplica lo recuerda **una hora**.
 
-Lo que CodeLoom debe copiar:
+Lo que Loomcoding debe copiar:
 
 - La afinidad de cache es **preferencia acotada, no bloqueo**: cambia de modelo
   cuando la mejora base lo justifica, y **decae con el gap**. (En el `config.yaml`
@@ -206,9 +206,9 @@ Razones de fondo:
 - **jevalan decide el "qué"**: la capacidad y el **conjunto de candidatos o la
   clase** (`{ model_class: reasoning, effort: high, candidates: [...] }`). Sigue
   siendo un hub de decisiones.
-- **CodeLoom (su capa de selección/serving) decide el "cuál concreto"**: la selección
+- **Loomcoding (su capa de selección/serving) decide el "cuál concreto"**: la selección
   stateful entre candidatos, con **afinidad de cache acotada** y coste. Ahí sí
-  hay estado (sesión, cache key, precios) — y CodeLoom lo tiene.
+  hay estado (sesión, cache key, precios) — y Loomcoding lo tiene.
 
 Analogía con semantic-router: jevalan cubre **signals + projections + decisions**;
 `algorithm` (`hybrid`) y `plugins` quedan **fuera**. Meter `hybrid` + afinidad en
@@ -218,7 +218,7 @@ en un hub de decisiones. Es una decisión de producto, y conviene no difuminarla
 **El lado de jevalan se especifica en su propio repo**:
 `jevalan/docs/superpowers/specs/2026-10-14-capa-de-senales-y-decisiones-design.md`
 (señales con nombre, `projections` y decisiones con prioridad). Este documento es
-el **hallazgo de CodeLoom**; aquel es el **plan de jevalan**.
+el **hallazgo de Loomcoding**; aquel es el **plan de jevalan**.
 
 ## 7. Preguntas abiertas
 

@@ -6,11 +6,11 @@
 >
 > Relacionado: `2026-10-28-codeloom-programmatic-tool-calling.md`,
 > `2026-10-28-codeloom-provider-timeouts.md` y los adapters de
-> `crates/codeloom-core/src/provider/`.
+> `crates/loomcoding-core/src/provider/`.
 
 ## Objetivo
 
-Antes de enviar tools, CodeLoom debe comprobar qué puede saber sobre la
+Antes de enviar tools, Loomcoding debe comprobar qué puede saber sobre la
 combinación concreta de provider, modelo, endpoint y función solicitada. Así
 puede evitar incompatibilidades conocidas y explicar con evidencia por qué una
 petición no usó una capacidad.
@@ -69,7 +69,7 @@ se convierte en una lista global de modelos incompatibles.
 - Si el adapter no implementa una capacidad o la metadata confirma que no está
   disponible, no se envía esa forma de petición.
 - `unknown` permite el tool calling directo solo si el adapter soporta el
-  protocolo; CodeLoom debe mostrar que no pudo verificar la capacidad. No se
+  protocolo; Loomcoding debe mostrar que no pudo verificar la capacidad. No se
   presenta como `supported`.
 - PTC solo se activa por opt-in. Con `unknown`, el adapter puede hacer un único
   intento de la petición PTC si el usuario lo habilitó. Solo un rechazo
@@ -85,7 +85,7 @@ se convierte en una lista global de modelos incompatibles.
   una tool; no demuestra incompatibilidad. Se distingue de una tool call
   malformada y de un stream interrumpido.
 - El registro de capacidad no cambia permisos, allowlists, `ExecutionMode` ni
-  validación de argumentos de CodeLoom.
+  validación de argumentos de Loomcoding.
 
 ## Aplicación a adapters actuales
 

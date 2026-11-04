@@ -5,7 +5,7 @@
 Spec: `docs/specs/2026-10-28-codeloom-capacidades-tools-provider-modelo.md`.
 
 1. [x] Auditar la metadata actual de Anthropic, OpenRouter y adaptadores, contrastando cada campo con su API documentada.
-2. [x] Definir el tipo mínimo de estado/evidencia en `codeloom-core` sin convertir la capability wire del adapter en una propiedad global del modelo.
+2. [x] Definir el tipo mínimo de estado/evidencia en `loomcoding-core` sin convertir la capability wire del adapter en una propiedad global del modelo.
 3. [~] Implementar parseo/caché de metadata solo para endpoints oficiales que den evidencia utilizable; desconocido se conserva como `unknown`.
 4. [~] Enrutar solicitudes según la combinación exacta; separar tools directas, streaming, PTC y herramientas del provider.
 5. [x] Clasificar rechazos sin cuerpos crudos y permitir fallback únicamente ante incompatibilidad explícita.
@@ -14,7 +14,7 @@ Spec: `docs/specs/2026-10-28-codeloom-capacidades-tools-provider-modelo.md`.
 
 ## Avance (2026-10-31)
 
-Código: `crates/codeloom-core/src/capability.rs` (registro puro, sin red) y su uso en
+Código: `crates/loomcoding-core/src/capability.rs` (registro puro, sin red) y su uso en
 `provider/anthropic.rs`.
 
 - **Auditoría (1).** El catálogo de models.dev solo aporta `tool_call` y `reasoning` como booleanos

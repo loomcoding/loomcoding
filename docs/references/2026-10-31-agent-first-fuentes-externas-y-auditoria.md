@@ -2,7 +2,7 @@
 
 **Fecha de corte:** 31 de octubre de 2026
 **Propósito:** reunir lo que existe fuera del repositorio sobre diseño «agent-first», contrastarlo con
-lo ya implementado en CodeLoom y alimentar el borrador de decálogo
+lo ya implementado en Loomcoding y alimentar el borrador de decálogo
 (`docs/specs/2026-10-31-codeloom-decalogo-agent-first.md`).
 
 ## 1. Hallazgo principal

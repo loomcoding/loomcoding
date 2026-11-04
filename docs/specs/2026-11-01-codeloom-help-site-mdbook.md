@@ -1,4 +1,4 @@
-# CodeLoom — Web de ayuda con mdBook
+# Loomcoding — Web de ayuda con mdBook
 
 > Estado: **propuesta**, pendiente de aprobación (2026-11-01). Sin código ni andamiaje hasta que spec y plan estén aprobados.
 >
@@ -10,7 +10,7 @@
 ## 1. Intención
 
 Hoy no existe documentación de uso. El `README.md` raíz está desfasado (afirma que MCP y skills «no están implementados») y
-`docs/` es diseño interno: specs, planes y estudios. Nadie puede aprender a usar, configurar o entender CodeLoom sin leer código.
+`docs/` es diseño interno: specs, planes y estudios. Nadie puede aprender a usar, configurar o entender Loomcoding sin leer código.
 
 Se quiere un **libro mdBook** dentro del repositorio que se entienda **de un vistazo**, con esquemas, listas numeradas y tablas
 antes que prosa, y que **no se desfase** porque lo que sale del código lo genera el código.
@@ -34,7 +34,7 @@ antes que prosa, y que **no se desfase** porque lo que sale del código lo gener
 - Párrafos largos. Si una página necesita prosa para entenderse, falta un esquema.
 - Un libro que describa lo que se pretendía y no lo que hace el código.
 - Una referencia escrita a mano que envejece en semanas.
-- Presentar como A2A algo que es decisión de CodeLoom.
+- Presentar como A2A algo que es decisión de Loomcoding.
 
 ## 3. Decisiones
 
@@ -69,7 +69,7 @@ Portada ............ tres puertas + mapa de conceptos
   Contexto, compactación y coste · Lanzar un agente (/agent, @)
   Límites conocidos
 2 Configurar
-  codeloom.toml (referencia generada)
+  loomcoding.toml (referencia generada)
   Perfiles de agente · Skills · MCP · Catálogos externos
   Agentes remotos A2A (consumir y servir)
   Delegación y presupuestos · Aprobación y seguridad
@@ -99,8 +99,8 @@ el estado A2A exacto entre paréntesis; las advertencias de seguridad van en un 
 | Qué | De dónde sale | Cómo se vigila |
 |---|---|---|
 | Fichas de herramientas (nombre, descripción, esquema, paralela o exclusiva) | el registro de herramientas real | test: el fichero generado coincide con el registro |
-| Claves de `codeloom.toml` | los ejemplos del propio libro | test: toda clave que aparece en un ejemplo existe en los tipos reales (los cargadores ignoran claves desconocidas, así que se detectan con `serde_ignored`). El sentido inverso (clave nueva sin documentar) no se puede comprobar sin reflexión: se cubre con una regla en `CONTRIBUTING.md` |
-| Órdenes con barra | `COMMANDS` de `codeloom-tui` | test: la tabla coincide |
+| Claves de `loomcoding.toml` | los ejemplos del propio libro | test: toda clave que aparece en un ejemplo existe en los tipos reales (los cargadores ignoran claves desconocidas, así que se detectan con `serde_ignored`). El sentido inverso (clave nueva sin documentar) no se puede comprobar sin reflexión: se cubre con una regla en `CONTRIBUTING.md` |
+| Órdenes con barra | `COMMANDS` de `loomcoding-tui` | test: la tabla coincide |
 | Estados A2A | `TaskState` | test: los ocho estados con su nombre de cable |
 | Ejemplos `toml` y de perfil | los propios `.md` del libro | test: se extraen y se cargan con el cargador real |
 
@@ -109,8 +109,8 @@ binario auxiliar) se deja al constructor, con una condición: sin red y dentro d
 
 ## 7. Seguridad (sección propia, enlazada desde Usar y Configurar)
 
-1. Las claves van en `.env`, nunca en `codeloom.toml`.
-2. Un binario real sin `CODELOOM_HOME` temporal se conecta al daemon real de la persona usuaria.
+1. Las claves van en `.env`, nunca en `loomcoding.toml`.
+2. Un binario real sin `LOOMCODING_HOME` temporal se conecta al daemon real de la persona usuaria.
 3. Los agentes de proyecto, de catálogo y remotos piden **aprobación por huella**; ningún perfil de proyecto añade servidores MCP.
 4. `delegation = off` es la única garantía de código contra la delegación; el resto son reglas de prompt.
 5. Qué hace y qué no hace cada presupuesto (`hard_stop`, topes de salida).

@@ -46,7 +46,7 @@ Un informe corto y honesto vale más que un bucle.
    (decalogo: `docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`)
 4. **Seguridad**: rutas, permisos, secretos en logs, inyección en comandos.
 5. **Pruebas**: ¿hay test del caso nuevo? ¿usan red real? (prohibido).
-6. **Arquitectura**: ¿`codeloom-core` sigue sin depender de `ratatui`/`crossterm`?
+6. **Arquitectura**: ¿`loomcoding-core` sigue sin depender de `ratatui`/`crossterm`?
 
 ## Formato del informe
 

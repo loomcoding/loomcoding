@@ -9,7 +9,7 @@ avisos, spinner `DOT_RING` con el nombre del modelo en la barra de estado y
 comando `/verbose` (toggle y `on|off` explícito).
 
 Pendiente: nada de este plan. Queda abierto en el spec si `/verbose` debe
-persistir en `codeloom.toml`.
+persistir en `loomcoding.toml`.
 
 ## Restricciones globales
 
@@ -28,16 +28,16 @@ Sin dependencias nuevas. Sin red en tests.
 
 ### Fase 1 — `Command::Verbose` (toggle en caliente)
 
-1. `crates/codeloom-tui/src/commands.rs`
+1. `crates/loomcoding-tui/src/commands.rs`
    - Añadir la variante `Verbose` al enum `Command`.
    - Registrarla en `COMMANDS` con la descripción
      «Toggle provider request notices in the transcript».
    - Resolver el nombre `verbose` en el parser (mismo patrón que el resto).
-2. `crates/codeloom-tui/src/app.rs`
+2. `crates/loomcoding-tui/src/app.rs`
    - `pub fn set_provider_notices_verbose(&mut self, on: bool)` — fija el flag.
    - `pub fn toggle_provider_notices(&mut self) -> bool` — alterna y devuelve el
      valor nuevo (lo usa el feedback).
-3. `crates/codeloom-tui/src/run.rs` (despacho de `Command::`, junto a
+3. `crates/loomcoding-tui/src/run.rs` (despacho de `Command::`, junto a
    `Command::Mouse`)
    - `/verbose` sin argumentos → `toggle_provider_notices()`.
    - `/verbose on` / `/verbose off` → valor explícito.
@@ -46,21 +46,21 @@ Sin dependencias nuevas. Sin red en tests.
 4. Test en `commands.rs`: `verbose` resuelve a `Command::Verbose`.
 5. Tests en `app.rs`: el toggle alterna; `off` oculta avisos y `on` los muestra.
 
-**Verificación:** `cargo test -p codeloom-tui verbose`.
+**Verificación:** `cargo test -p loomcoding-tui verbose`.
 
 ### Fase 2 — Animación con el nombre del modelo
 
-1. `crates/batten/Cargo.toml`
+1. `crates/loomcoding-cloth/Cargo.toml`
    - `dotmax` pasa de dev-dependency a dependencia **opcional** con feature
-     `dotmax`; el dev-dependency de `batten` sobre sí mismo la activa para el
+     `dotmax`; el dev-dependency de `cloth` sobre sí mismo la activa para el
      showcase.
-2. `crates/batten/src/widgets/activity.rs` (nuevo)
+2. `crates/loomcoding-cloth/src/widgets/activity.rs` (nuevo)
    - `ACTIVITY_STYLES` con los estilos que se leen a una fila.
    - `activity_glyph(style, frame, width, theme) -> Option<Span>`: renderiza con
      `dotmax` y devuelve `None` si la feature está apagada o el estilo no existe.
    - Tests: cada estilo pinta algo, el glifo cambia entre frames, un estilo
      desconocido devuelve `None`, dos celdas no son más estrechas que una.
-3. `crates/codeloom-tui/src/render.rs`
+3. `crates/loomcoding-tui/src/render.rs`
    - `provider_activity_span(app, width)` con fallback al glifo propio.
    - Usarlo en `draw_flat_footer` y en la barra clásica, seguido de
      `Provider working… <modelo>`.
@@ -68,12 +68,12 @@ Sin dependencias nuevas. Sin red en tests.
    buffer contiene `Provider working` y el nombre del modelo; con verbose `true`
    no aparece.
 
-**Verificación:** `cargo test -p batten --features dotmax activity` y
-`cargo test -p codeloom-tui provider`.
+**Verificación:** `cargo test -p loomcoding-cloth --features dotmax activity` y
+`cargo test -p loomcoding-tui provider`.
 
 ### Fase 3 — Documentación
 
-1. `codeloom.toml` — el bloque `[ui]` ya está con su comentario; revisar que
+1. `loomcoding.toml` — el bloque `[ui]` ya está con su comentario; revisar que
    mencione `/verbose`.
 2. `docs/specs/2026-11-03-codeloom-avisos-proveedor-spinner.md` — mover a
    «hecho» lo que quede cerrado y actualizar «Preguntas abiertas».

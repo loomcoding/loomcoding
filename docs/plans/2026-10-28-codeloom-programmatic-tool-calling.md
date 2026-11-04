@@ -10,7 +10,7 @@
 ## Objetivo
 
 Implementar la orquestación programática manteniendo los permisos, límites y dispatcher de
-CodeLoom, con adapters independientes para Anthropic, OpenAI Responses y Gemini. El código
+Loomcoding, con adapters independientes para Anthropic, OpenAI Responses y Gemini. El código
 generado solo corre en el entorno hospedado del provider. La ruta normal de tools sigue
 disponible y el modo empieza apagado.
 
@@ -18,7 +18,7 @@ disponible y el modo empieza apagado.
 
 1. La unidad de capacidad es provider + modelo + API + conjunto de tools; no se infiere por
    compatibilidad de endpoint ni por el nombre del provider.
-2. Modo opt-in con `CODELOOM_PROGRAMMATIC_TOOL_CALLING=1`, desactivado por defecto. No se
+2. Modo opt-in con `LOOMCODING_PROGRAMMATIC_TOOL_CALLING=1`, desactivado por defecto. No se
    activa en perfiles remotos, tarjetas A2A ni por respuesta del modelo.
 3. Los adapters conservan sus formatos de protocolo y estado de continuación; el core solo
    coordina invocaciones, permisos, ejecución de tools y límites.
@@ -64,7 +64,7 @@ disponible y el modo empieza apagado.
 - [x] Añadir opt-in de configuración apagado por defecto y selección por request sin alterar
   la API normal de tool calling.
 - [x] Definir límites de tiempo, llamadas totales, concurrencia, bytes, tokens y cancelación.
-- [x] Mantener en CodeLoom la validación, `PermissionService`, `ExecutionMode`, eventos y
+- [x] Mantener en Loomcoding la validación, `PermissionService`, `ExecutionMode`, eventos y
   registro de resultados de cada tool del cliente.
 - [x] Añadir tests locales para contratos, reanudación, denegación, elegibilidad y fallback;
   no se hacen llamadas a providers reales.
@@ -80,7 +80,7 @@ disponible y el modo empieza apagado.
 - [x] Extender `AnthropicProvider` para preservar bloques, IDs, caller y container entre
   pausas; manejar respuestas parciales y expiradas sin repetir efectos.
 - [x] Calcular allowlist solo para tools compatibles. MCP Connector queda excluido para este
-  adapter; las tools propias de CodeLoom requieren gates por llamada.
+  adapter; las tools propias de Loomcoding requieren gates por llamada.
 - [x] Añadir pruebas con respuestas simuladas para modelo no compatible, schema no elegible y
   fallback a llamadas directas.
 - [x] Probar expiración de container sin reintentar la petición como llamada directa.
@@ -93,9 +93,9 @@ disponible y el modo empieza apagado.
 - [x] Verificar en documentación vigente los items `program`, `function_call` con `caller`,
   `program_output`, continuación, estado y límites por modelo.
 - [x] Implementar el ciclo de continuación copiando el `caller` requerido y conservando la
-  secuencia original; ejecutar en CodeLoom solo function calls propiedad del cliente.
+  secuencia original; ejecutar en Loomcoding solo function calls propiedad del cliente.
 - [x] No habilitar hosted tools de shell, MCP, browser u otras herramientas provider en este
-  primer alcance; solo las tools de CodeLoom elegibles y con autorización propia.
+  primer alcance; solo las tools de Loomcoding elegibles y con autorización propia.
 - [x] Añadir pruebas de parsing, estado stateless, continuación/caller y rechazo de calls a
   tools no elegibles.
 - [x] Añadir prueba de fallback si la API rechaza el modo programático.
@@ -141,11 +141,11 @@ afirma ahorro medido.
 
 ### Retomar: prueba de tool interna normal con OpenRouter (2026-10-28)
 
-Esta prueba buscaba verificar el tool calling normal de CodeLoom con `view`; **no era una prueba
+Esta prueba buscaba verificar el tool calling normal de Loomcoding con `view`; **no era una prueba
 de PTC ni cuenta como evaluación T5**.
 
 - Configuración: `nvidia/nemotron-3.5-super-vl:free` por `OpenAiCompatProvider` y OpenRouter.
-- `loom --print` llegó al modelo, pero CodeLoom rechazó `view` con `permission denied`: el modo
+- `loom --print` llegó al modelo, pero Loomcoding rechazó `view` con `permission denied`: el modo
   no interactivo usa `DenyAll` cuando no se solicita `--yolo`.
 - En TUI, tanto el selector como `/new` devolvieron `session is outside this agent`. Se
   reemplazó el daemon `target/release/loom.exe` por el daemon debug actual tras comprobar que
@@ -202,15 +202,15 @@ cargo clippy -- -D warnings
 ## Verificación 2026-10-28
 
 Los cuatro checks volvieron a pasar tras completar los casos locales: `cargo build` (aviso
-existente de `main.rs` compartido entre los bins `loom` y `codeloom`), `cargo test` (1.712
+existente de `main.rs` compartido entre los bins `loom` y `loomcoding`), `cargo test` (1.712
 pasaron, 13 ignorados), `cargo fmt --check` y `cargo clippy -- -D warnings`. Se usó el target
-temporal `C:\\Users\\negrero\\AppData\\Local\\Temp\\codeloom-final-target`. La evaluación T5
+temporal `C:\\Users\\negrero\\AppData\\Local\\Temp\\loomcoding-final-target`. La evaluación T5
 sigue pendiente; la combinación Gemini permanece Preview.
 
 - Spec: `docs/specs/2026-10-28-codeloom-programmatic-tool-calling.md`.
 - Evidencia inicial: `docs/references/2026-10-28-programmatic-tool-calling-providers.md`.
-- Providers actuales: `crates/codeloom-core/src/provider/{mod,anthropic,openai}.rs`.
-- Loop y dispatch: `crates/codeloom-core/src/agent/`.
+- Providers actuales: `crates/loomcoding-core/src/provider/{mod,anthropic,openai}.rs`.
+- Loop y dispatch: `crates/loomcoding-core/src/agent/`.
 
 ## Fuera de estas tareas
 

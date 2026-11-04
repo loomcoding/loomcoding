@@ -46,7 +46,7 @@ entregado con huecos declarados vale más que un bucle que nunca termina.
 
 ## Restricciones arquitectónicas duras
 
-- **`codeloom-core` no puede depender de `ratatui` ni `crossterm`.** El motor es una librería pura
+- **`loomcoding-core` no puede depender de `ratatui` ni `crossterm`.** El motor es una librería pura
   y testeable; TUI, integraciones de host, voz, decisión y compresión viven en crates opcionales.
 - **Nada sin cota llega al modelo**: todo output de herramienta, sección de prompt y bucle tiene
   límite (`docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`).

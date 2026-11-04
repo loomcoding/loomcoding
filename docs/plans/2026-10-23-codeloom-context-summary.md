@@ -8,7 +8,7 @@
 con una llamada extra y enviar al proveedor «último resumen + cola reciente», sin tocar el
 registro de la sesión.
 
-**Arquitectura:** funciones puras en `crates/codeloom-core/src/agent/compact.rs` (estimación,
+**Arquitectura:** funciones puras en `crates/loomcoding-core/src/agent/compact.rs` (estimación,
 corte, mensaje de resumen, historial efectivo) más un método de `AgentLoop` que hace la llamada y
 persiste el resumen. El bucle `run_turn` lo invoca antes de construir cada petición.
 
@@ -16,17 +16,17 @@ persiste el resumen. El bucle `run_turn` lo invoca antes de construir cada petic
 
 ## Restricciones globales
 
-- `codeloom-core` NO depende de `ratatui` ni `crossterm`. Errores con `thiserror`. Sin red real
+- `loomcoding-core` NO depende de `ratatui` ni `crossterm`. Errores con `thiserror`. Sin red real
   en tests: proveedor simulado (véase `HistorySpy` y `QueueProvider` en `agent/mod.rs`, módulo de
   pruebas).
 - Comentarios de código en español formal, sin tacos ni andalucismos. No tocar identificadores
   ni mensajes de error existentes.
 - Ficheros en LF. Formatear solo con `rustfmt --edition 2021 <ruta>` (nunca `cargo fmt --all`).
-- Comprobaciones: `cargo build -p codeloom-core`, `cargo test -p codeloom-core`,
-  `cargo clippy -p codeloom-core -p codeloom-cli -- -D warnings` (sin `--all-targets`).
+- Comprobaciones: `cargo build -p loomcoding-core`, `cargo test -p loomcoding-core`,
+  `cargo clippy -p loomcoding-core -p loomcoding-cli -- -D warnings` (sin `--all-targets`).
 - Entorno (Git Bash): `export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER='C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.35.32215\bin\Hostx64\x64\link.exe' CARGO_TARGET_DIR='E:/workspace/personal/loom/target' CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0`.
   No crear otros directorios `target*` (el disco está casi lleno).
-- **No** tocar `codeloom.toml` (modificado por el usuario). `git add` solo de rutas concretas.
+- **No** tocar `loomcoding.toml` (modificado por el usuario). `git add` solo de rutas concretas.
 - Un test existente que haya que adaptar se marca con un comentario `// ADAPTADO: <motivo>` y no
   se relaja ninguna cota.
 
@@ -39,7 +39,7 @@ persiste el resumen. El bucle `run_turn` lo invoca antes de construir cada petic
 
 ### Tarea 1: ventana de contexto en el catálogo
 
-**Ficheros:** `crates/codeloom-core/src/catalog.rs` (método + test).
+**Ficheros:** `crates/loomcoding-core/src/catalog.rs` (método + test).
 
 **Produce:** `Catalog::context_window(&self, base_url: &str, model: &str) -> Option<u64>`, junto
 a `prices`, con la misma búsqueda (proveedor por URL normalizada, luego modelo por `id`) y
@@ -55,7 +55,7 @@ devolviendo `CatalogModel::context`. `None` si falta proveedor, modelo o dato.
 
 ### Tarea 2: funciones puras de compactación
 
-**Ficheros:** crear `crates/codeloom-core/src/agent/compact.rs`; en `agent/mod.rs` añadir
+**Ficheros:** crear `crates/loomcoding-core/src/agent/compact.rs`; en `agent/mod.rs` añadir
 `pub mod compact;` junto a `pub mod stop;`.
 
 **Produce (firmas exactas):**
@@ -136,8 +136,8 @@ pub fn choose_cut(history: &[Message]) -> Option<usize>;
 
 ### Tarea 3: la llamada de resumen
 
-**Ficheros:** `crates/codeloom-core/src/agent/compact.rs` (prompt), `agent/mod.rs` (método y
-evento), `crates/codeloom-core/src/event/mod.rs` (variante).
+**Ficheros:** `crates/loomcoding-core/src/agent/compact.rs` (prompt), `agent/mod.rs` (método y
+evento), `crates/loomcoding-core/src/event/mod.rs` (variante).
 
 **Produce:**
 
@@ -195,7 +195,7 @@ fijo y guarda la petición recibida):
 
 ### Tarea 4: integrar en el bucle
 
-**Ficheros:** `crates/codeloom-core/src/agent/mod.rs` (`run_turn`).
+**Ficheros:** `crates/loomcoding-core/src/agent/mod.rs` (`run_turn`).
 
 **Cambios en `run_turn`:**
 
@@ -236,21 +236,21 @@ fijo y guarda la petición recibida):
 
 ### Tarea 5: mostrarlo en la TUI
 
-**Ficheros:** `crates/codeloom-tui/src/app.rs` (junto a `parse_notice` y `Notice`).
+**Ficheros:** `crates/loomcoding-tui/src/app.rs` (junto a `parse_notice` y `Notice`).
 
-**Cambios:** reconocer el mensaje de resumen (usar `codeloom_core::agent::compact::parse_summary`
+**Cambios:** reconocer el mensaje de resumen (usar `loomcoding_core::agent::compact::parse_summary`
 si el módulo es público; si no, hacerlo público) y pintarlo como **aviso propio** en lugar de
 texto de usuario: línea de cabecera `contexto compactado (N mensajes resumidos)` y el texto del
 resumen plegado, con el mismo tratamiento que los avisos de subagente (`Notice::Subagent`) —
 copiar su patrón de pintura y de plegado, sin inventar otro. El rótulo debe decir que es de
-CodeLoom (no de A2A). El `LiveEvent::ContextCompacted` no necesita línea propia si el mensaje
+Loomcoding (no de A2A). El `LiveEvent::ContextCompacted` no necesita línea propia si el mensaje
 añadido ya la produce; en tal caso el `match` solo debe ignorarlo.
 
 **Tests:** `compaction_summary_renders_as_a_notice_not_as_user_text` (la línea no es
 `LineKind::User` con el texto crudo y contiene «contexto compactado»);
 `ordinary_user_message_starting_with_a_bracket_is_untouched`.
 
-**Verificación extra:** `cargo test -p codeloom-tui` y `cargo clippy -p codeloom-tui -- -D warnings`.
+**Verificación extra:** `cargo test -p loomcoding-tui` y `cargo clippy -p loomcoding-tui -- -D warnings`.
 
 **Commit:** `feat(tui): el resumen de contexto se muestra como aviso propio`.
 

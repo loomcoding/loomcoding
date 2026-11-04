@@ -1,4 +1,4 @@
-# CodeLoom — Spec de diseño
+# Loomcoding — Spec de diseño
 
 > Estado: **borrador para revisión**. No implementar hasta aprobar el spec y
 > escribir el plan.
@@ -8,13 +8,13 @@
 > Documento base de conocimiento: `docs/reference/analisis-herdr-crush-dsh.md`
 
 > Vigencia: esta spec conserva decisiones iniciales. Para el runtime local,
-> queda corregida por [la propuesta de servidor CodeLoom y clientes TUI](2026-10-26-codeloom-local-server-client-runtime.md):
-> CodeLoom posee su servidor; Herdr es solo referencia y una integración
+> queda corregida por [la propuesta de servidor Loomcoding y clientes TUI](2026-10-26-codeloom-local-server-client-runtime.md):
+> Loomcoding posee su servidor; Herdr es solo referencia y una integración
 > opcional, nunca un requisito para arrancar o compartir agentes.
 
 ## 0. Origen y atribución
 
-CodeLoom es un agente de código en Rust cuyo modelo de orquestación **está basado
+Loomcoding es un agente de código en Rust cuyo modelo de orquestación **está basado
 en deepseek-harness (dsh)**, el harness de agentes de DeepSeek AI:
 **agente -> subagentes -> jobs**, con su representación en el header
 (subagentes y jobs trabajando/terminados) y su ciclo turn/step.
@@ -25,41 +25,41 @@ en deepseek-harness (dsh)**, el harness de agentes de DeepSeek AI:
 - **Referencia funcional**: crush (tools, permisos, mensajes, persistencia,
   config).
 - **Motivación**: dsh tiene el diseño correcto de orquestación, pero su
-  ejecución es lenta por el runtime de eventos de JavaScript. CodeLoom conserva el
+  ejecución es lenta por el runtime de eventos de JavaScript. Loomcoding conserva el
   diseño y **mejora la ejecución** aprovechando el paralelismo real de Rust
   (ver §11).
 
-CodeLoom **no es un fork** de ninguno de los tres. Reimplementa el modelo de dsh
+Loomcoding **no es un fork** de ninguno de los tres. Reimplementa el modelo de dsh
 en Rust. La integración con herdr es opcional.
 
 ## 1. Decisiones cerradas
 
 | # | Decisión | Fecha |
 |---|---|---|
-| 1 | **Runtime local propio**: CodeLoom es dueño del servidor; herdr solo es referencia o integración opcional | 2026-10-26 |
+| 1 | **Runtime local propio**: Loomcoding es dueño del servidor; herdr solo es referencia o integración opcional | 2026-10-26 |
 | 2 | **Un servidor, varias TUI**: la primera ejecución lo inicia y abre UI; las siguientes se conectan | 2026-10-26 |
 | 3 | **MVP**: motor mínimo (chat + loop + provider + 5 tools), sin subagentes/jobs | 2026-10-13 |
 | 4 | **Provider**: `trait` genérico + adapters OpenAI-compatible y Anthropic; OpenRouter como preset | 2026-10-13 |
 
 ### Nomenclatura
 
-- **CodeLoom** — el producto (el telar: teje turnos, subagentes y jobs).
-- **crates.io** — `codeloom-core`, `codeloom-cli`, `codeloom-tui` (el nombre del
+- **Loomcoding** — el producto (el telar: teje turnos, subagentes y jobs).
+- **crates.io** — `loomcoding-core`, `loomcoding-cli`, `loomcoding-tui` (el nombre del
   crate debe ser único en crates.io).
-- **Binarios** — `loom` (comando corto) y `codeloom`, ambos construidos por
-  `codeloom-cli` (el nombre del binario no necesita ser único).
-- **`codeloom-herdr`** — crate de la integración opcional con herdr.
-- **`codeloom.herdr`** — id del plugin de herdr (acciones cualificadas
-  `codeloom.herdr.*`).
+- **Binarios** — `loom` (comando corto) y `loomcoding`, ambos construidos por
+  `loomcoding-cli` (el nombre del binario no necesita ser único).
+- **`loomcoding-herdr`** — crate de la integración opcional con herdr.
+- **`loomcoding.herdr`** — id del plugin de herdr (acciones cualificadas
+  `loomcoding.herdr.*`).
 - **
-- **"flock"** — nombre del conjunto de subagentes que CodeLoom muestra en su header.
+- **"flock"** — nombre del conjunto de subagentes que Loomcoding muestra en su header.
 
 ## 2. Arquitectura de crates
 
 ```
-codeloom/                  (workspace)
+loomcoding/                  (workspace)
 ├── crates/
-│   ├── codeloom-core/         motor: sin dependencia de herdr ni de ratatui
+│   ├── loomcoding-core/         motor: sin dependencia de herdr ni de ratatui
 │   │   ├── provider/      trait Provider + adapters (openai_compat, anthropic)
 │   │   ├── message/       modelo de mensajes + content parts + streaming
 │   │   ├── tools/         trait Tool + registro + tools del MVP
@@ -69,16 +69,16 @@ codeloom/                  (workspace)
 │   │   ├── event/         bus: durables vs en vivo
 │   │   ├── session/       persistencia + historial
 │   │   └── config/        config + contexto (AGENTS.md)
-│   ├── codeloom-tui/          ratatui: chat + header de subagentes/jobs
-│   ├── codeloom-herdr/        integración opcional: detección + cliente socket
-│   └── codeloom-cli/          binarios `loom` y `codeloom`: conectan la TUI al servidor CodeLoom
+│   ├── loomcoding-tui/          ratatui: chat + header de subagentes/jobs
+│   ├── loomcoding-herdr/        integración opcional: detección + cliente socket
+│   └── loomcoding-cli/          binarios `loom` y `loomcoding`: conectan la TUI al servidor Loomcoding
 ```
 
 Principios:
 
-- `codeloom-core` **no conoce herdr ni ratatui**: motor testeable y reutilizable.
-- `codeloom-herdr` es **opcional**; CodeLoom inicia y localiza su propio servidor.
-- Un solo binario (`codeloom-cli`), con servidor local compartido y varias TUI cliente.
+- `loomcoding-core` **no conoce herdr ni ratatui**: motor testeable y reutilizable.
+- `loomcoding-herdr` es **opcional**; Loomcoding inicia y localiza su propio servidor.
+- Un solo binario (`loomcoding-cli`), con servidor local compartido y varias TUI cliente.
 
 ## 3. Concurrencia y paralelismo
 
@@ -256,7 +256,7 @@ schema para el provider.
 - **MCP y skills con carga en caliente** (sin reiniciar): registro versionado +
   supervisor MCP + watcher. Spec propio:
   `docs/specs/2026-10-14-loom-mcp-skills-hot-reload.md`.
-- **Entrada por voz al prompt** (dictado): CodeLoom como cliente de un servicio de
+- **Entrada por voz al prompt** (dictado): Loomcoding como cliente de un servicio de
   voz (`tipsy-assistant`), texto inyectado en el composer. Idea:
   `docs/specs/2026-10-14-loom-voice-prompt-input.md`.
 - **Resumen del último turno** (1-3 frases): tl;dr en el transcript y texto que
@@ -366,7 +366,7 @@ catálogo durable + estado en vivo, con `StateDot = running|done|error|idle`.
 
 ```
 ┌─ header ─────────────────────────────────────────────────────────┐
-│ CodeLoom · workspace  · ⠋ 2 subagentes  ✓ 1 terminado  · 1 job 68%  │
+│ Loomcoding · workspace  · ⠋ 2 subagentes  ✓ 1 terminado  · 1 job 68%  │
 ├─ transcript ─────────────────────────────────────────────────────┤
 │ you  ...                                                         │
 │ ⚙ bash  cargo test            (collapsible)                      │
@@ -386,13 +386,13 @@ catálogo durable + estado en vivo, con `StateDot = running|done|error|idle`.
   nunca por token.
 - Transcript con scrollback acotado y viewport virtualizado; markdown cacheado.
 
-Widgets (`codeloom-tui`): `HeaderBar`, `Transcript`, `SubagentCatalog`, `JobList`,
+Widgets (`loomcoding-tui`): `HeaderBar`, `Transcript`, `SubagentCatalog`, `JobList`,
 `Composer`, `PermissionDialog`. Tema/keymap en TOML.
 
 ## 8. Adaptador opcional para herdr
 
 Este apartado describe solo la integración opcional para quien ya use herdr. No
-decide ni aloja el runtime local: CodeLoom mantiene su propio servidor tanto si
+decide ni aloja el runtime local: Loomcoding mantiene su propio servidor tanto si
 herdr está instalado como si no. El diseño vigente del runtime está en la spec
 de servidor local enlazada al inicio de este documento.
 
@@ -410,8 +410,8 @@ enum Host { Standalone, Herdr(HerdrContext) }
 ### 8.2 Manifiesto
 
 ```toml
-id = "codeloom.herdr"
-name = "CodeLoom"
+id = "loomcoding.herdr"
+name = "Loomcoding"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
 platforms = ["linux", "macos", "windows"]
@@ -421,14 +421,14 @@ command = ["cargo", "build", "--release"]
 
 [[panes]]
 id = "loom"
-title = "CodeLoom"
+title = "Loomcoding"
 placement = "tab"
 command = ["loom"]
 ```
 
-Acciones cualificadas: `codeloom.herdr.open`, `codeloom.herdr.focus`, etc.
+Acciones cualificadas: `loomcoding.herdr.open`, `loomcoding.herdr.focus`, etc.
 
-### 8.3 Cliente (`codeloom-herdr`)
+### 8.3 Cliente (`loomcoding-herdr`)
 
 - Cliente del JSON API (enum `Method`, `herdr/src/api/schema.rs`) + suscripción
   de eventos.
@@ -437,17 +437,17 @@ Acciones cualificadas: `codeloom.herdr.open`, `codeloom.herdr.focus`, etc.
 
 ### 8.4 Qué aporta cada lado
 
-- herdr -> CodeLoom: pane/terminal, detach/reattach, SSH, `pane.report_agent`
+- herdr -> Loomcoding: pane/terminal, detach/reattach, SSH, `pane.report_agent`
   (estado en el sidebar), eventos de workspace.
-- CodeLoom -> herdr: su header de subagentes/jobs; (m3 opcional) registrar
+- Loomcoding -> herdr: su header de subagentes/jobs; (m3 opcional) registrar
   subagentes como panes/agentes de herdr.
 
 ### 8.5 Compatibilidad y degradación
 
-- Todo el acoplamiento en `codeloom-herdr`; el core no cambia.
+- Todo el acoplamiento en `loomcoding-herdr`; el core no cambia.
 - Actualizar herdr = actualizar un binario; sin merges.
 - Socket caído -> cae a standalone (no crashea).
-- `codeloom.toml` + `AGENTS.md` idénticos en ambos modos.
+- `loomcoding.toml` + `AGENTS.md` idénticos en ambos modos.
 
 ## 9. Testing, milestones y criterios
 
@@ -476,7 +476,7 @@ Nada de red real en tests.
   `docs/specs/2026-10-14-loom-mcp-skills-hot-reload.md`), LSP, hooks, skills,
   persistencia.
 
-(m3 puede adelantarse a m2 si se quiere ver CodeLoom dentro de herdr antes.)
+(m3 puede adelantarse a m2 si se quiere ver Loomcoding dentro de herdr antes.)
 
 ### 9.3 Criterios de éxito (medibles)
 
@@ -495,17 +495,17 @@ Nada de red real en tests.
 ## 10. Resumen de arquitectura
 
 - **Modelo**: dsh (agente -> subagentes -> jobs, header, turn/step).
-- **Motor**: Rust, `codeloom-core`, sin herdr ni ratatui; tokio + compute pool.
+- **Motor**: Rust, `loomcoding-core`, sin herdr ni ratatui; tokio + compute pool.
 - **UI**: ratatui, header de subagentes/jobs, deltas coalescidos.
-- **Runtime local**: servidor CodeLoom compartido por varias TUI cliente; herdr es una integración opcional.
+- **Runtime local**: servidor Loomcoding compartido por varias TUI cliente; herdr es una integración opcional.
 - **Ejecución**: paralelismo real de Rust (§11).
 
 ## 11. Mejoras de ejecución respecto a dsh
 
-CodeLoom **reutiliza el diseño de dsh pero ejecuta distinto**. Estas son las
-mejoras concretas, con su causa en dsh y cómo se resuelve en CodeLoom:
+Loomcoding **reutiliza el diseño de dsh pero ejecuta distinto**. Estas son las
+mejoras concretas, con su causa en dsh y cómo se resuelve en Loomcoding:
 
-| # | En dsh (causa) | En CodeLoom (mejora) |
+| # | En dsh (causa) | En Loomcoding (mejora) |
 |---|---|---|
 | 1 | Event loop **de un solo hilo** (JS/GIL): todo compite por un hilo | tokio multi-thread + **compute pool**; los subagentes/jobs usan **N núcleos reales** |
 | 2 | Por cada chunk: dispatch de Cordis con **2 pases + `bind()` por listener + un `Promise` por listener** (`vendor/cordis/src/events.ts:165-175`, `agent/src/dispatch.ts:120-137`) | Canales (`watch`/`broadcast`) y deltas agrupados; **cero allocs por token** |

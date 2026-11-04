@@ -19,10 +19,10 @@ Spec: [`docs/specs/2026-10-29-codeloom-user-attribution-internal-messages.md`](.
 - [ ] Repetir visualmente en la TUI tras reiniciar el daemon local.
 
 Verificación: 552 pruebas core pasaron (2 ignoradas), 463 pruebas TUI pasaron;
-`cargo check -p codeloom-cli --bin codeloom`, `cargo build -p codeloom-cli --bin codeloom`,
+`cargo check -p loomcoding-cli --bin loomcoding`, `cargo build -p loomcoding-cli --bin loomcoding`,
 `cargo fmt --check` y `git diff --check` pasaron.
 
 Pendiente para aceptación visual: sigue ejecutándose el daemon anterior (PID
-7424, `E:\workspace\personal\loom\target\debug\codeloom.exe --server`). No lo
+7424, `E:\workspace\personal\loom\target\debug\loomcoding.exe --server`). No lo
 detuve porque podría tener trabajo activo; la TUI debe reiniciarse contra el
-binario nuevo en `%LOCALAPPDATA%\Temp\codeloom-user-attribution-target\debug`.
+binario nuevo en `%LOCALAPPDATA%\Temp\loomcoding-user-attribution-target\debug`.

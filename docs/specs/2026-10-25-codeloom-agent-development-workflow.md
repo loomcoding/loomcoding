@@ -1,4 +1,4 @@
-# CodeLoom — Flujo de desarrollo coordinado por agentes
+# Loomcoding — Flujo de desarrollo coordinado por agentes
 
 > Estado: **aprobada el 2026-10-27** junto con el plan detallado. Implementación en curso.
 >

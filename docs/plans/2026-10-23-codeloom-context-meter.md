@@ -4,23 +4,23 @@
 
 > Para quien ejecute: una tarea cada vez, con verificación y commit al terminar cada una.
 
-**Meta:** widget de batten con dos estilos, demo en el showcase y barra en el pie de la app.
+**Meta:** widget de cloth con dos estilos, demo en el showcase y barra en el pie de la app.
 
 **Spec:** `docs/specs/2026-10-23-codeloom-context-meter-design.md` (léase primero).
 
 ## Restricciones globales
 
 Las de `2026-10-23-codeloom-context-summary.md` (entorno de build, LF, `rustfmt --edition 2021
-<ruta>` sobre ficheros concretos, no tocar `codeloom.toml`, `git add` de rutas concretas,
-comentarios en español formal, clippy sin `--all-targets`). `batten` NO depende de `codeloom-core`.
+<ruta>` sobre ficheros concretos, no tocar `loomcoding.toml`, `git add` de rutas concretas,
+comentarios en español formal, clippy sin `--all-targets`). `cloth` NO depende de `loomcoding-core`.
 La salida del medidor se acota por construcción (ancho fijo de celdas, cifras formateadas).
 
 ---
 
-### Tarea 1: widget `context_meter` en batten
+### Tarea 1: widget `context_meter` en cloth
 
-**Ficheros:** crear `crates/batten/src/widgets/context_meter.rs`; `pub mod context_meter;` en
-`crates/batten/src/widgets/mod.rs` (orden alfabético).
+**Ficheros:** crear `crates/loomcoding-cloth/src/widgets/context_meter.rs`; `pub mod context_meter;` en
+`crates/loomcoding-cloth/src/widgets/mod.rs` (orden alfabético).
 
 **Produce (firmas exactas):**
 
@@ -80,13 +80,13 @@ usar los campos reales; no inventes colores sueltos.
 - `width_matches_the_text` (`meter_width == meter_text.width()`).
 - `render_right_aligns_inside_the_area` (con `TestBackend`, mira cómo prueban otros widgets).
 
-**Commit:** `feat(batten): medidor de contexto con dos estilos`.
+**Commit:** `feat(cloth): medidor de contexto con dos estilos`.
 
 ---
 
 ### Tarea 1b: segmentos de memoria y mensajes (estilo mastra)
 
-**Ficheros:** `crates/batten/src/widgets/context_meter.rs`.
+**Ficheros:** `crates/loomcoding-cloth/src/widgets/context_meter.rs`.
 
 **Cambia (aditivo; los usos actuales siguen compilando):**
 - `ContextMeter` gana `pub memory: u64` (tokens de `used` que son resumen; `new` lo deja en 0) y
@@ -110,15 +110,15 @@ libres 5);
 `blocks_use_a_distinct_glyph_for_memory`; `text_mentions_the_summary_only_when_present`;
 `no_memory_keeps_the_previous_rendering` (comparar con la salida de la tarea 1).
 
-**Commit:** `feat(batten): el medidor distingue memoria (resumen) y mensajes`.
+**Commit:** `feat(cloth): el medidor distingue memoria (resumen) y mensajes`.
 
 ---
 
 ### Tarea 2: demo en el showcase
 
-**Ficheros:** crear `crates/batten/examples/showcase/demos/context_meter.rs`; registrarlo en
-`crates/batten/examples/showcase/demos/mod.rs` (declaración `mod` y un `item("Context meter",
-"Batten", ...)` junto a los de «Status bar»).
+**Ficheros:** crear `crates/loomcoding-cloth/examples/showcase/demos/context_meter.rs`; registrarlo en
+`crates/loomcoding-cloth/examples/showcase/demos/mod.rs` (declaración `mod` y un `item("Context meter",
+"Cloth", ...)` junto a los de «Status bar»).
 
 **Comportamiento:** imita a `pawan_status_bar.rs` (impl de `Demo`). Muestra, apilados y rotulados,
 los dos estilos con la misma ventana de 200 000: el uso **avanza solo** de 0 a 120 % y vuelve a
@@ -128,16 +128,16 @@ Una línea de texto explica: «Warn desde el 80 %: ahí salta la compactación»
 fila con **memoria** (resumen de 25k dentro de un uso de 100k, ventana 200k) y otra que simula el
 ciclo completo: el uso sube hasta el 80 %, **cae** a «resumen + cola» y vuelve a subir.
 
-**Tests:** el showcase ya tiene pruebas de ejemplos (`cargo test -p batten --examples`); añade al
+**Tests:** el showcase ya tiene pruebas de ejemplos (`cargo test -p loomcoding-cloth --examples`); añade al
 menos una que renderice el demo en un `TestBackend` de 80×12 y compruebe que aparecen `━` y `█`.
 
-**Commit:** `feat(batten): demo del medidor de contexto en el showcase`.
+**Commit:** `feat(cloth): demo del medidor de contexto en el showcase`.
 
 ---
 
 ### Tarea 3: la barra en el pie de la app
 
-**Ficheros:** `crates/codeloom-tui/src/app.rs`, `crates/codeloom-tui/src/render.rs`.
+**Ficheros:** `crates/loomcoding-tui/src/app.rs`, `crates/loomcoding-tui/src/render.rs`.
 
 **App:**
 - Campo `context_tokens: u64` (0 al inicio, y a 0 al abrir otra sesión) y `context_memory: u64`
@@ -148,7 +148,7 @@ menos una que renderice el demo en un `TestBackend` de 80×12 y compruebe que ap
 - `LiveEvent::Usage { input_tokens, .. }`: si `input_tokens > 0`, `context_tokens = input_tokens`.
 - `restore_messages`: `context_tokens` = `usage.input_tokens` del último mensaje de asistente que
   lo lleve (0 si ninguno).
-- `fn context_meter(&self) -> batten::widgets::context_meter::ContextMeter` (con
+- `fn context_meter(&self) -> loomcoding_cloth::widgets::context_meter::ContextMeter` (con
   `.with_memory(self.context_memory)`), con la ventana de
   `catalog.context_window(base_url, model)` por el mismo camino que `model_prices` (cópialo).
 

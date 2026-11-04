@@ -1,15 +1,15 @@
-id = "codeloom.herdr"
-name = "CodeLoom"
+id = "loomcoding.herdr"
+name = "Loomcoding"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
-description = "CodeLoom agent pane"
+description = "Loomcoding agent pane"
 platforms = ["linux", "macos", "windows"]
 
 [[build]]
-command = ["cargo", "build", "--release", "-p", "codeloom-cli", "--bin", "loom"]
+command = ["cargo", "build", "--release", "-p", "loomcoding-cli", "--bin", "loom"]
 
 [[panes]]
 id = "loom"
-title = "CodeLoom"
+title = "Loomcoding"
 placement = "tab"
-command = ["cargo", "run", "--release", "-p", "codeloom-cli", "--bin", "loom"]
+command = ["cargo", "run", "--release", "-p", "loomcoding-cli", "--bin", "loom"]

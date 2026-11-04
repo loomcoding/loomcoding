@@ -1,4 +1,4 @@
-# CodeLoom — Arquitectura propuesta: mapa de piezas
+# Loomcoding — Arquitectura propuesta: mapa de piezas
 
 > Estado: **borrador para revisión**.
 >
@@ -20,7 +20,7 @@
 | Capa estática de señales/decisiones (hallazgo semantic-router) | `2026-10-14-loom-static-decision-signals.md` |
 | Gauntlet Loop | `2026-10-14-loom-gauntlet-loop.md` |
 | Skills (ponytail / superpowers) | `2026-10-14-loom-skills-ponytail-superpowers.md` |
-| CodeLoom agent-first y skills de desarrollo | `2026-10-25-codeloom-agent-first-development-skills.md` |
+| Loomcoding agent-first y skills de desarrollo | `2026-10-25-codeloom-agent-first-development-skills.md` |
 | KPIs y compresión | `2026-10-14-loom-kpis-prompt-compression.md` |
 | Memoria | `2026-10-14-loom-memory.md` |
 | Plan de experimentos | `2026-10-14-loom-decision-experiments.md` |
@@ -28,7 +28,7 @@
 ## 1. Modelo mental: cinco capas
 
 1. **Presentación** — la TUI y sus entradas/salidas (teclado, herdr, voz).
-2. **Motor** — `codeloom-core`: el bucle turn/step, providers, tools, subagentes,
+2. **Motor** — `loomcoding-core`: el bucle turn/step, providers, tools, subagentes,
    jobs, sesión y bus. No conoce hosts ni integraciones.
 3. **Decisión** — un solo seam para «¿qué toca?» y «¿cuál concreto?», en **tres
    escalones** (§4).
@@ -37,7 +37,7 @@
 5. **Transversal** — KPIs, hot-reload, config y el laboratorio de evaluación.
 
 Regla de oro heredada del spec base: **el motor decide, las tools ejecutan**, y
-todo lo opcional (host, voz, decisión, compresión) vive **fuera de `codeloom-core`**.
+todo lo opcional (host, voz, decisión, compresión) vive **fuera de `loomcoding-core`**.
 
 ## 2. Diagrama de crates
 
@@ -46,13 +46,13 @@ todo lo opcional (host, voz, decisión, compresión) vive **fuera de `codeloom-c
         │
         ▼
 ┌───────────────────────────────────────────────────────────┐
-│ codeloom-tui (ratatui): composer · transcript · header (flock) │
+│ loomcoding-tui (ratatui): composer · transcript · header (flock) │
 │   overlays: permiso · modelo · subagente/job               │
 └───────────────┬───────────────────────────▲───────────────┘
      input (mpsc)│                           │watch (deltas)
                 ▼                           │
 ┌───────────────────────────────────────────────────────────┐
-│                        codeloom-core                          │
+│                        loomcoding-core                          │
 │  agent (turn/step) · provider (openai/anthropic) · tools   │
 │  subagent · job · event bus (durable+live) · session       │
 │  config/contexto · skills · memoria · permisos             │
@@ -75,7 +75,7 @@ todo lo opcional (host, voz, decisión, compresión) vive **fuera de `codeloom-c
 └──────────────────┘
 ```
 
-El runtime local previsto tiene un servidor propio de CodeLoom. La primera
+El runtime local previsto tiene un servidor propio de Loomcoding. La primera
 invocación de `loom` lo inicia y abre una TUI; las siguientes se conectan al
 mismo servidor y abren sus propias TUI para agentes asociados a sus proyectos.
 Herdr es referencia e integración opcional, no el servidor ni un requisito.
@@ -84,17 +84,17 @@ El contrato pendiente está en
 
 ```text
 loom (proyecto A) ── TUI A ──┐
-loom (proyecto B) ── TUI B ──┼── IPC local ── servidor CodeLoom ── core, agentes y sesiones
+loom (proyecto B) ── TUI B ──┼── IPC local ── servidor Loomcoding ── core, agentes y sesiones
 loom (proyecto C) ── TUI C ──┘
 ```
 
-`codeloom-decide`, `codeloom-voice`, `codeloom-compress` y `codeloom-herdr`
+`loomcoding-decide`, `loomcoding-voice`, `loomcoding-compress` y `loomcoding-herdr`
 siguen siendo integraciones opcionales; el core no las conoce.
 
-Dentro de `codeloom-tui`, el transcript pinta cada herramienta con su pieza de
-render: el registro `atom_for` de `batten::state::tool_atom` elige la pieza según
+Dentro de `loomcoding-tui`, el transcript pinta cada herramienta con su pieza de
+render: el registro `atom_for` de `loomcoding_cloth::state::tool_atom` elige la pieza según
 el nombre, a partir de los hechos tipados (`ToolFacts`) que extrae el adaptador
-`tool_facts` de `codeloom-tui`. Cuando una herramienta no tiene pieza propia,
+`tool_facts` de `loomcoding-tui`. Cuando una herramienta no tiene pieza propia,
 usa la genérica. Detalle en `2026-10-21-codeloom-tool-atoms-design.md`.
 
 ## 3. Flujo de un turno (de punta a punta)
@@ -133,7 +133,7 @@ Puntos donde ya está documentado un invariante:
 ```
    petición
       │
- ┌────▼─────────────────────────────┐   escalón 1 · EN PROCESO (CodeLoom)
+ ┌────▼─────────────────────────────┐   escalón 1 · EN PROCESO (Loomcoding)
  │ señales heurísticas del request   │   keyword · language · structure ·
  │ (deterministas, coste ~0)         │   context · conversation · metadata
  └────┬─────────────────────────────┘
@@ -154,7 +154,7 @@ Puntos donde ya está documentado un invariante:
  └──────────────────────────────────┘
 ```
 
-Frontera (de `decision-hub-jevalan.md` §12): **jevalan = «qué toca»; CodeLoom = «cuál
+Frontera (de `decision-hub-jevalan.md` §12): **jevalan = «qué toca»; Loomcoding = «cuál
 concreto y cómo»; lo trivial se decide en proceso.**
 
 ## 5. Conocimiento y gobernanza
@@ -171,7 +171,7 @@ Todo comparte el mismo contrato: **cargar por demanda, medir y poder podarlo.**
 
 ### 5.2 Agent-first: desarrollo coordinado por agentes
 
-CodeLoom prioriza agentes: las tareas se asignan a perfiles con roles claros,
+Loomcoding prioriza agentes: las tareas se asignan a perfiles con roles claros,
 permisos acotados y resultados visibles. Las skills de desarrollo son una
 capacidad fundamental porque definen procedimientos que los agentes pueden
 seguir sin convertir el motor en un flujo monolítico.
@@ -205,7 +205,7 @@ de combinación, está en `docs/references/2026-10-25-agent-development-skills-s
 ### 5.1 Una sola puerta de descubrimiento (por qué escala)
 
 Con **muchos MCP y muchas skills**, cargar todo cada turno es carísimo y diluye
-la elección. CodeLoom expone **una sola puerta de descubrimiento** y el **revelado
+la elección. Loomcoding expone **una sola puerta de descubrimiento** y el **revelado
 progresivo** hace el resto:
 
 ```
@@ -228,7 +228,7 @@ progresivo** hace el resto:
 
 - **KPIs**: provider, modelo, effort, capas activas, compresión, decisiones
   jevalan, calidad. Alimentan decisiones y el laboratorio.
-- **Hot-reload**: `codeloom.toml`, MCP, skills y memoria se recargan en caliente,
+- **Hot-reload**: `loomcoding.toml`, MCP, skills y memoria se recargan en caliente,
   aplicados en frontera de step.
 - **Laboratorio (`jevalan lab`)**: el harness de evaluación (offline/record/live,
   fixtures, cassettes, Brier) que decide qué capacidad/umbral se adopta.
@@ -239,7 +239,7 @@ progresivo** hace el resto:
 
 | Pieza | Repo | Lenguaje |
 |---|---|---|
-| CodeLoom (motor, TUI, CLI, crates opcionales) | `codeloom` | Rust |
+| Loomcoding (motor, TUI, CLI, crates opcionales) | `loomcoding` | Rust |
 | jevalan (hub de decisiones / señales) | `jevalan` | Rust |
 | Modelos de decisión Kev / Laya | `G:\dev\jev` | Python/servidores |
 | Jev (System One) | nube (OpenRouter/TypeSafe) | — |
@@ -253,12 +253,12 @@ progresivo** hace el resto:
 
 ## 8. Qué es «el núcleo» y qué es «el borde»
 
-- **Núcleo (`codeloom-core`)**: bucle turn/step, providers, tools, subagentes, jobs,
+- **Núcleo (`loomcoding-core`)**: bucle turn/step, providers, tools, subagentes, jobs,
   sesión, bus, config. Testeable, sin hosts ni integraciones.
 - **Borde (crates opcionales)**: host (herdr), voz, decisión (jevalan), compresión,
   MCP, y todo lo que se consume por URL/MCP.
-- **Fuera de CodeLoom del todo**: el serving router de modelos (`hybrid` + afinidad
-  de cache es del lado de CodeLoom o de un proxy; jevalan no lo hace), la
+- **Fuera de Loomcoding del todo**: el serving router de modelos (`hybrid` + afinidad
+  de cache es del lado de Loomcoding o de un proxy; jevalan no lo hace), la
   infraestructura de embeddings, y los servidores de los proveedores.
 
 El resultado buscado: un motor honesto y rápido, con **decisiones baratas y
@@ -278,7 +278,7 @@ activa y desactiva, y todas comparten el mismo **contrato de control**:
    patrón que hot-reload, skills y memoria.
 3. **Es observable**: header (flock) + eventos en vivo (`gauntlet/started`,
    `skills/resolved`, `mcp/server-state`, `tool/registry-changed`…).
-4. **Es controlable**: `off | on | explicit | auto` por pieza en `codeloom.toml`,
+4. **Es controlable**: `off | on | explicit | auto` por pieza en `loomcoding.toml`,
    con presupuesto y cancelación (`CancellationToken`).
 5. **Anidamiento con guardia**: cada subagente solo usa lo de su `tool_filter`, y
    hay `max_depth` (def. 1) y `max_active_subagents` (def. 8). Un crítico no abre
@@ -298,7 +298,7 @@ implementado.
 | Idea | Estado | Spec | Experimento |
 |---|---|---|---|
 | Diseño base (crates, turn/step, tools) | base | `2026-10-13-loom-design.md` | — |
-| Servidor local CodeLoom y varias TUI cliente | propuesta | `2026-10-26-codeloom-local-server-client-runtime.md` | pendiente de revisión |
+| Servidor local Loomcoding y varias TUI cliente | propuesta | `2026-10-26-codeloom-local-server-client-runtime.md` | pendiente de revisión |
 | Carga en caliente de MCP/skills | borrador | `...-mcp-skills-hot-reload.md` | — |
 | Aplicación de `scope.mcp` por perfil | propuesta | `2026-10-28-codeloom-mcp-agent-scope.md` | — |
 | Hub de decisiones (jevalan) | borrador | `...-decision-hub-jevalan.md` | P1/P0 |

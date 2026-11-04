@@ -15,7 +15,7 @@ transcript como `LineKind::System`. Un turno con varias llamadas al proveedor
 (una por paso del bucle de herramientas) llena la vista de líneas `sys:`. Son
 información de diagnóstico, no conversación.
 
-`batten` ya ofrece animaciones en `widgets::spinner`:
+`cloth` ya ofrece animaciones en `widgets::spinner`:
 
 - `Anim::glyph(frames, theme)` — un glifo de una celda con color oscilante.
   Sets: `BRAILLE`, `DOT_RING`, `ARC`, `BOUNCE`, `PULSE`, `BARS`.
@@ -23,23 +23,23 @@ información de diagnóstico, no conversación.
   de acento a `tool_running` a lo largo de la línea; conserva los espacios, así
   que el layout no salta.
 
-Además, `batten` ya tenía `dotmax` como dev-dependency para el showcase. Su
+Además, `cloth` ya tenía `dotmax` como dev-dependency para el showcase. Su
 catálogo `progress` incluye 14 estilos de **spinner** braille, y el propio crate
 documenta que son seguros a 1×1 celdas. Medido en este repo con una sonda
 temporal, a una fila de alto animan bien `dot-ring`, `growing-arc`,
 `spinner-bars`, `arc-sweep` y `pulse`; `braille-spin` y `hourglass-flip`
 necesitan dos celdas de ancho. Por eso `dotmax` pasa a ser una **feature
-opcional** de `batten` (`dotmax`), no una dependencia obligatoria: el crate sigue
+opcional** de `cloth` (`dotmax`), no una dependencia obligatoria: el crate sigue
 compilando sin ella y cae al glifo propio.
 
-`App` ya mantiene `animation: batten::widgets::Anim` y el bucle de `run.rs` lo
+`App` ya mantiene `animation: loomcoding_cloth::widgets::Anim` y el bucle de `run.rs` lo
 avanza cuando `animating` es cierto, así que no hace falta un reloj propio.
 
 ## Comportamiento
 
 ### Configuración persistente
 
-Sección opcional `[ui]` de `codeloom.toml`:
+Sección opcional `[ui]` de `loomcoding.toml`:
 
 ```toml
 [ui]
@@ -52,7 +52,7 @@ verbose_provider_notices = false
 - `true`: los avisos van al transcript como hasta ahora y no hay animación de
   proveedor.
 
-`UiConfig` vive aparte de `CodeLoomConfig` (que se construye en decenas de
+`UiConfig` vive aparte de `LoomcodingConfig` (que se construye en decenas de
 sitios) y sigue el patrón de `AgentsConfig` / `ProviderCacheConfig`: `Default`,
 `from_toml(&str)` y `load(&Path)`.
 
@@ -63,7 +63,7 @@ sitios) y sigue el patrón de `AgentsConfig` / `ProviderCacheConfig`: `Default`,
   (`Provider notices: on` / `Provider notices: off`).
 - `/verbose on` y `/verbose off` fijan el valor de forma explícita; cualquier
   otro argumento produce `Usage: /verbose [on|off]` en `slash_feedback`.
-- El cambio es **de sesión en memoria**: no reescribe `codeloom.toml`. Para que
+- El cambio es **de sesión en memoria**: no reescribe `loomcoding.toml`. Para que
   persista, el usuario edita el fichero.
 - El comando aparece en el autocompletado con la descripción
   «Toggle provider request notices in the transcript».
@@ -121,13 +121,13 @@ En los dos chasis, cuando `provider_in_flight > 0` y
 - Sin red en tests: la lógica se prueba aplicando `LiveEvent::RuntimeNotice` a
   un `App` en memoria.
 - Sin dependencias nuevas obligatorias: `dotmax` entra como **feature opcional**
-  de `batten` (`dotmax`), ya presente en el árbol como dev-dependency del
+  de `cloth` (`dotmax`), ya presente en el árbol como dev-dependency del
   showcase. Con la feature apagada todo sigue compilando y el indicador cae al
   glifo propio.
 
 ## Preguntas abiertas
 
-- ¿Debe `/verbose` escribir la preferencia en `codeloom.toml`? Hoy se decide
+- ¿Debe `/verbose` escribir la preferencia en `loomcoding.toml`? Hoy se decide
   que no (el fichero es del usuario); si se quiere persistir desde la TUI hará
   falta un escritor de config que hoy no existe.
 - ¿Merece la pena un `LineKind::Debug` para poder filtrar diagnóstico por nivel
@@ -135,8 +135,8 @@ En los dos chasis, cuando `provider_in_flight > 0` y
 
 ## Referencias
 
-- `crates/codeloom-core/src/config/mod.rs` — `UiConfig`.
-- `crates/codeloom-tui/src/app.rs` — `provider_in_flight`, `apply`.
-- `crates/codeloom-tui/src/render.rs` — `draw_flat_footer`, barra clásica.
-- `crates/codeloom-tui/src/commands.rs` — `Command::Verbose`.
-- `crates/batten/src/widgets/spinner.rs` — `Anim::glyph`, `DOT_RING`.
+- `crates/loomcoding-core/src/config/mod.rs` — `UiConfig`.
+- `crates/loomcoding-tui/src/app.rs` — `provider_in_flight`, `apply`.
+- `crates/loomcoding-tui/src/render.rs` — `draw_flat_footer`, barra clásica.
+- `crates/loomcoding-tui/src/commands.rs` — `Command::Verbose`.
+- `crates/loomcoding-cloth/src/widgets/spinner.rs` — `Anim::glyph`, `DOT_RING`.

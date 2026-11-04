@@ -1,13 +1,13 @@
-# Documentación de CodeLoom
+# Documentación de Loomcoding
 
 Este es el índice de `docs/`. El [README del proyecto](../README.md) describe
 el producto, el estado funcional y la puesta en marcha.
 
-![CodeLoom teje señales de código](assets/codeloom-weave.gif)
+![Loomcoding teje señales de código](assets/loomcoding-weave.gif)
 
 Previsualización GIF capturada de la animación Canvas original.
 
-[Animación Canvas independiente](assets/codeloom-self-weaving.html) (descarga
+[Animación Canvas independiente](assets/loomcoding-self-weaving.html) (descarga
 el archivo y ábrelo en el navegador; GitHub muestra el código HTML en vez de
 ejecutarlo).
 
@@ -63,13 +63,13 @@ ejecutarlo).
 
 - [Roadmap A2A](plans/2026-10-22-codeloom-a2a-roadmap.md): índice de tareas y
   decisiones del protocolo.
-- [Servidor local CodeLoom y clientes TUI](specs/2026-10-26-codeloom-local-server-client-runtime.md)
+- [Servidor local Loomcoding y clientes TUI](specs/2026-10-26-codeloom-local-server-client-runtime.md)
   y [su plan](plans/2026-10-26-codeloom-local-server-client-runtime.md): propuesta
-  para que CodeLoom comparta su propio runtime entre proyectos; Herdr es opcional.
+  para que Loomcoding comparta su propio runtime entre proyectos; Herdr es opcional.
 - [Flujo de desarrollo coordinado por agentes](specs/2026-10-25-codeloom-agent-development-workflow.md)
   y [su plan](plans/2026-10-25-codeloom-agent-development-workflow.md):
   implementación realizada; quedan tareas de cierre y verificación.
-- [Investigación sobre agentes ECC y CodeLoom](specs/2026-10-31-codeloom-ecc-agent-workforce-research.md): catálogo de perfiles, carga por harness y papel de los hooks.
+- [Investigación sobre agentes ECC y Loomcoding](specs/2026-10-31-codeloom-ecc-agent-workforce-research.md): catálogo de perfiles, carga por harness y papel de los hooks.
 - [Fiabilidad interactiva del workflow de desarrollo](specs/2026-10-29-codeloom-development-workflow-interactive-reliability.md)
   y [su plan](plans/2026-10-29-codeloom-development-workflow-interactive-reliability.md):
   correcciones al turno del coordinador y al uso de herramientas del planner en Windows.
@@ -106,10 +106,10 @@ ejecutarlo).
 - [Decálogo agent-first (borrador) y diseño de evaluación](specs/2026-10-31-codeloom-decalogo-agent-first.md)
   y [fuentes externas con auditoría del flujo](references/2026-10-31-agent-first-fuentes-externas-y-auditoria.md):
   propuesta de diseño sin evidencia propia todavía.
-- [Estudio de agentpatterns.ai aplicado a CodeLoom](references/2026-10-31-agentpatterns-estudio-codeloom.md):
+- [Estudio de agentpatterns.ai aplicado a Loomcoding](references/2026-10-31-agentpatterns-estudio-codeloom.md):
   primera pasada (22 páginas de 1.926) con matriz patrón → código y borrador de modos; CC BY 4.0, resumen propio.
 - [Patrones aplicados y ahorro de tokens (agentpatterns.ai)](references/2026-10-31-agentpatterns-patrones-aplicados-y-ahorro-de-tokens.md):
-  registro de lo que CodeLoom ya sigue, lo que no mide (la caché) y orden de trabajo propuesto.
+  registro de lo que Loomcoding ya sigue, lo que no mide (la caché) y orden de trabajo propuesto.
 - [Candidatas a implementar (agentpatterns.ai)](references/2026-10-31-agentpatterns-candidatas-a-implementar.md):
   lista priorizada con criterios, descartadas con su motivo y orden propuesto; nada está adoptado.
 

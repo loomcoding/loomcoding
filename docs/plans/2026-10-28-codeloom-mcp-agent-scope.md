@@ -16,7 +16,7 @@ separación entre configuración de servidor, scope y aprobación de cada llamad
 3. Filtrado al construir el registro y segunda comprobación al despachar.
 4. El gate de permisos actual sigue aplicándose a cada tool-call MCP.
 5. El agente remoto A2A conserva su política local; nunca se transmite `scope.mcp`.
-6. Configurar servidores desde `~/.codeloom/mcp.toml`; perfiles no inician procesos.
+6. Configurar servidores desde `~/.loomcoding/mcp.toml`; perfiles no inician procesos.
 7. Solo transporte stdio en esta primera versión; no recarga MCP en caliente.
 8. El agente raíz sin perfil no recibe MCP; las tools se entregan a agentes locales delegados.
 
@@ -24,7 +24,7 @@ separación entre configuración de servidor, scope y aprobación de cada llamad
 
 ### 1. Cliente y tools stdio
 
-- Añadir `codeloom-mcp` con el SDK RMCP para ejecutar servidores stdio configurados por el
+- Añadir `loomcoding-mcp` con el SDK RMCP para ejecutar servidores stdio configurados por el
   usuario; limitar la configuración y fallar cerrado.
 - Mantener tool-registry y dispatcher del core; no añadir transporte MCP al core.
 - Namespacing estable por servidor y tool; cap de tools/esquemas y resultados.
@@ -40,7 +40,7 @@ separación entre configuración de servidor, scope y aprobación de cada llamad
 
 ### 3. Estado y confianza
 
-- Servidores definidos solo en `~/.codeloom/mcp.toml`; entorno limpio, secretos referenciados
+- Servidores definidos solo en `~/.loomcoding/mcp.toml`; entorno limpio, secretos referenciados
   por nombre de variable y ningún comando desde perfiles.
 - Mostrar los scopes como servidores permitidos; enviar avisos locales a la TUI para IDs
   desconocidos y fallos de configuración/conexión, sin copiar errores crudos del proceso.
@@ -57,12 +57,12 @@ separación entre configuración de servidor, scope y aprobación de cada llamad
 
 ## Archivos previstos
 
-- `crates/codeloom-core/src/registry/profile.rs`
-- `crates/codeloom-core/src/registry/source.rs`
-- `crates/codeloom-core/src/registry/` (lanzador/dispatcher, a determinar al iniciar)
-- `crates/codeloom-core/src/tools/` (adaptador MCP/registro, según la spec del runtime)
-- `crates/codeloom-mcp/` (cliente RMCP stdio y adapter de Tool)
-- `crates/codeloom-tui/src/app.rs` y `render.rs` (estado visible)
+- `crates/loomcoding-core/src/registry/profile.rs`
+- `crates/loomcoding-core/src/registry/source.rs`
+- `crates/loomcoding-core/src/registry/` (lanzador/dispatcher, a determinar al iniciar)
+- `crates/loomcoding-core/src/tools/` (adaptador MCP/registro, según la spec del runtime)
+- `crates/loomcoding-mcp/` (cliente RMCP stdio y adapter de Tool)
+- `crates/loomcoding-tui/src/app.rs` y `render.rs` (estado visible)
 - pruebas unitarias e integración en los crates correspondientes
 - docs MCP existentes si el descubrimiento requiere aclarar su ciclo de vida
 
@@ -97,7 +97,7 @@ detallado de estado en la TUI quedan pendientes.
 
 ## Verificación 2026-10-28
 
-`cargo build` correcto (aviso existente: `main.rs` comparte los bins `loom` y `codeloom`);
+`cargo build` correcto (aviso existente: `main.rs` comparte los bins `loom` y `loomcoding`);
 `cargo test`: 1.712 pasaron y 13 ignorados; `cargo fmt --check` y
 `cargo clippy -- -D warnings` correctos. Se usó el target temporal
-`C:\Users\negrero\AppData\Local\Temp\codeloom-final-target`.
+`C:\Users\negrero\AppData\Local\Temp\loomcoding-final-target`.

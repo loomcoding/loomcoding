@@ -15,7 +15,7 @@
 
 Permitir revisar y editar desde la TUI los perfiles locales que generan tarjetas de agente,
 mostrar el supervisor del runtime en el directorio A2A local y declarar sus capacidades
-reales. La separación entre A2A y CodeLoom es un principio central: aunque compartan un
+reales. La separación entre A2A y Loomcoding es un principio central: aunque compartan un
 editor, cada dato debe tener una sección, etiqueta y destino de guardado inequívocos.
 
 La edición opera sobre perfiles fuente (`.agents/agents/<name>.md` o el directorio global),
@@ -29,7 +29,7 @@ El editor presenta dos secciones visibles y separadas, con títulos y ayuda brev
 1. **A2A — tarjeta pública y protocolo:** describe al agente para otros sistemas y cómo
    comunicarse con él. Incluye identidad, skills y capacidades definidas por A2A, y las
    interfaces activas que ofrece.
-2. **CodeLoom — configuración local de ejecución:** determina cómo ejecuta CodeLoom al
+2. **Loomcoding — configuración local de ejecución:** determina cómo ejecuta Loomcoding al
    agente, qué recursos locales puede usar y las reglas de confianza. Incluye MCP, skills
    cargadas localmente, herramientas, persona, modelo, límites y aprobación.
 
@@ -41,8 +41,8 @@ inventadas ni se publican en la tarjeta.
 
 Cuando una propiedad del perfil sirve de fuente para ambas vistas, la UI lo indica como una
 proyección explícita y no crea una segunda copia. Por ejemplo, el `name` estable del perfil
-CodeLoom se proyecta como `AgentCard.name`; el ID local y el nombre público comparten esa
-fuente. En cambio, `scope.skills` de CodeLoom y `AgentCard.skills` de A2A son listas distintas
+Loomcoding se proyecta como `AgentCard.name`; el ID local y el nombre público comparten esa
+fuente. En cambio, `scope.skills` de Loomcoding y `AgentCard.skills` de A2A son listas distintas
 y se editan por separado.
 
 ## 3. Modelo y límites
@@ -59,7 +59,7 @@ extensiones) se muestran en solo lectura y proceden del servicio que está activ
 no puede activarlas. Si el agente no expone interfaz A2A, la tarjeta muestra esas capacidades
 como no declaradas.
 
-### 3.2 CodeLoom — configuración local
+### 3.2 Loomcoding — configuración local
 
 La primera versión edita las declaraciones del scope local:
 
@@ -69,7 +69,7 @@ La primera versión edita las declaraciones del scope local:
   aprobación se conservan en el perfil pero no se editan desde esta pantalla.
 
 Un agente local delegado solo recibe tools de servidores MCP que aparecen tanto en su perfil
-como en la configuración global `~/.codeloom/mcp.toml`. Sin scope no recibe MCP. El runtime
+como en la configuración global `~/.loomcoding/mcp.toml`. Sin scope no recibe MCP. El runtime
 actual soporta stdio; cada llamada MCP sigue pasando por el permiso normal. Los fallos e IDs
 no disponibles aparecen como avisos locales en la TUI, sin un panel de estado por servidor.
 `scope.skills` y `scope.tools` siguen declarados, pero todavía no se aplican.
@@ -101,9 +101,9 @@ acciones.
 ## 4. Interacción
 
 - `/agents` lista perfiles locales y permite abrir el editor del seleccionado. El editor
-  mantiene las secciones A2A y CodeLoom separadas de forma visible durante lectura y edición.
+  mantiene las secciones A2A y Loomcoding separadas de forma visible durante lectura y edición.
   Origen, aprobación del perfil de proyecto y disponibilidad MCP aparecen en la sección
-  CodeLoom.
+  Loomcoding.
 - Guardar valida el perfil completo antes de escribirlo. Si falla la validación o escritura,
   se conserva el archivo y la última versión válida del registro, y se informa del error.
 - Tras guardar, la recarga existente actualiza el registro. Un agente de proyecto sigue
@@ -126,14 +126,14 @@ un editor YAML genérico ni un editor de JSON arbitrario.
 - El contenido de perfiles de proyecto continúa marcado como no confiable y sujeto a
   aprobación; editar no equivale a aprobar.
 - No cambiar el esquema A2A ni publicar MCP, scope o marcas internas como campos propios.
-- La separación A2A/CodeLoom se mantiene al editar, guardar, recargar y mostrar la tarjeta;
+- La separación A2A/Loomcoding se mantiene al editar, guardar, recargar y mostrar la tarjeta;
   ningún campo local se promociona silenciosamente a dato público.
 - Clientes y perfiles existentes que no declaren capacidades conservan la semántica de
   «no declarado» (`None`); no se convierte en `false` ni en `true` por defecto.
 
 ## 6. Criterios de aceptación
 
-1. Un perfil local válido puede editar sus datos A2A y sus datos CodeLoom en un mismo editor,
+1. Un perfil local válido puede editar sus datos A2A y sus datos Loomcoding en un mismo editor,
    pero en secciones visuales y propiedades claramente separadas; las proyecciones compartidas
    se indican y no se duplican.
 2. Un perfil inválido o un error de escritura no reemplaza el fichero válido ni elimina la
@@ -141,7 +141,7 @@ un editor YAML genérico ni un editor de JSON arbitrario.
 3. La edición respeta precedencia, origen y aprobación de agentes de proyecto; modificar un
    perfil aprobado invalida la aprobación anterior.
 4. Los datos A2A editados se reflejan en la tarjeta sintetizada; MCP, herramientas, persona,
-   modelo, límites y aprobación permanecen en CodeLoom y no aparecen en la tarjeta.
+   modelo, límites y aprobación permanecen en Loomcoding y no aparecen en la tarjeta.
 5. Una capacidad no se anuncia por configurar un booleano si el runtime no soporta la
    función correspondiente.
 6. El supervisor aparece siempre en el directorio local y está habilitado por defecto aunque
@@ -150,7 +150,7 @@ un editor YAML genérico ni un editor de JSON arbitrario.
    clasificación interna del supervisor permanece fuera de `AgentCard`.
 8. Las tarjetas remotas se mantienen de solo lectura y no se confunden con perfiles locales.
 9. En lectura, edición y tarjeta de vista previa queda claro qué pertenece a A2A y qué a
-   CodeLoom; no hay campos con propiedad ambigua.
+   Loomcoding; no hay campos con propiedad ambigua.
 
 ## 7. Fuera de alcance
 

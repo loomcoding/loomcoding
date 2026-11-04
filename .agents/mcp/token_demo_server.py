@@ -1,4 +1,4 @@
-"""Minimal stdio MCP server used to verify CodeLoom's MCP token accounting."""
+"""Minimal stdio MCP server used to verify Loomcoding's MCP token accounting."""
 
 import json
 import sys
@@ -15,7 +15,7 @@ def respond(request):
         result = {
             "protocolVersion": params.get("protocolVersion", "2025-03-26"),
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "codeloom-token-demo", "version": "1.0.0"},
+            "serverInfo": {"name": "loomcoding-token-demo", "version": "1.0.0"},
         }
     elif method == "ping":
         result = {}

@@ -1,9 +1,9 @@
 # La repeticion se detuvo por falta de credito: HTTP 402 de OpenRouter ("requires more credits ... can only afford ~7162 tokens").
 # Solo el nivel ninguno (24 llamadas, identico a la primera pasada) y 2 llamadas de medium son validas. 138 respuestas 402. Duracion 3166 s por los reintentos de 30 s.
-# Etapa 3 (repeticion) — salida literal de: cargo test -p codeloom-core --test effort_by_phase_live stage3 -- --ignored --nocapture
+# Etapa 3 (repeticion) — salida literal de: cargo test -p loomcoding-core --test effort_by_phase_live stage3 -- --ignored --nocapture
 # (2026-10-31; con registro de errores y reintentos; 8 casos x 3 repeticiones x {ninguno, medium, high}; clave filtrada)
-warning: E:\workspace\personal\loom\crates\codeloom-cli\Cargo.toml: file `E:\workspace\personal\loom\crates\codeloom-cli\src\main.rs` found to be present in multiple build targets:
-  * `bin` target `codeloom`
+warning: E:\workspace\personal\loom\crates\loomcoding-cli\Cargo.toml: file `E:\workspace\personal\loom\crates\loomcoding-cli\src\main.rs` found to be present in multiple build targets:
+  * `bin` target `loomcoding`
   * `bin` target `loom`
     Finished `test` profile [unoptimized] target(s) in 0.43s
      Running tests\effort_by_phase_live.rs (target\e2e\debug\deps\effort_by_phase_live-ace7ebaf515b432a.exe)

@@ -1,4 +1,4 @@
-# CodeLoom — Spec: carga en caliente de MCP y skills (hot-reload)
+# Loomcoding — Spec: carga en caliente de MCP y skills (hot-reload)
 
 > Estado: **borrador para revisión**.
 >
@@ -44,11 +44,11 @@ Razones observadas:
 Contraste: **dsh** sí tiene la base para hacerlo bien. Cordis registra cada
 plugin de forma **reversible** vía `ctx.effect()` y las tools viven en
 `ctx.tools` (ver §3.3 del doc de referencia), así que un plugin de tools puede
-darse de alta/baja sin reiniciar. CodeLoom hereda esa idea (`registro reversible`)
+darse de alta/baja sin reiniciar. Loomcoding hereda esa idea (`registro reversible`)
 pero añade lo que falta: detección de cambios, aplicación en fronteras seguras y
 observabilidad en la UI.
 
-**Objetivo de este spec**: que CodeLoom cargue y descargue servidores MCP, tools y
+**Objetivo de este spec**: que Loomcoding cargue y descargue servidores MCP, tools y
 skills **sin reiniciar**, de forma segura, observable y sin romper llamadas en
 vuelo.
 
@@ -65,7 +65,7 @@ vuelo.
 **No-objetivos**
 
 - No implementar MCP ni skills en m1/m2; esto es diseño para **m4** (§11).
-- No hot-reload de `codeloom-core` ni del binario.
+- No hot-reload de `loomcoding-core` ni del binario.
 - No crecimiento del system prompt sin límite (ver §6.5).
 
 ## 2. Modelo: generaciones
@@ -87,7 +87,7 @@ siguiente. Esto da atomicidad sin locks en el camino caliente.
 
 | Seam | Hoy | Con hot-reload |
 |---|---|---|
-| `config/` | carga `codeloom.toml` + `AGENTS.md` al boot | watcher con debounce; publica config nueva |
+| `config/` | carga `loomcoding.toml` + `AGENTS.md` al boot | watcher con debounce; publica config nueva |
 | `tools/` (registro) | mapa estático por config | snapshots versionados + `register`/`unregister` |
 | `mcp/` (nuevo subseam) | no existe | `McpSupervisor`: alta/baja/reconexión por servidor |
 | `skills/` (nuevo) | no existe | `SkillIndex` + watcher de directorios |
@@ -113,7 +113,7 @@ de turno.
 
 ### 5.1 MCP: notificaciones nativas (preferida)
 
-CodeLoom es **cliente** MCP. Tras `initialize`, se suscribe a las notificaciones de
+Loomcoding es **cliente** MCP. Tras `initialize`, se suscribe a las notificaciones de
 lista del servidor y, al recibirlas, marca ese servidor como "sucio" y re-consulta
 `tools/list` (y `resources/list`/`prompts/list` si aplica). Esto cubre servidores
 que cambian sus tools sin tocar disco (p. ej. un gateway que carga plugins).
@@ -123,9 +123,9 @@ que cambian sus tools sin tocar disco (p. ej. un gateway que carga plugins).
 
 ### 5.2 Config local: watcher de ficheros
 
-Para alta/baja de **servidores** y cambios de `codeloom.toml`/skills:
+Para alta/baja de **servidores** y cambios de `loomcoding.toml`/skills:
 
-- Watcher con `notify` sobre: `codeloom.toml`, el fichero de definición de MCP, el
+- Watcher con `notify` sobre: `loomcoding.toml`, el fichero de definición de MCP, el
   directorio de skills del workspace y el de usuario.
 - **Debounce** obligatorio (~200-300 ms): los editores escriben varias veces
   (write+rename); sin debounce se disparan recargas espurias.
@@ -180,7 +180,7 @@ Cada tool añade su esquema y cada skill su fragmento. Se aplican límites:
 - Presupuesto de tokens para el bloque de tools/skills; al exceder, se prioriza
   y se avisa en la UI (no se trunca en silencio).
 - Un servidor con MCP "verboso" puede degradar el prompt; el límite por defecto
-  es parte de `codeloom.toml` (§8).
+  es parte de `loomcoding.toml` (§8).
 
 ## 7. Eventos y UI
 
@@ -195,7 +195,7 @@ Cada tool añade su esquema y cada skill su fragmento. Se aplican límites:
 El bus ya separa durables de live (§4.4 del spec principal); no hace falta
 carril nuevo.
 
-## 8. Config (`codeloom.toml`)
+## 8. Config (`loomcoding.toml`)
 
 Extensión de config, coherente con §5.2 del spec principal:
 
@@ -203,7 +203,7 @@ Extensión de config, coherente con §5.2 del spec principal:
 [hot_reload]
 enabled = true
 debounce_ms = 250
-watch = ["codeloom.toml", "skills/", "~/.config/codeloom/skills/"]
+watch = ["loomcoding.toml", "skills/", "~/.config/loomcoding/skills/"]
 mcp_notifications = true      # consumir list_changed del servidor
 
 [tools]
@@ -221,7 +221,7 @@ watch_notifications = true
 |---|---|
 | Servidor MCP no arranca | estado `Failed`; se mantiene el snapshot previo; reintento con backoff + jitter |
 | Servidor se cae en caliente | `Disconnected`; tools asociadas se retiran de snapshots nuevos; calls en vuelo -> `is_error`; reconexión con backoff |
-| `codeloom.toml` inválido tras editar | se rechaza el cambio, se conserva el estado vigente, `⚠` en UI |
+| `loomcoding.toml` inválido tras editar | se rechaza el cambio, se conserva el estado vigente, `⚠` en UI |
 | Skill con `SKILL.md` roto | se ignora esa skill; el resto del índice se conserva |
 | `list_changed` con tools desconocidas | se re-consulta `tools/list` y se reconcilia; conflicto de nombre -> gana la existente y se avisa |
 | Timeout de drain de un servidor | kill forzado; calls pendientes -> `is_error` |

@@ -1,4 +1,4 @@
-# CodeLoom — Batería difícil del benchmark de esfuerzo de razonamiento
+# Loomcoding — Batería difícil del benchmark de esfuerzo de razonamiento
 
 > Estado: **ejecutada en parte** (2026-10-31): `none` y `medium` medidos; `high` pendiente por falta de crédito (HTTP 402).
 >

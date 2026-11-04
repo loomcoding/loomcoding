@@ -1,4 +1,4 @@
-# CodeLoom — Idea/spec: Gauntlet Loop (builder + crítico ciego)
+# Loomcoding — Idea/spec: Gauntlet Loop (builder + crítico ciego)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -13,7 +13,7 @@
 
 ## 0. La idea
 
-Añadir a CodeLoom el **Gauntlet Loop** como método **opcional y activable en ciertos
+Añadir a Loomcoding el **Gauntlet Loop** como método **opcional y activable en ciertos
 casos**: para tareas con un **objetivo de calidad** y una **barra real
 inspeccionable**, en vez de un solo agente que dice "ya está", se divide el
 trabajo, cada pieza la pule un **constructor** y la juzga un **crítico
@@ -62,12 +62,12 @@ autor, según el informe):
 ## 2. Lo que la evidencia corrige (no copiar el prompt a ciegas)
 
 El informe del lab separa lo que ordena el prompt de lo que **muestra la
-ejecución real**. Cuatro correcciones que CodeLoom debe incorporar:
+ejecución real**. Cuatro correcciones que Loomcoding debe incorporar:
 
 - **El paralelismo pierde.** "Sequential single-owner passes beat parallel
   fan-out decisively": pases secuenciales con **un dueño por preocupación
   acoplada** dieron +1.00 y bajaron defectos 66 -> 26; el fan-out en paralelo dio
-  +0.46 y **subió** los defectos (60 -> 47 -> 66). CodeLoom debe favorecer
+  +0.46 y **subió** los defectos (60 -> 47 -> 66). Loomcoding debe favorecer
   **secuencial por preocupación acoplada**, no repartir a lo loco.
 - **El crítico juzga el artefacto, no un resumen.** Y puede equivocarse: "every
   critic for three rounds reported the weapon as untextured; it wasn't". Hay que
@@ -83,12 +83,12 @@ ejecución real**. Cuatro correcciones que CodeLoom debe incorporar:
 Y del informe sobre Jev dentro del Gauntlet: **Jev solo como filtro**, nunca como
 crítico (ver §5).
 
-## 3. Cómo encaja en el modelo de CodeLoom
+## 3. Cómo encaja en el modelo de Loomcoding
 
-El Gauntlet es un **patrón de orquestación sobre subagentes**, y CodeLoom ya diseña
+El Gauntlet es un **patrón de orquestación sobre subagentes**, y Loomcoding ya diseña
 justo eso (§6):
 
-| Rol del Gauntlet | Pieza de CodeLoom | Notas |
+| Rol del Gauntlet | Pieza de Loomcoding | Notas |
 |---|---|---|
 | Agente líder que descompone | el agente principal (session) | usa su propio loop |
 | Constructor (una pieza) | `trait SubagentProvider` in-process | child con su `AgentLoop` y `Session` |
@@ -102,7 +102,7 @@ justo eso (§6):
 Claves del encaje:
 
 - **Contexto limpio por crítico**: ya es natural en el modelo de subagentes de
-  dsh/CodeLoom (child con sesión propia). El point central es **no** reusar el
+  dsh/Loomcoding (child con sesión propia). El point central es **no** reusar el
   contexto del builder.
 - **A/B ciego**: el orquestador **aleatoriza el orden** artefacto/barra y
   registra el veredicto. Medir el **cambio al invertir el orden** es una métrica
@@ -230,7 +230,7 @@ threshold = 0.5                 # τ congelado; < τ -> escala al crítico LLM
   de steps/tokens/tiempo y parada por mejora marginal.
 - **Jev nunca decide `allow` a ciegas** ni actúa de crítico; solo filtra y
   escala.
-- **Coste real**: es el modo más caro de CodeLoom; por eso `enabled = false` y
+- **Coste real**: es el modo más caro de Loomcoding; por eso `enabled = false` y
   activación por caso.
 
 ## 8. Encaje y preguntas abiertas
@@ -248,4 +248,4 @@ threshold = 0.5                 # τ congelado; < τ -> escala al crítico LLM
     crítico?
   - ¿Se expone `/gauntlet` en la TUI o como capacidad de jevalan?
   - ¿Se miden y publican falsos-aprobados y desacuerdo humano (las métricas que
-    el informe exige) como parte del propio CodeLoom?
+    el informe exige) como parte del propio Loomcoding?

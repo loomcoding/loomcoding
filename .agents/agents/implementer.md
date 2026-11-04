@@ -25,7 +25,7 @@ Repo Windows (PowerShell). Usa `view`, `ls`, `glob`, `grep`; no des por disponib
 
 ## Reglas duras
 
-- **`codeloom-core` no puede depender de `ratatui` ni `crossterm`.**
+- **`loomcoding-core` no puede depender de `ratatui` ni `crossterm`.**
 - **Nada sin cota llega al modelo**: outputs de herramienta, secciones de prompt y bucles.
 - Escritura = `ExecutionMode::Exclusive`; lectura = `Parallel`.
 - `thiserror` en librerías, `anyhow` en el binario.
@@ -54,7 +54,7 @@ cargo fmt --check
 cargo clippy -- -D warnings
 ```
 
-**Aviso de entorno**: procesos `codeloom` en ejecución bloquean la reescritura del `.exe`. Si
+**Aviso de entorno**: procesos `loomcoding` en ejecución bloquean la reescritura del `.exe`. Si
 `cargo build` falla con "Acceso denegado" / "os error 5" al enlazar, usa `cargo check --workspace`
 y los tests del crate afectado, y decláralo.
 

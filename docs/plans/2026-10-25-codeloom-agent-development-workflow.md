@@ -20,7 +20,7 @@ workflows ni cambiar el protocolo A2A.
 - La decisión de aprobación se liga a los bytes presentados de spec y plan.
   Cualquier edición invalida la aprobación antes de iniciar al implementador.
 - El perfil/identidad de cada rol proviene del registro existente. No fijar
-  nombres, proveedores ni skills de terceros en `codeloom-core`.
+  nombres, proveedores ni skills de terceros en `loomcoding-core`.
 - El revisor debe carecer de herramientas que puedan modificar el árbol. Una
   instrucción de prompt que diga «no edites» no satisface este límite.
 - Publicar el cambio de estado solo después de persistirlo. Una caída o
@@ -46,19 +46,19 @@ workflows ni cambiar el protocolo A2A.
 
 Leer y anotar contratos concretos antes de diseñar tipos:
 
-- Delegación: `crates/codeloom-core/src/tools/subagent.rs` y
-  `crates/codeloom-core/src/subagent.rs` (`SubagentLauncher`, seguimiento,
+- Delegación: `crates/loomcoding-core/src/tools/subagent.rs` y
+  `crates/loomcoding-core/src/subagent.rs` (`SubagentLauncher`, seguimiento,
   cancelación y entrega del resultado).
-- Perfiles y permisos: `crates/codeloom-core/src/registry/profile.rs`,
-  `crates/codeloom-core/src/registry/mod.rs` y construcción del `ToolRegistry`
-  en `crates/codeloom-cli/src/main.rs`/`server.rs`.
-- Preguntas: `crates/codeloom-core/src/tools/ask_user.rs`, el responder del
-  runtime y el diálogo en `crates/codeloom-tui/src/app.rs`.
-- Durabilidad: `SessionStore` en `crates/codeloom-core/src/session/mod.rs` y
-  migraciones/adaptador en `crates/codeloom-core/src/session/sqlite.rs`.
-- Eventos y cliente: `crates/codeloom-core/src/event/mod.rs`,
-  `crates/codeloom-cli/src/server.rs`, el puente de `main.rs` y
-  `crates/codeloom-tui/src/run.rs`, `app.rs` y `render.rs`.
+- Perfiles y permisos: `crates/loomcoding-core/src/registry/profile.rs`,
+  `crates/loomcoding-core/src/registry/mod.rs` y construcción del `ToolRegistry`
+  en `crates/loomcoding-cli/src/main.rs`/`server.rs`.
+- Preguntas: `crates/loomcoding-core/src/tools/ask_user.rs`, el responder del
+  runtime y el diálogo en `crates/loomcoding-tui/src/app.rs`.
+- Durabilidad: `SessionStore` en `crates/loomcoding-core/src/session/mod.rs` y
+  migraciones/adaptador en `crates/loomcoding-core/src/session/sqlite.rs`.
+- Eventos y cliente: `crates/loomcoding-core/src/event/mod.rs`,
+  `crates/loomcoding-cli/src/server.rs`, el puente de `main.rs` y
+  `crates/loomcoding-tui/src/run.rs`, `app.rs` y `render.rs`.
 
 Decisiones aprobadas junto con la spec:
 
@@ -93,7 +93,7 @@ Revalidar las huellas antes de cada fase que consume los artefactos aprobados.
 - El cliente carga mensajes, uso y subagentes por páginas. Añadir una
   actualización de workflow al mismo flujo de carga y a `LiveEvent` permitirá
   renderizar el estado tras attach y reconexión.
-- `sha2` ya es dependencia directa de `codeloom-core`; no hace falta añadir
+- `sha2` ya es dependencia directa de `loomcoding-core`; no hace falta añadir
   dependencias para las huellas.
 
 **Salida:** contratos auditados; las brechas y puntos de integración quedan
@@ -121,7 +121,7 @@ reabrir SQLite.
 
 ### 3. Coordinación y puertas de aprobación
 
-1. Implementar el coordinador mínimo en `codeloom-core`, conectado al
+1. Implementar el coordinador mínimo en `loomcoding-core`, conectado al
    `SubagentLauncher` y a la respuesta del usuario existente. No añadir una
    segunda forma de lanzar hijos.
 2. Lanzar el planificador con la petición original; guardar y presentar spec y
@@ -213,12 +213,12 @@ Verificación ejecutada:
 | Comando | Resultado |
 |---|---|
 | `cargo check --workspace` | Correcto, 24 crates antes de los últimos ajustes de manejo de error y presentación. |
-| `cargo test -p codeloom-core --lib` | Correcto: 495 pasaron, 1 ignorada, antes de los últimos ajustes de manejo de error y presentación. |
+| `cargo test -p loomcoding-core --lib` | Correcto: 495 pasaron, 1 ignorada, antes de los últimos ajustes de manejo de error y presentación. |
 | `cargo fmt --check` | Correcto sobre el árbol final. |
 | `cargo clippy --workspace -- -D warnings` | Correcto, sin errores, antes de los últimos ajustes de manejo de error y presentación. |
-| `cargo build -p codeloom-cli --bin codeloom` | Correcto antes de los últimos ajustes de manejo de error y presentación. |
+| `cargo build -p loomcoding-cli --bin loomcoding` | Correcto antes de los últimos ajustes de manejo de error y presentación. |
 | `cargo build` / suite completa | No verificados: `loom.exe` estaba bloqueado por procesos externos; una ejecución aislada agotó el espacio disponible. No se detuvieron esos procesos. |
-| `cargo test --workspace --exclude codeloom-cli -j 1` | Interrumpido: quedó esperando el lock del target compartido mientras los procesos anteriores seguían activos. |
+| `cargo test --workspace --exclude loomcoding-cli -j 1` | Interrumpido: quedó esperando el lock del target compartido mientras los procesos anteriores seguían activos. |
 
 La compilación y tests de los últimos ajustes siguen pendientes cuando se libere
 el target compartido y haya espacio suficiente. No se afirma que se hayan
@@ -249,8 +249,8 @@ launcher simulado reconstruye el descriptor del hijo después de abrir de nuevo 
 simula la recuperación de un proceso externo real.
 
 Los checks globales pasaron: `cargo build` (aviso existente por `main.rs` compartido entre
-`loom` y `codeloom`), `cargo test` (1.712 pasaron, 13 ignorados), `cargo fmt --check` y
-`cargo clippy -- -D warnings`. Target: `C:\Users\negrero\AppData\Local\Temp\codeloom-final-target`.
+`loom` y `loomcoding`), `cargo test` (1.712 pasaron, 13 ignorados), `cargo fmt --check` y
+`cargo clippy -- -D warnings`. Target: `C:\Users\negrero\AppData\Local\Temp\loomcoding-final-target`.
 
 ## Cierre de verificaciones 2026-10-28
 
@@ -265,7 +265,7 @@ decisión, agente y ronda caben en una sola línea. En el árbol actual pasaron
 `cargo fmt --all --check`, `cargo build`, `cargo test` (1.728 pasaron, 14 ignorados),
 `cargo clippy -- -D warnings` y `git diff --check`. Build y Clippy solo muestran el warning
 existente de `main.rs` compartido por ambos binarios. Target aislado:
-`C:\Users\negrero\AppData\Local\Temp\codeloom-final-target`. Queda pendiente observar el
+`C:\Users\negrero\AppData\Local\Temp\loomcoding-final-target`. Queda pendiente observar el
 workflow en una terminal interactiva real; la prueba de render no sustituye esa revisión.
 
 ## Correcciones tras prueba interactiva 2026-10-29
@@ -282,7 +282,7 @@ legibles, la instancia pasa a `failed`; el implementador no se inicia. Las regre
 la recuperación por paths omitidos, fallo por archivos ausentes y el bloqueo de `bash`,
 delegación y polling del padre mientras la instancia está activa.
 
-Verificación en `C:\Users\negrero\AppData\Local\Temp\codeloom-workflow-fix-target`:
+Verificación en `C:\Users\negrero\AppData\Local\Temp\loomcoding-workflow-fix-target`:
 `cargo fmt --all --check`, `cargo build`, `cargo test` (1.730 pasaron, 14 ignorados),
 `cargo clippy -- -D warnings` y `git diff --check` correctos. Se conservan únicamente los
 warnings existentes: `main.rs` compartido por los dos binarios en build y warnings de Cargo en

@@ -73,7 +73,7 @@ Indicador de contexto en la línea de estado (`formatOMContextIndicator`):
 **Aviso de honestidad:** su barra mide el relleno de **su memoria** frente a **sus umbrales**, no
 la ventana del modelo. Copiar el aspecto sin cambiar lo que mide es válido, pero hay que rotularlo.
 
-## Qué podría tomar CodeLoom: ideas, no decisiones
+## Qué podría tomar Loomcoding: ideas, no decisiones
 
 Nada de esto está decidido. Se anota con su encaje en lo que ya existe
 (`2026-10-23-codeloom-context-summary-design.md`):
@@ -89,7 +89,7 @@ Nada de esto está decidido. Se anota con su encaje en lo que ya existe
    detiene mientras el modelo resume. El búfer asíncrono de mastra lo evita. Es la mejora de más
    valor de cara a la fluidez, pero exige concurrencia con el bucle y un estado de «resumen
    preparado»: una spec propia.
-3. **Herramienta `recall` sobre el registro íntegro.** CodeLoom ya conserva todos los mensajes
+3. **Herramienta `recall` sobre el registro íntegro.** Loomcoding ya conserva todos los mensajes
    (el registro no se toca al compactar): leerlos por rango o buscar en ellos sin pasar por el
    resumen es factible y cuadra con «la conversación es el diario».
 4. **Reescritura del registro de memoria** (reflexión) para que el resumen no crezca con

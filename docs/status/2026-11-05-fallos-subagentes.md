@@ -1,6 +1,6 @@
 # Fallos observados en subagentes (bitácora de campo)
 
-Registro de fallos reales vistos al usar CodeLoom para desarrollar CodeLoom. No es un
+Registro de fallos reales vistos al usar Loomcoding para desarrollar Loomcoding. No es un
 spec ni un plan: es materia prima para corregir en lote. Cada entrada lleva la
 evidencia (fichero y línea) y una propuesta, no una decisión.
 
@@ -32,7 +32,7 @@ cuyo modelo de orquestación es precisamente la delegación.
 `tool error: subagent produced no final response after 45 steps` y **no ha escrito
 nada en disco**, aunque su reporte parcial dé a entender que sí.
 
-**Causa raíz.** `crates/codeloom-core/src/agent/stop.rs:33` corta el turno cuando dos
+**Causa raíz.** `crates/loomcoding-core/src/agent/stop.rs:33` corta el turno cuando dos
 mensajes del asistente consecutivos tienen la **misma firma de tool calls**:
 
 ```rust
@@ -133,7 +133,7 @@ de aceptar el reporte. Ver F-04.
 de delegación.
 
 **Síntoma.** El subagente de la Fase 1 reportó "Creo el módulo:" y el fichero
-`crates/codeloom-core/src/subagent_phase.rs` **no existía**. `git status` solo mostraba
+`crates/loomcoding-core/src/subagent_phase.rs` **no existía**. `git status` solo mostraba
 los cambios del padre.
 
 **Causa.** Nada verifica el resultado. El subagente termina, su texto se propaga, y el
@@ -152,7 +152,7 @@ coincide, marcar la tarea como fallida en vez de devolver el texto como éxito.
 **Síntoma.** El orchestrator recibió un encargo de dos planes completos (13 fases) y
 murió a los 45 pasos sin producir nada.
 
-**Causa.** `max_steps` es un número fijo por configuración (`codeloom.toml:3`, 100).
+**Causa.** `max_steps` es un número fijo por configuración (`loomcoding.toml:3`, 100).
 No hay noción de "esta tarea necesita más" ni de "vas por la mitad, replanifica".
 
 **Propuesta.** O el encargo se trocea antes de delegar (lo que hice después, con
@@ -229,10 +229,10 @@ segundo dejó cinco ficheros temporales de índice (`.tmp-symbols*.ps1`) y nada 
 **Severidad:** alta. Es la causa inmediata de los fallos de esta tanda.
 
 **Síntoma.** Los subagentes mueren sin escribir nada, y sus reportes son monólogos de
-planificación. En `~/.codeloom/tool-output/` hay ficheros de **exactamente 20.030 bytes**,
+planificación. En `~/.loomcoding/tool-output/` hay ficheros de **exactamente 20.030 bytes**,
 todos volcados JSON de `lsp symbols`.
 
-**Causa.** `MAX_TOOL_OUTPUT_BYTES = 20_000` (`crates/codeloom-core/src/tools/mod.rs:62`).
+**Causa.** `MAX_TOOL_OUTPUT_BYTES = 20_000` (`crates/loomcoding-core/src/tools/mod.rs:62`).
 `lsp symbols` devuelve el índice completo de símbolos de un fichero como JSON con rangos,
 URIs y tags. Para `config/mod.rs` son >20 KB, así que **siempre** se trunca al máximo: el
 subagente recibe 20 KB de JSON inútil (rangos de línea, `"deprecated":false`, `"tags":[]`)
@@ -260,10 +260,10 @@ fallaron.
 
 **Severidad:** alta. Hace la herramienta inusable en sesiones largas.
 
-**Medición.** `codeloom.exe` con 25 hilos: **14,76 GB working set, 20,77 GB privada**. No es
+**Medición.** `loomcoding.exe` con 25 hilos: **14,76 GB working set, 20,77 GB privada**. No es
 una explosión de hilos (25 es normal): es acumulación de memoria.
 
-**Causa 1 — `messages()` sin `LIMIT`.** `crates/codeloom-core/src/session/sqlite.rs:327`:
+**Causa 1 — `messages()` sin `LIMIT`.** `crates/loomcoding-core/src/session/sqlite.rs:327`:
 
 ```rust
 sqlx::query("SELECT payload FROM messages WHERE session_id = ? ORDER BY seq ASC")
@@ -275,7 +275,7 @@ compactación reduce lo que se *envía* al modelo, pero no lo que se *lee* de di
 conserva todos los mensajes a propósito. En una sesión de horas con subagentes, eso son
 cientos de MB de JSON, y se relee en cada paso del bucle.
 
-**Causa 2 — el transcript no tiene cota de entradas.** `crates/batten/src/state/transcript.rs:296`:
+**Causa 2 — el transcript no tiene cota de entradas.** `crates/loomcoding-cloth/src/state/transcript.rs:296`:
 
 ```rust
 pub struct Transcript {
@@ -315,7 +315,7 @@ Primero acotar la memoria; después, si hace falta, paralelizar la ejecución de
 **Síntoma.** El subagente murió a los 6 pasos sin escribir nada. Su tool-output de las
 11:22 pesa **23.099 bytes** y contiene el resultado de un `grep` con el patrón `1000`.
 
-**Causa.** `crates/codeloom-core/src/tools/grep.rs`:
+**Causa.** `crates/loomcoding-core/src/tools/grep.rs`:
 
 ```rust
 const MAX_GREP_MATCHES: usize = 200;      // línea 9

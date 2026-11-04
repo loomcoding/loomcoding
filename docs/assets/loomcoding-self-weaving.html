@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Loomcoding / Self-Weaving v5 · 0,8 s · smooth loop</title>
+</head>
+<body style="margin:0;background:#020803">
+<div style="background:#020803;border-radius:8px;padding:8px;overflow:hidden">
+      <canvas id="loomcoding-v5" width="760" height="590" style="display:block;width:100%;height:auto"></canvas>
+    </div>
+    <script>
+      (function(){
+        const canvas=document.getElementById('loomcoding-v5');
+        if(!canvas)return;
+        const ctx=canvas.getContext('2d');
+        if(!ctx)return;
+        const chars=Array.from('ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ0123456789');
+        const textile=Array.from('ｱｲｳｴｵｶｷｸｹｺ0123456789[]{}<>');
+        const font={
+          C:['0111','1000','1000','1000','0111'],
+          O:['0110','1001','1001','1001','0110'],
+          D:['1110','1001','1001','1001','1110'],
+          E:['1111','1000','1110','1000','1111'],
+          L:['1000','1000','1000','1000','1111'],
+          M:['10001','11011','10101','10001','10001']
+        };
+        const word='LOOMCODING';
+        const bits=Array.from({length:5},()=>[]);
+        for(const ch of word){
+          const g=font[ch];
+          for(let r=0;r<5;r++)bits[r].push(...g[r].split('').map(Number),0);
+        }
+        const logoWidth=bits[0].length;
+        const logoChars=Array.from('ｱｲｳ01[]{}');
+        const n=30, rainRows=24, cols=52, maxRows=15;
+        const streams=Array.from({length:n},(_,i)=>{
+          const rand=Math.random();
+          let accent='green';
+          if(rand<0.10) accent='gold';
+          else if(rand<0.22) accent='blue';
+          return {
+            head:Math.random()*rainRows,
+            speed:0.10+Math.random()*0.13,
+            tail:5+Math.floor(Math.random()*7),
+            seed:i*17,
+            accent
+          };
+        });
+        const logoStart=2;
+        const logoHeight=5;
+        const gapAfterLogo=5;
+        const cycleRows=logoStart+logoHeight+gapAfterLogo;
+        function getThreadColor(accent,d,tail){
+          const active=d>=0&&d<tail;
+          if(accent==='blue'){
+            if(active) return d<1?'#eef8ff':d<tail*.45?'#58c8ff':'#1c79b8';
+            return '#0a2840';
+          }
+          if(accent==='gold'){
+            if(active) return d<1?'#fff7d8':d<tail*.45?'#ffd15a':'#b88015';
+            return '#3a2908';
+          }
+          if(active) return d<1?'#eaffee':d<tail*.45?'#00ff41':'#0b9239';
+          return '#07351b';
+        }
+        let lastCycle=-1,created=0;
+        const startTime=performance.now();
+        const passMs=800; // 0.8s de ida, 0.8s de vuelta; no saltos en extremos
+        const captureMode=new URLSearchParams(location.search).has('capture');
+        const fabric=[];
+        function hash(a,b,c){
+          let v=Math.sin(a*127.1+b*311.7+c*74.7)*43758.5453;
+          return v-Math.floor(v);
+        }
+        function addRow(){
+          const r=created++;
+          fabric.unshift({
+            serial:r,
+            values:Array.from({length:cols},(_,c)=>textile[Math.floor(hash(c,r,3)*textile.length)])
+          });
+          if(fabric.length>maxRows)fabric.pop();
+        }
+        function draw(elapsed){
+          if(!canvas.isConnected)return;
+          const frame=(captureMode?(elapsed%1600):elapsed)/55; // velocidad visual independiente de FPS
+          ctx.fillStyle='#020803';ctx.fillRect(0,0,760,590);
+          // Triangular wave: [0..1..0] every 1600 ms, with continuous reversal.
+          const twoPassPhase=(elapsed%1600)/passMs;
+          const shuttleT=1-Math.abs(1-twoPassPhase);
+          const cycle=Math.floor(elapsed/passMs);
+          const progress=(elapsed%passMs)/passMs;
+          if(!captureMode && cycle!==lastCycle){
+            if(lastCycle!==-1){
+              for(let k=0;k<Math.min(maxRows,cycle-lastCycle);k++)addRow();
+            }
+            lastCycle=cycle;
+          }
+          ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='15px monospace';
+          for(let i=0;i<n;i++){
+            const s=streams[i];
+            // Los símbolos se desplazan según tiempo real, no según la tasa de refresco.
+            const period=rainRows+2*s.tail;
+            const head=captureMode
+              ? ((s.head+s.tail+(elapsed%1600)*period/1600)%period)-s.tail
+              : ((s.head+s.speed*frame+s.tail)%period+period)%period-s.tail;
+            const from=28+704*i/(n-1),to=270+220*i/(n-1);
+            for(let r=0;r<rainRows;r++){
+              const u=r/(rainRows-1),q=Math.max(0,Math.min(1,(u-.12)/.88));
+              const k=q*q*(3-2*q),x=from+(to-from)*k,y=18+u*320,d=head-r;
+              ctx.fillStyle=getThreadColor(s.accent,d,s.tail);
+              ctx.fillText(chars[(s.seed+r*7+Math.floor(frame/8))%chars.length],x,y);
+            }
+          }
+          const hx=215,hy=340,hw=330;
+          ctx.fillStyle='#0b2414';ctx.fillRect(hx,hy,hw,30);
+          ctx.strokeStyle='#20e45f';ctx.lineWidth=2;ctx.strokeRect(hx,hy,hw,30);
+          ctx.fillStyle='#124b29';ctx.fillRect(hx-10,330,12,70);ctx.fillRect(hx+hw-2,330,12,70);
+          ctx.strokeStyle='#6cff95';ctx.lineWidth=1;ctx.strokeRect(hx-10,330,12,70);ctx.strokeRect(hx+hw-2,330,12,70);
+          for(let i=0;i<n;i++){
+            const x=270+220*i/(n-1)+Math.sin(frame*.06)*2;
+            ctx.beginPath();ctx.moveTo(x,348);ctx.lineTo(x,368);ctx.stroke();
+          }
+          const sx=hx+15+shuttleT*(hw-30);
+          const glow=ctx.createRadialGradient(sx,355,0,sx,355,24);
+          glow.addColorStop(0,'rgba(220,255,225,.9)');
+          glow.addColorStop(.2,'rgba(0,255,65,.48)');
+          glow.addColorStop(1,'rgba(0,255,65,0)');
+          ctx.fillStyle=glow;ctx.fillRect(sx-25,330,50,50);
+          ctx.beginPath();ctx.arc(sx,355,4,0,Math.PI*2);ctx.fillStyle='#f0fff3';ctx.fill();
+          ctx.font='11px monospace';ctx.fillStyle='#158a3c';ctx.fillText('CODE GENERATION',380,405);
+          ctx.font='12px monospace';
+          ctx.save();
+          ctx.beginPath();ctx.rect(177,414,406,153);ctx.clip();
+          for(let r=0;r<fabric.length;r++){
+            const row=fabric[r];
+            const u=r/(maxRows-1),left=213-u*24,width=334+u*48;
+            for(let c=0;c<cols;c++){
+              const x=left+c*width/(cols-1);
+              // Al completarse una pasada, la fila previa ya está en la posición siguiente.
+              const y=420+(r+(captureMode?0:progress))*10.2+Math.sin(c*.38+frame*.025)*.7;
+              const repeatedRow=row.serial%cycleRows;
+              const logoRow=repeatedRow-logoStart;
+              const displayLogoRow=logoHeight-1-logoRow;
+              const start=Math.floor((cols-logoWidth)/2);
+              const lc=c-start;
+              const inside=logoRow>=0&&logoRow<logoHeight&&lc>=0&&lc<logoWidth;
+              const lit=inside&&bits[displayLogoRow][lc]===1;
+              const shimmer=.5+.5*Math.sin(frame*.065+c*.22+r*.3);
+              if(lit){
+                ctx.fillStyle=shimmer>.55?'#d8ffe1':'#42ff75';
+                ctx.shadowColor='#00ff41';ctx.shadowBlur=7;
+                ctx.fillText(logoChars[(c+displayLogoRow+row.serial)%logoChars.length],x,y);
+                ctx.shadowBlur=0;
+              }else{
+                const v=hash(c,row.serial,7);
+                const accentNoise=hash(c,row.serial,11);
+                if(accentNoise>0.965){
+                  ctx.fillStyle=v>.55?'#69cfff':'#2a7fba';
+                }else if(accentNoise<0.035){
+                  ctx.fillStyle=v>.55?'#ffd86a':'#b88418';
+                }else{
+                  ctx.fillStyle=v>.83?'#119d42':v>.4?'#086a2d':'#07391d';
+                }
+                ctx.fillText(row.values[c],x,y);
+              }
+            }
+          }
+          ctx.restore();
+          ctx.shadowBlur=0;
+          ctx.font='12px monospace';ctx.fillStyle='#43ed75';
+          ctx.fillText('WEAVING SIGNALS FROM CODE',380,579);
+        }
+        addRow();
+        if(captureMode){
+          // Para captura determinista: tejido terminado, avance pausado.
+          for(let i=0;i<maxRows-1;i++)addRow();
+          window.__renderAt=(ms)=>draw(ms);
+          draw(0);
+        }else{
+          let rafId=0;
+          function tick(now){
+            if(!canvas.isConnected)return;
+            draw(now-startTime);
+            rafId=requestAnimationFrame(tick);
+          }
+          rafId=requestAnimationFrame(tick);
+        }
+      })();
+    </script>
+</body>
+</html>

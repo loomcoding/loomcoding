@@ -1,13 +1,13 @@
 # Inventario de componentes visuales de referencia
 
 Registro de qué superficies visibles de **Martty**, **Mindfork**, **Pawan** y
-**Crush** se han reimplementado en Batten y cuáles siguen pendientes. El alcance es la UI
+**Crush** se han reimplementado en Cloth y cuáles siguen pendientes. El alcance es la UI
 interactiva del terminal revisada en los snapshots locales del
 `2026-10-18`; no pretende inventariar cada pantalla funcional de las apps
 completas.
 
 Las implementaciones son widgets Ratatui propios inspirados en las referencias;
-no se importa su código fuente. **Importado** significa que Batten tiene widget
+no se importa su código fuente. **Importado** significa que Cloth tiene widget
 y demo en el showcase. **Parcial** significa que existe una demo, pero faltan
 partes de la superficie o hay una diferencia de render conocida. **Pendiente**
 significa que la superficie se identificó en la fuente y aún no tiene demo
@@ -19,7 +19,7 @@ misma resolución.
 
 Referencia fijada: `openma-ai/Martty`, snapshot `bf66b4a3dfbcebbfe1d91e76c5af39d63f921337` (MIT).
 
-| Componente de referencia | Fuente upstream | Batten / demo | Importación | Comparación visual / notas |
+| Componente de referencia | Fuente upstream | Cloth / demo | Importación | Comparación visual / notas |
 |---|---|---|---|---|
 | Composer y estado de entrada | `src/input/composer.rs`, `src/input/editor.rs` | `widgets/composer::render_martty` · `Martty · composer` | Importado | Captura comparativa pendiente |
 | Model picker | `src/ui.rs`, `src/app.rs` | `widgets/model_picker::render_martty` · `Martty · model picker` | Importado | Captura comparativa pendiente |
@@ -53,7 +53,7 @@ Referencia fijada: `openma-ai/Martty`, snapshot `bf66b4a3dfbcebbfe1d91e76c5af39d
 
 Referencia fijada: `vshylov/mindfork-rs`, snapshot `5f18fceb0cdcfb4052583d26902b7e60c0fce1e4` (MIT).
 
-| Componente de referencia | Fuente upstream | Batten / demo | Importación | Comparación visual / notas |
+| Componente de referencia | Fuente upstream | Cloth / demo | Importación | Comparación visual / notas |
 |---|---|---|---|---|
 | Chat: composición base | `src/screens/chat/render.rs`, `src/widgets/message_feed.rs` | `widgets/*::render_mindfork` · `Mindfork · chat` | Parcial | Recreación desde screenshot; falta validar el layout completo en terminal |
 | Composer | `src/screens/chat/input.rs` | `widgets/composer::render_mindfork` · `Mindfork · composer` | Importado | Captura comparativa pendiente |
@@ -88,7 +88,7 @@ Referencia fijada: `vshylov/mindfork-rs`, snapshot `5f18fceb0cdcfb4052583d26902b
 
 Referencia fijada: `dirmacs/pawan`, snapshot `e15a5d22f1d06b1a1643c3d9757816d0af0ea08b` (MIT).
 
-| Componente de referencia | Fuente upstream | Batten / demo | Importación | Comparación visual / notas |
+| Componente de referencia | Fuente upstream | Cloth / demo | Importación | Comparación visual / notas |
 |---|---|---|---|---|
 | Welcome | `crates/pawan-cli/src/tui/render/` y snapshot `render_welcome_snapshot.snap` | `widgets/welcome::render_pawan` · `Pawan · welcome` | Importado | Recreación del snapshot 80×24; falta captura de terminal |
 | Model picker | `crates/pawan-cli/src/tui/render/overlays.rs` y snapshot de model selector | `widgets/model_picker::render_pawan` · `Pawan · model picker` | Importado | Snapshot de referencia 80×24; captura comparativa pendiente |
@@ -115,7 +115,7 @@ Referencia fijada: `dirmacs/pawan`, snapshot `e15a5d22f1d06b1a1643c3d9757816d0af
 Referencia fijada: checkout local `charmbracelet/crush`, snapshot
 `852f410573e199fa0235cd8a8f32d6b0840373d3`. `LICENSE.md` declara Functional
 Source License 1.1 con licencia MIT futura al segundo aniversario. No se ha
-copiado código ni assets de Crush en Batten; las demos reproducen estructura y
+copiado código ni assets de Crush en Cloth; las demos reproducen estructura y
 datos de ejemplo. Su licencia es más restrictiva que MIT para redistribuir
 derivados antes de la fecha de conversión, así que cualquier copia futura de
 código o assets requiere revisar sus términos.
@@ -124,11 +124,11 @@ El barrido de superficies, overlays, estados de transcript, familias de tools
 y átomos está en [`crush-component-inventory.md`](crush-component-inventory.md).
 Ese archivo es la lista fuente completa de trabajo para las siguientes
 actualizaciones. Su sección “Correspondencia demo por demo con el código de
-Crush” enlaza cada entrada del índice del showcase con el módulo Batten y el
+Crush” enlaza cada entrada del índice del showcase con el módulo Cloth y el
 renderer/tipo/método de Crush que representa. La tabla breve de abajo muestra
 las familias principales.
 
-| Componente de referencia | Fuente | Batten / demo | Importación | Comparación visual / notas |
+| Componente de referencia | Fuente | Cloth / demo | Importación | Comparación visual / notas |
 |---|---|---|---|---|
 | Sidebar de contexto integrado | `internal/ui/model/sidebar.go` (`updateSidebarScrollState`, `drawSidebar`) | `Context sidebar · Crush`; integrado con feed y composer en `Crush · sidebar + chat` | Parcial | Ahora combina logo compacto real, título, ruta/rama, modelo/contexto, archivos modificados, LSP, MCP y Skills junto al transcript/composer; faltan scroll/foco y datos reales. Captura comparativa pendiente |
 | Chat y transcript | `internal/ui/model/chat.go`, `internal/ui/chat/` | `Crush · sidebar + chat`, `Transcript · Crush` | Parcial | Sidebar y composer quedan en la misma composición; feed estático. Faltan viewport, selección, auto-follow y streaming |
@@ -163,7 +163,7 @@ Referencia: [`newjordan/dotmax`](https://github.com/newjordan/dotmax), crate
 `dotmax 0.1.11` (MIT OR Apache-2.0), solo como dependencia de desarrollo para
 las demos. Se usa `BrailleGrid` y su API pública; no se copian fuentes/assets.
 
-| Familia de Dotmax | Código de referencia | Showcase Batten | Estado / límite |
+| Familia de Dotmax | Código de referencia | Showcase Cloth | Estado / límite |
 |---|---|---|---|
 | Catálogo de progress/loading | `progress::{all_styles,styles_for_theme,ProgressStyle}`; `progress/styles/` | `Progress catalog · dotmax · 60 temas` — navegar tema con ←/→ y estilo con ↑/↓ | Navega los 692 estilos registrados y sus 60 temas; salida de cada estilo adaptada a las celdas Ratatui |
 | Spinner | `progress/styles/spinner.rs` | Misma demo; comienza en el tema `spinner` | 14 estilos de spinner. El resto del catálogo incluye barras, wipes, bordes y medidores, además de visualizaciones animadas |
@@ -172,7 +172,7 @@ las demos. Se usa `BrailleGrid` y su API pública; no se copian fuentes/assets.
 | Paletas y esquemas RGB | `color/schemes.rs`, `color/apply.rs`, `ColorScheme` | `Braille graphics · dotmax · visual lab` → `color schemes` | Siete gradientes built-in; adaptación a spans RGB Ratatui |
 | Animación y timing | `animation/{frame_buffer,differential,loop_helper,prerender,timing}.rs` | `Progress catalog` y `visual lab` usan el reloj del showcase | Se ven estilos temporales; el showcase deja a Ratatui gestionar el diff de terminal y no inicia un segundo `TerminalRenderer` |
 | Captura/exportación de frames | `frame_export.rs` (`capture_frame`, `write_frame_pack`) | Solo enumerado en `capability map` | API para paquetes JSON; no hay flujo de exportación interactivo |
-| Imágenes y SVG | `image/`, `media/`; Cargo features `image`, `svg` | Solo enumerado en `capability map` | No habilitado en la dependencia Batten; image incluye formatos/raster y animaciones GIF/APNG, SVG añade rasterizado vectorial |
+| Imágenes y SVG | `image/`, `media/`; Cargo features `image`, `svg` | Solo enumerado en `capability map` | No habilitado en la dependencia Cloth; image incluye formatos/raster y animaciones GIF/APNG, SVG añade rasterizado vectorial |
 | Vídeo y webcam | `media/`; Cargo feature `video` y renderer de terminal | Solo enumerado en `capability map` | Requiere FFmpeg; webcam requiere además cámara. No se inicia desde la TUI Ratatui |
 | Renderer / detección de terminal | `render.rs`, `utils/terminal_caps.rs`, `quick.rs` | Solo enumerado en `capability map` | Dotmax puede tomar control del terminal; aquí se reutiliza la rejilla y Ratatui conserva el ciclo de vida de la TUI |
 | Raytracer y ajedrez | `raytracer/`, `chess/`; features Cargo `raytracer`, `chess` | Solo enumerado en `capability map` | Módulos opcionales; no son familias de componentes para el chat |
@@ -202,15 +202,15 @@ showcase es copiar la estructura visual y sus estados; no traer su runtime.
 ## Átomos visuales: cobertura cruzada
 
 Esta capa registra piezas que aparecen incrustadas en componentes mayores. Una
-primitiva genérica de Batten cubre comportamiento reutilizable, pero solo se
+primitiva genérica de Cloth cubre comportamiento reutilizable, pero solo se
 marca como reproducción de una referencia cuando tiene su estilo y estados
 propios en una demo.
 
-| Átomo | Referencias y fuente | Cobertura en Batten | Siguiente paso |
+| Átomo | Referencias y fuente | Cobertura en Cloth | Siguiente paso |
 |---|---|---|---|
 | Chip / badge | Mindfork `status_bar.rs` (`chip`, `chat_chip`, `secondary_chip`); Pawan `status_bar.rs` (mode/GOAL/LOOP) y `render/messages.rs` (roles); Martty `harness_badge.rs` | `widgets/chip` es genérico; badges aparecen dentro de demos Mindfork/Pawan y el selector Martty | Hacer demos de variantes por app y estados, incluyendo anchura corta |
 | Keycap y ayuda inline | Mindfork `status_bar.rs` (`hotkey_list`); Martty `ui.rs` (footer/overlays); Pawan `render/messages.rs` | `widgets/key_help` existe y tiene demo genérica; `Pawan · help` muestra diálogo, no átomo inline | Añadir variantes con keycaps reales y prioridad/recorte de cada referencia |
-| Indicador de actividad/resultado | Mindfork `status_bar.rs` (`status_glyph`, `state_chips`); Pawan `tool_display.rs`; Martty `transcript.rs`; dotmax `progress::styles::spinner` | `Progress catalog · dotmax · 60 temas` contiene también los 14 estilos `spinner`; Batten conserva sus variantes de una celda | Los spinners Braille de varias celdas no sustituyen el glifo compacto de estado; falta decidir cuáles encajan en tools/chat |
+| Indicador de actividad/resultado | Mindfork `status_bar.rs` (`status_glyph`, `state_chips`); Pawan `tool_display.rs`; Martty `transcript.rs`; dotmax `progress::styles::spinner` | `Progress catalog · dotmax · 60 temas` contiene también los 14 estilos `spinner`; Cloth conserva sus variantes de una celda | Los spinners Braille de varias celdas no sustituyen el glifo compacto de estado; falta decidir cuáles encajan en tools/chat |
 | Barra de contexto / token counter | Pawan `status_bar.rs` (`context_bar`, `format_tokens`); Mindfork `status_bar.rs` (`token_counter_span`) | Visible dentro de `Pawan · status bar` y `Mindfork · status bar` | Falta demo compacta para comparar 0/50/100%, estimaciones y recorte; hoy la tabla solo menciona la barra de progreso Pawan |
 | Fila de cola / task pill | Pawan `queue_panel.rs` (`QueuePanel`, `format_piece`) | `Pawan · task queue` | Importada | Muestra pending/running/done/failed y wrap; queda comparar captura y truncado al estrechar |
 | Tab strip con overflow | Mindfork `help_dialog.rs` (`help_tab_strip`, `tab_window`) | `Mindfork · help tabs`; `widgets/key_help` es otra superficie | Muestra seis tabs, selección por ←/→ y overflow `…` a 32 columnas; diálogo y contenido siguen pendientes |
@@ -220,19 +220,19 @@ propios en una demo.
 | Rail o borde semántico | Mindfork `message_feed.rs` (`rail_of`, `prepend_rail`); Martty `transcript.rs`; Pawan `render/messages.rs` | `widgets/rule` es genérico; rails se ven en demos de transcript/chat/tool | Comparar grosor, sangría, continuidad y color en líneas multilínea |
 | Barra de progreso compacta | Pawan `status_bar.rs` (`context_bar`) | `widgets/progress` genérico, sin equivalente Pawan aislado | Reproducir bloques usados por Pawan y su truncado |
 | Mención/token inline | Martty `file_ref.rs`; Mindfork `input_box.rs` (`render_tag`) | Hay `widgets/links`; no hay demo de token coloreado dentro de composer | Añadir muestras @file, tags y cursor alrededor del token |
-| Iconos/glyphs de marca | Batten `widgets/logo.rs`; Crush `internal/ui/logo/logo.go`; Martty `src/logo.rs`, `deepseek_logo.rs`, `harness_badge.rs`; Mindfork `src/widgets/logo.rs`; Pawan README SVG y título del TUI | `Logo · Batten`, `Logo · Crush · wide title art/sidebar/sidebar fallback`, `Logo · Martty · whale + wordmark`, `Logo · Mindfork · glyph, wordmark y lockup`; también `Welcome · Martty` | Batten: wordmark editable, degradado y fallback compacto. Crush: arte ancho con letra estirada, sidebar y fallback `SmallRender` (solo referencia UX; no apto para copiar/publicar sin revisión de licencia y marca). Martty: solo identidad Martty; falta el segundo logo responsivo DeepSeek Harness. Mindfork: glyph, wordmark y composición horizontal; falta comparar capturas. Pawan: el SVG solo aparece en README, su TUI usa el nombre en texto |
+| Iconos/glyphs de marca | Cloth `widgets/logo.rs`; Crush `internal/ui/logo/logo.go`; Martty `src/logo.rs`, `deepseek_logo.rs`, `harness_badge.rs`; Mindfork `src/widgets/logo.rs`; Pawan README SVG y título del TUI | `Logo · Cloth`, `Logo · Crush · wide title art/sidebar/sidebar fallback`, `Logo · Martty · whale + wordmark`, `Logo · Mindfork · glyph, wordmark y lockup`; también `Welcome · Martty` | Cloth: wordmark editable, degradado y fallback compacto. Crush: arte ancho con letra estirada, sidebar y fallback `SmallRender` (solo referencia UX; no apto para copiar/publicar sin revisión de licencia y marca). Martty: solo identidad Martty; falta el segundo logo responsivo DeepSeek Harness. Mindfork: glyph, wordmark y composición horizontal; falta comparar capturas. Pawan: el SVG solo aparece en README, su TUI usa el nombre en texto |
 | Divisor/espaciado | Mindfork `status_bar.rs`; Pawan `status_bar.rs`; Martty `ui.rs` | `widgets/rule` y layout Ratatui ya disponibles; sin demos con las separaciones exactas de cada app | Registrar secuencias, márgenes y fallback en terminal estrecho |
 
-### Primitivas base y exclusivas de Batten
+### Primitivas base y exclusivas de Cloth
 
-`widgets/button` no tenía demo. Ya aparece como `Batten · primitivas
+`widgets/button` no tenía demo. Ya aparece como `Cloth · primitivas
 exclusivas / Button`, con selección por ←/→ y tonos de permitir, preguntar y
 denegar. Las piezas genéricas con analogías aproximadas tienen familias propias
 en el índice (chip/badge, divider/rail, key help, progress/context bar, panel,
 activity spinner, code output, links/mention, profile/self-model y navigation
-rail). Mientras solo esté la demo Batten, el inventario indica qué variante de
+rail). Mientras solo esté la demo Cloth, el inventario indica qué variante de
 referencia falta. File changes, button, toast, effects y themes quedan bajo
-`Batten · primitivas exclusivas`, sin equivalente visual directo identificado
+`Cloth · primitivas exclusivas`, sin equivalente visual directo identificado
 en estas referencias.
 
 La navegación del showcase se agrupa ahora por familia funcional: Composer,
@@ -240,11 +240,11 @@ Chat, Transcript, Tool call, Thinking, Status bar, Welcome, Logo, Model picker,
 Permission, Search, Help, Conversation list, Settings, Harness picker,
 Attachment preview, Command menu, chip/badge, divider/rail, key help,
 progress/context bar, panel, activity spinner, code output, links/mention,
-profile/self-model, navigation rail, Context sidebar y `Batten · primitivas exclusivas`. En cada
-grupo, las variantes implementadas de Batten, Mindfork, Martty, Pawan y Crush aparecen
+profile/self-model, navigation rail, Context sidebar y `Cloth · primitivas exclusivas`. En cada
+grupo, las variantes implementadas de Cloth, Mindfork, Martty, Pawan y Crush aparecen
 consecutivas. Lo que aún no existe como demo se mantiene en las filas
 Pendiente/Parcial de este inventario.
-En las familias atómicas con analogía, la variante Batten queda visible aunque
+En las familias atómicas con analogía, la variante Cloth queda visible aunque
 la variante de la app aún esté pendiente; así el hueco se ve dentro de la misma
 familia y se puede añadir al lado cuando se implemente.
 
@@ -275,9 +275,9 @@ familia y se puede añadir al lado cuando se implemente.
 ## Cobertura y mantenimiento
 
 - El catálogo del showcase registra las demos en
-  `crates/batten/examples/showcase/demos/mod.rs`. Al añadir o retirar una fila,
+  `crates/loomcoding-cloth/examples/showcase/demos/mod.rs`. Al añadir o retirar una fila,
   actualizar también ese catálogo y los widgets correspondientes.
-- Los estados indican cobertura en Batten, no calidad de paridad. Para cerrar la
+- Los estados indican cobertura en Cloth, no calidad de paridad. Para cerrar la
   comparación: generar captura del upstream y del showcase a idéntico tamaño,
   revisar geometría, caracteres, color y recorte, y anotar aquí la diferencia
   concreta o el checkpoint de captura.

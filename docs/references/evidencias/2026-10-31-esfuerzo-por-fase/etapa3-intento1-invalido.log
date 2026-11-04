@@ -1,9 +1,9 @@
 # PARCIALMENTE VALIDO: los niveles ninguno y medium son validos (24 llamadas cada uno); el nivel high NO: casi todas sus llamadas
 # devolvieron respuesta vacia (0 tokens, 0 USD) porque el test ignoraba el error (probable HTTP 402 por crédito, no verificado). Cifras de high descartadas.
-# Etapa 3 — salida literal de: cargo test -p codeloom-core --test effort_by_phase_live stage3 -- --ignored --nocapture
+# Etapa 3 — salida literal de: cargo test -p loomcoding-core --test effort_by_phase_live stage3 -- --ignored --nocapture
 # (2026-10-31; 8 casos x 3 repeticiones x {ninguno, medium, high}; clave filtrada con sed)
-warning: E:\workspace\personal\loom\crates\codeloom-cli\Cargo.toml: file `E:\workspace\personal\loom\crates\codeloom-cli\src\main.rs` found to be present in multiple build targets:
-  * `bin` target `codeloom`
+warning: E:\workspace\personal\loom\crates\loomcoding-cli\Cargo.toml: file `E:\workspace\personal\loom\crates\loomcoding-cli\src\main.rs` found to be present in multiple build targets:
+  * `bin` target `loomcoding`
   * `bin` target `loom`
     Finished `test` profile [unoptimized] target(s) in 0.42s
      Running tests\effort_by_phase_live.rs (target\e2e\debug\deps\effort_by_phase_live-ace7ebaf515b432a.exe)

@@ -35,6 +35,6 @@ Spec: [`docs/specs/2026-10-29-codeloom-runtime-capabilities-dashboard.md`](../sp
 - [x] Renderizar widgets MCP, LSP y skills en el dashboard sin valores mock.
 - [x] Hacer visible el resumen aunque el rail esté oculto o la terminal sea estrecha.
 - [x] `cargo fmt --all --check`.
-- [x] `cargo clippy -p codeloom-cli -- -D warnings`.
-- [x] `cargo build -p codeloom-cli --bin loom` en `target/debug/loom.exe`.
+- [x] `cargo clippy -p loomcoding-cli -- -D warnings`.
+- [x] `cargo build -p loomcoding-cli --bin loom` en `target/debug/loom.exe`.
 - [ ] Prueba manual de la vista con MCP configurado/ausente, LSP y skills. Pendiente de abrir el binario recién compilado y revisar la cabecera/rail en el terminal real.

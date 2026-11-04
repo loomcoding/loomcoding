@@ -8,7 +8,7 @@
 > Crush instalado: `v0.98.2-0.20261017181040-852f410573e1+dirty`.
 >
 > Alcance del inventario: capacidades del producto que podrían informar el
-> diseño/evolución de CodeLoom; no es un compromiso de implementar todo.
+> diseño/evolución de Loomcoding; no es un compromiso de implementar todo.
 
 ## Catálogo documentado inicial
 
@@ -18,7 +18,7 @@
 | Modelos y proveedores | OAuth/API keys, modelos por modo, packs, cambiar modelo/modo, thinking level | Model picker, proveedores integrados/custom y cambio de modelo en sesión | Documentado; ejecución pendiente | UX de selección; Loom ya soporta proveedor/modelo por config |
 | Sesiones y mensajes | Threads persistentes por proyecto; crear, clonar, listar, renombrar, reanudar; cola de follow-up | Múltiples sesiones/contextos por proyecto | Documentado; código/runtime pendiente | Loom ya tiene SessionStore; revisar navegación y continuidad |
 | Composer y modos | `pi-tui` Editor envuelto por custom prompt; multilinea, wrap/scroll, `→ / @ !`, panel sombreado, tema por modo | `Bubbles textarea`, altura dinámica 3–15 + márgenes, prompt/placeholders, layout compacto | Código de prioridad inspeccionado; capturas multilínea/cursor pendientes | Prioridad inmediata: reproducir geometría y reglas en perfiles separados |
-| Transcript y respuesta | Markdown por partes y streaming; thinking ocultable; tools compactas/expandibles y tipadas | Lista virtual; thinking en modos; errores/refusal; tools tipadas con estado y expansión | Código de prioridad inspeccionado; estados runtime equivalentes pendientes | Batten ya tiene transcript/widgets; comparar densidad, separación, wrap y estados |
+| Transcript y respuesta | Markdown por partes y streaming; thinking ocultable; tools compactas/expandibles y tipadas | Lista virtual; thinking en modos; errores/refusal; tools tipadas con estado y expansión | Código de prioridad inspeccionado; estados runtime equivalentes pendientes | Cloth ya tiene transcript/widgets; comparar densidad, separación, wrap y estados |
 | Herramientas incorporadas | View, edit, search, shell, web search y herramientas listadas en docs | Bash, edit, view, grep, glob, LSP y otras según build | Catálogo por nombre/argumento pendiente | Comparar con herramientas actuales de Loom; adoptar solo vacíos necesarios |
 | Permisos y aprobación | Permisos por herramientas, YOLO, sandbox y aprobación | Ask/allow/deny, YOLO, herramientas denegadas/ocultas | Documentado; flujo en captura pendiente | Prioridad de seguridad; conservar barreras y flujo de permisos Loom |
 | Contexto y memoria | Observational Memory, skills, prompts/contexto de proyecto | Archivos globales/proyecto, AGENTS/CRUSH.md, `.crushignore` | Documentado; comportamiento pendiente | Contexto simple útil; memoria avanzada y skills son posteriores en Loom |

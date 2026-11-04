@@ -1,7 +1,7 @@
 # Medición real de la caché de prompts con Haiku 4.5 por OpenRouter
 
 > Fecha: 2026-10-31. Autorizada por el usuario con tope de 0,50 USD; gasto real ≈ 0,033 USD.
-> Prueba: `openrouter_haiku_live_cache_usage_measurement` en `crates/codeloom-core/src/provider/anthropic.rs`
+> Prueba: `openrouter_haiku_live_cache_usage_measurement` en `crates/loomcoding-core/src/provider/anthropic.rs`
 > (`#[ignore]`; necesita `OPENROUTER_API_KEY` en el entorno del proceso y gasta saldo).
 > Modelo: `anthropic/claude-haiku-4.5`, ruta compatible con Anthropic (`/api/v1/messages`).
 

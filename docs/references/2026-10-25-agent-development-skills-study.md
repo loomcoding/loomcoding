@@ -2,21 +2,21 @@
 
 **Fecha de corte:** 25 de octubre de 2026  
 **Ámbito:** Superpowers, Ponytail, Matt Pocock Skills, Addy Osmani Agent Skills y Agency Agents.  
-**Propósito:** decidir qué patrones conviene adoptar en CodeLoom y cuáles se solapan o deben mantenerse separados.
+**Propósito:** decidir qué patrones conviene adoptar en Loomcoding y cuáles se solapan o deben mantenerse separados.
 
 ## Resumen ejecutivo
 
 Las cinco iniciativas no son cinco sistemas equivalentes. Superpowers y Addy Osmani describen sobre todo procesos de trabajo; Ponytail impone una disciplina de alcance y simplicidad; Matt Pocock ofrece flujos de ingeniería pequeños y conectables; Agency Agents es principalmente una biblioteca de perfiles de especialistas. Mezclarlas como un paquete único repetiría entrevistas, especificación, planificación, TDD y revisión, aumentaría el contexto y podría producir instrucciones contradictorias.
 
-La combinación con mejor encaje para CodeLoom es una sola orquestación propia, con aprobaciones explícitas y artefactos persistentes: proceso inspirado en Superpowers, control de alcance de Ponytail, modelado de dominio y descomposición de Matt, evaluación de skills inspirada en Addy, y perfiles especializados de Agency como material de referencia sujeto a permisos del runtime. El padre debe conservar la autoridad para cambiar de fase, detenerse y devolver trabajo. La aprobación de un plan debe delimitar exactamente qué puede implementar el hijo.
+La combinación con mejor encaje para Loomcoding es una sola orquestación propia, con aprobaciones explícitas y artefactos persistentes: proceso inspirado en Superpowers, control de alcance de Ponytail, modelado de dominio y descomposición de Matt, evaluación de skills inspirada en Addy, y perfiles especializados de Agency como material de referencia sujeto a permisos del runtime. El padre debe conservar la autoridad para cambiar de fase, detenerse y devolver trabajo. La aprobación de un plan debe delimitar exactamente qué puede implementar el hijo.
 
 ## 1. Método y límites
 
 Se revisaron README, metadatos y estructura de los repositorios oficiales, además de las descripciones y el contenido de las skills de ingeniería relevantes. Se contabilizaron 15 skills de Superpowers, 6 de Ponytail, 38 de Matt Pocock, 25 de Addy Osmani y 305 perfiles de Agency Agents. Los catálogos pueden cambiar en upstream; las cifras son una fotografía de la fecha de corte.
 
-En Agency Agents se inventariaron los 305 perfiles y se leyeron en profundidad perfiles representativos de ingeniería, orquestación, revisión, pruebas, documentación, workflow y producto. No se leyó línea por línea el texto completo de los 305 perfiles: los perfiles de dominios ajenos a CodeLoom se clasificaron por su catálogo. Por tanto, la cobertura del catálogo es completa, pero la evaluación semántica individual de cada perfil no lo es.
+En Agency Agents se inventariaron los 305 perfiles y se leyeron en profundidad perfiles representativos de ingeniería, orquestación, revisión, pruebas, documentación, workflow y producto. No se leyó línea por línea el texto completo de los 305 perfiles: los perfiles de dominios ajenos a Loomcoding se clasificaron por su catálogo. Por tanto, la cobertura del catálogo es completa, pero la evaluación semántica individual de cada perfil no lo es.
 
-Este informe compara las instrucciones publicadas; no instala ni ejecuta las skills en CodeLoom, y no afirma que mejoren su rendimiento sin una evaluación local. Las cifras de estrellas son variables y no se usan como medida de calidad técnica.
+Este informe compara las instrucciones publicadas; no instala ni ejecuta las skills en Loomcoding, y no afirma que mejoren su rendimiento sin una evaluación local. Las cifras de estrellas son variables y no se usan como medida de calidad técnica.
 
 ## 2. Inventario
 
@@ -36,7 +36,7 @@ Catálogo: brainstorming, diagnosing-superpowers, dispatching-parallel-agents, e
 
 **Aporta:** un recorrido coherente desde entender el problema hasta integrar el cambio; especificación y plan antes de trabajo no trivial; delegación por tarea; revisión de implementación y de calidad; TDD estricto; depuración sistemática; verificación con evidencia reciente; uso de worktrees y cierre de rama.
 
-**Lo valioso para CodeLoom:** fases explícitas, artefactos revisables, delegación por unidades pequeñas, revisión en el ciclo y una puerta de verificación antes de declarar terminado. Su flujo de subagentes permite que, una vez autorizado un plan, el padre haga avanzar las tareas y recoja resultados sin pedir permiso para cada paso rutinario.
+**Lo valioso para Loomcoding:** fases explícitas, artefactos revisables, delegación por unidades pequeñas, revisión en el ciclo y una puerta de verificación antes de declarar terminado. Su flujo de subagentes permite que, una vez autorizado un plan, el padre haga avanzar las tareas y recoja resultados sin pedir permiso para cada paso rutinario.
 
 **Costes y tensiones:** el descubrimiento y el diseño pueden resultar demasiado ceremoniales en solicitudes triviales; aplicar la skill universal en cada turno añade contexto; las convenciones de git/worktree pueden no coincidir con el entorno; y ejecutar un plan en cadena no debe interpretarse como permiso para ampliar su alcance. La aprobación del usuario debe quedar ligada a una versión concreta de spec y plan.
 
@@ -46,9 +46,9 @@ Catálogo: ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help
 
 **Aporta:** minimizar código y complejidad sin eliminar requisitos, validación, seguridad ni manejo de errores; inspeccionar llamadores y el alcance real antes de editar; revisión que pregunta si el cambio es correcto, seguro y mínimo; y registro explícito de atajos/deuda. Tiene niveles de intensidad.
 
-**Lo valioso para CodeLoom:** encaja como política transversal del implementador y revisor, no como otro proceso de planificación. Puede ayudar a reducir diffs y dependencias, siempre subordinado a requisitos, contratos y normas de arquitectura del repositorio.
+**Lo valioso para Loomcoding:** encaja como política transversal del implementador y revisor, no como otro proceso de planificación. Puede ayudar a reducir diffs y dependencias, siempre subordinado a requisitos, contratos y normas de arquitectura del repositorio.
 
-**Evidencia del autor:** el repositorio publica una comparación propia de 39 tareas con cinco ejecuciones por tarea, bajo un modelo y harness concretos. Informa reducciones en líneas, tokens, coste y tiempo, con resultados cercanos en sus verificaciones. Es evidencia interesante, pero autofinanciada/publicada por el autor, no una replicación independiente ni una predicción de resultados en CodeLoom. La mezcla de tareas, verificaciones ocultas y evaluación por modelo limita la generalización. Véase [el benchmark publicado](https://github.com/DietrichGebert/ponytail/blob/main/benchmarks/results/2026-10-07-agentic.md).
+**Evidencia del autor:** el repositorio publica una comparación propia de 39 tareas con cinco ejecuciones por tarea, bajo un modelo y harness concretos. Informa reducciones en líneas, tokens, coste y tiempo, con resultados cercanos en sus verificaciones. Es evidencia interesante, pero autofinanciada/publicada por el autor, no una replicación independiente ni una predicción de resultados en Loomcoding. La mezcla de tareas, verificaciones ocultas y evaluación por modelo limita la generalización. Véase [el benchmark publicado](https://github.com/DietrichGebert/ponytail/blob/main/benchmarks/results/2026-10-07-agentic.md).
 
 ### 2.3 Matt Pocock Skills
 
@@ -56,9 +56,9 @@ Catálogo: ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help
 
 **Aporta:** habilidades pequeñas que se pueden invocar por separado; extracción de glosarios, decisiones y modelos de dominio; descomposición en tickets verticales y dependencias; implementación por ticket con TDD, revisión y entrega; y varias formas de entrevistar al usuario según la fase.
 
-**Lo valioso para CodeLoom:** separar “definir qué significa el dominio” de “describir tareas”; producir tareas verticales verificables; hacer que el implementador trabaje desde un ticket acotado; y guardar decisiones que eviten volver a discutir el vocabulario en cada sesión.
+**Lo valioso para Loomcoding:** separar “definir qué significa el dominio” de “describir tareas”; producir tareas verticales verificables; hacer que el implementador trabaje desde un ticket acotado; y guardar decisiones que eviten volver a discutir el vocabulario en cada sesión.
 
-**Costes y tensiones:** algunos flujos esperan tracker externo, etiquetas, ramas, worktrees, commits o un agente merger. No deben asumirse como servicios disponibles en CodeLoom. `grill-me`, brainstorming y otras entrevistas se pisan; se debe escoger una técnica y un dueño de la entrevista. Los flujos de implementación autónoma requieren los mismos límites de alcance y permisos que los de Superpowers.
+**Costes y tensiones:** algunos flujos esperan tracker externo, etiquetas, ramas, worktrees, commits o un agente merger. No deben asumirse como servicios disponibles en Loomcoding. `grill-me`, brainstorming y otras entrevistas se pisan; se debe escoger una técnica y un dueño de la entrevista. Los flujos de implementación autónoma requieren los mismos límites de alcance y permisos que los de Superpowers.
 
 ### 2.4 Addy Osmani Agent Skills
 
@@ -66,9 +66,9 @@ Catálogo: ponytail, ponytail-audit, ponytail-debt, ponytail-gain, ponytail-help
 
 **Aporta:** un mapa claro del ciclo completo; implementación en rebanadas verticales verificadas; restricciones de calidad medibles; revisión escéptica con contexto fresco; uso de fuentes primarias; y un marco explícito para probar si las skills se activan y se comportan como se espera.
 
-**Lo valioso para CodeLoom:** separar pruebas de activación/ruteo de pruebas de calidad del resultado; fijar límites de contexto y criterios de aceptación; revisar decisiones dudosas mientras aún se pueden corregir; y no dar por buena una skill porque su archivo parezca razonable.
+**Lo valioso para Loomcoding:** separar pruebas de activación/ruteo de pruebas de calidad del resultado; fijar límites de contexto y criterios de aceptación; revisar decisiones dudosas mientras aún se pueden corregir; y no dar por buena una skill porque su archivo parezca razonable.
 
-**Costes y tensiones:** su modo de construcción automática puede ejecutar un plan aprobado de forma extensa, así que necesita gates para alcance nuevo, fallos repetidos y acciones riesgosas. Algunas skills dependen de herramientas externas (por ejemplo, Chrome DevTools MCP). Las evaluaciones léxicas de activación son aproximadas; las evaluaciones conductuales pueden ser estocásticas y costosas. Los resultados de evaluación del repositorio no equivalen a una garantía con el runtime de CodeLoom. [Evaluaciones publicadas](https://github.com/addyosmani/agent-skills/tree/main/evals).
+**Costes y tensiones:** su modo de construcción automática puede ejecutar un plan aprobado de forma extensa, así que necesita gates para alcance nuevo, fallos repetidos y acciones riesgosas. Algunas skills dependen de herramientas externas (por ejemplo, Chrome DevTools MCP). Las evaluaciones léxicas de activación son aproximadas; las evaluaciones conductuales pueden ser estocásticas y costosas. Los resultados de evaluación del repositorio no equivalen a una garantía con el runtime de Loomcoding. [Evaluaciones publicadas](https://github.com/addyosmani/agent-skills/tree/main/evals).
 
 ### 2.5 Agency Agents
 
@@ -76,9 +76,9 @@ Biblioteca de 305 perfiles distribuidos en áreas como ingeniería, seguridad, t
 
 **Aporta:** ejemplos de especialización, vocabulario y listas de comprobación por rol; perfiles de revisión, pruebas, documentación, arquitectura de sistemas multiagente y cambios mínimos; y patrones para definir resultados esperados de un agente.
 
-**Lo valioso para CodeLoom:** usar el formato de perfil como material para diseñar agentes especialistas bajo control del padre. Los perfiles de reviewer, evidence collector, technical writer, Rust refactoring specialist y multi-agent architect son candidatos para evaluación selectiva.
+**Lo valioso para Loomcoding:** usar el formato de perfil como material para diseñar agentes especialistas bajo control del padre. Los perfiles de reviewer, evidence collector, technical writer, Rust refactoring specialist y multi-agent architect son candidatos para evaluación selectiva.
 
-**Riesgos:** los perfiles son de calidad y alcance desiguales; algunos son muy largos, imponen herramientas/rutas/frameworks que CodeLoom no tiene, o incorporan preferencias personales como si fueran reglas universales. Un perfil de orquestador puede ejecutar reintentos automáticos y bucles de PM→arquitecto→implementador→QA, lo cual puede chocar con aprobación humana y límites de iteración. La personalidad no acredita experiencia real ni debe conceder herramientas. Código, mensajes externos, shell, red y escritura deben estar definidos por las políticas del runtime, no por texto de perfil.
+**Riesgos:** los perfiles son de calidad y alcance desiguales; algunos son muy largos, imponen herramientas/rutas/frameworks que Loomcoding no tiene, o incorporan preferencias personales como si fueran reglas universales. Un perfil de orquestador puede ejecutar reintentos automáticos y bucles de PM→arquitecto→implementador→QA, lo cual puede chocar con aprobación humana y límites de iteración. La personalidad no acredita experiencia real ni debe conceder herramientas. Código, mensajes externos, shell, red y escritura deben estar definidos por las políticas del runtime, no por texto de perfil.
 
 ## 3. Comparación por capacidad
 
@@ -97,8 +97,8 @@ Biblioteca de 305 perfiles distribuidos en áreas como ingeniería, seguridad, t
 
 ### Solapamientos que conviene resolver con una sola autoridad
 
-1. **Entrevista y descubrimiento:** Superpowers brainstorming, Matt grill/grill-with-docs y Addy interview/idea refine pueden preguntarle lo mismo al usuario. CodeLoom debe tener un solo agente padre entrevistador; una skill de apoyo no inicia otra entrevista si ya hay respuestas suficientes.
-2. **Spec, plan y tickets:** Superpowers produce diseño y plan; Matt separa spec, dominio y tickets; Addy tiene spec y planificación. CodeLoom debe definir sus propios artefactos canónicos y permitir que un paso genere los tres relacionados, sin mantener versiones competidoras.
+1. **Entrevista y descubrimiento:** Superpowers brainstorming, Matt grill/grill-with-docs y Addy interview/idea refine pueden preguntarle lo mismo al usuario. Loomcoding debe tener un solo agente padre entrevistador; una skill de apoyo no inicia otra entrevista si ya hay respuestas suficientes.
+2. **Spec, plan y tickets:** Superpowers produce diseño y plan; Matt separa spec, dominio y tickets; Addy tiene spec y planificación. Loomcoding debe definir sus propios artefactos canónicos y permitir que un paso genere los tres relacionados, sin mantener versiones competidoras.
 3. **TDD y pruebas:** los tres sistemas de proceso lo recomiendan con distinta rigidez. La política del repo y los criterios aprobados determinan qué se prueba; no ejecutar suites o comandos extra por una skill si el repo no lo permite.
 4. **Revisión:** Superpowers, Matt, Addy y Agency contienen revisores. Usar varios revisores idénticos puede duplicar ruido. Un reviewer independiente con rubric común y evidencia basta; llamar un especialista solo cuando el riesgo lo justifique.
 5. **Simplicidad:** Ponytail, Addy code-simplification y Agency minimal-change engineer comparten intención, pero pueden discrepar entre mínimo diff literal y salud general del diseño. La precedencia correcta es: requisitos/seguridad/contratos del repo; luego solución más simple completa.
@@ -108,24 +108,24 @@ Biblioteca de 305 perfiles distribuidos en áreas como ingeniería, seguridad, t
 
 - **Autonomía vs. consentimiento:** un plan aprobado permite ejecutar ese plan, no modificar objetivos, ampliar archivos sensibles, publicar, enviar mensajes o desplegar. Los bloqueos y el cambio de alcance vuelven al padre.
 - **Ejecución continua vs. checkpoints:** puede omitirse confirmación tarea por tarea solo si el usuario autorizó la ejecución del plan exacto y las herramientas permitidas son claras. Fallos, hallazgos de seguridad, ambigüedad material o intentos agotados detienen la cadena.
-- **TDD rígido vs. política del repositorio:** aplicar el método donde haya seams y pruebas útiles; preservar los comandos y restricciones explícitos de CodeLoom. La skill no redefine arquitectura ni añade pruebas prohibidas.
+- **TDD rígido vs. política del repositorio:** aplicar el método donde haya seams y pruebas útiles; preservar los comandos y restricciones explícitos de Loomcoding. La skill no redefine arquitectura ni añade pruebas prohibidas.
 - **Perfiles de Agency vs. herramientas:** un personaje puede recomendar una acción, pero el motor decide permisos. No inferir acceso a shell, navegador, red, escritura, git remoto o secretos.
 - **Atajos/reintentos:** perfiles que prescriben muchos pasos o reintentos ilimitados deben reducirse a un límite configurable del orquestador. Un máximo de dos ciclos implementador→revisión puede ser una base conservadora para el flujo propuesto; el padre reporta los fallos persistentes al usuario.
 
 ## 5. Combinaciones recomendadas
 
-| Combinación | Qué gana CodeLoom | Condición |
+| Combinación | Qué gana Loomcoding | Condición |
 |---|---|---|
 | Superpowers + Ponytail | Proceso con fases y delegación, cambio acotado | Ponytail como regla del implementador/reviewer, no otro workflow |
 | Superpowers + Matt | Flujo de ejecución más modelo de dominio/tickets verticales | Un solo formato de spec/plan/tarea y sin asumir tracker externo |
 | Addy + Ponytail | Evaluación de skills más control del tamaño del cambio | Métricas locales; no trasladar claims del benchmark |
 | Matt + Addy | Artefactos de dominio/tareas más evaluación y aceptación | El padre consolida outputs y elimina duplicados |
 | Agency + cualquiera | Perfiles especialistas como lentes concretas | Perfil adaptado, permisos externos al perfil, activación justificada |
-| Los cinco | Cobertura amplia de patrones | No cargar todo simultáneamente; sintetizar un workflow CodeLoom y seleccionar capacidades por fase |
+| Los cinco | Cobertura amplia de patrones | No cargar todo simultáneamente; sintetizar un workflow Loomcoding y seleccionar capacidades por fase |
 
 La combinación completa no debe ser una concatenación de instrucciones. El coste probable es contexto mayor, activaciones contradictorias y controles redundantes. Debe construirse una política propia a partir de patrones, luego probar ablations.
 
-## 6. Propuesta de flujo nativo para CodeLoom
+## 6. Propuesta de flujo nativo para Loomcoding
 
 1. **Padre/clasificador:** identifica alcance, riesgo y si hay información suficiente; solicita aclaraciones solo cuando cambien materialmente la solución.
 2. **Planificador:** redacta spec y plan en los formatos del repo; define criterios de aceptación, archivos probables, comandos permitidos, riesgos y límites. No implementa.
@@ -137,20 +137,20 @@ La combinación completa no debe ser una concatenación de instrucciones. El cos
 
 El ciclo de corrección debe ser finito (propuesta inicial: dos rondas). Un cambio de alcance requiere aprobación actualizada. Los roles describen objetivos; capacidades efectivas se configuran aparte con permisos explícitos y límites de contexto, tiempo y herramientas.
 
-## 7. Plan para validar en CodeLoom
+## 7. Plan para validar en Loomcoding
 
 Antes de adoptar skills externas, evaluar un prototipo pequeño con idéntico modelo, herramientas, repositorio, presupuesto y prompts base. Casos: solicitud trivial; bug que afecta llamadores; cambio multi-crate que requiere spec/plan; hallazgo de revisión verdadero y falso; entrada riesgosa; y caso ambiguo. Mantener red y efectos externos deshabilitados.
 
 Comparar: baseline sin skill; cada fuente por separado; pares complementarios; y workflow sintetizado. Medir activación correcta y falsos disparos, cobertura de criterios/artifacts, defectos y checks, precisión/recall de review, rondas, tokens/coste/tiempo, violaciones de herramienta, cambios fuera del alcance y afirmaciones de verificación sin evidencia. Repetir casos estocásticos y reportar dispersión. Separar calidad de resultado de costo y latencia.
 
-Para Agency, seleccionar un conjunto pequeño de perfiles directamente pertinentes y medir primero su utilidad frente a un rol genérico. No cargar los 305 perfiles en el prompt. No convertir estrellas, tamaño del catálogo o una pasada de benchmark del autor en evidencia de calidad para CodeLoom.
+Para Agency, seleccionar un conjunto pequeño de perfiles directamente pertinentes y medir primero su utilidad frente a un rol genérico. No cargar los 305 perfiles en el prompt. No convertir estrellas, tamaño del catálogo o una pasada de benchmark del autor en evidencia de calidad para Loomcoding.
 
 ## 8. Decisión recomendada
 
 - **Adoptar como patrones:** fases, gates y delegación acotada de Superpowers; simplicidad de Ponytail; modelado de dominio y tareas verticales de Matt; evaluación de activación/conducta de Addy.
 - **Usar como biblioteca selectiva:** Agency Agents, adaptando pocos perfiles tras revisión.
 - **No adoptar sin adaptación:** comandos/skills completos que asumen Claude Code, tracker externo, worktrees, commits automáticos, MCP específico, rutas o frameworks distintos.
-- **Construir una fuente de verdad propia:** un workflow CodeLoom y un rubric de revisión, con precedencia de specs y restricciones del repositorio sobre instrucciones de skills.
+- **Construir una fuente de verdad propia:** un workflow Loomcoding y un rubric de revisión, con precedencia de specs y restricciones del repositorio sobre instrucciones de skills.
 - **Siguiente paso:** completar la especificación de Agent-first con este estudio y definir un benchmark local de activación y flujo antes de implementar el runtime.
 
 ## Apéndice A. Catálogo de skills de ingeniería revisadas

@@ -1,4 +1,4 @@
-# CodeLoom — Idea: resumen del último turno (1-3 frases)
+# Loomcoding — Idea: resumen del último turno (1-3 frases)
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -14,12 +14,12 @@
 Al cerrar **el último turno**, producir un **resumen de 1 a 3 frases como
 máximo** del intercambio, que sirva a dos consumidores a la vez:
 
-- **Texto**: un "tl;dr" compacto del último turno en el transcript de CodeLoom.
+- **Texto**: un "tl;dr" compacto del último turno en el transcript de Loomcoding.
 - **Voz**: lo que tipsy lee en voz alta (el resto de la respuesta larga no se
   recita).
 
-Una sola pieza resumida, dos salidas. Vive en la **frontera CodeLoom <-> tipsy**:
-CodeLoom genera el resumen (tiene el transcript y el provider), tipsy lo habla.
+Una sola pieza resumida, dos salidas. Vive en la **frontera Loomcoding <-> tipsy**:
+Loomcoding genera el resumen (tiene el transcript y el provider), tipsy lo habla.
 
 ## 1. Por qué tiene sentido
 
@@ -33,16 +33,16 @@ CodeLoom genera el resumen (tiene el transcript y el provider), tipsy lo habla.
 
 ## 2. Quién genera el resumen
 
-| | A. CodeLoom genera (recomendada) | B. tipsy genera |
+| | A. Loomcoding genera (recomendada) | B. tipsy genera |
 |---|---|---|
-| Quién tiene el transcript | CodeLoom | no |
-| Quién tiene provider LLM | CodeLoom | tipsy (chat provider) |
-| Render en transcript | trivial (evento de CodeLoom) | requiere reenviar a CodeLoom |
+| Quién tiene el transcript | Loomcoding | no |
+| Quién tiene provider LLM | Loomcoding | tipsy (chat provider) |
+| Render en transcript | trivial (evento de Loomcoding) | requiere reenviar a Loomcoding |
 | tipsy hace | solo TTS | LLM + TTS |
 
-**A.** CodeLoom ya tiene el turno completo y su `trait Provider`. tipsy se queda
+**A.** Loomcoding ya tiene el turno completo y su `trait Provider`. tipsy se queda
 como **voz**: recibe el texto resumido y lo dice. tipsy ya expone el comando
-`Say` ("no preguntes, recita `text`"), así que CodeLoom **envía el resumen con
+`Say` ("no preguntes, recita `text`"), así que Loomcoding **envía el resumen con
 `Say`** y no hay que tocar su protocolo.
 
 ## 3. Cuándo y cómo
@@ -81,10 +81,10 @@ turn_end
 ## 5. Relación con la capa de voz
 
 - Sin voz: el resumen es solo texto (tl;dr del turno).
-- Con voz (`codeloom-voice`/tipsy): el **resumen es lo que se habla**, no la
+- Con voz (`loomcoding-voice`/tipsy): el **resumen es lo que se habla**, no la
   respuesta completa. La voz y el texto comparten el mismo resumen.
 - Alternativa de tipsy: un modo "leer resumen, mostrar completo", donde tipsy
-  divide en frases solo el resumen que CodeLoom le manda por `Say`.
+  divide en frases solo el resumen que Loomcoding le manda por `Say`.
 
 ## 6. Gotchas
 
@@ -111,5 +111,5 @@ speak = true               # enviar el resumen a la voz (tipsy) si está activa
 
 - Extensión de §5.5 del spec principal (como MCP/skills y voz).
 - Depende de: bus durable/live (§4.4), `trait Provider` (§4.2), turn/step
-  (§4.3) y, para la voz, la idea `codeloom-voice`.
+  (§4.3) y, para la voz, la idea `loomcoding-voice`.
 - tipsy no se modifica: basta su comando `Say`.

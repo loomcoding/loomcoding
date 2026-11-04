@@ -1,4 +1,4 @@
-# batten — Idea: selección de bloques y copiar
+# cloth — Idea: selección de bloques y copiar
 
 > Estado: **idea en exploración**. No implementar.
 >
@@ -17,7 +17,7 @@ seleccionarlo.
 
 ## 1. Modelo (state, puro)
 
-El diseño de batten ya prevé `state::selection` (sin estilo):
+El diseño de cloth ya prevé `state::selection` (sin estilo):
 
 ```rust
 pub struct Selection { pub anchor: usize, pub head: usize } // índices de Line
@@ -32,20 +32,20 @@ pub struct Selection { pub anchor: usize, pub head: usize } // índices de Line
 
 - Teclado: entrar en modo selección, `Shift+↓/↑` extiende, `Enter`/`y` copia,
   `Esc` sale.
-- Ratón: opcional (necesita eventos de ratón del backend; fuera de batten, que
+- Ratón: opcional (necesita eventos de ratón del backend; fuera de cloth, que
   no conoce crossterm).
 - Copiar: no hay API universal en terminal. Opciones: **OSC 52** (funciona por
   SSH sin dependencias) o un crate de portapapeles (`arboard`). Es decisión de
-  la **app**, no de batten: batten expone el **texto seleccionado** y quien
+  la **app**, no de cloth: cloth expone el **texto seleccionado** y quien
   integra decide cómo copiarlo.
 
 ## 3. Encaje
 
-- **batten `state::Selection`** (puro) + **`widgets`** que resaltan el rango
+- **cloth `state::Selection`** (puro) + **`widgets`** que resaltan el rango
   usando el token de fondo de selección.
 - `Transcript`/`Viewport` ya dan la ventana visible; la selección se mapea a
   líneas de esa ventana.
-- La **app** (codeloom-tui) gestiona el modo, el teclado y el copiado.
+- La **app** (loomcoding-tui) gestiona el modo, el teclado y el copiado.
 
 ## 4. Gotchas
 

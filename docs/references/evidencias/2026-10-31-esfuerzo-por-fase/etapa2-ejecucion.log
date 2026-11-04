@@ -1,5 +1,5 @@
 # Etapa 2 — salida literal de:
-# cargo test -p codeloom-core --test reproduce_first_live stage2 -- --ignored --nocapture
+# cargo test -p loomcoding-core --test reproduce_first_live stage2 -- --ignored --nocapture
 # (2026-10-31; effort = low; misma tarea que la medición de reproducir-antes-de-arreglar)
 low: solved=true tool_calls=7 cost=0.01912
 low: solved=true tool_calls=11 cost=0.02980

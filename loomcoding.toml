@@ -1,0 +1,26 @@
+# Loomcoding — Ollama local: no factura tokens y el código no sale del equipo.
+model = "deepseek/deepseek-v4.1-flash-1017"
+max_steps = 100
+
+[provider]
+kind = "openai_compat"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+
+# Compactacion anticipada: el resumen se prepara en segundo plano al 60 % de la ventana
+# y se activa al 80 %. Coste: si la sesion acaba entre ambos puntos, esa llamada se pierde.
+[compaction]
+background = true
+
+# Interfaz. Con verbose_provider_notices = false (por defecto) los avisos
+# "provider request started/response received" no ensucian el transcript: en su
+# lugar la barra de estado muestra un spinner mientras hay una peticion en vuelo.
+[ui]
+verbose_provider_notices = false
+
+# Agentes remotos por A2A (A8a): descargar tarjetas y delegar en los ya aprobados.
+[a2a]
+role = "consume"
+
+[agents]
+catalog_roots = ["E:/workspace/personal/loom-agent-workforce-poc"]

@@ -17,7 +17,7 @@ Contrastado el 2026-10-23 (solo lectura; véase `docs/references/contexto-y-cost
   porcentajes son «del total auditado, no de la ventana del modelo».
 - **qwen-code:** porcentaje `tokens del prompt / ventana` en el pie, en rojo por encima del 100 %.
 - **codex:** porcentaje de ventana **restante**, descontando una base fija.
-- **Pawan** (ya reproducido en batten, `status_bar::render_pawan`): `ctx N%` y barra `█░`.
+- **Pawan** (ya reproducido en cloth, `status_bar::render_pawan`): `ctx N%` y barra `█░`.
 - opencode, crush y claude-code-rust: no consultados para esto.
 
 De mastra se toma **solo el aspecto** (celdas `━`); lo que se mide es lo de qwen-code y codex:
@@ -28,7 +28,7 @@ la ventana real. El marcador del 80 % y los colores son **decisiones propias**.
 La persona usuaria pidió expresamente **no olvidar** la memoria observacional de mastra y su forma
 de representarla. Está estudiada en
 `docs/references/contexto-y-coste/memoria-observacional-mastra.md` (qué es, qué se leyó y qué
-no, y las ideas que podría tomar CodeLoom). Lo que afecta a este medidor:
+no, y las ideas que podría tomar Loomcoding). Lo que afecta a este medidor:
 
 - Su barra es de **tres clases de celda**: memoria (atenuada), mensajes (normal) y libres
   (apagadas), repartidas en proporción a lo que pesa cada parte, con al menos una celda de cada
@@ -39,10 +39,10 @@ no, y las ideas que podría tomar CodeLoom). Lo que afecta a este medidor:
 ## Decisiones (de la persona usuaria, 2026-10-23, y propias)
 
 1. **Abajo**, en el pie de la app (de la persona usuaria).
-2. **Widget en batten** con **los dos estilos**, para poder compararlos (de la persona usuaria):
+2. **Widget en cloth** con **los dos estilos**, para poder compararlos (de la persona usuaria):
    `Segments` (celdas `━`, aspecto mastra) y `Blocks` (`█░` con `ctx N%`, aspecto Pawan).
-   *Interpretación propia de «puesto los dos en batten»; se corrige si era otra cosa.*
-3. **En el showcase de batten** (único modo demo que existe hoy; la app no tiene uno propio).
+   *Interpretación propia de «puesto los dos en cloth»; se corrige si era otra cosa.*
+3. **En el showcase de cloth** (único modo demo que existe hoy; la app no tiene uno propio).
 4. La app usa `Segments`.
 5. **Dos segmentos, resumen y mensajes** (inspirado en mastra; tarea 1b): `ContextMeter` lleva un
    campo `memory` (tokens del resumen vigente, parte de `used`). Con `memory > 0`, `Segments`
@@ -71,7 +71,7 @@ ancla que usa la compactación. `window` = `Catalog::context_window(base_url, mo
 - `Blocks`: `ctx {pct}% ██████░░░░`, como Pawan.
 - **Niveles** (propios): por debajo del 80 % neutro; desde el 80 % (donde salta la compactación)
   aviso; desde el 100 % error.
-- El 80 % es `COMPACT_RATIO` de `codeloom_core::agent::compact`; batten no depende de core, así
+- El 80 % es `COMPACT_RATIO` de `loomcoding_core::agent::compact`; cloth no depende de core, así
   que el widget recibe `mark_percent` como dato (por defecto 80).
 
 ### Reglas de espacio
@@ -82,7 +82,7 @@ propio ancho para que el pie reparta el espacio.
 ## Fuera de alcance, declarado
 
 - Desglose de qué llena la ventana (el `/context` de mastra): spec aparte.
-- Modo demo de la **app** (con datos de mentira): no existe; el showcase de batten es el demo de
+- Modo demo de la **app** (con datos de mentira): no existe; el showcase de cloth es el demo de
   los widgets.
 - El apunte de la llamada de resumen publica su propio `Usage` y puede mover un instante la barra
   al tamaño de esa petición hasta la siguiente respuesta.
@@ -96,8 +96,8 @@ comprobar a ojo. Commits: `36f5162` (widget con dos estilos), `81d04b8` (memoria
 
 ### Cómo verlo
 
-- Demo: `cargo run -p batten --example showcase` y elegir «Context meter».
-- App: `cargo run -p codeloom-cli --bin loom`; el medidor aparece en el pie con 80 columnas o más
+- Demo: `cargo run -p loomcoding-cloth --example showcase` y elegir «Context meter».
+- App: `cargo run -p loomcoding-cli --bin loom`; el medidor aparece en el pie con 80 columnas o más
   en cuanto llega la primera respuesta del proveedor.
 
 ### Decisiones tomadas durante la implementación

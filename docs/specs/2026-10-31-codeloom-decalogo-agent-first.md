@@ -1,4 +1,4 @@
-# CodeLoom — Decálogo agent-first (borrador) y diseño de evaluación
+# Loomcoding — Decálogo agent-first (borrador) y diseño de evaluación
 
 > Estado: **borrador para discusión**. Los principios son candidatos extraídos de decisiones ya
 > tomadas en el proyecto y contrastados con fuentes externas; no están adoptados. Ninguna de las
@@ -16,7 +16,7 @@
 API-first se resume en una idea: el contrato se diseña antes que la implementación y es el artefacto
 que gobierna a todos los consumidores. Se propone un decálogo análogo para un arnés cuyo consumidor
 principal es un agente. Debe poder defenderse en dos sentidos: como guía de diseño del propio
-CodeLoom y como contribución publicable, lo cual exige separar con claridad lo que es práctica
+Loomcoding y como contribución publicable, lo cual exige separar con claridad lo que es práctica
 local, lo que es fuente externa y lo que está medido.
 
 Alcance distinto del decálogo existente: el de contexto y coste acota lo que llega al modelo; este
@@ -24,7 +24,7 @@ cubre cómo se diseña un sistema en el que agentes actúan, delegan y son super
 
 ## 2. Candidatos
 
-Columnas: **Local** indica dónde se aplica ya en CodeLoom; **Externo** la fuente que lo respalda o
+Columnas: **Local** indica dónde se aplica ya en Loomcoding; **Externo** la fuente que lo respalda o
 matiza; **Medido** si existe evidencia propia (hoy ninguna).
 
 | # | Principio | Local | Externo | Medido |
@@ -93,7 +93,7 @@ Observaciones para la discusión:
 
 1. Motivación: del contrato de API al contrato de agente.
 2. Antecedentes: ACI, agent-first en la web, crítica a los benchmarks centrados en el modelo.
-3. Los principios, cada uno con su decisión de diseño real en CodeLoom.
+3. Los principios, cada uno con su decisión de diseño real en Loomcoding.
 4. Evaluación por ablación (esta sección).
 5. Amenazas, límites y trabajo futuro.
 

@@ -29,7 +29,7 @@ Fuente principal: [Programmatic Tool Calling](https://developers.openai.com/api/
   instalación de paquetes, acceso directo a red, filesystem general ni subprocess.
 - La documentación lista tools compatibles y recomienda comprobar la página del modelo.
   Responses y Agents tienen integración distinta.
-- La compatibilidad OpenAI Chat Completions que usa hoy CodeLoom no equivale a Responses API;
+- La compatibilidad OpenAI Chat Completions que usa hoy Loomcoding no equivale a Responses API;
   un endpoint OpenAI-compatible no se marca como compatible sin evidencia de su contrato.
 
 ## Google Gemini
@@ -46,18 +46,18 @@ Fuentes principales: [Code execution](https://ai.google.dev/gemini-api/docs/code
   OpenAI. Requiere adapter y evaluación propios; disponibilidad y combinaciones dependen del
   modelo/API.
 
-## Consecuencia para CodeLoom
+## Consecuencia para Loomcoding
 
 La unidad de soporte es **provider + modelo + API/endpoint + conjunto de tools**, no un
 booleano global por provider. Hasta contar con una señal verificable y un adapter capaz de
-preservar su flujo, CodeLoom usa el bucle normal de tools. La documentación de cada proveedor
+preservar su flujo, Loomcoding usa el bucle normal de tools. La documentación de cada proveedor
 justifica investigar la función, pero no demuestra compatibilidad del runtime actual de
-CodeLoom.
+Loomcoding.
 
 ## Beneficios a medir
 
 Los proveedores describen ahorro de viajes, procesamiento de resultados dentro del entorno
-de ejecución y menor contenido enviado al modelo. Para CodeLoom son hipótesis por validar:
+de ejecución y menor contenido enviado al modelo. Para Loomcoding son hipótesis por validar:
 
 - tokens de entrada/salida y bytes intermedios recibidos por el modelo;
 - latencia total, latencia de provider y cantidad de decisiones del modelo;

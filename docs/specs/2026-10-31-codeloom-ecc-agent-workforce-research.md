@@ -1,4 +1,4 @@
-# CodeLoom — Investigación: catálogo de agentes y workflows de ECC
+# Loomcoding — Investigación: catálogo de agentes y workflows de ECC
 
 > Estado: propuesta de investigación. No autoriza cambios de implementación.
 > Fecha: 2026-10-31.
@@ -13,15 +13,15 @@ Relacionada con:
 
 ## 1. Objetivo
 
-Investigar cómo ECC define, distribuye y activa sus agentes, workflows, skills y hooks, y decidir qué ideas pueden mejorar el catálogo de perfiles registrados de CodeLoom.
+Investigar cómo ECC define, distribuye y activa sus agentes, workflows, skills y hooks, y decidir qué ideas pueden mejorar el catálogo de perfiles registrados de Loomcoding.
 
-CodeLoom ya tiene subagentes, perfiles registrados y un workflow de desarrollo con planner, implementador y revisor. La investigación debe aprovechar esos mecanismos y aclarar cómo crear una tropa pequeña de perfiles útiles, descubribles, configurables, segura y medible.
+Loomcoding ya tiene subagentes, perfiles registrados y un workflow de desarrollo con planner, implementador y revisor. La investigación debe aprovechar esos mecanismos y aclarar cómo crear una tropa pequeña de perfiles útiles, descubribles, configurables, segura y medible.
 
 El checkout de ECC consultado declara la versión 2.2.3 y un catálogo de 71 agentes, 314 skills y 98 comandos. Tratar esas cantidades como una fotografía del repositorio, no como un requisito de diseño ni como una medida de calidad.
 
 ## 2. Pregunta principal
 
-¿Qué partes del catálogo y del modelo de distribución de ECC se pueden adaptar a CodeLoom, y qué mecanismos hacen falta para que sus perfiles sean descubribles, configurables, seguros y medibles en coste?
+¿Qué partes del catálogo y del modelo de distribución de ECC se pueden adaptar a Loomcoding, y qué mecanismos hacen falta para que sus perfiles sean descubribles, configurables, seguros y medibles en coste?
 
 Preguntas secundarias:
 
@@ -29,11 +29,11 @@ Preguntas secundarias:
 2. ¿Qué diferencia hay entre un rol de agente, una skill, un comando, una regla y un hook?
 3. ¿Qué hacen los hooks en los ciclos de prompt, herramienta y sesión? ¿Cuáles bloquean, modifican contexto, persisten estado o solo notifican?
 4. ¿Qué transforma cada adaptador o conversor y qué campos se pierden al exportar agentes entre harnesses?
-5. ¿Cómo se relacionan esos campos con AgentProfile, AgentCard/A2A, launcher, skills y MCP de CodeLoom?
+5. ¿Cómo se relacionan esos campos con AgentProfile, AgentCard/A2A, launcher, skills y MCP de Loomcoding?
 6. ¿Qué límites se imponen realmente en el runtime y cuáles solo se expresan como instrucciones?
 7. ¿Qué coste generan definición, invocación, delegación, contexto aislado y persistencia? ¿Qué datos de memoria son instrucciones y cuáles son estado durable?
 8. ¿Qué perfiles cubrirían huecos reales sin duplicar el workflow de desarrollo existente?
-9. ¿Qué controles de AgentPatterns sirven como checklist para una auditoría estática del harness de CodeLoom?
+9. ¿Qué controles de AgentPatterns sirven como checklist para una auditoría estática del harness de Loomcoding?
 
 ## 3. Hipótesis iniciales para validar
 
@@ -44,8 +44,8 @@ Estas observaciones orientan la investigación; se deben confirmar con archivos 
 - Las integraciones varían. La documentación del plugin de Codex cubre skills, MCP y hooks; los agentes TOML bajo .codex/agents/ son una configuración distinta de los agentes fuente de ECC.
 - pi/core parece ser una selección curada para Pi, no una copia completa de ECC; confirmar sus límites y exclusiones en pi/core/README.md y pi/core/CURATION.md.
 - unified-memory describe instrucciones para usar Memory Vault. Separar esa skill del runtime de memoria y de la persistencia de sesión.
-- CodeLoom ya aplica su workflow de planner, implementador y revisor desde el registro existente. ECC debe aportar evidencia sobre catálogo, distribución, hooks o ahorro, sin reemplazar el workflow aprobado.
-- El código de CodeLoom declara scope.tools en AgentProfile; verificar qué componente aplica ese alcance a las llamadas del runtime y qué queda solo como metadato.
+- Loomcoding ya aplica su workflow de planner, implementador y revisor desde el registro existente. ECC debe aportar evidencia sobre catálogo, distribución, hooks o ahorro, sin reemplazar el workflow aprobado.
+- El código de Loomcoding declara scope.tools en AgentProfile; verificar qué componente aplica ese alcance a las llamadas del runtime y qué queda solo como metadato.
 
 Fuentes locales de ECC a revisar: .claude-plugin/PLUGIN_SCHEMA_NOTES.md, .claude-plugin/plugin.json, .codex-plugin/README.md, .codex-plugin/plugin.json, .codex/agents/, hooks/README.md, skills/unified-memory/SKILL.md, pi/core/README.md, pi/core/CURATION.md, scripts/agent-convert.js y scripts/lib/agent-ir.js.
 
@@ -57,15 +57,15 @@ Fuentes locales de ECC a revisar: .claude-plugin/PLUGIN_SCHEMA_NOTES.md, .claude
 - Comparación de al menos planner, implementer/generator, code reviewer, security reviewer, build resolver y un perfil de investigación.
 - Trazado de definición, instalación, descubrimiento, selección, dispatch, ejecución, persistencia y revisión.
 - Clasificación de hooks por evento y efecto: guardrail, automatización, persistencia, contexto, notificación o telemetría.
-- Mapeo de ECC a AgentProfile, AgentCard/A2A, perfiles locales, launcher, tools, skills y MCP de CodeLoom.
+- Mapeo de ECC a AgentProfile, AgentCard/A2A, perfiles locales, launcher, tools, skills y MCP de Loomcoding.
 - Análisis de coste y memoria: carga de instrucciones, invocaciones hijas, contexto, tokens, latencia, estado persistido y límites de confianza.
 - Recomendación de un catálogo inicial pequeño y criterios para añadir, retirar o versionar perfiles.
-- Uso selectivo de los checks de AgentPatterns para localizar brechas de enforcement y verificación en CodeLoom.
+- Uso selectivo de los checks de AgentPatterns para localizar brechas de enforcement y verificación en Loomcoding.
 
 ### Fuera de alcance
 
 - Copiar en bloque los 71 agentes de ECC o importar sus prompts como política confiable.
-- Cambiar A2A, el runtime de subagentes o el workflow aprobado de CodeLoom.
+- Cambiar A2A, el runtime de subagentes o el workflow aprobado de Loomcoding.
 - Implementar hooks nuevos, carga automática de perfiles o una integración de ECC en el producto.
 - Tratar una definición Markdown como garantía de permisos. Los límites efectivos deben verificarse en el launcher y el registro de herramientas.
 - Presentar estimaciones de ahorro de tokens como resultados medidos.
@@ -77,11 +77,11 @@ Fuentes locales de ECC a revisar: .claude-plugin/PLUGIN_SCHEMA_NOTES.md, .claude
 2. Trazar cada integración desde manifest o catálogo hasta instalador/adaptador, archivo resultante y mecanismo de runtime.
 3. Clasificar los hooks por evento, comando, datos leídos/escritos, efecto, política de fallo y si bloquean o solo informan.
 4. Comparar una muestra de perfiles y registrar solapamientos, alcance de herramientas, tamaño de instrucciones y dependencia del harness.
-5. Seguir los campos relevantes hasta CodeLoom: AgentProfile, AgentCard/A2A, perfiles locales, launcher, skills, MCP y workflow.
+5. Seguir los campos relevantes hasta Loomcoding: AgentProfile, AgentCard/A2A, perfiles locales, launcher, skills, MCP y workflow.
 6. Separar los límites declarados de los controles que realmente se aplican. No inferir seguridad a partir de instrucciones.
 7. Analizar coste por definición, invocación y delegación; identificar qué métricas existen y cuáles requerirían instrumentación. Distinguir coste de contexto de ahorro observado.
 8. Analizar memoria por separado: instrucciones durables, memoria recuperable, estado de sesión, permisos y política de expiración.
-9. Usar checks de auditoría pertinentes de AgentPatterns en modo de lectura. Pasar las rutas de CodeLoom explícitamente y registrar checks no aplicables.
+9. Usar checks de auditoría pertinentes de AgentPatterns en modo de lectura. Pasar las rutas de Loomcoding explícitamente y registrar checks no aplicables.
 10. Sintetizar correspondencias, incompatibilidades, riesgos y preguntas que necesitarían una prueba local acotada.
 
 No ejecutar instaladores, hooks ni acciones de publicación de ECC durante la investigación. No usar credenciales reales. Cualquier prueba posterior con un harness debe ser local, acotada y separarse de esta spec.
@@ -91,8 +91,8 @@ No ejecutar instaladores, hooks ni acciones de publicación de ECC durante la in
 1. Inventario de agentes ECC: responsabilidad, herramientas, modelo, harness, formato y limitaciones de conversión.
 2. Diagrama del ciclo de vida: definición → instalación/descubrimiento → selección/dispatch → ejecución → persistencia/revisión.
 3. Matriz de hooks: evento → propósito → efecto en ejecución/contexto/estado → relación con agentes.
-4. Mapa ECC → CodeLoom con correspondencias, incompatibilidades y evidencia de permisos efectivos.
-5. Catálogo inicial recomendado para CodeLoom, justificando cada perfil por un hueco observado y evitando duplicar roles.
+4. Mapa ECC → Loomcoding con correspondencias, incompatibilidades y evidencia de permisos efectivos.
+5. Catálogo inicial recomendado para Loomcoding, justificando cada perfil por un hueco observado y evitando duplicar roles.
 6. Análisis de coste y memoria con métricas observables, límites y datos que faltan.
 7. Auditoría selectiva de controles del harness usando checks de AgentPatterns, con ruta, evidencia, severidad y recomendación.
 8. Decisión recomendada: adoptar patrones, adaptar conceptos o no trasladar componentes; lista de incógnitas que requieren prueba.
@@ -103,7 +103,7 @@ No ejecutar instaladores, hooks ni acciones de publicación de ECC durante la in
 - Se explica con evidencia cómo ECC define y distribuye agentes por cada harness estudiado.
 - Se demuestra qué papel tienen los hooks y se distingue de la definición, selección y ejecución de agentes.
 - Se separa el catálogo fuente de ECC de los agentes que cada integración hace disponibles.
-- La comparación incluye las piezas actuales de CodeLoom y evita duplicar el workflow aprobado.
+- La comparación incluye las piezas actuales de Loomcoding y evita duplicar el workflow aprobado.
 - La recomendación trata permisos efectivos, contexto, coste de delegación y límites de memoria.
 - Cada afirmación técnica relevante enlaza a su archivo fuente o evidencia reproducible; las limitaciones quedan marcadas.
 - La auditoría de AgentPatterns cita checks aplicados, rutas inspeccionadas y límites del método estático.
@@ -136,7 +136,7 @@ La [Selection Map](https://www.agentpatterns.ai/patterns/selection-map/) compara
 
 ### 9.2 Cómo funciona agentpatterns-ai-skills
 
-El repositorio [agentpatterns-ai/skills](https://github.com/agentpatterns-ai/skills) es una colección portable de procedimientos para agentes, no un escáner único ni un plugin que supervise CodeLoom en ejecución.
+El repositorio [agentpatterns-ai/skills](https://github.com/agentpatterns-ai/skills) es una colección portable de procedimientos para agentes, no un escáner único ni un plugin que supervise Loomcoding en ejecución.
 
 1. El host descubre las skills por metadatos de SKILL.md, especialmente nombre y descripción, que ayudan a decidir cuándo invocarlas.
 2. La skill seleccionada indica al agente qué superficies inspeccionar y cómo aplicar los checks. El agente carga referencias y plantillas auxiliares cuando el procedimiento las necesita.
@@ -146,33 +146,33 @@ El repositorio [agentpatterns-ai/skills](https://github.com/agentpatterns-ai/ski
 
 La skill audit-multi-agent-orchestration inspecciona la coordinación de un sistema que ya ejecuta varios agentes: handoffs tipados, superficies de estado compartido, independencia del verificador, posición del gate, límites de loops y fan-out. Su resultado usa checks identificables y referencias del corpus. También evita recomendar ceremonias pesadas para flujos simples y de bajo riesgo.
 
-### 9.3 Aplicación a CodeLoom
+### 9.3 Aplicación a Loomcoding
 
-Para cubrir CodeLoom hay que pasar sus rutas y el código que ejecuta la coordinación. La skill multi-agent indica como ruta por defecto .claude/agents/*.md; los perfiles de CodeLoom viven bajo .agents/agents. Incluir también el registro, launcher, handoffs A2A y workflow. No asumir que la skill encontrará esas superficies automáticamente.
+Para cubrir Loomcoding hay que pasar sus rutas y el código que ejecuta la coordinación. La skill multi-agent indica como ruta por defecto .claude/agents/*.md; los perfiles de Loomcoding viven bajo .agents/agents. Incluir también el registro, launcher, handoffs A2A y workflow. No asumir que la skill encontrará esas superficies automáticamente.
 
-AgentProfile expone scope.tools, pero el registro no lo aplica como allowlist general de herramientas. Tratarlo como una brecha entre intención y enforcement hasta demostrar qué componente restringe cada llamada; el texto del perfil no es una frontera de seguridad. Referencia: [profile.rs](../../crates/codeloom-core/src/registry/profile.rs).
+AgentProfile expone scope.tools, pero el registro no lo aplica como allowlist general de herramientas. Tratarlo como una brecha entre intención y enforcement hasta demostrar qué componente restringe cada llamada; el texto del perfil no es una frontera de seguridad. Referencia: [profile.rs](../../crates/loomcoding-core/src/registry/profile.rs).
 
 El checkout local de agentpatterns-ai-skills tiene una diferencia de estructura que debe resolverse antes de automatizar instalaciones: el README describe skills agrupadas en directorios de categoría y da ejemplos con prefijos como audit/, mientras que el MANIFEST local enumera nombres sin esos prefijos y el árbol local tiene directorios de primer nivel. Fijar tag o commit y confirmar las rutas antes de instalar o sincronizar; al actualizar, comparar con MANIFEST para evitar dejar skills antiguas activables.
 
 ### 9.4 Uso propuesto en la investigación
 
-Usar la colección como checklist selectivo para auditar CodeLoom, empezando por harness safety, verification gates y multi-agent orchestration. Añadir lethal trifecta, memory retrieval, MCP o tool definition cuando el mapa de datos y permisos indique que aplican. Ejecutar las instrucciones en modo de lectura, citando rutas y líneas; registrar checks no aplicables y el motivo. No instalar la colección completa ni tratar su informe como prueba dinámica de enforcement.
+Usar la colección como checklist selectivo para auditar Loomcoding, empezando por harness safety, verification gates y multi-agent orchestration. Añadir lethal trifecta, memory retrieval, MCP o tool definition cuando el mapa de datos y permisos indique que aplican. Ejecutar las instrucciones en modo de lectura, citando rutas y líneas; registrar checks no aplicables y el motivo. No instalar la colección completa ni tratar su informe como prueba dinámica de enforcement.
 
 Fuentes de patrones: [Harness Engineering](https://www.agentpatterns.ai/patterns/agent-design/harness-engineering/), [Research-Plan-Implement](https://agentpatterns.ai/workflows/research-plan-implement/), [Review-Then-Implement](https://agentpatterns.ai/code-review/review-then-implement-loop/), [Prefer the simplest agent architecture](https://www.agentpatterns.ai/patterns/anti-patterns/prefer-simplest-agent-architecture/), [Agent sprawl](https://www.agentpatterns.ai/patterns/anti-patterns/agent-sprawl/) y [Agent headcount vanity metric](https://agentpatterns.ai/anti-patterns/agent-headcount-vanity-metric/).
 
 ### 9.5 Propuesta de integración: auditor bajo demanda
 
-Mantener un perfil local de CodeLoom, por ejemplo agent-auditor, y tratar AgentPatterns como fuente de skills Markdown seleccionadas. No hace falta una dependencia de runtime en Rust: fijar el commit upstream y copiar al proyecto solo las carpetas de skills aprobadas, junto con su licencia y procedencia. Así las instrucciones quedan revisables, el agente no necesita red para ejecutarlas y una actualización upstream es un cambio explícito.
+Mantener un perfil local de Loomcoding, por ejemplo agent-auditor, y tratar AgentPatterns como fuente de skills Markdown seleccionadas. No hace falta una dependencia de runtime en Rust: fijar el commit upstream y copiar al proyecto solo las carpetas de skills aprobadas, junto con su licencia y procedencia. Así las instrucciones quedan revisables, el agente no necesita red para ejecutarlas y una actualización upstream es un cambio explícito.
 
-CodeLoom carga skills desde .agents/skills/<id>/SKILL.md y el perfil enumera los IDs en scope.skills. El loader agrega el contenido de las skills configuradas al prompt del subagente y registra su coste como componentes Skill ([skills.rs](../../crates/codeloom-core/src/skills.rs), [subagent.rs](../../crates/codeloom-core/src/subagent.rs)). Por ahorro y memoria, invocar el perfil solo cuando se pide una auditoría y empezar con un conjunto pequeño, por ejemplo audit-harness-safety y audit-multi-agent-orchestration. Añadir verification-gates u otras facetas cuando la investigación demuestre que hacen falta; no cargar la biblioteca completa en cada auditoría.
+Loomcoding carga skills desde .agents/skills/<id>/SKILL.md y el perfil enumera los IDs en scope.skills. El loader agrega el contenido de las skills configuradas al prompt del subagente y registra su coste como componentes Skill ([skills.rs](../../crates/loomcoding-core/src/skills.rs), [subagent.rs](../../crates/loomcoding-core/src/subagent.rs)). Por ahorro y memoria, invocar el perfil solo cuando se pide una auditoría y empezar con un conjunto pequeño, por ejemplo audit-harness-safety y audit-multi-agent-orchestration. Añadir verification-gates u otras facetas cuando la investigación demuestre que hacen falta; no cargar la biblioteca completa en cada auditoría.
 
-El informe debe ser estático, citar rutas y líneas, indicar los checks no aplicables y devolver recomendaciones sin modificar el proyecto. CodeLoom aún no aplica scope.tools como allowlist general ([profile.rs](../../crates/codeloom-core/src/registry/profile.rs)); por tanto, una instrucción de solo lectura no garantiza por sí misma aislamiento. Antes de auditar repositorios no confiables, restringir las herramientas efectivas en el dispatcher/runtime y verificar esa restricción. Mantener al auditor separado del workflow de implementación hasta que exista ese control.
+El informe debe ser estático, citar rutas y líneas, indicar los checks no aplicables y devolver recomendaciones sin modificar el proyecto. Loomcoding aún no aplica scope.tools como allowlist general ([profile.rs](../../crates/loomcoding-core/src/registry/profile.rs)); por tanto, una instrucción de solo lectura no garantiza por sí misma aislamiento. Antes de auditar repositorios no confiables, restringir las herramientas efectivas en el dispatcher/runtime y verificar esa restricción. Mantener al auditor separado del workflow de implementación hasta que exista ese control.
 
 ### 9.6 agentpattern-ai-website como corpus de referencia
 
 El checkout local es el espejo público del contenido de agentpatterns.ai, no un SDK ni un runtime de agentes. En la inspección estaba limpio en main, en el release v1.8.96, commit de63242d67e6599d66d59c4a3abbd4b84255ed15; contiene 1.930 archivos Markdown en esta fotografía. El repositorio publica contenido procedente de una fuente privada y no acepta pull requests. El sitio se declara agent-first y propone usar el corpus para auditorías de configuración/seguridad, buscar patrones por problema y fundamentar recomendaciones con referencias.
 
-La relación con agentpatterns-ai/skills queda así: skills aporta el procedimiento y sus checks; website aporta conceptos, límites, evidencia y referencias para explicar por qué se reporta un hallazgo. El auditor debe citar primero evidencia del código/configuración de CodeLoom. Una página de patrones fundamenta el criterio, pero no demuestra que CodeLoom aplique un control.
+La relación con agentpatterns-ai/skills queda así: skills aporta el procedimiento y sus checks; website aporta conceptos, límites, evidencia y referencias para explicar por qué se reporta un hallazgo. El auditor debe citar primero evidencia del código/configuración de Loomcoding. Una página de patrones fundamenta el criterio, pero no demuestra que Loomcoding aplique un control.
 
 Patrones candidatos para el perfil auditor:
 
@@ -184,15 +184,15 @@ Patrones candidatos para el perfil auditor:
 - [Treating a Local Agent Session Trace as Audit Evidence](https://github.com/agentpatterns-ai/website/blob/de63242d67e6599d66d59c4a3abbd4b84255ed15/patterns/anti-patterns/local-trace-as-audit-evidence.md): no tratar el autoinforme o el trace modificable por el agente como única prueba; conservar rutas, líneas y una identidad del snapshot fuera del texto generado.
 - [Tiered Memory Architecture](https://github.com/agentpatterns-ai/website/blob/de63242d67e6599d66d59c4a3abbd4b84255ed15/patterns/agent-design/tiered-memory-architecture.md): estudiar solo si aparecen sesiones largas y tareas recurrentes. El propio artículo marca overhead y recomienda no añadir tiers a sesiones cortas cuando un store simple basta.
 
-El corpus tiene 1.930 archivos Markdown en el checkout analizado. No cargar llms-full.txt ni el repositorio completo en cada invocación. Mantenerlo como fuente consultable, buscar por tema y leer las pocas páginas relevantes para la petición. Registrar en cada referencia su estado/maturity y fecha de revisión; las páginas emerging o apoyadas en preprints son hipótesis de diseño, no resultados de CodeLoom.
+El corpus tiene 1.930 archivos Markdown en el checkout analizado. No cargar llms-full.txt ni el repositorio completo en cada invocación. Mantenerlo como fuente consultable, buscar por tema y leer las pocas páginas relevantes para la petición. Registrar en cada referencia su estado/maturity y fecha de revisión; las páginas emerging o apoyadas en preprints son hipótesis de diseño, no resultados de Loomcoding.
 
 La licencia local es CC BY 4.0. Si se copian o adaptan páginas, conservar atribución, enlace a licencia e indicar modificaciones; preferir referencias upstream cuando baste con consultar la fuente. Fuentes: [about.md](https://github.com/agentpatterns-ai/website/blob/de63242d67e6599d66d59c4a3abbd4b84255ed15/about.md), [README.md](https://github.com/agentpatterns-ai/website/blob/de63242d67e6599d66d59c4a3abbd4b84255ed15/README.md) y [LICENSE](https://github.com/agentpatterns-ai/website/blob/de63242d67e6599d66d59c4a3abbd4b84255ed15/LICENSE).
 
 ### 9.7 Recomendador de agentes y patrones con recuperación local
 
-Es viable convertir el corpus en una fuente para un recomendador bajo demanda. Separar dos preguntas: qué patrón encaja con la tarea y qué perfil, skill o workflow disponible en CodeLoom puede implementarlo. El sitio de AgentPatterns describe patrones generales; no conoce el catálogo ni los permisos reales de CodeLoom. Mantener una tabla revisada de correspondencias patrón → perfil/skill CodeLoom con justificación y evidencia.
+Es viable convertir el corpus en una fuente para un recomendador bajo demanda. Separar dos preguntas: qué patrón encaja con la tarea y qué perfil, skill o workflow disponible en Loomcoding puede implementarlo. El sitio de AgentPatterns describe patrones generales; no conoce el catálogo ni los permisos reales de Loomcoding. Mantener una tabla revisada de correspondencias patrón → perfil/skill Loomcoding con justificación y evidencia.
 
-La [Selection Map](https://www.agentpatterns.ai/patterns/selection-map/) ayuda a comparar 14 patrones con ejes de tokens, latencia, dependencia de modelo avanzado, blast radius, coste de verificación y clase de tarea. El propio artículo dice que es una ayuda comparativa, no un motor de recomendación; advierte contra pattern shopping, filas desactualizadas y reducir ejes con distribuciones distintas a una sola nota. Sus etiquetas relativas no son datos medidos en CodeLoom.
+La [Selection Map](https://www.agentpatterns.ai/patterns/selection-map/) ayuda a comparar 14 patrones con ejes de tokens, latencia, dependencia de modelo avanzado, blast radius, coste de verificación y clase de tarea. El propio artículo dice que es una ayuda comparativa, no un motor de recomendación; advierte contra pattern shopping, filas desactualizadas y reducir ejes con distribuciones distintas a una sola nota. Sus etiquetas relativas no son datos medidos en Loomcoding.
 
 Flujo candidato:
 
@@ -202,9 +202,9 @@ Flujo candidato:
 4. Relacionar los patrones elegidos con perfiles registrados reales y sus capacidades efectivas.
 5. Devolver dos o tres opciones con trade-offs, coste relativo, verificación, evidencia enlazada y una opción de abstención. Al principio el usuario o el workflow padre elige; no despachar automáticamente.
 
-CodeLoom ya usa SQLite/SQLx para sesiones, pero la búsqueda vectorial no está implementada en codeloom-core. No acoplaría el índice del corpus al historial de sesiones inicialmente. Para una primera versión pequeña, indexar título, descripción, tags, categoría, maturity, status, last_reviewed, ruta, commit fuente y texto de secciones clave. Probar primero búsqueda léxica/híbrida con FTS5 y recuperar los pocos documentos seleccionados al contexto. Si esa búsqueda falla en tareas de evaluación por paráfrasis, añadir embeddings versionados por modelo y hash del contenido. Las tablas conceptuales serían pattern_source, pattern_document, pattern_chunk, profile_capability y pattern_profile_fit; no son un esquema aprobado.
+Loomcoding ya usa SQLite/SQLx para sesiones, pero la búsqueda vectorial no está implementada en loomcoding-core. No acoplaría el índice del corpus al historial de sesiones inicialmente. Para una primera versión pequeña, indexar título, descripción, tags, categoría, maturity, status, last_reviewed, ruta, commit fuente y texto de secciones clave. Probar primero búsqueda léxica/híbrida con FTS5 y recuperar los pocos documentos seleccionados al contexto. Si esa búsqueda falla en tareas de evaluación por paráfrasis, añadir embeddings versionados por modelo y hash del contenido. Las tablas conceptuales serían pattern_source, pattern_document, pattern_chunk, profile_capability y pattern_profile_fit; no son un esquema aprobado.
 
-SQLite publica FTS5 como módulo de búsqueda de texto completo ([documentación](https://www.sqlite.org/fts5.html)); comprobar que la build SQLite de CodeLoom lo habilita antes de depender de ello. Hay extensiones vectoriales como [sqlite-vec](https://github.com/asg017/sqlite-vec), pero su README indica estado pre-v1 y posibles cambios incompatibles. No añadirla hasta demostrar que FTS5 más filtros estructurados no basta y fijar una versión compatible con Windows y los builds de Loom.
+SQLite publica FTS5 como módulo de búsqueda de texto completo ([documentación](https://www.sqlite.org/fts5.html)); comprobar que la build SQLite de Loomcoding lo habilita antes de depender de ello. Hay extensiones vectoriales como [sqlite-vec](https://github.com/asg017/sqlite-vec), pero su README indica estado pre-v1 y posibles cambios incompatibles. No añadirla hasta demostrar que FTS5 más filtros estructurados no basta y fijar una versión compatible con Windows y los builds de Loom.
 
 No cargar los 1.930 documentos ni llms-full.txt por petición. Mantener un índice local del snapshot upstream y pasar al modelo solo los fragmentos relevantes; registrar modelo de embedding, versión del corpus, hash, fecha y procedencia. Si el embedding se genera mediante un proveedor remoto, enviar únicamente la consulta resumida y fragmentos permitidos, nunca secretos ni el repositorio completo.
 
@@ -214,11 +214,11 @@ Validar el recomendador con tareas representativas y una shortlist de referencia
 
 ECC puede ser una segunda fuente para recomendar agentes concretos. El checkout contiene 71 definiciones Markdown con metadatos como name, description, tools y model, además del cuerpo de instrucciones. scripts/lib/agent-ir.js las parsea a ecc.agent-ir.v1 y conserva el frontmatter original; el conversor actual declara Claude → Pi como dirección soportada. Referencias: [catálogo ECC](../../../ECC/agents/), [parser IR](../../../ECC/scripts/lib/agent-ir.js) y [conversor](../../../ECC/scripts/agent-convert.js).
 
-El recomendador combinaría dos tipos de dato: AgentPatterns propone patrones y explica sus trade-offs; ECC ofrece candidatos de rol. Un índice no debe equiparar automáticamente patrón y agente. Mantener correspondencias revisables con evidencia, por ejemplo: petición de código Rust → perfil rust-reviewer para revisión; cambio de autenticación → security-reviewer; trabajo complejo → planner. La selección final debe respetar el workflow aprobado de CodeLoom y sus gates humanos.
+El recomendador combinaría dos tipos de dato: AgentPatterns propone patrones y explica sus trade-offs; ECC ofrece candidatos de rol. Un índice no debe equiparar automáticamente patrón y agente. Mantener correspondencias revisables con evidencia, por ejemplo: petición de código Rust → perfil rust-reviewer para revisión; cambio de autenticación → security-reviewer; trabajo complejo → planner. La selección final debe respetar el workflow aprobado de Loomcoding y sus gates humanos.
 
-No importar los 71 prompts al runtime. Indexar primero identificador, descripción, categoría inferida, modelo declarado, herramientas declaradas, harness de origen, versión y hash. Leer el cuerpo completo solo al adaptar un perfil elegido. Marcar cada campo como compatible, traducible con pérdida o no soportado en CodeLoom.
+No importar los 71 prompts al runtime. Indexar primero identificador, descripción, categoría inferida, modelo declarado, herramientas declaradas, harness de origen, versión y hash. Leer el cuerpo completo solo al adaptar un perfil elegido. Marcar cada campo como compatible, traducible con pérdida o no soportado en Loomcoding.
 
-Los modelos Claude de ECC (haiku/sonnet/opus) y sus tools (Read/Write/Edit/Grep/Glob/Bash) no se deben copiar literalmente a CodeLoom. Mapearlos a capacidades reales de proveedor y herramientas efectivas. En particular, la lista scope.tools de CodeLoom todavía no actúa como allowlist general; no presentar un perfil recomendado como seguro hasta que el runtime aplique sus límites.
+Los modelos Claude de ECC (haiku/sonnet/opus) y sus tools (Read/Write/Edit/Grep/Glob/Bash) no se deben copiar literalmente a Loomcoding. Mapearlos a capacidades reales de proveedor y herramientas efectivas. En particular, la lista scope.tools de Loomcoding todavía no actúa como allowlist general; no presentar un perfil recomendado como seguro hasta que el runtime aplique sus límites.
 
 
 ### 9.9 Jevalan como capa de decisión y límite de contexto
@@ -229,10 +229,10 @@ Los Markdown de AgentPatterns y ECC son fuentes consultables. Sus enlaces a otra
 
 Flujo acotado propuesto:
 
-1. CodeLoom entrega a Jevalan un resumen de tarea y restricciones tipadas: tipo de cambio, stack, riesgo, presupuesto, verificación necesaria y perfiles realmente disponibles.
+1. Loomcoding entrega a Jevalan un resumen de tarea y restricciones tipadas: tipo de cambio, stack, riesgo, presupuesto, verificación necesaria y perfiles realmente disponibles.
 2. La recuperación local devuelve como máximo tres patrones y tres perfiles con metadatos y fragmentos breves; registra revisión, commit y procedencia.
 3. Jevalan decide entre recommend, ask_user o abstain y devuelve IDs, razón, confianza y restricciones. No recibe prompts completos, repositorios ni credenciales.
-4. CodeLoom muestra la recomendación y mantiene sus aprobaciones existentes. No despacha un perfil por el mero resultado de similitud o de una llamada a Jevalan.
+4. Loomcoding muestra la recomendación y mantiene sus aprobaciones existentes. No despacha un perfil por el mero resultado de similitud o de una llamada a Jevalan.
 
 Presupuesto inicial para medir, no requisito definitivo: una llamada de decisión por petición; cero expansión recursiva de enlaces; hasta tres patrones, tres perfiles y tres fragmentos de evidencia. Si falta evidencia, abstenerse o pedir una precisión, no seguir cargando documentos. Registrar consumo y latencia en el modo sombra antes de permitir dispatch automático.
 

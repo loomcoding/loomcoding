@@ -38,7 +38,7 @@ inspección visual amplia del resto de estados sigue pendiente.
 ## Composer: comandos slash
 
 Escribir `/` al inicio de una entrada de una sola línea abre las sugerencias de
-Batten. Filtra por prefijo; ↑/↓ selecciona, Tab completa y Enter ejecuta la
+Cloth. Filtra por prefijo; ↑/↓ selecciona, Tab completa y Enter ejecuta la
 opción seleccionada. Comandos disponibles:
 
 - `/help`: ayuda de teclado.
@@ -53,7 +53,7 @@ opción seleccionada. Comandos disponibles:
 - `/pause`: pausa los pendientes sin interrumpir el turno activo.
 - `/resume`: reanuda la cola y mantiene el despacho de uno en uno.
 - `/sidebar`: alterna la barra lateral, como Ctrl+B.
-- `/quit`: sale de CodeLoom.
+- `/quit`: sale de Loomcoding.
 
 Estas acciones reutilizan los flujos y atajos existentes. No entran en el
 historial de prompts ni se encolan para el provider. Los comandos desconocidos
@@ -73,7 +73,7 @@ local. Se cubren selección, completado, ejecución local, protección de sesion
 activas, errores, texto literal, prioridad de permisos y render en tamaños
 pequeños. Las pruebas de control verifican pausa sin cancelación, cancelación con
 pausa, reanudación secuencial y cancelación tardía al terminar o fallar.
-Clippy mantiene los siete avisos previos de Batten; validación visual
+Clippy mantiene los siete avisos previos de Cloth; validación visual
 en terminal real pendiente.
 
 ## Actividad: inspector de herramientas
@@ -97,7 +97,7 @@ La copia usa OSC52 y depende del soporte y configuración del terminal.
 Validación: build, 351 pruebas, formato y revisión del diff pasan con el target
 local. Hay pruebas de teclado, copia, retención/selección, cambio de sesión,
 desplazamiento en ambos ejes, estado vacío y tamaños pequeños. Clippy mantiene
-los siete avisos previos de Batten; inspección visual y copia en terminal real
+los siete avisos previos de Cloth; inspección visual y copia en terminal real
 pendientes.
 
 ## Cola de prompts: pausa, edición y cancelación
@@ -118,7 +118,7 @@ puede revisar los pendientes antes de reanudar. La cola sigue siendo volátil.
 Validación: 348 pruebas pasan; incluyen edición/descartado, pausa, cancelación,
 reanudación secuencial, canal cerrado y render del editor y sus controles. Build,
 formato y revisión del diff pasan; Clippy mantiene los siete avisos previos de
-Batten. La validación en terminal real sigue pendiente.
+Cloth. La validación en terminal real sigue pendiente.
 
 ## Permisos y proveedor: integración
 
@@ -138,7 +138,7 @@ Validación de esta integración: `cargo build`, `cargo test` (342 pruebas),
 `CARGO_TARGET_DIR=E:\workspace\personal\loom\target` porque el target compartido
 un target compartido tiene `loom.exe` abierto. `cargo clippy -- -D warnings` falla por siete
 avisos preexistentes en `attachment_preview`, `help_overlay`, `profile_view`,
-`session_list`, `settings_panel` y `status_bar` de Batten.
+`session_list`, `settings_panel` y `status_bar` de Cloth.
 
 ## Terminal y navegación: integración
 
@@ -158,5 +158,5 @@ actualización sincronizada y muestra el cursor.
 Validación: `cargo test` (345 pruebas), `cargo build`, `cargo fmt --check` y
 `git diff --check` pasan usando el target local indicado arriba. Las pruebas
 cubren seis estados de diálogo desde 0×0 hasta 120×40 y la conservación del foco
-y del borrador. Clippy mantiene los siete avisos previos de Batten. La
+y del borrador. Clippy mantiene los siete avisos previos de Cloth. La
 restauración y la inspección visual en terminal real quedan pendientes.

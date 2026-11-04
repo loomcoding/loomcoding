@@ -1,4 +1,4 @@
-# Contribuir a CodeLoom
+# Contribuir a Loomcoding
 
 Gracias por considerar una contribución. Para cambios grandes, abre primero un issue y acordemos
 el alcance antes de implementar.
@@ -21,7 +21,7 @@ cargo clippy -- -D warnings
 
 Las pruebas no deben usar la red real: usa `wiremock` o un `Provider` de prueba. Mantén los límites
 de contexto y coste descritos en `docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`.
-`codeloom-core` no debe depender de `ratatui` ni `crossterm`; las integraciones van en sus crates.
+`loomcoding-core` no debe depender de `ratatui` ni `crossterm`; las integraciones van en sus crates.
 
 Para cambios de comportamiento, actualiza la documentación relevante y acompaña el cambio con su
 spec y plan en `docs/specs/` y `docs/plans/`, siguiendo los ejemplos existentes.
@@ -36,5 +36,5 @@ spec y plan en `docs/specs/` y `docs/plans/`, siguiendo los ejemplos existentes.
 Las contribuciones están sujetas al [Código de Conducta](CODE_OF_CONDUCT.md). Para vulnerabilidades,
 consulta [SECURITY.md](SECURITY.md) y no abras un issue público con detalles explotables.
 
-Al enviar una contribución para incluirla en CodeLoom, aceptas que se distribuya bajo la misma
+Al enviar una contribución para incluirla en Loomcoding, aceptas que se distribuya bajo la misma
 licencia dual `MIT OR Apache-2.0`, salvo que acordemos expresamente otra cosa.

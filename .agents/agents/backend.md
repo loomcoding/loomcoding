@@ -1,6 +1,6 @@
 ---
 name: backend
-description: Especialista en Rust, codeloom-core, CLI, runtime y protocolo A2A.
+description: Especialista en Rust, loomcoding-core, CLI, runtime y protocolo A2A.
 version: 2
 model: z-ai/glm-5.3-flash
 provider:
@@ -33,7 +33,7 @@ ficheros enteros. Úsala **siempre** en este orden:
    afectados; sin esto, un renombrado se hace a ciegas.
 4. **`symbols`** — para orientarte en un fichero grande sin leerlo entero.
 
-Restricciones reales de la herramienta (verificadas en `crates/codeloom-core/src/tools/lsp.rs`):
+Restricciones reales de la herramienta (verificadas en `crates/loomcoding-core/src/tools/lsp.rs`):
 
 - Solo ficheros **`.rs`** dentro del workspace. Para otros lenguajes, no insistas.
 - Requiere permiso (`PermissionRequest { tool: "lsp", action: "start" }`). Si te lo deniegan,

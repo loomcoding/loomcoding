@@ -8,13 +8,13 @@
 
 - **Aislamiento.** `dirs::home_dir()` ignora `USERPROFILE` en Windows: la primera ejecución de los
   E2E se conectó al daemon real de la persona usuaria y dejó siete sesiones de prueba (188 a 194)
-  en su `sessions.db`. Se corrigió con `CODELOOM_HOME`, leído por `crates/codeloom-cli/src/home.rs`
+  en su `sessions.db`. Se corrigió con `LOOMCODING_HOME`, leído por `crates/loomcoding-cli/src/home.rs`
   y entregado por `Workspace::env`; el primer escenario comprueba que existe
-  `<perfil>/.codeloom/sessions.db`.
+  `<perfil>/.loomcoding/sessions.db`.
 - **ConPTY.** Con `portable-pty` 0.9 y `vt100` 0.15 los arranques funcionan; el lector responde a
   `ESC[6n` y no se ha visto ninguna otra consulta que bloquee.
 - **Daemon.** El cliente lanza `<exe> --server` suelto; `kill_daemons_of` lo identifica por su línea
-  de órdenes y por `CODELOOM_HOME` (con `sysinfo` 0.37, la 0.40 exige un rustc más nuevo).
+  de órdenes y por `LOOMCODING_HOME` (con `sysinfo` 0.37, la 0.40 exige un rustc más nuevo).
 - **Aspecto por defecto.** Un perfil nuevo arranca con la cabecera `CODEL∞M` y la pista
   «Describe what you want to build», no con el preset guardado de la persona usuaria.
 - **C.** `ttyd` 1.7.7 sirve bien (HTTP 200 y WebSocket), pero `Page.captureScreenshot` de Chrome
@@ -37,8 +37,8 @@ Quien revisa (persona o agente) no puede ver la pantalla.
    las convierte en PNG que un agente puede abrir como imagen.
 3. **C — Captura de píxeles de cualquier herramienta de terminal.** Un script sirve un
    comando arbitrario por web (`ttyd`, xterm.js) solo en `127.0.0.1`, para abrirlo con
-   Chrome y sacar capturas de la UI y de sus componentes (CodeLoom, el showcase de
-   `batten` u otras herramientas que se incorporen).
+   Chrome y sacar capturas de la UI y de sus componentes (Loomcoding, el showcase de
+   `cloth` u otras herramientas que se incorporen).
 
 ## No objetivos
 
@@ -51,10 +51,10 @@ Quien revisa (persona o agente) no puede ver la pantalla.
 
 ## Diseño
 
-### Crate de apoyo `codeloom-e2e`
+### Crate de apoyo `loomcoding-e2e`
 
 Miembro nuevo del workspace, `publish = false`. No lo usa ningún crate de producción;
-solo `dev-dependencies` de `codeloom-cli`. Contiene:
+solo `dev-dependencies` de `loomcoding-cli`. Contiene:
 
 - `Term`: abre un PTY (`portable-pty`, ConPTY en Windows), lanza un comando, alimenta
   un `vt100::Parser` desde un hilo lector y expone `send_text`, `send_bytes`,
@@ -66,12 +66,12 @@ solo `dev-dependencies` de `codeloom-cli`. Contiene:
 - `Snapshot`: texto de la pantalla más una rejilla de celdas (`char`, `fg`, `bg`,
   `bold`, `inverse`, `underline`) y posición del cursor, serializable a JSON.
 - `mock`: servidor `wiremock` que responde SSE tipo `/chat/completions`, y un
-  `Workspace` temporal con `codeloom.toml` apuntando a ese servidor.
+  `Workspace` temporal con `loomcoding.toml` apuntando a ese servidor.
 
 ### Aislamiento
 
 El test crea un directorio temporal que hace de perfil de usuario: pasa
-`USERPROFILE` y `HOME` al hijo, de modo que `~/.codeloom` (sesiones, token, tuberías
+`USERPROFILE` y `HOME` al hijo, de modo que `~/.loomcoding` (sesiones, token, tuberías
 con nombre derivadas del perfil, catálogo `models-dev.json`) no se comparte con el
 daemon del usuario. La clave del provider se pasa por la variable de entorno que
 declara `api_key_env`. Si `dirs::home_dir()` no respetase `USERPROFILE` en Windows,
@@ -83,7 +83,7 @@ evita sembrando un `models-dev.json` reciente en el perfil temporal.
 
 ### Binario y bloqueo en Windows
 
-Con un `codeloom.exe` abierto, `cargo build/test` falla al reemplazarlo
+Con un `loomcoding.exe` abierto, `cargo build/test` falla al reemplazarlo
 («Acceso denegado»). Los E2E se ejecutan con un `CARGO_TARGET_DIR` propio en `C:`
 (el disco `E:` está casi lleno).
 
@@ -117,7 +117,7 @@ capturar, y cómo cerrar el proceso.
 
 ## Verificación
 
-- `cargo test -p codeloom-e2e` (unitarias del emulador y del lector).
-- `cargo test -p codeloom-cli --test tui_pty` con `CARGO_TARGET_DIR` propio.
+- `cargo test -p loomcoding-e2e` (unitarias del emulador y del lector).
+- `cargo test -p loomcoding-cli --test tui_pty` con `CARGO_TARGET_DIR` propio.
 - Los cuatro checks de `AGENTS.md` al cerrar.
-- Una captura real con C de la TUI y otra del showcase de `batten`.
+- Una captura real con C de la TUI y otra del showcase de `cloth`.
