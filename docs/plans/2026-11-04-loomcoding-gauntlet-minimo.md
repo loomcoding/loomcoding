@@ -38,8 +38,11 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    en el transcript con fase propia, agente con su estado A2A entre paréntesis y ronda, y reenvío al abrir la
    sesión (`SessionUpdate::Gauntlet`). Pendiente: revisión visual en terminal real (con `LOOMCODING_HOME`
    aislado) y compilar el binario del cli cuando se cierren los `loom.exe`.
-9. [ ] **E2E con proveedor simulado**: un gauntlet completo (constructor → crítico `gap` → reconstrucción →
-   crítico `no_gap` → sesgo coherente → aceptación) y el camino del tope de rondas. Sin red real.
+9. [x] (2026-11-04) **E2E con proveedor simulado** (`subagent/tests/gauntlet_e2e.rs`, 3 pruebas): herramienta y
+   lanzador reales, proveedor simulado que hace de constructor y de crítico leyendo los ficheros. Cubre el
+   gauntlet completo (brecha → reconstrucción → sin brecha → sesgo coherente → aceptación humana), que el
+   crítico no recibe la barra rotulada ni el informe del constructor, y el tope de rondas (`stopped`, sin
+   ofrecer aceptación). Sin red real.
 10. [ ] **Documentación**: `ARCHITECTURE.md`, `CODE-MAP.md` e `INVARIANTS.md` si procede, README del crate, fila
     en `docs/INDEX.md`; la idea original pasa a «recortada en…».
 

@@ -28,6 +28,7 @@ mod ciclo_de_vida;
 mod depth_y_persona;
 mod enrutado_y_cancelacion;
 mod entrada_y_reenvio;
+mod gauntlet_e2e;
 mod perfiles_y_registro;
 mod recursion_y_skills;
 mod remoto_espejo;
