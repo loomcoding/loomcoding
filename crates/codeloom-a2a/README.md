@@ -10,7 +10,7 @@ crate depende de `core`, nunca al revés.
 `A2aClientFactory` (`client/factory.rs`), `LauncherHost` y `HostLimits` (`serve/host.rs`).
 
 **Puntos de entrada:** `client/` (llamar a un agente remoto), `serve/` (`mod.rs`, `rpc.rs`,
-`auth.rs`, `launch.rs`: servidor), `sse.rs` (streaming), `oauth.rs`/`security.rs`/`signing.rs`
+`auth.rs`, `launch.rs`: servidor), `sse.rs` (streaming), `oauth.rs`/`security/`/`signing.rs`
 (autenticación y verificación de tarjetas).
 
 **Cómo se testea:** `wiremock` y `tower` para simular el par remoto; `tempfile` para
