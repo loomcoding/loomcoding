@@ -120,6 +120,7 @@ Ojo con el nombre: `crates/loomcoding-core/src/registry/` es el **registro de ag
 | Ciclo de vida de subagentes (contrato, admisión, ejecución local, remotos, control) | `crates/loomcoding-core/src/subagent/` (`mod.rs`, `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`, `launcher.rs`) |
 | Entrada dirigida a un subagente | `crates/loomcoding-core/src/subagent/input/` (`mod.rs`, `responder.rs`) |
 | Herramientas (una por archivo) | `crates/loomcoding-core/src/tools/` |
+| Gauntlet (constructor + crítico ciego): modelo puro, herramienta y persistencia | `crates/loomcoding-core/src/gauntlet.rs`, `tools/gauntlet/`, `session/sqlite/gauntlets.rs` (spec `docs/specs/2026-11-04-loomcoding-gauntlet-minimo.md`) |
 | Registro de agentes (perfiles, router) | `crates/loomcoding-core/src/registry/` |
 | `trait Provider` y clientes de modelo | `crates/loomcoding-core/src/provider/` |
 | Bus de eventos | `crates/loomcoding-core/src/event/mod.rs` |

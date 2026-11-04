@@ -1,6 +1,6 @@
 # Plan — Gauntlet mínimo
 
-> Estado: **aprobado** (2026-11-04). Pendiente de ejecutar desde el paso 1. `max_rounds` por defecto 2; barra solo
+> Estado: **hecho** (2026-11-04), salvo la revisión visual del paso 8. `max_rounds` por defecto 2; barra solo
 > con rutas de texto; comprobación de sesgo solo tras `no_gap`.
 
 Spec: `docs/specs/2026-11-04-loomcoding-gauntlet-minimo.md`.
@@ -43,8 +43,8 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    gauntlet completo (brecha → reconstrucción → sin brecha → sesgo coherente → aceptación humana), que el
    crítico no recibe la barra rotulada ni el informe del constructor, y el tope de rondas (`stopped`, sin
    ofrecer aceptación). Sin red real.
-10. [ ] **Documentación**: `ARCHITECTURE.md`, `CODE-MAP.md` e `INVARIANTS.md` si procede, README del crate, fila
-    en `docs/INDEX.md`; la idea original pasa a «recortada en…».
+10. [x] (2026-11-04) **Documentación**: `ARCHITECTURE.md`, `CODE-MAP.md` (sección propia), `INVARIANTS.md` (dos filas),
+    README de `loomcoding-core`, fila en `docs/INDEX.md` y la idea original marcada «recortada en…».
 
 ## Riesgos
 

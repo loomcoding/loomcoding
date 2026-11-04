@@ -1,6 +1,6 @@
 # Loomcoding — Idea/spec: Gauntlet Loop (builder + crítico ciego)
 
-> Estado: **idea en exploración**. No implementar. El primer corte implementable es `2026-11-04-loomcoding-gauntlet-minimo.md`.
+> Estado: **idea recortada en `2026-11-04-loomcoding-gauntlet-minimo.md`**, ya implementado. Lo que ese spec no cubre (presupuesto, rondas largas, varias barras, activación automática) sigue siendo idea en exploración: no implementar sin spec nuevo.
 >
 > Fecha: 2026-10-14
 >

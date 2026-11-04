@@ -36,8 +36,22 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
 2. Clasifícala en `is_child_relevant()` (mismo archivo): es lo que decide qué ve el padre.
 3. Publícala donde ocurre el hecho (`EventBus`).
 4. Consumo en la TUI: `crates/loomcoding-tui/src/app/events.rs` (`App::apply`).
-5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/loomcoding-core/src/session/sqlite/` (el módulo del tema: `subagents.rs`, `sessions.rs`, `usage.rs` o `workflows.rs`; el esquema, en `schema.rs`).
+5. ¿Debe sobrevivir al reinicio? Entonces persiste en `crates/loomcoding-core/src/session/sqlite/` (el módulo del tema: `subagents.rs`, `sessions.rs`, `usage.rs`, `workflows.rs` o `gauntlets.rs`; el esquema, en `schema.rs`).
 6. Si viaja por IPC al cliente, el reenvío está en `crates/loomcoding-cli/src/server/` (`worker.rs`: `forward_agent_events`; los tipos del cable, en `protocol.rs`).
+
+## Quiero tocar el Gauntlet (constructor + crítico ciego)
+
+1. Reglas puras (fases, orden A/B, veredicto, parseo acotado): `crates/loomcoding-core/src/gauntlet.rs`;
+   `GauntletPhase::can_transition_to` es la única tabla de transiciones.
+2. Acciones de la herramienta (`start`, `advance`, `accept`, `cancel`, `status`): `crates/loomcoding-core/src/tools/gauntlet/`
+   (`start.rs`, `advance.rs`, `decide.rs`, `status.rs`; prompts y `save` en `helpers.rs`).
+3. Todo cambio de fase pasa por `helpers::save`, que persiste y publica `LiveEvent::GauntletChanged`: no llames a
+   `update_gauntlet` por otro camino o la conversación no lo verá.
+4. Persistencia: `session/sqlite/gauntlets.rs` y los métodos de `SessionStore` en `session/mod.rs`.
+5. Línea del transcript y reenvío al abrir sesión: `crates/loomcoding-tui/src/app/events.rs` (`GauntletChanged`),
+   `run/mod.rs` (`SessionUpdate::Gauntlet`) y `crates/loomcoding-cli/src/server/snapshot.rs`.
+6. Puerta de escritura del padre y fin de turno tras `start`: `agent/dispatch.rs` y `agent/turn.rs`.
+7. Prueba de punta a punta: `crates/loomcoding-core/src/subagent/tests/gauntlet_e2e.rs`.
 
 ## Quiero añadir una fase de subagente
 

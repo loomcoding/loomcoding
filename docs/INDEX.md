@@ -78,7 +78,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 ## Sin hacer o sin cierre claro
 
-- **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,
+- **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop (recortada en gauntlet-minimo),
   kpis-prompt-compression, memory, static-decision-signals,
   tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
   agent-profile-a2a, agentic-fetch, turn-status-line.
@@ -102,7 +102,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | avisos-proveedor-spinner (11-03) | hecho | `/verbose` (`commands.rs`) y `provider_in_flight`; el plan lo declara hecho. Abierto en el spec: si `/verbose` debe persistir en `loomcoding.toml` |
 | temas-efectos-matrix-rain (11-02) | hecho | `MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App` y `[effects.matrix]` documentado en `crates/loomcoding-cloth/README.md` |
 | loomcoding-renombrado (11-02) | hecho | renombrado mecánico ejecutado el 2026-11-05 (CodeLoom → Loomcoding, `batten` → `loomcoding-cloth`); pendiente solo la búsqueda de marca y el anuncio público |
-| gauntlet-minimo (11-04) | aprobado | recorte implementable de `gauntlet-loop`: herramienta `gauntlet`, constructor + crítico ciego; sin código aún (paso 1 del plan) |
+| gauntlet-minimo (11-04) | hecho | recorte de `gauntlet-loop`: herramienta `gauntlet` (constructor + crítico ciego), persistencia, observabilidad y E2E (pasos 1 a 10 del plan). Pendiente: revisión visual en terminal real y compilar el binario del cli |
 | servidores-locales-ventana-contexto (11-04) | propuesta | `[provider] context_window` y reconocimiento del desborde de llama.cpp, para usar Loomcoding con servidores locales; spec y plan escritos, sin código |
 | help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
 | agents-picker-filters (11-01) | hecho | filtros conectados al teclado y al popup (`app/agents.rs`, `run/keys.rs`, `render/a2a.rs`); cotejado 2026-11-05 |
