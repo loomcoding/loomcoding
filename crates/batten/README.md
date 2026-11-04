@@ -6,7 +6,7 @@
 **No va aquí:** nada de `codeloom-core`: no depende de nadie del workspace y debe seguir
 siendo reutilizable fuera de CodeLoom.
 
-**Tipos clave:** `Composer` (`state/composer.rs`), transcript (`state/transcript.rs`), átomos de
+**Tipos clave:** `Composer` (`state/composer/`), transcript (`state/transcript.rs`), átomos de
 herramienta (`state/tool_atom.rs`), el tema (`widgets/theme.rs`), `widgets/composer.rs`,
 `widgets/transcript.rs`, `widgets/permission.rs`.
 
