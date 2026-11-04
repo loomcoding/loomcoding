@@ -100,16 +100,16 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 | Documento | Estado | Nota |
 |---|---|---|
-| estados-de-subagente-y-composer-compartido (11-04) | en curso | Fases 1 y 3 hechas (`subagent/phase.rs`, `subagent/watchdog.rs`); restan las demás |
-| watchdog-de-subagentes (11-05) | hecho | Fase 3 del anterior, commit `70a21f9`; el supervisor (Fase 5) tiene precondiciones en el spec §8 |
-| organizacion-y-navegabilidad (11-05) | en curso | Fase 0: hecho `ARCHITECTURE.md` y este índice |
-| avisos-proveedor-spinner (11-03) | sin estado declarado | `/verbose` existe en `commands.rs`; el resto sin cotejar |
-| temas-efectos-matrix-rain (11-02) | propuesta | ya hay `widgets/matrix_rain.rs` en `batten`; sin cotejar el alcance |
+| estados-de-subagente-y-composer-compartido (11-04) | hecho | Fases 0 a 6 hechas, con los matices que el plan declara; supervisor probado con un remoto en `codeloom-a2a/tests/supervised_remote.rs` (cotejado 2026-11-05) |
+| watchdog-de-subagentes (11-05) | hecho | Fase 3 del anterior, commit `70a21f9`; el supervisor y `lost_action` (defecto `notify`) ya están implementados |
+| organizacion-y-navegabilidad (11-05) | hecho | Fases 0 a 8: navegación, guardarraíles y todos los monolitos partidos; lista blanca vacía |
+| avisos-proveedor-spinner (11-03) | hecho | `/verbose` (`commands.rs`) y `provider_in_flight`; el plan lo declara hecho. Abierto en el spec: si `/verbose` debe persistir en `codeloom.toml` |
+| temas-efectos-matrix-rain (11-02) | en curso | Fases 1 a 4 en el código (`MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App`); falta la Fase 5: documentar `[effects.matrix]` en el README |
 | loomcoding-renombrado (11-02) | propuesta | |
 | help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
-| agents-picker-filters (11-01) | sin estado declarado | hay código (`agents_filter_edit`, `agents_tag_filter` en `app/`) |
-| edit-line-endings (11-01) | sin estado declarado | hay código (`match_line_endings` en `tools/edit.rs`) |
-| session-picker-rows, session-project-identity, tool-loop-turn-scope (11-01) | sin estado declarado | sin cotejar con el código |
+| agents-picker-filters (11-01) | hecho | filtros conectados al teclado y al popup (`app/agents.rs`, `run/keys.rs`, `render/a2a.rs`); cotejado 2026-11-05 |
+| edit-line-endings (11-01) | hecho | `match_line_endings` (`tools/mod.rs`) usado por `edit` y `multiedit` |
+| session-picker-rows, session-project-identity, tool-loop-turn-scope (11-01) | hecho | lista sin ajuste de línea (`render/settings.rs`); clave `cwd#codeloom-agent` con lectura de la anterior por prefijo (`session/sqlite/sessions.rs`); detección de bucles desde el último mensaje de usuario (`agent/stop.rs`) |
 | deuda-tecnica (10-16) | referencia | registro vivo de limitaciones |
 | development-workflow-interactive-reliability, runtime-capabilities-dashboard (10-29) | sin cierre declarado | anotado en la higiene del 11-01 |
 | local-server-client-runtime (10-26) | hecho | es el «Runtime R1 a R6» de más arriba |

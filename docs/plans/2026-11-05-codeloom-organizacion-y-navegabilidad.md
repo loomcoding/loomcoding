@@ -100,7 +100,7 @@ admitidos y una tabla con la tanda del 2026-11-01 al 11-05, que no estaba. Es un
 
 **Aceptación:** la tanda reciente está cubierta y marcada; los documentos sin línea
 `Estado:` figuran como «sin estado declarado», sin inventar uno. Pendiente aparte: cotejar
-con el código los documentos que aún dicen «sin cotejar» (ver `docs/INDEX.md`).
+con el código los documentos de la tanda 11-01 a 11-05: **hecho el 2026-11-05** (ver `docs/INDEX.md`).
 
 ### Paso 0.6 — `AGENTS.md` como puerta de entrada (HECHO 2026-11-05)
 
