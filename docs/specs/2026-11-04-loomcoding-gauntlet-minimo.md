@@ -1,6 +1,6 @@
 # Loomcoding — Gauntlet mínimo: constructor y crítico ciego
 
-> Estado: **propuesta** (2026-11-04), pendiente de aprobación. Recorta a un primer corte implementable la idea
+> Estado: **aprobada** (2026-11-04) con las decisiones de «Decisiones cerradas». Sin código aún. Recorta a un primer corte implementable la idea
 > `2026-10-14-loom-gauntlet-loop.md` (que sigue siendo la fuente conceptual y queda como «idea»).
 >
 > Relacionado: `2026-10-25-codeloom-agent-development-workflow.md` (modelo que se imita: herramienta
@@ -62,8 +62,8 @@ objetivo, nunca los nombres de las posiciones A/B.
 4. **Estado fresco por ronda**: cada ronda lanza un crítico nuevo; no se reutiliza su sesión.
 5. **Secuencial**: un constructor, un crítico, una ronda cada vez. No hay fan-out (la evidencia de la idea
    original es que el paralelismo empeora la calidad).
-6. **Cotas**: `max_rounds` por defecto 3 y máximo 5; el informe del crítico y la brecha se acotan en bytes
-   (decálogo). Sin tope no se acepta la llamada.
+6. **Cotas**: `max_rounds` por defecto 2 y máximo 5; el informe del crítico y la brecha se acotan en bytes
+   (decálogo). Un valor fuera de rango no se acepta.
 7. **Decisión humana final**: nunca pasa a `completed` por veredicto del crítico; hace falta una respuesta
    afirmativa explícita por el mecanismo de pregunta existente, ligada a la huella del artefacto presentado.
 8. **Sin cambio de permisos**: el registro del gauntlet no concede herramientas, allowlists ni modo de
@@ -98,7 +98,8 @@ Un veredicto malformado cuenta como `inconclusive`, no como `no_gap`.
 
 ## 8. Criterios de aceptación
 
-1. `start` rechaza identidades repetidas, rutas inexistentes, `max_rounds` ausente o fuera de rango.
+1. `start` rechaza identidades repetidas, rutas inexistentes o no textuales y `max_rounds` fuera de rango
+   (ausente = 2).
 2. El crítico se lanza solo de lectura y no recibe el resumen del constructor.
 3. El orden A/B se sortea por ronda, se persiste y se invierte en la comprobación de sesgo.
 4. Con `no_gap` y comprobación coherente se llega a `awaiting_final_acceptance`; con contradicción, a
@@ -108,8 +109,14 @@ Un veredicto malformado cuenta como `inconclusive`, no como `no_gap`.
 7. Estado y eventos sobreviven a un reinicio del almacén.
 8. No hay red real en las pruebas: proveedor simulado.
 
+## Decisiones cerradas (2026-11-04, por la persona usuaria)
+
+- `max_rounds` por defecto **2** (coste).
+- La comprobación de sesgo se aplica **solo al veredicto `no_gap`**: un `gap` falso cuesta una ronda de más;
+  un `no_gap` falso da por bueno un trabajo malo.
+- La barra son **solo rutas** a ficheros de texto. Capturas o imágenes quedan para una spec posterior, cuando
+  el hijo de solo lectura admita imágenes y exista forma de generar la captura.
+
 ## Preguntas abiertas
 
-- ¿El `max_rounds` por defecto de 3 es razonable o conviene 2 (coste)?
-- ¿La comprobación de sesgo debe aplicarse también a veredictos `gap`, o solo al de aprobación?
-- ¿Basta con rutas para la barra, o hace falta admitir capturas/imágenes desde el primer corte?
+Ninguna.

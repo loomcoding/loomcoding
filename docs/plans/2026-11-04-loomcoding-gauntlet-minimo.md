@@ -1,6 +1,7 @@
 # Plan — Gauntlet mínimo
 
-> Estado: **propuesta** (2026-11-04). No empezar hasta aprobar la spec.
+> Estado: **aprobado** (2026-11-04). Pendiente de ejecutar desde el paso 1. `max_rounds` por defecto 2; barra solo
+> con rutas de texto; comprobación de sesgo solo tras `no_gap`.
 
 Spec: `docs/specs/2026-11-04-loomcoding-gauntlet-minimo.md`.
 
