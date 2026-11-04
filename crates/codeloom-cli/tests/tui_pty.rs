@@ -4,8 +4,8 @@
 //! temporal, así que no se toca ni la sesión ni el daemon de la persona usuaria.
 
 use codeloom_e2e::{
-    kill_daemons_of, mock_provider, mock_provider_empty_subagent, Key, Snapshot, Term, TermConfig,
-    Workspace,
+    kill_daemons_of, mock_provider, mock_provider_child_asks, mock_provider_empty_subagent, Key,
+    Snapshot, Term, TermConfig, Workspace,
 };
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -19,7 +19,7 @@ const READY: &str = "Describe what you want to build";
 struct Session {
     term: Term,
     ws: Workspace,
-    _provider: MockServer,
+    provider: MockServer,
 }
 
 impl Session {
@@ -38,11 +38,7 @@ impl Session {
             cols,
         })
         .unwrap();
-        Session {
-            term,
-            ws,
-            _provider: provider,
-        }
+        Session { term, ws, provider }
     }
 
     fn expect(&self, needle: &str, within: Duration) -> Snapshot {
@@ -263,4 +259,57 @@ async fn subagent_without_final_text_fails_instead_of_completing_empty() {
 {}",
         snap.text
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_child_question_is_answered_from_the_composer_with_ctrl_g() {
+    let mut s = Session::with_provider(mock_provider_child_asks().await, 40, 120);
+    s.expect(READY, BOOT);
+    s.term.send_text("delega la pregunta").unwrap();
+    s.term.press(Key::Enter).unwrap();
+    // `subagent` pide permiso; `s` es «Permitir en la sesión». Se pulsa una vez por aparición.
+    let started = Instant::now();
+    let mut allowed = 0;
+    let snap = loop {
+        let snap = s.term.snapshot();
+        if snap.text.contains("input-required") {
+            break snap;
+        }
+        if snap.text.contains("Permitir") && allowed < 3 {
+            s.term.send_text("s").unwrap();
+            allowed += 1;
+        }
+        if started.elapsed() > TURN {
+            panic!(
+                "el hijo no llegó a input-required; pantalla:
+{}",
+                snap.text
+            );
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    s.shot("child-asks");
+    assert!(snap.text.contains("preguntón"), "{}", snap.text);
+    // Ctrl+G apunta el composer al hijo que espera; el texto va a él y no al padre.
+    s.term.press(Key::CtrlG).unwrap();
+    s.expect("→ preguntón", TURN);
+    s.shot("child-target");
+    s.term.send_text("verde").unwrap();
+    s.term.press(Key::Enter).unwrap();
+    s.expect_line("el hijo completado", |l| {
+        l.contains("preguntón") && l.contains("(completed)")
+    });
+    s.shot("child-answered");
+    // El hijo recibió de verdad la respuesta: la ve su segunda petición al modelo.
+    let requests = s.provider.received_requests().await.unwrap_or_default();
+    let answered = requests.iter().any(|r| {
+        let body: serde_json::Value = r.body_json().unwrap_or_default();
+        let offers_subagent = body.to_string().contains("\"name\":\"subagent\"");
+        !offers_subagent
+            && body["messages"].as_array().is_some_and(|ms| {
+                ms.iter()
+                    .any(|m| m["role"] == "tool" && m.to_string().contains("verde"))
+            })
+    });
+    assert!(answered, "el hijo no recibió la respuesta «verde»");
 }

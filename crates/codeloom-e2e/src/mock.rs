@@ -88,6 +88,56 @@ impl Respond for SubagentScript {
     }
 }
 
+/// Padre que delega en un hijo y hijo que, antes de contestar, pregunta a la persona con `ask_user`.
+///
+/// El padre se reconoce, como en `SubagentScript`, porque su petición ofrece `subagent`. El hijo
+/// pregunta en su primer turno y, una vez tiene la respuesta (un mensaje `tool`), cierra con texto.
+struct ChildAsksScript;
+
+impl Respond for ChildAsksScript {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let body: serde_json::Value = request.body_json().unwrap_or_default();
+        let offers_subagent = body["tools"].as_array().is_some_and(|tools| {
+            tools
+                .iter()
+                .any(|entry| entry.pointer("/function/name") == Some(&"subagent".into()))
+        });
+        let has_tool_result = body["messages"]
+            .as_array()
+            .is_some_and(|messages| messages.iter().any(|m| m["role"] == "tool"));
+        let say = |text: &str| {
+            sse(&[
+                serde_json::json!({"choices":[{"delta":{"content":text}}]}),
+                serde_json::json!({"choices":[{"finish_reason":"stop"}]}),
+            ])
+        };
+        match (offers_subagent, has_tool_result) {
+            (true, false) => tool_call(
+                "subagent",
+                serde_json::json!({"prompt":"pregunta el color","label":"preguntón"}),
+            ),
+            (true, true) => say("delegado, espero al hijo"),
+            (false, false) => tool_call(
+                "ask_user",
+                serde_json::json!({"questions":[{"question":"¿Qué color prefieres?",
+                    "options":[{"label":"verde"},{"label":"rojo"}]}]}),
+            ),
+            (false, true) => say("anotado, gracias"),
+        }
+    }
+}
+
+/// Servidor OpenAI-compatible con el guion de un hijo que pregunta a la persona y espera su respuesta.
+pub async fn mock_provider_child_asks() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(ChildAsksScript)
+        .mount(&server)
+        .await;
+    server
+}
+
 /// Servidor OpenAI-compatible con el guion de un padre que delega en un hijo sin respuesta final.
 pub async fn mock_provider_empty_subagent(parent_reply: &str) -> MockServer {
     let server = MockServer::start().await;

@@ -35,6 +35,10 @@ cargo test -p codeloom-cli --test tui_pty
   python scripts/visual/render_screen.py target/e2e/tmp/e2e-shots/turn.json turn.png
   ```
 
+- Escenarios de subagentes: `subagent_without_final_text_fails_instead_of_completing_empty`
+  (hijo sin texto final) y `a_child_question_is_answered_from_the_composer_with_ctrl_g` (el hijo
+  pregunta con `ask_user`, `Ctrl+G` apunta el composer a él y la respuesta llega sin turno del
+  padre). Sus guiones del proveedor están en `crates/codeloom-e2e/src/mock.rs`.
 - Para añadir un escenario: `Session::start(respuesta, filas, columnas)`, `s.expect(READY, BOOT)`,
   `s.term.send_text / press / paste`, y `s.expect(texto, TURN)` o `s.expect_line(...)`.
 

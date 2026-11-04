@@ -183,10 +183,14 @@ pub(super) fn draw_transcript(
         (1 + args + visible_output + waiting).min(usize::from(max_tool_rows)) as u16
     });
     let attachment_rows = u16::from(!app.draft_images.is_empty());
+    // Con un hijo como destinatario se reserva una fila que lo nombra, sea cual sea el look del composer.
+    let target = app.composer_target_label();
+    let target_rows = u16::from(target.is_some());
     let reserved_rows = 2u16
         .saturating_add(thinking_rows)
         .saturating_add(tool_rows)
-        .saturating_add(attachment_rows);
+        .saturating_add(attachment_rows)
+        .saturating_add(target_rows);
     let max_composer_height = inner.height.saturating_sub(reserved_rows);
     let composer_height = batten::widgets::composer::height_for_look(
         &app.theme,
@@ -202,11 +206,12 @@ pub(super) fn draw_transcript(
         Constraint::Length(thinking_rows),
         Constraint::Length(tool_rows),
         Constraint::Length(attachment_rows),
+        Constraint::Length(target_rows),
         Constraint::Length(composer_height),
     ])
     .split(inner);
-    app.composer_area = Some(rows[5]);
-    panes.push((Focus::Composer, rows[5]));
+    app.composer_area = Some(rows[6]);
+    panes.push((Focus::Composer, rows[6]));
     if !flat {
         frame.render_widget(
             Paragraph::new(Line::from(vec![
@@ -284,13 +289,22 @@ pub(super) fn draw_transcript(
     // El composer anima su propio indicador: le pasamos el fotograma actual.
     app.composer.set_activity_frame(app.animation.frame);
     // Con un hijo como destinatario, el composer nombra a quién va lo que se escribe.
-    let model_label: std::borrow::Cow<str> = match app.composer_target_label() {
+    if let Some(target) = &target {
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(format!(" {target} "), app.theme.styles.heading),
+                Span::styled("  Ctrl+G cycles", app.theme.styles.muted),
+            ])),
+            rows[5],
+        );
+    }
+    let model_label: std::borrow::Cow<str> = match &target {
         Some(target) => format!("{target} · {}", app.model).into(),
         None => std::borrow::Cow::Borrowed(&app.model),
     };
     batten::widgets::composer::render_for_look(
         frame,
-        rows[5],
+        rows[6],
         &app.composer,
         app.focus == crate::app::Focus::Composer
             && app.permission.is_none()

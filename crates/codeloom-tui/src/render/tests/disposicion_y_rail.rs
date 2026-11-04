@@ -475,3 +475,16 @@ fn settings_dialog_marks_changed_fields_unsaved() {
     assert!(content.contains("other-model"));
     assert!(content.contains("Save and apply (1 change)"));
 }
+
+#[test]
+fn el_destinatario_hijo_se_ve_sobre_el_composer_en_el_look_crush() {
+    let mut app = loaded_crush_app();
+    let sin_destino = buffer_of(&mut app, 140, 50);
+    assert!(!sin_destino.contains("→ review"));
+    app.cycle_composer_target();
+    let con_destino = buffer_of(&mut app, 140, 50);
+    assert!(
+        con_destino.contains("→ review #9"),
+        "el composer Crush debía nombrar a quién va lo que se escribe"
+    );
+}

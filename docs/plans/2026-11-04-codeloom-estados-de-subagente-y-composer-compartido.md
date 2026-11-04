@@ -156,6 +156,10 @@ descriptor sin tocar `status.state` (A2A manda). Tests: `phase_observer` (7),
   el flujo abierto y mudo, uno por periodo de sondeo. Sin latidos hay `Stalled` y luego `Lost`;
   el `auth-required` remoto se muestra como `AwaitingCredentials`. El `lost contact` propio del
   espejo (tres sondeos fallidos seguidos) sigue vigente y suele llegar antes.
+- **Probado de extremo a extremo (PTY, daemon real y perfil aislado):** un hijo pregunta,
+  `Ctrl+G` apunta el composer a él y la respuesta le llega. La prueba destapó un fallo de 6b: el
+  look `Crush` (el de por defecto) ignoraba la etiqueta del destinatario y solo `Classic` la
+  pintaba. Ahora una fila reservada sobre el composer nombra al hijo en cualquier look.
 - **Límite conocido:** con el flujo abierto, la conexión viva cuenta como contacto aunque el
   remoto no diga nada; solo `max_follow` (30 min) acota un remoto mudo con la conexión viva.
 

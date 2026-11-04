@@ -34,6 +34,7 @@ pub enum Key {
     Right,
     CtrlC,
     CtrlD,
+    CtrlG,
     CtrlJ,
     F1,
 }
@@ -51,6 +52,7 @@ impl Key {
             Key::Left => b"\x1b[D",
             Key::CtrlC => b"\x03",
             Key::CtrlD => b"\x04",
+            Key::CtrlG => b"\x07",
             Key::CtrlJ => b"\n",
             Key::F1 => b"\x1bOP",
         }
