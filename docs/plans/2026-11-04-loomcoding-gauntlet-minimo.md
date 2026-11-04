@@ -10,7 +10,7 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
 
 ## Pasos
 
-1. [ ] **Modelo puro** `crates/loomcoding-core/src/gauntlet.rs`: `GauntletPhase` (`Building`, `Judging`,
+1. [x] (2026-11-04) **Modelo puro** `crates/loomcoding-core/src/gauntlet.rs`: `GauntletPhase` (`Building`, `Judging`,
    `Rebuilding`, `AwaitingFinalAcceptance`, `Completed`, `Stopped`, `Inconclusive`, `Cancelled`, `Failed`),
    `can_transition_to`, `is_terminal`, `Gauntlet` (identidades, rutas, ronda, orden A/B por ronda, veredictos),
    `Verdict`. Sin E/S ni reloj; el sorteo del orden entra por parámetro (semilla inyectada) para que sea

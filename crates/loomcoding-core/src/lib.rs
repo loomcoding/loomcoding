@@ -22,6 +22,7 @@ pub mod subagent;
 pub use subagent::input as subagent_input;
 pub use subagent::phase as subagent_phase;
 pub use subagent::watchdog as subagent_watchdog;
+pub mod gauntlet;
 pub mod task;
 pub mod task_events;
 pub mod todo;
