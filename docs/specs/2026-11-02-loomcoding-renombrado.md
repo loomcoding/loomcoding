@@ -1,6 +1,6 @@
 # Spec — Renombrado a Loomcoding
 
-Estado: propuesto
+Estado: implementado el 2026-11-05 (renombrado mecánico completo; pendiente solo la búsqueda de marca y el anuncio)
 Fecha: 2026-11-02
 
 ## Contexto

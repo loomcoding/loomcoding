@@ -105,7 +105,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | organizacion-y-navegabilidad (11-05) | hecho | Fases 0 a 8: navegación, guardarraíles y todos los monolitos partidos; lista blanca vacía |
 | avisos-proveedor-spinner (11-03) | hecho | `/verbose` (`commands.rs`) y `provider_in_flight`; el plan lo declara hecho. Abierto en el spec: si `/verbose` debe persistir en `loomcoding.toml` |
 | temas-efectos-matrix-rain (11-02) | hecho | `MatrixConfig`, `/temas`, `draw_temas`, lluvia en `App` y `[effects.matrix]` documentado en `crates/loomcoding-cloth/README.md` |
-| loomcoding-renombrado (11-02) | propuesta | |
+| loomcoding-renombrado (11-02) | hecho | renombrado mecánico ejecutado el 2026-11-05 (CodeLoom → Loomcoding, `batten` → `loomcoding-cloth`); pendiente solo la búsqueda de marca y el anuncio público |
 | help-site-mdbook (11-01) | propuesta | pendiente de aprobación; sin código |
 | agents-picker-filters (11-01) | hecho | filtros conectados al teclado y al popup (`app/agents.rs`, `run/keys.rs`, `render/a2a.rs`); cotejado 2026-11-05 |
 | edit-line-endings (11-01) | hecho | `match_line_endings` (`tools/mod.rs`) usado por `edit` y `multiedit` |

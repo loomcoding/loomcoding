@@ -4,7 +4,7 @@ Spec: `docs/specs/2026-11-02-loomcoding-renombrado.md`
 
 ## Estado
 
-Pendiente. Ninguna fase ejecutada. **Revisado el 2026-11-05:** se actualiza el inventario, se incorpora
+Ejecutado el 2026-11-05 en dos commits: el renombrado mecánico (fases 1 a 5 y 7, con un script) y el README (fase 6). Queda la fase 8 manual: la prueba con perfil aislado. **Revisado el 2026-11-05:** se actualiza el inventario, se incorpora
 el renombrado de `batten` → `loomcoding-cloth` y se unen las fases 1 y 2 (ver «Revisión del 2026-11-05»).
 
 ## Revisión del 2026-11-05

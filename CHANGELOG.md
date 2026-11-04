@@ -6,6 +6,13 @@ release.
 
 ## Unreleased
 
+### Renombrado
+
+- CodeLoom pasa a llamarse **Loomcoding**; la crate `batten`, a `loomcoding-cloth`. Cambian los
+  paquetes, el binario `codeloom` (ahora `loomcoding`), `loomcoding.toml`, `LOOMCODING_*`,
+  `~/.loomcoding/` y el plugin `loomcoding.herdr`. Sin capa de compatibilidad: véase la sección
+  de migración del README.
+
 ### Preparación del proyecto
 
 - Añadidas pautas de contribución, seguridad, conducta y licencias.

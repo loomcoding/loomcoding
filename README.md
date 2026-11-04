@@ -11,6 +11,12 @@
   <br><sub>Download and open locally in a browser; GitHub displays HTML source instead of running it.</sub>
 </p>
 
+> [!WARNING]
+> **Experimental — not stable.** Loomcoding is under active development and offers no stable
+> API. The configuration (`loomcoding.toml`), the environment variables, the session format and
+> the event protocol may change without notice between versions. Do not use it in production or
+> in critical workflows. Breaking changes are accepted until a stable version is announced.
+
 # Loomcoding
 
 Loomcoding is a **Rust coding agent** with a **ratatui** terminal interface. It
@@ -103,6 +109,23 @@ status and links to the protocol designs.
 
 > `loom` is the short command for the Loomcoding brand (like `code` for VS Code).
 > The crate name must be unique on crates.io; binary names do not.
+
+## Migrating from CodeLoom
+
+The project used to be called CodeLoom, and its widget crate `batten`. There is no compatibility
+layer: rename by hand what you had.
+
+| Before | Now |
+|---|---|
+| `codeloom.toml` | `loomcoding.toml` |
+| `CODELOOM_*` environment variables | `LOOMCODING_*` |
+| `~/.codeloom/` | `~/.loomcoding/` |
+| `codeloom.herdr` plugin | `loomcoding.herdr` |
+| `codeloom` binary | `loomcoding` (`loom` is unchanged) |
+| `codeloom-*` crates, `batten` | `loomcoding-*`, `loomcoding-cloth` |
+
+Close any `loom` or `loomcoding` process that is still running before upgrading: the old daemon
+will not find the new profile directory.
 
 ## Architecture
 
