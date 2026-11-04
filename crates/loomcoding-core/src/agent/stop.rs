@@ -58,6 +58,11 @@ fn signature(m: &Message) -> Option<Vec<String>> {
     }
 }
 
+/// Si la herramienta de ese nombre escribe (y por tanto su ronda cuenta como trabajo).
+pub fn is_write_tool(name: &str) -> bool {
+    WRITE_TOOLS.contains(&name)
+}
+
 /// Si la firma corresponde a una herramienta que escribe.
 ///
 /// La firma tiene la forma `nombre:json`, así que basta con mirar el prefijo.

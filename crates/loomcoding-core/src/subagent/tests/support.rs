@@ -25,6 +25,30 @@ impl Provider for QueueProvider {
 }
 
 /// Herramienta trivial que devuelve su entrada; sirve para observar sus eventos desde el padre.
+/// Como `EchoTool`, pero con nombre de herramienta que escribe: sus rondas gastan presupuesto de trabajo.
+pub(super) struct WriteEchoTool;
+
+#[async_trait]
+impl crate::tools::Tool for WriteEchoTool {
+    fn name(&self) -> &str {
+        "write"
+    }
+    fn description(&self) -> &str {
+        "devuelve su entrada, como una escritura"
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({"type": "object"})
+    }
+    async fn run(
+        &self,
+        _ctx: crate::tools::ToolCtx,
+        input: serde_json::Value,
+        _cancel: CancellationToken,
+    ) -> Result<crate::tools::ToolOutput> {
+        Ok(crate::tools::ToolOutput::ok(input.to_string()))
+    }
+}
+
 pub(super) struct EchoTool;
 
 #[async_trait]

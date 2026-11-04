@@ -128,6 +128,8 @@ pub struct AgentLoop {
     delegation_confirm: ConfirmDelegation,
     /// Subagentes activos a la vez (`[agents] max_active_subagents`).
     max_active_subagents: usize,
+    /// Topes de lectura y paralelismo (`[limits]`).
+    limits: crate::config::LimitsConfig,
     /// Mando de delegación (`[agents] delegation`); `None` es el comportamiento de siempre.
     delegation: Option<crate::config::DelegationMode>,
     /// Techo de profundidad de la delegación (`[agents] max_depth`).

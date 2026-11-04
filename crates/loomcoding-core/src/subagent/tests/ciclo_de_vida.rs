@@ -202,7 +202,7 @@ async fn child_at_step_limit_hands_off_a_partial_report_instead_of_failing() {
                 vec![
                     StreamChunk::ToolCallComplete {
                         id: "c1".into(),
-                        name: "echo".into(),
+                        name: "write".into(),
                         input: serde_json::json!({"text": "inspect"}),
                     },
                     StreamChunk::Done(FinishReason::ToolCalls),
@@ -216,7 +216,7 @@ async fn child_at_step_limit_hands_off_a_partial_report_instead_of_failing() {
         ),
     });
     let mut tools = ToolRegistry::new();
-    tools.register(Arc::new(EchoTool));
+    tools.register(Arc::new(WriteEchoTool));
     let jobs = Arc::new(LocalJobRegistry::default());
     let runtime = InProcessSubagentLauncher::new(
         Arc::new(RwLock::new(provider)),

@@ -34,6 +34,7 @@ impl AgentLoop {
             registry: None,
             delegation_confirm: ConfirmDelegation::default(),
             max_active_subagents: crate::config::DEFAULT_ACTIVE_SUBAGENTS,
+            limits: crate::config::LimitsConfig::default(),
             delegation: None,
             depth_ceiling: crate::config::DEFAULT_DEPTH_CEILING,
             router: None,
@@ -155,6 +156,12 @@ impl AgentLoop {
     /// de subagentes; los otros dos modos añaden una regla al prompt.
     pub fn with_delegation_mode(mut self, mode: Option<crate::config::DelegationMode>) -> Self {
         self.delegation = mode;
+        self
+    }
+
+    /// Fija los topes de `[limits]`. Por defecto, `LimitsConfig::default()`.
+    pub fn with_limits(mut self, limits: crate::config::LimitsConfig) -> Self {
+        self.limits = limits;
         self
     }
 

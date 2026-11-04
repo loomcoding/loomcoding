@@ -191,7 +191,8 @@ async fn runs_tool_then_finishes() {
         .run(sid, "hi".into(), CancellationToken::new())
         .await
         .unwrap();
-    assert_eq!(outcome.steps, 2);
+    // La ronda con `noop` es de lectura (no escribe) y no gasta presupuesto de trabajo.
+    assert_eq!(outcome.steps, 1);
     assert_eq!(outcome.final_text, "done");
     let msgs = store.messages(sid).await.unwrap();
     assert!(msgs.iter().any(|m| m.role == Role::Tool));

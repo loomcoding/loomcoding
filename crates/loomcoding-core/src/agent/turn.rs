@@ -50,6 +50,8 @@ impl AgentLoop {
             subagents: self.subagents_visibles().cloned(),
         };
         let mut steps = 0usize;
+        // Rondas de solo lectura: no gastan el presupuesto de trabajo, pero tienen su propio tope.
+        let mut read_steps = 0usize;
         let mut final_text = String::new();
         let mut compactions = 0usize;
         let mut compaction_failed = false;
@@ -67,7 +69,15 @@ impl AgentLoop {
             self.flush_subagent_notices(session).await?;
             // Ventana, no historial completo: esto se ejecuta en cada paso del bucle.
             history = self.store.recent_messages(session, HISTORY_WINDOW).await?;
-            if crate::agent::stop::should_stop(&history, steps, config.max_steps) {
+            if crate::agent::stop::stop_reason_budgets(
+                &history,
+                steps,
+                config.max_steps,
+                read_steps,
+                self.limits.read_step_cap(config.max_steps),
+            )
+            .is_some()
+            {
                 break;
             }
             // Exploración atascada: tras muchas rondas de lectura seguidas se avisa al modelo una vez
@@ -480,6 +490,15 @@ impl AgentLoop {
                 }
             }
 
+            // Una ronda con llamadas y ninguna de escritura es de lectura: cuenta aparte.
+            if !tool_calls.is_empty()
+                && !tool_calls
+                    .iter()
+                    .any(|(_, name, _)| crate::agent::stop::is_write_tool(name))
+            {
+                steps = steps.saturating_sub(1);
+                read_steps += 1;
+            }
             let estimate = Usage {
                 input_tokens: estimated_input,
                 output_tokens: estimate_stream_output(&text_buf, &tool_calls),

@@ -27,6 +27,7 @@ mod handoff;
 mod notices;
 mod reasoning;
 mod spill;
+mod steps;
 mod system_prompt;
 mod turn;
 mod usage_records;
