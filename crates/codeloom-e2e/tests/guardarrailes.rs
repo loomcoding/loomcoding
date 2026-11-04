@@ -33,11 +33,6 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         "pendiente de evaluar en una oleada posterior",
     ),
     (
-        "crates/batten/src/state/tool_atom.rs",
-        1100,
-        "pendiente de evaluar en una oleada posterior",
-    ),
-    (
         "crates/batten/src/widgets/theme.rs",
         1100,
         "excepción: tabla de datos del tema, cohesiva",

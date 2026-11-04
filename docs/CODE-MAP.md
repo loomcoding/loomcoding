@@ -18,7 +18,7 @@ Antes de nada, para cualquier tarea: lee el decálogo de contexto y coste
 3. `execution_mode`: **`Exclusive` si escribe**, `Parallel` si solo lee.
 4. **Pon cota a la salida** (decálogo); si puede ser grande, mira `tools/spill.rs`.
 5. Test en el propio archivo (`#[cfg(test)]`), sin red real.
-6. Si necesita render propio en la TUI: `crates/batten/src/state/tool_atom.rs`.
+6. Si necesita render propio en la TUI: `crates/batten/src/state/tool_atom/`.
 
 Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es el de agentes.
 
