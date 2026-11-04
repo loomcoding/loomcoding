@@ -108,6 +108,21 @@ pub(super) fn pregunta_del_remoto(mensaje: Option<&Message>) -> String {
 }
 
 impl Espejo {
+    /// Latido hacia el supervisor: el remoto contestó, luego hay contacto. Solo hay fase que
+    /// publicar mientras trabaja o pide credenciales; la espera de entrada la fijan otros eventos.
+    pub(super) fn latido(&self, estado: TaskState) {
+        let phase = match estado {
+            TaskState::Working => SubagentPhase::Working,
+            TaskState::AuthRequired => SubagentPhase::AwaitingCredentials,
+            _ => return,
+        };
+        self.bus.publish(LiveEvent::SubagentPhaseChanged {
+            parent: self.parent,
+            child: self.child,
+            phase,
+        });
+    }
+
     /// Pregunta a la persona (por el buzón de los hijos) lo que el remoto pide y espera su respuesta,
     /// con tope de tiempo. Cancelar el hijo o el padre retira la pregunta.
     pub(super) async fn preguntar(
@@ -349,12 +364,17 @@ pub(super) async fn seguir_remoto(
             };
             if let Ok(Ok(mut flujo)) = apertura {
                 let limite = inicio + max_follow;
+                // Con el flujo abierto y mudo hay contacto igualmente: un latido por periodo de sondeo.
+                let mut pulso =
+                    tokio::time::interval(poll.max(std::time::Duration::from_millis(1)));
                 loop {
                     tokio::select! {
+                        _ = pulso.tick() => espejo.latido(tarea.status.state),
                         siguiente = futures::StreamExt::next(&mut flujo) => match siguiente {
                             Some(Ok(nueva)) if nueva.id == id => {
                                 let estado = nueva.status.state;
                                 tarea = nueva;
+                                espejo.latido(estado);
                                 if estado.is_terminal() {
                                     return espejo.terminar(tarea, &handle).await;
                                 }
@@ -494,6 +514,7 @@ pub(super) async fn seguir_remoto(
                 Ok(nueva) if nueva.id == id => {
                     fallos = 0;
                     tarea = nueva;
+                    espejo.latido(tarea.status.state);
                 }
                 Ok(_) => {
                     return espejo

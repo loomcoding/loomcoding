@@ -614,3 +614,39 @@ async fn a_remote_is_refused_with_the_reason_the_factory_gives() {
         .unwrap()
         .is_empty());
 }
+
+#[tokio::test]
+async fn every_good_poll_of_a_remote_is_a_heartbeat_for_the_supervisor() {
+    let cliente = ClienteGuionizado::nuevo(
+        Ok(RemoteReply::Task(tarea(
+            "r1",
+            TaskState::Working,
+            None,
+            &[],
+        ))),
+        vec![
+            Ok(tarea("r1", TaskState::Working, None, &[])),
+            Ok(tarea("r1", TaskState::Working, None, &[])),
+            Ok(tarea("r1", TaskState::Completed, None, &["listo"])),
+        ],
+    );
+    let entorno = entorno_remoto(cliente, true, false, Duration::from_secs(60)).await;
+    let mut rx = entorno.bus.subscribe();
+    let hijo = entorno.lanzar().await;
+    let mut latidos = 0;
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            match rx.recv().await {
+                Ok(LiveEvent::SubagentPhaseChanged { child, phase, .. }) if child == hijo => {
+                    assert_eq!(phase, crate::subagent_phase::SubagentPhase::Working);
+                    latidos += 1;
+                }
+                Ok(LiveEvent::SubagentSettled { .. }) => return,
+                _ => {}
+            }
+        }
+    })
+    .await
+    .expect("debería llegar el aviso de cierre");
+    assert!(latidos >= 2, "solo {latidos} latidos");
+}

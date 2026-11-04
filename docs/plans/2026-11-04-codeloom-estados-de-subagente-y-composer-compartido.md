@@ -148,10 +148,16 @@ descriptor sin tocar `status.state` (A2A manda). Tests: `phase_observer` (7),
 - **Hecho:** `AwaitingPermission`. No hacía falta que el bus del hijo lo expusiera: el padre ya
   sabe que el hijo espera un permiso, porque `ChildResponder::decide` lo pasa a `auth-required`.
   El supervisor lo traduce a `AwaitingPermission` (antes lo marcaba `AwaitingCredentials`, que
-  solo aplica a remotos, y esos no se vigilan).
+  solo aplica a remotos; ahora que estos también se vigilan, el supervisor distingue el origen).
 - **Descartado:** `SubagentProgress`, por redundante: los contadores y los artefactos de
   progreso ya suben con `SubagentChanged`.
-- **Pendiente:** los hijos remotos.
+- **Hecho:** hijos remotos. El supervisor los vigila como a los locales. Su espejo (`remote.rs`)
+  publica un `SubagentPhaseChanged` (latido) por cada sondeo bueno, cada evento de flujo y, con
+  el flujo abierto y mudo, uno por periodo de sondeo. Sin latidos hay `Stalled` y luego `Lost`;
+  el `auth-required` remoto se muestra como `AwaitingCredentials`. El `lost contact` propio del
+  espejo (tres sondeos fallidos seguidos) sigue vigente y suele llegar antes.
+- **Límite conocido:** con el flujo abierto, la conexión viva cuenta como contacto aunque el
+  remoto no diga nada; solo `max_follow` (30 min) acota un remoto mudo con la conexión viva.
 
 
 **Qué cambia:** `SubagentPhaseChanged` y `SubagentProgress` (coalescido) en

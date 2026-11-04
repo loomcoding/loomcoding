@@ -102,13 +102,13 @@ impl SubagentSupervisor {
         match event {
             LiveEvent::SubagentChanged(descriptor) => {
                 let state = descriptor.status.state;
-                // Un remoto no emite latidos (su espejo lo sondea y tiene sus propios plazos): vigilarlo
-                // lo daría por perdido sin motivo.
+                // Un remoto no emite eventos propios, pero su espejo publica un latido por cada sondeo
+                // o evento de flujo que llega bien: la ausencia de latidos es la pérdida de contacto.
                 let remoto = descriptor
                     .agent_origin
                     .as_deref()
                     .is_some_and(|origen| origen.starts_with("remote:"));
-                if remoto || state.is_terminal() {
+                if state.is_terminal() {
                     self.children.remove(&descriptor.child.0);
                     return Vec::new();
                 }
@@ -128,9 +128,15 @@ impl SubagentSupervisor {
                         TaskState::InputRequired => {
                             health.phase = SubagentPhase::AwaitingParentInput
                         }
-                        // Los remotos, únicos con credenciales de verdad, no se vigilan: un hijo
-                        // local pide `auth-required` solo para que el padre apruebe un permiso.
-                        TaskState::AuthRequired => health.phase = SubagentPhase::AwaitingPermission,
+                        // Un hijo local pide `auth-required` solo para que el padre apruebe un permiso;
+                        // las credenciales de verdad las pide un remoto.
+                        TaskState::AuthRequired => {
+                            health.phase = if remoto {
+                                SubagentPhase::AwaitingCredentials
+                            } else {
+                                SubagentPhase::AwaitingPermission
+                            }
+                        }
                         TaskState::Working
                             if matches!(
                                 health.phase,
@@ -533,20 +539,36 @@ mod tests {
     }
 
     #[test]
-    fn un_hijo_remoto_no_se_vigila_porque_no_emite_latidos() {
+    fn un_hijo_remoto_se_vigila_por_los_latidos_de_su_espejo() {
         let mut s = sup();
         let mut remoto = descriptor(7, P, TaskState::Working);
         remoto.agent_origin = Some("remote:https://agente.example/card".into());
         s.on_event(&LiveEvent::SubagentChanged(remoto), 0);
-        assert!(
-            s.children().is_empty(),
-            "el remoto lo sigue su propio espejo"
+        assert_eq!(s.children().len(), 1, "el remoto también se registra");
+        // Sin latidos del espejo se atasca y luego se da por perdido, como un local.
+        assert!(!s.tick(STALL + 1).is_empty());
+        // Un latido del espejo lo recupera.
+        s.on_event(
+            &LiveEvent::SubagentPhaseChanged {
+                parent: P,
+                child: SessionId(7),
+                phase: SubagentPhase::Working,
+            },
+            STALL + 2,
         );
-        assert!(s.tick(LOST * 10).is_empty());
-        // Uno local con origen de proyecto sí se vigila.
-        let mut local = descriptor(8, P, TaskState::Working);
+        assert_eq!(fase_de(&s, 7), Some(SubagentPhase::Working));
+    }
+
+    #[test]
+    fn el_auth_required_de_un_remoto_son_credenciales_y_el_de_un_local_un_permiso() {
+        let mut s = sup();
+        let mut remoto = descriptor(7, P, TaskState::AuthRequired);
+        remoto.agent_origin = Some("remote:https://agente.example/card".into());
+        s.on_event(&LiveEvent::SubagentChanged(remoto), 0);
+        let mut local = descriptor(8, P, TaskState::AuthRequired);
         local.agent_origin = Some("project:/p/.codeloom/agents/r.md".into());
         s.on_event(&LiveEvent::SubagentChanged(local), 0);
-        assert_eq!(s.children().len(), 1);
+        assert_eq!(fase_de(&s, 7), Some(SubagentPhase::AwaitingCredentials));
+        assert_eq!(fase_de(&s, 8), Some(SubagentPhase::AwaitingPermission));
     }
 }
