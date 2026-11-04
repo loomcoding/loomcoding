@@ -6,7 +6,7 @@
 >
 > Relacionado: `docs/specs/2026-10-13-loom-design.md` (§4.4 bus/sesión, §4.3
 > step-loop, §5.5 extensiones), `2026-10-14-loom-decision-hub-jevalan.md` (el lab
-> y sus métricas), `2026-10-14-loom-skills-ponytail-superpowers.md` (skills como
+> y sus métricas), `hechos/2026-10-14-loom-skills-ponytail-superpowers.md` (skills como
 > caveman).
 >
 > Fuentes de las herramientas de compresión (verificadas por web, **revisar el

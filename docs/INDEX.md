@@ -79,7 +79,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 ## Sin hacer o sin cierre claro
 
 - **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,
-  kpis-prompt-compression, memory, skills-ponytail-superpowers, static-decision-signals,
+  kpis-prompt-compression, memory, static-decision-signals,
   tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
   agent-profile-a2a, agentic-fetch, turn-status-line.
 - **Borradores y estudios sin aprobar (2026-10-31):** `decalogo-agent-first` (principios candidatos, a discusión) y

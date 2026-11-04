@@ -1,6 +1,6 @@
 # Loomcoding — Idea/spec: consumo y activación de skills (ponytail, superpowers)
 
-> Estado: **idea en exploración**. No implementar.
+> Estado: **descartada** (2026-11-04). Los agentes de ponytail y superpowers ya están configurados como perfiles en `E:\workspace\personal\loom-agent-workforce-poc`; Loomcoding es el runtime y no arbitra familias de skills. Se conserva como historia.
 >
 > Fecha: 2026-10-14
 >

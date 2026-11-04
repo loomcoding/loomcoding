@@ -270,7 +270,7 @@ schema para el provider.
   `docs/specs/2026-10-14-loom-gauntlet-loop.md`.
 - **Consumo y activación de skills** (`ponytail`, `superpowers`): modos
   off/on/explicit/auto (por jevalan) y regla de arbitraje cuando se contradicen.
-  Idea: `docs/specs/2026-10-14-loom-skills-ponytail-superpowers.md`.
+  Idea: `docs/specs/hechos/2026-10-14-loom-skills-ponytail-superpowers.md`.
 - **KPIs y compresión de prompts/contexto** (`headroom`, `rtk`, `caveman`): medir
   provider/modelo/effort y reducir tokens sin perder calidad. Idea:
   `docs/specs/2026-10-14-loom-kpis-prompt-compression.md`.

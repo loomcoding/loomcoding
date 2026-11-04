@@ -12,7 +12,7 @@
 > Relacionado: `2026-10-13-loom-design.md` (§6 subagentes/jobs, §5.5 extensiones),
 > `2026-10-14-loom-architecture-overview.md` (mapa, §9 control de activaciones),
 > `2026-10-14-loom-tool-skill-discovery.md` (puerta única tools/skills/MCP),
-> `2026-10-14-loom-skills-ponytail-superpowers.md` (skills),
+> `hechos/2026-10-14-loom-skills-ponytail-superpowers.md` (skills),
 > `2026-10-14-loom-mcp-skills-hot-reload.md` (MCP).
 
 ## 0. La idea
@@ -98,7 +98,7 @@ Un agente es **un fichero**: frontmatter YAML (config) + body markdown
 Claude Code / Cursor / Copilot.
 
 Ubicación propuesta: `~/.agents/agents/<name>.md` (fuera del repo, junto a las
-skills; ver `2026-10-14-loom-skills-ponytail-superpowers.md`).
+skills; ver `hechos/2026-10-14-loom-skills-ponytail-superpowers.md`).
 
 ```markdown
 ---

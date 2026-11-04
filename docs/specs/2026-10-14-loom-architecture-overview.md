@@ -19,7 +19,7 @@
 | Hub de decisiones (jevalan) | `2026-10-14-loom-decision-hub-jevalan.md` |
 | Capa estática de señales/decisiones (hallazgo semantic-router) | `2026-10-14-loom-static-decision-signals.md` |
 | Gauntlet Loop | `2026-10-14-loom-gauntlet-loop.md` |
-| Skills (ponytail / superpowers) | `2026-10-14-loom-skills-ponytail-superpowers.md` |
+| Skills (ponytail / superpowers) | `hechos/2026-10-14-loom-skills-ponytail-superpowers.md` |
 | Loomcoding agent-first y skills de desarrollo | `2026-10-25-codeloom-agent-first-development-skills.md` |
 | KPIs y compresión | `2026-10-14-loom-kpis-prompt-compression.md` |
 | Memoria | `2026-10-14-loom-memory.md` |

@@ -6,7 +6,7 @@
 > Fecha: 2026-10-25
 >
 > Relacionado: `2026-10-14-loom-architecture-overview.md` (§5.2),
-> `2026-10-14-loom-skills-ponytail-superpowers.md`,
+> `hechos/2026-10-14-loom-skills-ponytail-superpowers.md`,
 > `2026-10-25-codeloom-agent-development-workflow.md`.
 
 ## 1. Principio

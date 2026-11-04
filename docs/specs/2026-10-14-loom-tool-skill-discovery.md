@@ -7,7 +7,7 @@
 > Relacionado: `2026-10-14-loom-static-decision-signals.md` (los dos modos),
 > `2026-10-14-loom-decision-hub-jevalan.md`,
 > `2026-10-14-loom-mcp-skills-hot-reload.md`,
-> `2026-10-14-loom-skills-ponytail-superpowers.md`,
+> `hechos/2026-10-14-loom-skills-ponytail-superpowers.md`,
 > `2026-10-14-loom-memory.md`, `2026-10-14-loom-architecture-overview.md`.
 
 ## 0. La idea

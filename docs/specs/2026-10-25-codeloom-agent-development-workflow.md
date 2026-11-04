@@ -4,7 +4,7 @@
 >
 > Fecha: 2026-10-25
 >
-> Relacionado: `2026-10-14-loom-skills-ponytail-superpowers.md`,
+> Relacionado: `hechos/2026-10-14-loom-skills-ponytail-superpowers.md`,
 > `2026-10-15-loom-agent-profile-a2a.md`,
 > `2026-10-22-codeloom-a2a-delegation-choice-design.md`,
 > `2026-10-22-codeloom-subagent-tree-design.md`.

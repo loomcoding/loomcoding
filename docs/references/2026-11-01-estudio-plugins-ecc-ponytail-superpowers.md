@@ -3,7 +3,7 @@
 > Fecha: 2026-11-01. Estado: **estudio**, sin decisiones tomadas ni código. Los datos de las tres columnas salen de leer
 > los ficheros locales de cada plugin (rutas al final); lo que es propuesta va rotulado como tal.
 >
-> Relacionado: `specs/2026-10-14-loom-skills-ponytail-superpowers.md` (arbitraje entre las dos familias de skills),
+> Relacionado: `specs/hechos/2026-10-14-loom-skills-ponytail-superpowers.md` (arbitraje entre las dos familias de skills),
 > `specs/2026-10-31-codeloom-ecc-agent-workforce-research.md` (investigación de ECC, de la persona usuaria, sin commitear),
 > `specs/hechos/2026-11-01-codeloom-external-catalog-profiles.md` (catálogo externo, ya implementado).
 
