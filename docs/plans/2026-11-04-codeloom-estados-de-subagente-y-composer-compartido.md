@@ -219,6 +219,12 @@ fase y `health=ok|stalled|lost`.
 - El driver vive en el daemon (`codeloom-cli`), no en la TUI: la TUI cliente recibe sus
   eventos por el bus.
 - La fase y el latido sí se persisten (ver Fase 4, «Hecho»).
+- **Probado de extremo a extremo con un remoto (2026-11-05)**, `codeloom-a2a/tests/supervised_remote.rs`
+  (lanzador → espejo → remoto `wiremock` → supervisor): un remoto que sigue contestando al sondeo
+  **nunca** se marca `stalled` ni `lost`; uno cuyo `GetTask` se cuelga pasa a `stalled` y luego a
+  `lost` con sus avisos y sin tocar la tarea (`MarkAndNotify`); con `FailAndStop` el hijo queda
+  `failed` («lost: …», no `canceled`) y el espejo manda `CancelTask` al remoto. Queda por probar,
+  con un servidor A2A de otra implementación, solo lo que ya cubre `live_remote.rs` a mano.
 
 **Contenido original de la fase:**
 
