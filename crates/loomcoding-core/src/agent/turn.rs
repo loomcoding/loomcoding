@@ -660,6 +660,7 @@ impl AgentLoop {
                 ctx.clone(),
                 allowed,
                 cancel.clone(),
+                self.limits.max_parallel_tools,
                 self.bus.clone(),
             )
             .await;

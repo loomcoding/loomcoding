@@ -30,6 +30,7 @@ pub async fn execute_tools(
     ctx: ToolCtx,
     calls: Vec<(String, String, serde_json::Value)>,
     cancel: tokio_util::sync::CancellationToken,
+    max_parallel: usize,
     bus: EventBus,
 ) -> Vec<(String, ToolOutput)> {
     let workflow_start_requested = calls.iter().any(|(_, name, input)| {
@@ -121,7 +122,7 @@ pub async fn execute_tools(
             }
         });
         let collected: Vec<_> = futures::stream::iter(futs)
-            .buffer_unordered(8)
+            .buffer_unordered(max_parallel.max(1))
             .collect()
             .await;
         results.extend(collected);
@@ -196,12 +197,132 @@ mod tests {
                 serde_json::json!({}),
             ),
         ];
-        let mut res =
-            execute_tools(&r, ctx, calls, CancellationToken::new(), EventBus::new(16)).await;
+        let mut res = execute_tools(
+            &r,
+            ctx,
+            calls,
+            CancellationToken::new(),
+            8,
+            EventBus::new(16),
+        )
+        .await;
         res.sort_by(|a, b| a.0.cmp(&b.0));
         assert_eq!(res.len(), 3);
         assert_eq!(res[0].1.content, "a");
         assert!(res[2].1.is_error);
+    }
+
+    struct Counting {
+        now: Arc<std::sync::atomic::AtomicUsize>,
+        peak: Arc<std::sync::atomic::AtomicUsize>,
+    }
+    #[async_trait]
+    impl Tool for Counting {
+        fn name(&self) -> &str {
+            "counting"
+        }
+        fn description(&self) -> &str {
+            "c"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        fn execution_mode(&self, _i: &serde_json::Value) -> ExecutionMode {
+            ExecutionMode::Parallel
+        }
+        async fn run(
+            &self,
+            _c: ToolCtx,
+            _i: serde_json::Value,
+            _x: CancellationToken,
+        ) -> crate::error::Result<ToolOutput> {
+            use std::sync::atomic::Ordering::SeqCst;
+            let active = self.now.fetch_add(1, SeqCst) + 1;
+            self.peak.fetch_max(active, SeqCst);
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            self.now.fetch_sub(1, SeqCst);
+            Ok(ToolOutput::ok("ok"))
+        }
+    }
+
+    #[tokio::test]
+    async fn parallel_batch_never_exceeds_the_cap() {
+        use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+        let (now, peak) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+        let mut r = ToolRegistry::new();
+        r.register(Arc::new(Counting {
+            now: now.clone(),
+            peak: peak.clone(),
+        }));
+        let ctx = ToolCtx {
+            cwd: ".".into(),
+            store: None,
+            permission: Arc::new(PermissionService::allow_all()),
+            session: crate::session::SessionId(0),
+            jobs: Arc::new(crate::job::LocalJobRegistry::default()),
+            bus: EventBus::new(8),
+            subagents: None,
+        };
+        let calls = (0..6)
+            .map(|n| {
+                (
+                    format!("c{n}"),
+                    "counting".to_string(),
+                    serde_json::json!({}),
+                )
+            })
+            .collect();
+        let res = execute_tools(
+            &r,
+            ctx,
+            calls,
+            CancellationToken::new(),
+            2,
+            EventBus::new(16),
+        )
+        .await;
+        assert_eq!(res.len(), 6);
+        assert_eq!(peak.load(SeqCst), 2, "nunca más de dos a la vez, y sí dos");
+    }
+
+    #[tokio::test]
+    async fn a_zero_cap_still_runs_one_at_a_time() {
+        use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+        let (now, peak) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicUsize::new(0)));
+        let mut r = ToolRegistry::new();
+        r.register(Arc::new(Counting {
+            now,
+            peak: peak.clone(),
+        }));
+        let ctx = ToolCtx {
+            cwd: ".".into(),
+            store: None,
+            permission: Arc::new(PermissionService::allow_all()),
+            session: crate::session::SessionId(0),
+            jobs: Arc::new(crate::job::LocalJobRegistry::default()),
+            bus: EventBus::new(8),
+            subagents: None,
+        };
+        let calls = (0..3)
+            .map(|n| {
+                (
+                    format!("c{n}"),
+                    "counting".to_string(),
+                    serde_json::json!({}),
+                )
+            })
+            .collect();
+        let res = execute_tools(
+            &r,
+            ctx,
+            calls,
+            CancellationToken::new(),
+            0,
+            EventBus::new(16),
+        )
+        .await;
+        assert_eq!(res.len(), 3);
+        assert_eq!(peak.load(SeqCst), 1);
     }
 
     struct ExclusiveEcho;
@@ -265,8 +386,15 @@ mod tests {
                 serde_json::json!({"v":"d"}),
             ),
         ];
-        let mut res =
-            execute_tools(&r, ctx, calls, CancellationToken::new(), EventBus::new(16)).await;
+        let mut res = execute_tools(
+            &r,
+            ctx,
+            calls,
+            CancellationToken::new(),
+            8,
+            EventBus::new(16),
+        )
+        .await;
         res.sort_by(|a, b| a.0.cmp(&b.0));
         assert_eq!(res.len(), 4);
         assert_eq!(res[0].1.content, "a");
@@ -324,6 +452,7 @@ mod tests {
                 ),
             ],
             CancellationToken::new(),
+            8,
             EventBus::new(8),
         )
         .await;
@@ -396,6 +525,7 @@ mod tests {
                 ("poll".into(), "job_list".into(), serde_json::json!({})),
             ],
             CancellationToken::new(),
+            8,
             EventBus::new(8),
         )
         .await;
@@ -483,6 +613,7 @@ mod tests {
                 ("status".into(), "gauntlet".into(), serde_json::json!({})),
             ],
             CancellationToken::new(),
+            8,
             EventBus::new(8),
         )
         .await;
@@ -530,6 +661,7 @@ mod tests {
                 ),
             ],
             CancellationToken::new(),
+            8,
             EventBus::new(8),
         )
         .await;
