@@ -54,7 +54,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 
 1. Estado puro y testeable en `crates/batten/src/state/<nombre>.rs` (sin `ratatui`).
 2. Widget en `crates/batten/src/widgets/<nombre>.rs`; decláralo en `widgets/mod.rs`.
-3. Colores del tema en `crates/batten/src/widgets/theme.rs`; no uses colores sueltos.
+3. Colores del tema en `crates/batten/src/widgets/theme/`; no uses colores sueltos.
 4. Úsalo desde la zona que corresponda en `crates/codeloom-tui/src/render/` (`chrome.rs` cabecera y pie, `transcript.rs`, `sidebar.rs`, `settings.rs`, `overlays.rs`, `a2a.rs`); `render/mod.rs` solo orquesta.
 5. Si es específico de CodeLoom y no genérico, va en `crates/codeloom-tui/src/widgets/`.
 

@@ -7,7 +7,7 @@
 siendo reutilizable fuera de CodeLoom.
 
 **Tipos clave:** `Composer` (`state/composer/`), transcript (`state/transcript.rs`), átomos de
-herramienta (`state/tool_atom/`), el tema (`widgets/theme.rs`), `widgets/composer/`,
+herramienta (`state/tool_atom/`), el tema (`widgets/theme/`), `widgets/composer/`,
 `widgets/transcript/`, `widgets/permission.rs`.
 
 **Puntos de entrada:** `state/mod.rs` y `widgets/mod.rs` declaran todo lo público.
@@ -17,4 +17,4 @@ herramienta (`state/tool_atom/`), el tema (`widgets/theme.rs`), `widgets/compose
 
 **Trampas:**
 - La lógica va en `state/` (testeable sin pantalla); `widgets/` solo pinta.
-- `theme.rs` es una tabla de datos grande y cohesiva: no se parte.
+- `theme/` reparte el tema: `styles.rs` (glifos y estilos), `look.rs`, `presets.rs` (tabla de colores) y `loading.rs` (TOML).
