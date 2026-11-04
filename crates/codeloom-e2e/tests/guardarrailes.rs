@@ -21,18 +21,11 @@ const CORTE_INDICE: &str = "2026-11-05";
 /// (el test falla si queda una entrada obsoleta); un archivo no listado que supere el techo
 /// falla; y uno listado no puede pasar de su tope (redondeado a la centena superior, que da
 /// margen para tocar el archivo sin convertir cada commit en un fallo).
-const LISTA_BLANCA: &[(&str, usize, &str)] = &[
-    (
-        "crates/batten/src/widgets/transcript.rs",
-        1400,
-        "pendiente de evaluar en una oleada posterior",
-    ),
-    (
-        "crates/batten/src/widgets/theme.rs",
-        1100,
-        "excepción: tabla de datos del tema, cohesiva",
-    ),
-];
+const LISTA_BLANCA: &[(&str, usize, &str)] = &[(
+    "crates/batten/src/widgets/theme.rs",
+    1100,
+    "excepción: tabla de datos del tema, cohesiva",
+)];
 
 fn raiz() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

@@ -8,7 +8,7 @@ siendo reutilizable fuera de CodeLoom.
 
 **Tipos clave:** `Composer` (`state/composer/`), transcript (`state/transcript.rs`), átomos de
 herramienta (`state/tool_atom/`), el tema (`widgets/theme.rs`), `widgets/composer/`,
-`widgets/transcript.rs`, `widgets/permission.rs`.
+`widgets/transcript/`, `widgets/permission.rs`.
 
 **Puntos de entrada:** `state/mod.rs` y `widgets/mod.rs` declaran todo lo público.
 
