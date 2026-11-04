@@ -71,8 +71,10 @@ objetivo, nunca los nombres de las posiciones A/B.
 
 ## 5. Veredicto del crítico
 
-Salida estructurada acotada: `verdict` (`gap` | `no_gap`), `biggest_gap` (texto corto, solo si hay brecha),
-`evidence` (rutas y líneas inspeccionadas) y `preferred` (`A` | `B`).
+El crítico termina su informe con un objeto JSON: `verdict` (`gap` | `no_gap`) y `biggest_gap` (texto corto,
+obligatorio con `gap` y prohibido con `no_gap`). Se lee el último objeto con `verdict` de la cola del informe
+(20 kB como máximo) y la brecha se recorta a 1 000 bytes. La evidencia (rutas y líneas inspeccionadas) es texto
+libre del informe: se muestra, no se interpreta.
 
 Comprobación de sesgo de posición: en la primera ronda con veredicto `no_gap`, el coordinador **repite el
 juicio con el orden invertido** una vez. Si el crítico se contradice, el resultado es `inconclusive` y decide

@@ -123,6 +123,66 @@ pub enum Verdict {
     Malformed,
 }
 
+/// Cota de la brecha que se conserva y se pasa al constructor (decálogo de contexto y coste).
+pub const MAX_GAP_BYTES: usize = 1_000;
+/// Del informe del crítico solo se escanea la cola: el veredicto va al final.
+pub const MAX_REPORT_BYTES: usize = 20_000;
+
+#[derive(Deserialize)]
+struct RawVerdict {
+    verdict: Option<String>,
+    biggest_gap: Option<String>,
+}
+
+fn cut_on_boundary(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut end = max;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
+fn tail_on_boundary(text: &str, max: usize) -> &str {
+    if text.len() <= max {
+        return text;
+    }
+    let mut start = text.len() - max;
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    &text[start..]
+}
+
+/// Interpreta el informe del crítico: el último objeto JSON con campo `verdict`.
+///
+/// Todo lo que no sea inequívoco es [`Verdict::Malformed`], nunca aprobación: veredicto
+/// desconocido, brecha sin texto, `no_gap` acompañado de una brecha o JSON truncado.
+pub fn parse_verdict(report: &str) -> Verdict {
+    let window = tail_on_boundary(report, MAX_REPORT_BYTES);
+    for (start, _) in window.match_indices('{').rev() {
+        let mut stream =
+            serde_json::Deserializer::from_str(&window[start..]).into_iter::<RawVerdict>();
+        let Some(Ok(raw)) = stream.next() else {
+            continue;
+        };
+        let Some(kind) = raw.verdict else {
+            continue;
+        };
+        let gap = raw.biggest_gap.filter(|text| !text.trim().is_empty());
+        return match (kind.as_str(), gap) {
+            ("gap", Some(text)) => Verdict::Gap {
+                biggest_gap: cut_on_boundary(text.trim(), MAX_GAP_BYTES).to_owned(),
+            },
+            ("no_gap", None) => Verdict::NoGap,
+            _ => Verdict::Malformed,
+        };
+    }
+    Verdict::Malformed
+}
+
 /// Lo que el coordinador debe hacer a continuación.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Next {
@@ -609,6 +669,68 @@ mod tests {
         ] {
             assert_eq!(fase.as_str().parse::<GauntletPhase>().unwrap(), fase);
         }
+    }
+
+    #[test]
+    fn a_fenced_json_gap_is_parsed() {
+        let informe = "Revisé ambos.\n\n```json\n{\"verdict\":\"gap\",\"biggest_gap\":\"los márgenes\"}\n```\n";
+        assert_eq!(parse_verdict(informe), brecha());
+    }
+
+    #[test]
+    fn a_bare_json_line_and_no_gap_are_parsed() {
+        let informe = "Todo a la altura.\n{\"verdict\":\"no_gap\"}";
+        assert_eq!(parse_verdict(informe), Verdict::NoGap);
+    }
+
+    #[test]
+    fn the_last_verdict_wins_when_the_critic_quotes_an_earlier_one() {
+        let informe =
+            "Antes dije {\"verdict\":\"gap\",\"biggest_gap\":\"x\"} pero ahora:\n{\"verdict\":\"no_gap\"}";
+        assert_eq!(parse_verdict(informe), Verdict::NoGap);
+    }
+
+    #[test]
+    fn nested_objects_after_the_verdict_do_not_hide_it() {
+        let informe = "{\"verdict\":\"gap\",\"biggest_gap\":\"los márgenes\",\"evidence\":{\"file\":\"a.md\"}}";
+        assert_eq!(parse_verdict(informe), brecha());
+    }
+
+    #[test]
+    fn anything_unreadable_is_malformed_never_approval() {
+        for informe in [
+            "",
+            "sin json, solo prosa que dice que todo está bien",
+            "{\"verdict\":\"perfect\"}",
+            "{\"biggest_gap\":\"falta el veredicto\"}",
+            "{\"verdict\":3}",
+            "{\"verdict\":\"gap\"}",
+            "{\"verdict\":\"gap\",\"biggest_gap\":\"   \"}",
+            "{\"verdict\":\"no_gap\",\"biggest_gap\":\"pero hay una brecha\"}",
+            "{\"verdict\":\"no_gap\"",
+        ] {
+            assert_eq!(parse_verdict(informe), Verdict::Malformed, "{informe:?}");
+        }
+    }
+
+    #[test]
+    fn a_long_gap_is_cut_at_the_cap_on_a_character_boundary() {
+        let larga = "ñ".repeat(MAX_GAP_BYTES);
+        let informe = format!("{{\"verdict\":\"gap\",\"biggest_gap\":\"{larga}\"}}");
+        let Verdict::Gap { biggest_gap } = parse_verdict(&informe) else {
+            panic!("debía ser una brecha");
+        };
+        assert!(biggest_gap.len() <= MAX_GAP_BYTES);
+        assert!(biggest_gap.chars().all(|c| c == 'ñ'));
+    }
+
+    #[test]
+    fn only_the_tail_of_a_huge_report_is_scanned() {
+        let relleno = "palabra ".repeat(MAX_REPORT_BYTES);
+        let al_final = format!("{relleno}\n{{\"verdict\":\"no_gap\"}}");
+        assert_eq!(parse_verdict(&al_final), Verdict::NoGap);
+        let al_principio = format!("{{\"verdict\":\"no_gap\"}}\n{relleno}");
+        assert_eq!(parse_verdict(&al_principio), Verdict::Malformed);
     }
 
     #[test]

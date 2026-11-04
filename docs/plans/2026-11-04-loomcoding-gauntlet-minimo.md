@@ -15,7 +15,7 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    `can_transition_to`, `is_terminal`, `Gauntlet` (identidades, rutas, ronda, orden A/B por ronda, veredictos),
    `Verdict`. Sin E/S ni reloj; el sorteo del orden entra por parámetro (semilla inyectada) para que sea
    determinista en pruebas.
-2. [ ] **Parseo acotado del veredicto**: texto del crítico → `Verdict`; malformado o fuera de cota →
+2. [x] (2026-11-04) **Parseo acotado del veredicto**: texto del crítico → `Verdict`; malformado o fuera de cota →
    `inconclusive`. Cotas de bytes según el decálogo.
 3. [ ] **Persistencia**: tabla y métodos `create/update/get/active/latest/events` en `SessionStore` y SQLite,
    con migración, siguiendo `update_development_workflow`. Prueba de reapertura del almacén.
