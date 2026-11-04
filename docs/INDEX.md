@@ -84,12 +84,12 @@ son fiables. Manda la línea `Estado:` de la cabecera.
   openrouter-anthropic-ptc (compatibilidad PTC sin confirmar).
 - **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,
   kpis-prompt-compression, memory, skills-ponytail-superpowers, static-decision-signals,
-  tool-skill-discovery, turn-summary, voice-prompt-input, cloth-selection,
+  tool-skill-discovery, turn-summary, voice-prompt-input, batten-selection,
   agent-profile-a2a, agentic-fetch, turn-status-line.
 - **Borradores y estudios sin aprobar (2026-10-31):** `decalogo-agent-first` (principios candidatos, a discusión) y
   `ecc-agent-workforce-research` (investigación de la persona usuaria; no autoriza cambios).
 - **Fuera de este inventario hasta revisarlas:** `self-hosting-bootstrap` (evaluación), `mcp-skills-hot-reload`,
-  `decision-experiments` (borradores), `composer-tool-visual-references` y `cloth-reference-findings-showcase`
+  `decision-experiments` (borradores), `composer-tool-visual-references` y `batten-reference-findings-showcase`
   (análisis ya completados, sin código asociado).
 - **`agent-autonomy`, verificado el 2026-11-01:** A, B, C, D y `follow_up_of` están hechos (la B con `child-progress-artifacts`). La restricción de `send_message`
   se descartó a propósito (`answer` ya cubre `input-required`). Detalle en la cabecera de la spec.
