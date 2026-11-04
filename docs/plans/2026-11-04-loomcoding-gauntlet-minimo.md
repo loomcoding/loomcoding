@@ -27,12 +27,12 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    coordinador, que conoce el orden, lo traduce a brecha o no brecha. **Herramienta `gauntlet`** (`tools/gauntlet/`, `ExecutionMode::Exclusive`): acciones `start`, `advance`,
    `accept`, `cancel`, `status`. Validaciones del §8.1 y rutas legibles. Constructor con
    `start_local_workflow_agent`; crítico con `start_read_only_review`.
-5. [ ] **Prompts de ronda**: al crítico solo rutas A/B, la barra no rotulada y el formato de veredicto; al
+5. [x] (2026-11-04, dentro del paso 4: `tests/rounds.rs`) **Prompts de ronda**: al crítico solo rutas A/B, la barra no rotulada y el formato de veredicto; al
    constructor el objetivo y la brecha. Prueba de que ninguno recibe lo que no debe (resumen del constructor,
    rótulos de posición).
-6. [ ] **Comprobación de sesgo**: primer `no_gap` → segundo juicio con el orden invertido; contradicción →
+6. [x] (2026-11-04, dentro del paso 4: `tests/rounds.rs`) **Comprobación de sesgo**: primer `no_gap` → segundo juicio con el orden invertido; contradicción →
    `inconclusive`. Pruebas de ambos caminos.
-7. [ ] **Aceptación humana**: `accept` con `ask_user` y huella del artefacto; silencio, timeout y cancelación no
+7. [x] (2026-11-04, dentro del paso 4: `tests/decide.rs`) **Aceptación humana**: `accept` con `ask_user` y huella del artefacto; silencio, timeout y cancelación no
    aceptan. Si cambia el artefacto tras presentarlo, se invalida.
 8. [ ] **Observabilidad**: eventos al bus y al transcript con actor; la TUI muestra la fase propia y, entre
    paréntesis, el estado A2A del hijo. Revisión visual en terminal real.
