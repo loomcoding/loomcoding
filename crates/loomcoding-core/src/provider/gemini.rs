@@ -1,4 +1,7 @@
 use super::{Capabilities, Provider, ProviderRequest, ProviderStream, StreamChunk};
+use crate::capability::{
+    classify_rejection, Capability, CapabilityRegistry, Protocol, State, Target,
+};
 use crate::error::{CoreError, Result};
 use crate::message::{ContentPart, FinishReason, Role, Usage};
 use async_trait::async_trait;
@@ -8,6 +11,7 @@ pub struct GeminiProvider {
     base_url: String,
     api_key: String,
     client: reqwest::Client,
+    capabilities: CapabilityRegistry,
 }
 
 impl GeminiProvider {
@@ -16,7 +20,21 @@ impl GeminiProvider {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             api_key: api_key.into(),
             client: reqwest::Client::new(),
+            capabilities: CapabilityRegistry::default(),
         }
+    }
+
+    fn target(&self, model: &str) -> Target {
+        Target::new(Protocol::Gemini, &self.base_url, model)
+    }
+
+    fn combination_rejected(&self, model: &str) -> bool {
+        matches!(
+            self.capabilities
+                .query(&self.target(model), Capability::CodeExecution)
+                .state,
+            State::Rejected { .. }
+        )
     }
 
     fn supports_tool_combination(model: &str) -> bool {
@@ -147,6 +165,21 @@ impl GeminiProvider {
         req: &ProviderRequest,
         cancel: &CancellationToken,
     ) -> Result<(serde_json::Value, Option<String>)> {
+        let direct_request;
+        let mut earlier_notice = None;
+        let req = if req.programmatic_tool_calling && self.combination_rejected(&req.model) {
+            direct_request = ProviderRequest {
+                programmatic_tool_calling: false,
+                ..req.clone()
+            };
+            earlier_notice = Some(format!(
+                "Gemini tool combination was rejected earlier for `{}`; using direct tool calls",
+                req.model
+            ));
+            &direct_request
+        } else {
+            req
+        };
         let body = self.build_body(req);
         let combination = body["tools"]
             .as_array()
@@ -168,8 +201,14 @@ impl GeminiProvider {
                 .unwrap_or_default();
             let retry_direct = combination
                 && body.get("previous_interaction_id").is_none()
-                && is_tool_combination_unsupported(message);
+                && classify_rejection(status.as_u16(), message, Capability::CodeExecution)
+                    .allows_fallback();
             if retry_direct {
+                self.capabilities.record_rejection(
+                    &self.target(&req.model),
+                    Capability::CodeExecution,
+                    status.as_u16(),
+                );
                 let mut direct = body;
                 direct["tools"] = serde_json::Value::Array(
                     req.tools
@@ -212,15 +251,8 @@ impl GeminiProvider {
             .json()
             .await
             .map_err(|error| CoreError::Provider(format!("invalid Gemini response: {error}")))?;
-        Ok((value, None))
+        Ok((value, earlier_notice))
     }
-}
-
-fn is_tool_combination_unsupported(message: &str) -> bool {
-    let message = message.to_ascii_lowercase();
-    message.contains("code_execution")
-        || message.contains("tool combination")
-        || message.contains("unsupported tool")
 }
 
 #[async_trait]
@@ -499,5 +531,93 @@ mod tests {
             .unwrap()
             .iter()
             .all(|tool| tool["type"] != "code_execution"));
+    }
+
+    async fn servidor_que_rechaza_la_combinacion(
+        status: u16,
+        mensaje: &str,
+    ) -> wiremock::MockServer {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/interactions"))
+            .respond_with(ResponseTemplate::new(status).set_body_json(json!({
+                "error":{"message": mensaje}
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/interactions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id":"interaction-direct","steps":[]
+            })))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    fn usa_la_combinacion(cuerpo: &[u8]) -> bool {
+        let value: serde_json::Value = serde_json::from_slice(cuerpo).unwrap();
+        value["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|tool| tool["type"] == "code_execution")
+    }
+
+    #[tokio::test]
+    async fn a_rejected_combination_is_remembered_and_not_repeated_on_the_next_turn() {
+        use futures::StreamExt;
+        let server =
+            servidor_que_rechaza_la_combinacion(400, "code_execution tool combination unsupported")
+                .await;
+        let provider = GeminiProvider::new(server.uri(), "test-key");
+        let mut avisos = Vec::new();
+        for _ in 0..2 {
+            let mut stream = provider
+                .stream(request("gemini-4-argon", true), CancellationToken::new())
+                .await
+                .unwrap();
+            avisos.clear();
+            while let Some(chunk) = stream.next().await {
+                if let StreamChunk::ProviderNotice(texto) = chunk {
+                    avisos.push(texto);
+                }
+            }
+        }
+        let sent = server.received_requests().await.unwrap();
+        // Turno 1: combinación rechazada + reintento directo. Turno 2: directo desde el principio.
+        assert_eq!(sent.len(), 3);
+        assert!(usa_la_combinacion(&sent[0].body));
+        assert!(!usa_la_combinacion(&sent[1].body));
+        assert!(
+            !usa_la_combinacion(&sent[2].body),
+            "no se debe repetir la petición rechazada"
+        );
+        assert!(
+            avisos
+                .iter()
+                .any(|texto| texto.contains("rejected earlier")),
+            "{avisos:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_auth_or_quota_error_that_mentions_the_combination_does_not_fall_back() {
+        for status in [401u16, 402, 429, 500] {
+            let server = servidor_que_rechaza_la_combinacion(
+                status,
+                "code_execution: check your key or quota",
+            )
+            .await;
+            let provider = GeminiProvider::new(server.uri(), "test-key");
+            let resultado = provider
+                .stream(request("gemini-4-argon", true), CancellationToken::new())
+                .await;
+            assert!(resultado.is_err(), "HTTP {status} no es incompatibilidad");
+            assert_eq!(server.received_requests().await.unwrap().len(), 1);
+        }
     }
 }

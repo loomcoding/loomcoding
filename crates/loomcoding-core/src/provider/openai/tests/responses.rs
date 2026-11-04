@@ -131,3 +131,111 @@ async fn unsupported_programmatic_mode_retries_once_with_direct_tools() {
         .iter()
         .all(|tool| tool["type"] != "programmatic_tool_calling"));
 }
+
+/// Respuesta del servidor simulado: una vez rechaza el modo programático; luego contesta bien.
+async fn servidor_que_rechaza_ptc_una_vez(status: u16, mensaje: &str) -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/responses"))
+        .respond_with(ResponseTemplate::new(status).set_body_json(json!({
+            "error":{"message": mensaje}
+        })))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/responses"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "id":"resp_direct","status":"completed","output":[{
+                "type":"message","role":"assistant",
+                "content":[{"type":"output_text","text":"hecho"}]
+            }]
+        })))
+        .mount(&server)
+        .await;
+    server
+}
+
+async fn vaciar(provider: &OpenAiResponsesProvider) -> Vec<String> {
+    let mut stream = provider
+        .stream(request(), CancellationToken::new())
+        .await
+        .unwrap();
+    let mut avisos = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        if let StreamChunk::ProviderNotice(texto) = chunk {
+            avisos.push(texto);
+        }
+    }
+    avisos
+}
+
+fn usa_ptc(cuerpo: &[u8]) -> bool {
+    let value: serde_json::Value = serde_json::from_slice(cuerpo).unwrap();
+    value["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|tool| tool["type"] == "programmatic_tool_calling")
+}
+
+#[tokio::test]
+async fn a_programmatic_rejection_is_remembered_and_not_repeated_on_the_next_turn() {
+    let server =
+        servidor_que_rechaza_ptc_una_vez(400, "programmatic_tool_calling is not supported").await;
+    let provider = OpenAiResponsesProvider::new(server.uri(), "test-key");
+
+    vaciar(&provider).await;
+    let avisos = vaciar(&provider).await;
+
+    let enviadas = server.received_requests().await.unwrap();
+    // Turno 1: PTC rechazado + reintento directo. Turno 2: directo desde el principio.
+    assert_eq!(enviadas.len(), 3);
+    assert!(usa_ptc(&enviadas[0].body));
+    assert!(!usa_ptc(&enviadas[1].body));
+    assert!(
+        !usa_ptc(&enviadas[2].body),
+        "no se debe repetir la petición rechazada"
+    );
+    assert!(
+        avisos
+            .iter()
+            .any(|texto| texto.contains("rejected earlier")),
+        "{avisos:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_rejection_for_another_model_does_not_disable_programmatic_calls() {
+    let server =
+        servidor_que_rechaza_ptc_una_vez(400, "programmatic_tool_calling is not supported").await;
+    let provider = OpenAiResponsesProvider::new(server.uri(), "test-key");
+    vaciar(&provider).await;
+
+    let mut otra = request();
+    otra.model = "otro-modelo".into();
+    let mut stream = provider
+        .stream(otra, CancellationToken::new())
+        .await
+        .unwrap();
+    while stream.next().await.is_some() {}
+
+    let enviadas = server.received_requests().await.unwrap();
+    assert_eq!(enviadas.len(), 3);
+    assert!(usa_ptc(&enviadas[2].body), "otro modelo es otro destino");
+}
+
+#[tokio::test]
+async fn an_auth_or_quota_error_that_mentions_programmatic_calls_does_not_fall_back() {
+    for status in [401u16, 402, 429, 500] {
+        let server = servidor_que_rechaza_ptc_una_vez(
+            status,
+            "programmatic_tool_calling: check your key or quota",
+        )
+        .await;
+        let provider = OpenAiResponsesProvider::new(server.uri(), "test-key");
+        let resultado = provider.stream(request(), CancellationToken::new()).await;
+        assert!(resultado.is_err(), "HTTP {status} no es incompatibilidad");
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
+}

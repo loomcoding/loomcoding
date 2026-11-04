@@ -1,13 +1,13 @@
 # Plan — Capacidades de tools por provider y modelo
 
-> Estado: **parcial** (2026-10-31). Hecho el registro puro de capacidades por destino, el clasificador de rechazos, el parseo de metadata de OpenRouter y el cableado en el adapter de Anthropic. Falta el enrutado por destino en el resto de adapters y la obtención de metadata real (véase «Avance»).
+> Estado: **parcial** (2026-11-04). Hecho el registro puro de capacidades por destino, el clasificador de rechazos, el parseo de metadata de OpenRouter y el cableado en los adapters de Anthropic, Responses y Gemini. Falta solo la obtención de metadata real (paso 3; véase «Avance»).
 
 Spec: `docs/specs/2026-10-28-codeloom-capacidades-tools-provider-modelo.md`.
 
 1. [x] Auditar la metadata actual de Anthropic, OpenRouter y adaptadores, contrastando cada campo con su API documentada.
 2. [x] Definir el tipo mínimo de estado/evidencia en `loomcoding-core` sin convertir la capability wire del adapter en una propiedad global del modelo.
 3. [~] Implementar parseo/caché de metadata solo para endpoints oficiales que den evidencia utilizable; desconocido se conserva como `unknown`.
-4. [~] Enrutar solicitudes según la combinación exacta; separar tools directas, streaming, PTC y herramientas del provider.
+4. [x] Enrutar solicitudes según la combinación exacta; separar tools directas, streaming, PTC y herramientas del provider.
 5. [x] Clasificar rechazos sin cuerpos crudos y permitir fallback únicamente ante incompatibilidad explícita.
 6. [x] Añadir pruebas de fixtures para destinos distintos, metadata ausente/expirada, rechazo de capacidad y errores de auth/cuota; sin red.
 7. [x] Actualizar evidencia y ejecutar los cuatro checks del repositorio.
@@ -30,11 +30,14 @@ Código: `crates/loomcoding-core/src/capability.rs` (registro puro, sin red) y s
 - **Metadata (3), parcial.** Hay parseo de ambos formatos de OpenRouter con fixtures; el catálogo
   agregado solo prueba que alguna ruta acepta `tools`, y un endpoint fijado con parámetros
   discrepantes devuelve «sin dato». No hay aún obtención de red ni caché en disco.
-- **Enrutado (4), parcial.** Solo el adapter de Anthropic consulta el registro. Tras un rechazo real
-  de PTC ya no se repite la petición rechazada en cada turno. Pendientes: Chat Completions,
-  Responses y Gemini, cuyas heurísticas de «no soportado» (`is_programmatic_not_supported`,
-  `is_tool_combination_unsupported`) siguen siendo propias y trabajan sobre el mensaje, no sobre
-  estado y cuerpo.
+- **Enrutado (4), hecho (2026-11-04).** Los adapters de Anthropic, Responses y Gemini consultan el
+  registro por destino exacto (protocolo, URL base y modelo) y clasifican el rechazo con
+  `classify_rejection`: solo un 400/422 que nombra la capacidad autoriza el fallback, y un 401, 402,
+  429 o 500 que la mencione ya no degrada en silencio. Tras un rechazo real no se repite la petición
+  rechazada en el turno siguiente (aviso «rejected earlier») y un modelo distinto no hereda el
+  rechazo. Se retiraron las heurísticas propias `is_programmatic_not_supported` e
+  `is_tool_combination_unsupported`. Chat Completions no tenía heurística de rechazo que sustituir.
 - **Rechazos (5).** `classify_rejection` separa autenticación, cuota, transporte, petición inválida
   e incompatibilidad explícita; solo la última autoriza fallback, y no conserva el cuerpo.
-- **Pruebas (6).** 15 pruebas del registro (con mutaciones comprobadas a mano) y 3 de cableado.
+- **Pruebas (6).** 15 pruebas del registro (con mutaciones comprobadas a mano), 3 de cableado en
+  Anthropic, 3 en Responses y 2 en Gemini (rechazo recordado; auth/cuota sin fallback).

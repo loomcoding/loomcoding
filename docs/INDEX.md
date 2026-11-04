@@ -78,8 +78,8 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 
 ## Sin hacer o sin cierre claro
 
-- **Parciales:** capacidades-tools-provider-modelo (registro y clasificador hechos, cableado solo en
-  Anthropic; faltan Chat Completions, Responses, Gemini y metadata real), agent-autonomy (hechas la Fase A y la O1; faltan B, C y D),
+- **Parciales:** capacidades-tools-provider-modelo (registro, clasificador y cableado en Anthropic,
+  Responses y Gemini hechos; falta la metadata real), agent-autonomy (hechas la Fase A y la O1; faltan B, C y D),
   sesion-vacia-runtime (falta la prueba de tool en la TUI con OpenRouter) y
   openrouter-anthropic-ptc (compatibilidad PTC sin confirmar).
 - **Ideas en exploración (no implementar):** decision-hub-jevalan, gauntlet-loop,

@@ -1,12 +1,17 @@
 //! Proveedor de la API Responses de OpenAI, con llamada programática de herramientas.
 
 use super::*;
+use crate::capability::{
+    classify_rejection, Capability, CapabilityRegistry, Protocol, State, Target,
+};
 
 /// Native Responses API adapter. Kept separate from OpenAI-compatible Chat Completions.
 pub struct OpenAiResponsesProvider {
     pub(super) base_url: String,
     pub(super) api_key: String,
     pub(super) client: reqwest::Client,
+    /// Lo que se sabe de cada destino: un rechazo real de PTC se recuerda hasta que caduque.
+    pub(super) capabilities: CapabilityRegistry,
 }
 
 impl OpenAiResponsesProvider {
@@ -15,7 +20,23 @@ impl OpenAiResponsesProvider {
             base_url: base_url.into().trim_end_matches('/').to_string(),
             api_key: api_key.into(),
             client: reqwest::Client::new(),
+            capabilities: CapabilityRegistry::default(),
         }
+    }
+
+    /// Destino exacto de una petición: el mismo modelo en otra URL es otro destino.
+    fn target(&self, model: &str) -> Target {
+        Target::new(Protocol::Responses, &self.base_url, model)
+    }
+
+    /// `true` si una petición real ya rechazó la llamada programática para este destino.
+    fn ptc_rejected(&self, model: &str) -> bool {
+        matches!(
+            self.capabilities
+                .query(&self.target(model), Capability::ProgrammaticToolCalling)
+                .state,
+            State::Rejected { .. }
+        )
     }
 
     pub(super) fn build_body(&self, req: &ProviderRequest) -> serde_json::Value {
@@ -149,6 +170,22 @@ impl OpenAiResponsesProvider {
         req: &ProviderRequest,
         cancel: &CancellationToken,
     ) -> Result<serde_json::Value> {
+        // Un rechazo anterior (todavía vigente) evita repetir en cada turno la petición rechazada.
+        let direct_request;
+        let mut earlier_notice = None;
+        let req = if req.programmatic_tool_calling && self.ptc_rejected(&req.model) {
+            direct_request = ProviderRequest {
+                programmatic_tool_calling: false,
+                ..req.clone()
+            };
+            earlier_notice = Some(format!(
+                "Programmatic tools were rejected earlier for `{}`; using direct calls",
+                req.model
+            ));
+            &direct_request
+        } else {
+            req
+        };
         let mut body = self.build_body(req);
         let mut replay_items = body["input"].as_array().cloned().unwrap_or_default();
         let mut accumulated_output = Vec::new();
@@ -171,8 +208,18 @@ impl OpenAiResponsesProvider {
                 if continuation == 0
                     && req.programmatic_tool_calling
                     && body.get("previous_response_id").is_none()
-                    && is_programmatic_not_supported(message)
+                    && classify_rejection(
+                        status.as_u16(),
+                        message,
+                        Capability::ProgrammaticToolCalling,
+                    )
+                    .allows_fallback()
                 {
+                    self.capabilities.record_rejection(
+                        &self.target(&req.model),
+                        Capability::ProgrammaticToolCalling,
+                        status.as_u16(),
+                    );
                     let mut direct = req.clone();
                     direct.programmatic_tool_calling = false;
                     let mut response = self.build_body(&direct);
@@ -237,19 +284,15 @@ impl OpenAiResponsesProvider {
             {
                 let mut value = value;
                 value["output"] = serde_json::Value::Array(accumulated_output);
+                if let Some(notice) = earlier_notice {
+                    value = with_notice(value, notice);
+                }
                 return Ok(with_replay(value, replay_items));
             }
             body["input"] = serde_json::Value::Array(replay_items.clone());
         }
         unreachable!()
     }
-}
-
-pub(super) fn is_programmatic_not_supported(message: &str) -> bool {
-    let message = message.to_ascii_lowercase();
-    message.contains("programmatic_tool_calling")
-        || message.contains("allowed_callers")
-        || message.contains("programmatic tool calling is not supported")
 }
 
 pub(super) fn with_notice(mut response: serde_json::Value, message: String) -> serde_json::Value {

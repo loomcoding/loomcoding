@@ -1,6 +1,6 @@
 # Capacidades de tools por provider, modelo y endpoint
 
-> Estado: **parcial** (2026-10-31). Implementados el registro por destino, el clasificador de rechazos y el parseo de metadata de OpenRouter; el adapter de Anthropic ya lo consulta. Faltan el enrutado en los demás adapters y la obtención de metadata real. Véase el «Avance» del plan.
+> Estado: **parcial** (2026-11-04). Implementados el registro por destino, el clasificador de rechazos y el parseo de metadata de OpenRouter; los adapters de Anthropic, Responses y Gemini ya lo consultan. Falta la obtención de metadata real. Véase el «Avance» del plan.
 >
 > Fecha: 2026-10-28
 >

@@ -287,7 +287,7 @@ fn mentions_capability(body: &str, capability: Capability) -> bool {
             "programmatic_tool_calling",
             "code_execution",
         ]),
-        Capability::CodeExecution => any(&["code_execution"]),
+        Capability::CodeExecution => any(&["code_execution", "tool combination"]),
         Capability::ToolSearch => any(&["tool_search"]),
         Capability::ParallelToolCalls => any(&["parallel_tool_calls"]),
         Capability::DirectToolCalling => any(&[
