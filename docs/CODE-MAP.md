@@ -79,7 +79,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 1. Nombres del cable y tarjeta: `crates/codeloom-a2a/src/card.rs`, `wire.rs`.
 2. Cliente (consumir agentes remotos): `crates/codeloom-a2a/src/client/` (`mod.rs` llama; `stream.rs` sigue el SSE; `factory.rs` construye clientes), `remote.rs`,
    `oauth.rs`, `security/`, `signing.rs`.
-3. Servidor (servir CodeLoom): `crates/codeloom-a2a/src/serve/` (`rpc.rs`, `auth.rs`, `host.rs`).
+3. Servidor (servir CodeLoom): `crates/codeloom-a2a/src/serve/` (`rpc/`, `auth.rs`, `host.rs`).
 4. Streaming: `crates/codeloom-a2a/src/sse.rs`.
 5. Modelo interno de tarea: `crates/codeloom-core/src/task.rs`, `task_events.rs`.
 6. **No inventes estados**: contrasta con el proto normativo y rotula lo propio como propio.

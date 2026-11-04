@@ -9,7 +9,7 @@ crate depende de `core`, nunca al revés.
 **Tipos clave:** `WireAgentCard` y `WireInterface` (`card.rs`), `JsonRpcClient` y
 `A2aClientFactory` (`client/factory.rs`), `LauncherHost` y `HostLimits` (`serve/host.rs`).
 
-**Puntos de entrada:** `client/` (llamar a un agente remoto), `serve/` (`mod.rs`, `rpc.rs`,
+**Puntos de entrada:** `client/` (llamar a un agente remoto), `serve/` (`mod.rs`, `rpc/`,
 `auth.rs`, `launch.rs`: servidor), `sse.rs` (streaming), `oauth.rs`/`security/`/`signing.rs`
 (autenticación y verificación de tarjetas).
 
