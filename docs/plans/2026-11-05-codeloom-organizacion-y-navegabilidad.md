@@ -100,7 +100,7 @@ admitidos y una tabla con la tanda del 2026-11-01 al 11-05, que no estaba. Es un
 
 **Aceptación:** la tanda reciente está cubierta y marcada; los documentos sin línea
 `Estado:` figuran como «sin estado declarado», sin inventar uno. Pendiente aparte: cotejar
-con el código los seis documentos que aún dicen «sin cotejar».
+con el código los documentos que aún dicen «sin cotejar» (ver `docs/INDEX.md`).
 
 ### Paso 0.6 — `AGENTS.md` como puerta de entrada (HECHO 2026-11-05)
 
@@ -302,6 +302,19 @@ de este ciclo: si hay prisa por features, esta es la fase que se pospone.
 
 ---
 
+## Fase 8 — Oleada final: lista blanca a cero — HECHA
+
+**Hecho (2026-11-05):** los 14 ficheros que seguían en la lista blanca del paso 1.1 se partieron,
+uno por commit y con movimiento puro: `development_workflow`, `rail`, `openai`, `security`,
+`serve/rpc`, `serve/host`, `registry/profile`, `state/composer`, `state/tool_atom`,
+`widgets/composer`, `widgets/transcript` y `widgets/theme` (más `sqlite`, `input`, `anthropic`,
+`registry/mod` y `client` en la tanda previa). Después, el showcase de batten (`app.rs` → `app/`,
+pruebas de `main.rs` → `tests/`) y el guardarraíl pasó a contar también `crates/*/examples`.
+Resultado: **lista blanca vacía**, ningún `.rs` supera las 1.000 líneas (el mayor, 924) y las 2.154
+pruebas se mantienen idénticas en cada commit. `theme.rs` ya no es excepción.
+
+---
+
 ## Orden y dependencias
 
 ```
@@ -320,10 +333,10 @@ Línea base a 2026-11-05; los valores se recalculan con el test del paso 1.1.
 
 | Métrica | Hoy | Objetivo de este ciclo |
 |---|---:|---:|
-| % de código en archivos > 1.000 líneas | 54,5 % | < 30 % |
-| Archivos > 1.000 líneas | 25 | < 20 (el resto, en una oleada posterior) |
-| `app.rs` | ~10.800 | < 1.000 |
-| Documentos de navegación | 0 | 5 + 8 READMEs |
+| % de código en archivos > 1.000 líneas | 54,5 % | < 30 % — **cumplido: 0 %** (2026-11-05) |
+| Archivos > 1.000 líneas | 25 | < 20 — **cumplido: 0** en `src` y `examples`, lista blanca vacía (Fase 8) |
+| `app.rs` | ~10.800 | < 1.000 — **cumplido** (Fase 5) |
+| Documentos de navegación | 0 | 5 + 8 READMEs — **cumplido** (Fase 0) |
 | Specs/plans en el INDEX con estado | 0 | todos (test de cobertura) |
 | Saltos para localizar un punto de cambio | ≥ 5 | ≤ 3 |
 
@@ -342,9 +355,9 @@ Línea base a 2026-11-05; los valores se recalculan con el test del paso 1.1.
 
 - Reescribir la arquitectura de crates o fusionar/splitear crates.
 - Cambiar el modelo de datos de sesión.
-- Refactorizar archivos grandes pero cohesivos (`theme.rs`, providers, tablas): están
-  justificados como excepción.
-- Los ~19 archivos > 1.000 líneas que queden tras este ciclo.
+- ~~Refactorizar archivos grandes pero cohesivos (`theme.rs`, providers, tablas)~~: **revocado
+  el 2026-11-05**; se partieron también (Fase 8), sin excepciones.
+- ~~Los ~19 archivos > 1.000 líneas que queden tras este ciclo~~: hechos en la Fase 8.
 - Migrar a otra herramienta de documentación (mdbook u otra).
 - Cobertura de tests nueva: se usa la existente como red.
 
