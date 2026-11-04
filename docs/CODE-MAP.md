@@ -47,7 +47,7 @@ Ojo: `crates/codeloom-core/src/registry/` NO es el registro de herramientas, es 
 3. Decide si el vigilante debe ignorarla (esperas al humano): `subagent/watchdog.rs`.
 4. La fase se persiste por su `as_str` (`session/sqlite/codec.rs` y `subagents.rs`); una fase nueva no rompe filas viejas.
 5. Si la UI agrupa estados, nombra entre paréntesis los A2A originales
-   (`crates/codeloom-tui/src/rail.rs`).
+   (`crates/codeloom-tui/src/rail/`, sección `subagents.rs`).
 6. Tests: `todas_las_fases_proyectan` y compañía ya recorren `ALL`.
 
 ## Quiero añadir un widget de TUI

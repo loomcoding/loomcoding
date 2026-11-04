@@ -28,11 +28,6 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         "pendiente de evaluar en una oleada posterior",
     ),
     (
-        "crates/codeloom-tui/src/rail.rs",
-        1700,
-        "pendiente de evaluar en una oleada posterior",
-    ),
-    (
         "crates/batten/src/widgets/transcript.rs",
         1400,
         "pendiente de evaluar en una oleada posterior",

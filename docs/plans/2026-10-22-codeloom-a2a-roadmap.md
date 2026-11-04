@@ -22,7 +22,7 @@ dice que no consta.
 | Diseño general de A2A (profile, scope, Agent Card, transportes, crate opcional `codeloom-a2a`, SDK `a2a-lf`) | `docs/specs/2026-10-15-loom-agent-profile-a2a.md` |
 | Estados de tarea: definiciones literales del proto y decisiones nuestras | misma spec, secciones «Estado de tarea» y «Fuente normativa de los estados» |
 | Proyección interna → `TaskState` (código) | `crates/codeloom-core/src/task.rs` |
-| Estados en pantalla: `AgentState`, glifos, colores | `crates/batten/src/state/agent_state.rs`, `crates/batten/src/widgets/theme.rs`; rail en `crates/codeloom-tui/src/rail.rs`; demo «Agent state» del showcase |
+| Estados en pantalla: `AgentState`, glifos, colores | `crates/batten/src/state/agent_state.rs`, `crates/batten/src/widgets/theme.rs`; rail en `crates/codeloom-tui/src/rail/`; demo «Agent state» del showcase |
 | `input-required`: pregunta del hijo al padre | `docs/specs/hechos/2026-10-21-codeloom-subagent-input-required-design.md` |
 | Autonomía: despertar del padre (Fase A), artefactos (B), tareas enlazadas (C) | `docs/specs/hechos/2026-10-21-codeloom-agent-autonomy-design.md` |
 | Observabilidad: métricas por agente, navegación, causalidad y ficheros (O1 a O3) | `docs/specs/hechos/2026-10-21-codeloom-agent-observability-design.md`, `...-o2-design.md`, `2026-10-22-codeloom-agent-observability-o3-design.md` |
