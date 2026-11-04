@@ -79,6 +79,36 @@ impl Provider for ProveedorDelGauntlet {
         req: crate::provider::ProviderRequest,
         _cancel: CancellationToken,
     ) -> Result<crate::provider::ProviderStream> {
+        // El crítico diligente abre los dos candidatos con `view` antes de juzgar.
+        let prompt = req
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == crate::message::Role::User)
+            .map(|m| m.text())
+            .unwrap_or_default();
+        let ya_leyo = req
+            .messages
+            .iter()
+            .any(|m| m.role == crate::message::Role::Tool);
+        if prompt.starts_with("You are an independent critic") && !ya_leyo {
+            let mut chunks = Vec::new();
+            for letra in ["A", "B"] {
+                let cabecera = format!(
+                    "Candidate {letra}:
+- "
+                );
+                let inicio = prompt.find(&cabecera).unwrap() + cabecera.len();
+                let ruta = prompt[inicio..].lines().next().unwrap().to_owned();
+                chunks.push(StreamChunk::ToolCallComplete {
+                    id: format!("view-{letra}"),
+                    name: "view".into(),
+                    input: serde_json::json!({ "path": ruta }),
+                });
+            }
+            chunks.push(StreamChunk::Done(FinishReason::ToolCalls));
+            return Ok(Box::pin(futures::stream::iter(chunks)));
+        }
         Ok(Box::pin(futures::stream::iter(vec![
             StreamChunk::TextDelta(self.responder(&req)),
             StreamChunk::Done(FinishReason::Stop),

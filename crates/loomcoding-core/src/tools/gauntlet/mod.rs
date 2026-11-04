@@ -47,6 +47,7 @@ impl Tool for GauntletTool {
             "builder":{"type":"string","maxLength":64,"description":"Local agent name; must differ from critic."},
             "critic":{"type":"string","maxLength":64,"description":"Local agent name; must differ from builder."},
             "max_rounds":{"type":"integer","minimum":1,"maximum":5,"description":"Build rounds before stopping (default 2)."},
+            "check":{"type":"string","maxLength":1000,"description":"Optional objective check (a shell command, for example `cargo check`). Run after each builder round; if it fails its output goes back to the builder and no critic is spent. It needs the same permission as bash."},
             "hide_bar":{"type":"boolean","description":"Do not tell the builder where the bar is (use it for code, where a readable reference gets copied). Default false."}
         },"required":["action"]})
     }

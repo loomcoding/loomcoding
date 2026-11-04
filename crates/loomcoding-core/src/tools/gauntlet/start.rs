@@ -51,6 +51,35 @@ pub(super) async fn action_start(
             .as_bool()
             .ok_or_else(|| CoreError::Tool("hide_bar must be a boolean".into()))?,
     };
+    let check = match input.get("check").filter(|value| !value.is_null()) {
+        None => None,
+        Some(value) => Some(
+            value
+                .as_str()
+                .filter(|s| !s.trim().is_empty() && s.len() <= MAX_CHECK_BYTES)
+                .map(|s| s.trim().to_owned())
+                .ok_or_else(|| {
+                    CoreError::Tool(format!(
+                        "check must be a command of 1 to {MAX_CHECK_BYTES} bytes"
+                    ))
+                })?,
+        ),
+    };
+    if let Some(command) = &check {
+        // El comando lo ejecuta el coordinador: pasa por el mismo permiso que `bash`.
+        let request = crate::permission::PermissionRequest {
+            tool: "bash".into(),
+            action: "run".into(),
+            detail: serde_json::json!({ "command": command }).to_string(),
+        };
+        let decision = tokio::select! {
+            _ = cancel.cancelled() => return Ok(ToolOutput::err("cancelled")),
+            decision = ctx.permission.check(request) => decision,
+        };
+        if decision == crate::permission::Decision::Deny {
+            return Err(CoreError::Tool("the check command was not allowed".into()));
+        }
+    }
     check_text_path(&ctx.cwd, &artifact)?;
     for path in &bar {
         check_text_path(&ctx.cwd, path)?;
@@ -67,6 +96,8 @@ pub(super) async fn action_start(
         now_ms: crate::message::now_ms(),
     })
     .map_err(problem)?;
+    let mut gauntlet = gauntlet;
+    gauntlet.check = check;
     let gauntlet = store.create_gauntlet(gauntlet, "gauntlet started").await?;
     ctx.bus.publish(crate::event::LiveEvent::GauntletChanged {
         summary: gauntlet.summary(),

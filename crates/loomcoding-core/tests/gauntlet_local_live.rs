@@ -10,7 +10,8 @@
 //! relativa), `LOOMCODING_LIVE_BAR` (rutas relativas separadas por comas), `LOOMCODING_LIVE_GOAL_FILE`
 //! (fichero con el objetivo), `LOOMCODING_LIVE_REPORT` (ruta del informe JSON). Opcionales:
 //! `LOOMCODING_LIVE_BASE_URL` (por defecto `http://127.0.0.1:8091/v1`), `LOOMCODING_LIVE_MODEL`
-//! (`qwen3.5-9b`), `LOOMCODING_LIVE_MAX_ROUNDS` (2), `LOOMCODING_LIVE_TIMEOUT_MIN` (60).
+//! (`qwen3.5-9b`), `LOOMCODING_LIVE_MAX_ROUNDS` (2), `LOOMCODING_LIVE_TIMEOUT_MIN` (60),
+//! `LOOMCODING_LIVE_CHECK` (comando de comprobación objetiva que corre el coordinador).
 
 use loomcoding_core::config::{LoomcodingConfig, ProviderConfig, ProviderKind};
 use loomcoding_core::event::{EventBus, LiveEvent};
@@ -114,16 +115,16 @@ async fn gauntlet_against_a_local_server() {
     };
 
     let started = Instant::now();
+    let mut start_input = serde_json::json!({
+        "action": "start", "goal": goal, "artifact": artifact, "bar": bar,
+        "builder": "constructor", "critic": "critico", "max_rounds": max_rounds,
+        "hide_bar": true
+    });
+    if let Ok(check) = std::env::var("LOOMCODING_LIVE_CHECK") {
+        start_input["check"] = check.into();
+    }
     let start = GauntletTool
-        .run(
-            ctx(),
-            serde_json::json!({
-                "action": "start", "goal": goal, "artifact": artifact, "bar": bar,
-                "builder": "constructor", "critic": "critico", "max_rounds": max_rounds,
-                "hide_bar": true
-            }),
-            CancellationToken::new(),
-        )
+        .run(ctx(), start_input, CancellationToken::new())
         .await
         .expect("start");
     assert!(!start.is_error, "{}", start.content);

@@ -52,6 +52,10 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
    `run/mod.rs` (`SessionUpdate::Gauntlet`) y `crates/loomcoding-cli/src/server/snapshot.rs`.
 6. Puerta de escritura del padre y fin de turno tras `start`: `agent/dispatch.rs` y `agent/turn.rs`.
 7. Prueba de punta a punta: `crates/loomcoding-core/src/subagent/tests/gauntlet_e2e.rs`.
+8. Guardas de integridad (lectura del crítico, `check`, `hide_bar`): `gauntlet.rs::unread_candidates`,
+   `tools/gauntlet/advance.rs` (`apply_next`) y `tools/gauntlet/helpers.rs` (`run_check`); sus pruebas, en
+   `tools/gauntlet/tests/guards.rs`.
+9. Prueba real contra un servidor local (ignorada): `crates/loomcoding-core/tests/gauntlet_local_live.rs`.
 
 ## Quiero añadir una fase de subagente
 

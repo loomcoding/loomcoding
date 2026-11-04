@@ -3,6 +3,10 @@
 > Estado: **propuesta** (2026-11-04). Sin código aún. Las decisiones de §4 son las que se someten a
 > aprobación; lo no decidido consta en §8.
 >
+> Ampliada el 2026-11-04 con las medidas de una sesión de pruebas sobre dos GPU (§9): aparece un tercer
+> defecto (C3, plazo de petición fijo) y se matiza el significado de `context_window` (D3). Las decisiones
+> D1, D2, D4 y D5 no cambian.
+>
 > Relacionado: `docs/specs/2026-10-22-codeloom-decalogo-de-contexto-y-coste.md` (toda cota se declara y
 > se prueba) y las specs ya hechas `context-compaction`, `background-compaction` y `context-meter`
 > (véase `docs/INDEX.md`).
@@ -37,12 +41,26 @@ comprobó reproduciendo la lista en un guion, no ejecutando la función real; el
 **Consecuencia:** en cuanto el historial supere la ventana del hueco, el turno falla en lugar de resumir y
 reintentar. Con tareas cortas no se nota; con un agente largo, sí.
 
+**C3 — El plazo de la petición es fijo y se agota antes que la ventana.** El adaptador
+`OpenAiCompatProvider` fija `request_timeout` en 120 s (`provider/openai/compat.rs:128`) y lo aplica con
+`.timeout(...)` a la petición completa, *streaming* incluido (`compat.rs:280`). No se encontró en el código
+ninguna vía de configuración que lo modifique. Con un servidor local lento, la petición muere por tiempo
+mucho antes de alcanzar la ventana: en una RX 580 con Qwen3.5-4B, un prompt de unos 14 000 tokens tarda 113 s
+y uno de 18 000, 111 a 166 s (§9). Ya ocurrió: de cinco subagentes lanzados en paralelo contra ese servidor,
+uno terminó con `provider error: OpenAI-compatible response stream timed out`; su petición había tardado unos
+119 s (23 s de prefill y 96 s de generación, según el registro del servidor). Que ese subagente fuese
+precisamente el afectado es plausible, no demostrado.
+
+Este error **no** lo cubre la red de seguridad de C2: no es un 400 de exceso de contexto, sino un fallo de
+transporte que hoy se propaga como error del proveedor.
+
 ## 2. Alcance
 
 **Dentro:**
 - Reconocer el rechazo por exceso de contexto de llama.cpp (C2).
 - Una clave opcional `[provider] context_window` con la que la persona usuaria declara la ventana de su
   servidor, de modo que la compactación preventiva, la de segundo plano y el medidor funcionen (C1).
+- Una clave opcional `[provider] request_timeout_secs` con la que se ajusta el plazo de la petición (C3).
 
 **Fuera (no se implementa aquí):**
 - Detectar la ventana consultando al servidor. Véase §8, P1.
@@ -71,9 +89,14 @@ conviene aprovecharlo.
 comportamiento actual. Cero, negativo, decimal o cadena son error de configuración con mensaje que nombra la
 clave (cero compactaría en cada paso, pues el umbral sería 0).
 
-**D3 — Semántica: tokens que el servidor admite por petición**, es decir, el contexto **por hueco**, no el
-total. En llama-server es `n_ctx_slot` (el valor de `-c` dividido entre `-np` cuando el KV no es unificado).
-Si se declara el total, la compactación preventiva llegará tarde y quedará la red de D1.
+**D3 — Semántica: tokens por petición que el servidor puede procesar con holgura**, es decir, el contexto
+**por hueco** (no el total) **acotado además por lo que cabe en el plazo de la petición** (D6). En
+llama-server el techo duro es `n_ctx_slot` (el valor de `-c` dividido entre `-np` cuando el KV no es
+unificado), pero **el valor útil puede ser mucho menor**: si el servidor procesa el prompt a `V` tokens/s y el
+plazo es `T` segundos, la ventana práctica ronda `V · T` menos lo que se vaya a generar. Con 190 tok/s y
+120 s son unos 15 000 tokens aunque el hueco admita 64 000 (§9). Declarar el techo duro cuando es mayor que la
+ventana práctica hace que la compactación espere a un 80 % que la petición nunca llegará a alcanzar.
+Si se declara el total del servidor, la compactación llegará tarde y quedará la red de D1.
 
 **D4 — Mecanismo: la declaración viaja en el `Catalog`.** Un campo privado, no serializado, y un constructor
 `Catalog::with_window_override`; `context_window` lo consulta antes que los datos de models.dev. La clave se
@@ -87,6 +110,13 @@ lee con un **cargador aparte** (`ProviderLimitsConfig`), siguiendo el patrón de
 **D5 — Precedencia.** Lo declarado manda sobre lo publicado por models.dev para el mismo par (URL base
 normalizada, modelo). Para cualquier otro par no se altera nada. Si en caliente se cambia de modelo o de URL
 (`/settings`), la declaración deja de aplicarse; es deliberado, pues la ventana pertenece a un modelo.
+
+**D6 — Clave `[provider] request_timeout_secs = <segundos>`.** Entero estrictamente positivo con cota
+superior declarada (propuesta: `1..=3600`; el decálogo exige que toda cota conste). Su ausencia mantiene los
+120 s actuales. Cero, negativo, decimal, cadena o un valor por encima de la cota son error de configuración que
+nombra la clave. Se lee con el mismo cargador aparte de D4 (`ProviderLimitsConfig`, ampliado con este campo) y
+se aplica al construir el adaptador OpenAI-compatible. Los adaptadores de Anthropic y Gemini conservan su
+plazo propio: este alcance es solo el de servidores locales compatibles con OpenAI.
 
 ## 5. Criterios de aceptación
 
@@ -105,6 +135,12 @@ normalizada, modelo). Para cualquier otro par no se altera nada. Si en caliente 
    de resúmenes no supera `MAX_COMPACTIONS_PER_TURN`.
 7. `App::context_window()` devuelve la ventana declarada.
 8. Con `LOOMCODING_HOME` aislado y sin red, el medidor del pie muestra la ventana (comprobación manual, §7).
+9. `[provider] request_timeout_secs` se lee: ausente → `None` (rige el plazo de 120 s); `600` → `Some(600)`;
+   `0`, `-1`, `3.5`, `"10m"` y un valor por encima de la cota → error cuyo mensaje contiene
+   `request_timeout_secs`. Guardar `/settings` conserva la clave.
+10. Un `OpenAiCompatProvider` construido con un plazo configurado lo aplica de verdad (prueba con `wiremock`
+    que retrasa la respuesta por encima y por debajo del plazo configurado), y sin configuración conserva
+    los 120 s.
 
 ## 6. Uso
 
@@ -113,8 +149,19 @@ normalizada, modelo). Para cualquier otro par no se altera nada. Si en caliente 
 kind = "openai_compat"
 base_url = "http://127.0.0.1:8091/v1"
 api_key_env = "LLAMA_API_KEY"
-context_window = 35584   # contexto POR HUECO: en llama-server, `n_ctx_slot` del log de arranque
+# Tokens por petición que el servidor procesa CON HOLGURA dentro del plazo (no el techo duro del hueco).
+context_window = 35584
+# Plazo total de cada petición, en segundos (por defecto, 120).
+request_timeout_secs = 300
 ```
+
+Orientación para elegirlos, con las medidas de §9:
+- GPU rápida (RTX 3060 Ti, ~1 800 tok/s de prefill): la ventana práctica coincide casi con el hueco.
+- GPU lenta (RX 580, ~130 a 200 tok/s): la ventana práctica con el plazo por defecto está entre 11 000 y 15 000 tokens,
+  aunque el hueco admita 64 000. O se declara esa ventana pequeña o se sube `request_timeout_secs` a cambio de
+  esperas de varios minutos por petición.
+- Regla: `context_window ≈ tok/s de prefill × request_timeout_secs × 0,5`, dejando margen para generar.
+  Es una regla de pulgar derivada de pocas medidas, no una fórmula validada.
 
 No se debe copiar el `max_model_len` que algunos servidores publican en `/v1/models`: es la capacidad del
 modelo, no la del caché reservado (en una prueba de FreeToken con el mismo modelo constaban 262 144 frente a
@@ -128,6 +175,16 @@ modelo, no la del caché reservado (en una prueba de FreeToken con el mismo mode
   En una prueba sintética con el tokenizador de Qwen3.5 y código lleno de cifras salieron unos 2 bytes por
   token (una muestra, no un estudio). Con `usage` del proveedor el recuento se ancla y deja de depender de la
   estimación; la red de D1 cubre el resto.
+- **Compactar también cuesta, y mucho más en un servidor lento.** Resumir exige enviar el historial al
+  modelo. En la RX 580, resumir 30 000 tokens son unos 3 o 4 minutos de prefill, y esa llamada de resumen
+  moriría por el mismo plazo que C3. De ahí que la compactación deba dispararse pronto (con la ventana práctica
+  de D3, no con el techo del hueco) y que la de segundo plano sea preferible. No se ha medido cómo se
+  comporta la compactación en segundo plano contra un servidor así de lento.
+- **Caché de prompt del servidor.** llama-server reutiliza el prefijo común entre peticiones, de modo que los
+  turnos siguientes solo pagarían lo nuevo. Las pruebas de §9 la desactivaron adrede (`cache_prompt=false`)
+  para medir el peor caso, y no se ha comprobado que Loomcoding la aproveche.
+- **El timeout no es un desborde.** Compactar y reintentar ante un `timed out` no está decidido (P5): podría
+  convertir un servidor lento en un bucle de resúmenes que también agotan el plazo.
 - **Prueba de punta a punta no automatizable.** `load_catalog` descarga de models.dev y los tests no tocan la
   red; el criterio 8 queda como cabo suelto de comprobación manual, como otros del índice.
 
@@ -139,3 +196,59 @@ modelo, no la del caché reservado (en una prueba de FreeToken con el mismo mode
   del par URL + modelo del `loomcoding.toml`). ¿Se admite `context_window` en el perfil?
 - **P3.** ¿Se impone un mínimo (por ejemplo, 4 096) además de «mayor que cero»?
 - **P4.** ¿Debe avisarse en el pie cuando el servidor no es conocido y no hay `context_window`?
+- **P5.** ¿Se trata el `response stream timed out` como desborde recuperable (compactar y reintentar una vez)
+  o se deja como error visible? Tiene el riesgo descrito en §7; lo prudente es no tocarlo en este corte y
+  limitarse a hacer el plazo configurable (D6).
+- **P6.** ¿Aprovecha Loomcoding la caché de prompt de llama-server (`cache_prompt`)? Habría que comprobar
+  qué envía el adaptador y medirlo.
+- **P7.** La prueba de recuperación de §9 es deliberadamente fácil (un dato literal en texto repetitivo). Falta
+  una prueba con preguntas sobre ficheros reales antes de afirmar nada sobre la utilidad de un modelo pequeño
+  con contexto largo.
+
+## 9. Evidencia (sesión de pruebas del 2026-11-04)
+
+Todas las cifras son de **una sola pasada** por configuración, con otras sesiones usando la máquina a ratos:
+entre ejecuciones el prefill del mismo prompt varió hasta un 50 % (128 frente a 191 tok/s con ~14 000 tokens).
+Sirven para órdenes de magnitud y para comparaciones grandes, no para afinar. Servidor: llama.cpp, KV en f16
+sin *flash attention* en la RX 580 (Vulkan), `-b 256 -ub 128`, `cache_prompt=false`, razonamiento desactivado.
+
+**RTX 3060 Ti, Qwen3.5-9B Q4_K_M, CUDA, KV q8_0** (medidas anteriores de la misma jornada): `-np 2` deja
+35 584 tokens por hueco con 43 a 57 tok/s de generación y 1 750 a 1 890 tok/s de prefill; `-np 1` deja 74 240
+con unos 36 tok/s de generación a 70 000 tokens.
+
+**RX 580, Qwen3.5-4B Q4_K_M, KV en VRAM**, un hueco, recuperación de una clave de 4 cifras escondida al 20 %
+del texto:
+
+| Contexto | Prompt (tok) | Prefill (tok/s) | Generación (tok/s) | Tiempo | Clave |
+|---|---:|---:|---:|---:|---|
+| 16k | 4 121 | 127 | 13,5 | 37 s | acierta |
+| 16k | 9 035 | 137 | 12,6 | 69 s | acierta |
+| 16k | 13 949 | 128 | 12,3 | 113 s | acierta |
+| 32k | 8 216 | 203 | 16,3 | 42 s | acierta |
+| 32k | 18 044 | 166 | 13,8 | 111 s | acierta |
+| 32k | 27 872 | 154 | 12,5 | 184 s | acierta |
+| 64k | 16 406 | 173 | 14,0 | 95 s | acierta |
+| 64k | 36 041 | 150 | 11,6 | 244 s | acierta |
+| 64k | 55 697 | 124 | 9,7 | 454 s | acierta |
+
+Cinco huecos de 16k también arrancan y responden bien (prompts de 4 121 a 13 949 tokens, 191 a 212 tok/s de
+prefill), aunque la prueba envía las peticiones de una en una y por tanto no mide concurrencia.
+
+**KV en RAM (`--no-kv-offload`)**, mismo contexto de 64k y mismos prompts que la fila anterior:
+
+| Prompt (tok) | VRAM | RAM | Veces más lento |
+|---:|---|---|---:|
+| 16 406 | 95 s · gen 14,0 | 169 s · gen 5,5 | 1,8 |
+| 36 041 | 244 s · gen 11,6 | 633 s · gen 4,3 | 2,6 |
+| 55 697 | 454 s · gen 9,7 | 1 379 s · gen 0,7 | 3,0 |
+
+Con el KV en RAM acierta igualmente la clave, pero la generación se desploma. Conclusión operativa: si el
+modelo y el contexto caben en VRAM, no hay motivo para sacar el KV a RAM.
+
+**Cinco subagentes en paralelo contra la RX 580** (Qwen3.5-4B, 5 huecos de 8 192, razonamiento alto), cada uno
+leyendo un fichero pequeño: cuatro terminaron con explicaciones cuyas citas de línea se cotejaron con los
+ficheros (correctas, con desvíos de 1 o 2 líneas); uno agotó el plazo de 120 s (C3). El perfil de agente con
+`model` y `provider` propios (`.agents/agents/*.md`) cargó y resolvió bien el servidor distinto del principal.
+
+**Limitación de las pruebas:** la clave siempre va al 20 % del texto y rodeada de una frase repetida, sin
+distractores. Un acierto aquí no permite afirmar que el modelo razone bien sobre código real a esa longitud (P7).

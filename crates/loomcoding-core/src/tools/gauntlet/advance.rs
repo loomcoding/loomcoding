@@ -54,14 +54,38 @@ pub(super) async fn action_advance(
         GauntletPhase::Building | GauntletPhase::Rebuilding => {
             let order = gauntlet.begin_judging(draw_seed()).map_err(problem)?;
             let round = gauntlet.round;
-            let gauntlet = save(
-                &ctx.bus,
-                store.as_ref(),
-                gauntlet,
-                "builder",
-                &format!("builder finished round {round}"),
-            )
-            .await?;
+            let outcome = match gauntlet.check.clone() {
+                // Comprobación objetiva antes de gastar crítico: si falla, su salida es la brecha.
+                Some(command) => Some((command.clone(), run_check(ctx, &command, cancel).await?)),
+                None => None,
+            };
+            let finished = match &outcome {
+                None => format!("builder finished round {round}"),
+                Some((_, check)) if check.passed => {
+                    format!("builder finished round {round}, check passed")
+                }
+                Some(_) => format!("builder finished round {round}, check failed"),
+            };
+            // Se guarda primero la fase `Judging`: es la única desde la que hay brecha o parada.
+            let mut gauntlet =
+                save(&ctx.bus, store.as_ref(), gauntlet, "builder", &finished).await?;
+            if let Some((command, check)) = outcome.filter(|(_, check)| !check.passed) {
+                let gap = check_gap(&command, &check.tail);
+                let next = gauntlet
+                    .apply_verdict(Verdict::Gap { biggest_gap: gap })
+                    .map_err(problem)?;
+                return apply_next(
+                    ctx,
+                    cancel,
+                    store,
+                    launcher,
+                    gauntlet,
+                    next,
+                    ("coordinator", "The check failed"),
+                    &format!("check failed in round {round}"),
+                )
+                .await;
+            }
             launch_critic(
                 &ctx.bus,
                 store.as_ref(),
@@ -76,7 +100,7 @@ pub(super) async fn action_advance(
             )))
         }
         GauntletPhase::Judging => {
-            advance_judging(ctx, cancel, store, launcher, gauntlet, &report).await
+            advance_judging(ctx, cancel, store, launcher, gauntlet, child, &report).await
         }
         _ => Err(CoreError::Tool(
             "gauntlet cannot advance from this phase".into(),
@@ -91,6 +115,7 @@ async fn advance_judging(
     store: &Store,
     launcher: &Launcher,
     mut gauntlet: Gauntlet,
+    child: crate::session::SessionId,
     report: &str,
 ) -> Result<ToolOutput> {
     let order = gauntlet
@@ -98,17 +123,62 @@ async fn advance_judging(
         .last()
         .map(|record| record.order)
         .ok_or_else(|| CoreError::Tool("gauntlet has no judging in progress".into()))?;
-    let verdict = parse_verdict(report, order);
-    let detail = match &verdict {
-        Verdict::Gap { biggest_gap } => format!("gap: {biggest_gap}"),
-        Verdict::NoGap => "no gap".to_owned(),
-        Verdict::Malformed => "unreadable verdict".to_owned(),
+    // Un veredicto sin haber leído los dos candidatos no cuenta: vale como ilegible.
+    let candidates: Vec<String> = std::iter::once(gauntlet.artifact.clone())
+        .chain(gauntlet.bar.iter().cloned())
+        .collect();
+    let unread = crate::gauntlet::unread_candidates(&store.messages(child).await?, &candidates);
+    let (verdict, detail) = if unread.is_empty() {
+        let verdict = parse_verdict(report, order);
+        let detail = match &verdict {
+            Verdict::Gap { biggest_gap } => format!("gap: {biggest_gap}"),
+            Verdict::NoGap => "no gap".to_owned(),
+            Verdict::Malformed => "unreadable verdict".to_owned(),
+        };
+        (verdict, detail)
+    } else {
+        (
+            Verdict::Malformed,
+            format!(
+                "critic did not read {} with view; verdict not counted",
+                unread.join(", ")
+            ),
+        )
     };
     let next = gauntlet.apply_verdict(verdict).map_err(problem)?;
+    apply_next(
+        ctx,
+        cancel,
+        store,
+        launcher,
+        gauntlet,
+        next,
+        ("critic", "The critic found a gap"),
+        &detail,
+    )
+    .await
+}
+
+/// Reparte el siguiente paso, venga de un veredicto del crítico o de una comprobación fallida.
+/// `source` es el actor del evento y la frase con que se explica la brecha.
+#[allow(clippy::too_many_arguments)]
+async fn apply_next(
+    ctx: &ToolCtx,
+    cancel: &CancellationToken,
+    store: &Store,
+    launcher: &Launcher,
+    gauntlet: Gauntlet,
+    next: Next,
+    source: (&str, &str),
+    detail: &str,
+) -> Result<ToolOutput> {
+    let mut gauntlet = gauntlet;
+    let (actor, found) = source;
+    let detail = detail.to_owned();
     match next {
         Next::Rebuild => {
             let gap = gauntlet.last_gap.clone().unwrap_or_default();
-            let gauntlet = save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
+            let gauntlet = save(&ctx.bus, store.as_ref(), gauntlet, actor, &detail).await?;
             let prompt = rebuild_prompt(&gauntlet, &gap);
             let gauntlet = launch_builder(
                 &ctx.bus,
@@ -120,12 +190,12 @@ async fn advance_judging(
             )
             .await?;
             Ok(ToolOutput::ok(format!(
-                "The critic found a gap; round {} of {} started with the builder. End this turn and wait for its completion notice, then call advance.",
+                "{found}; round {} of {} started with the builder. End this turn and wait for its completion notice, then call advance.",
                 gauntlet.round, gauntlet.max_rounds
             )))
         }
         Next::Recheck(swapped) => {
-            let gauntlet = save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
+            let gauntlet = save(&ctx.bus, store.as_ref(), gauntlet, actor, &detail).await?;
             launch_critic(
                 &ctx.bus,
                 store.as_ref(),
@@ -146,7 +216,7 @@ async fn advance_judging(
                 &ctx.bus,
                 store.as_ref(),
                 gauntlet,
-                "critic",
+                actor,
                 "no gap, confirmed with the order swapped",
             )
             .await?;
@@ -155,13 +225,13 @@ async fn advance_judging(
             ))
         }
         Next::Stop => {
-            save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
+            save(&ctx.bus, store.as_ref(), gauntlet, actor, &detail).await?;
             Ok(ToolOutput::ok(
                 "The round limit was reached with a gap remaining. Report the remaining gap to the user and let them decide; do not start another round.",
             ))
         }
         Next::Inconclusive => {
-            save(&ctx.bus, store.as_ref(), gauntlet, "critic", &detail).await?;
+            save(&ctx.bus, store.as_ref(), gauntlet, actor, &detail).await?;
             Ok(ToolOutput::ok(
                 "The critic's verdict was unreadable or contradicted itself when the order was swapped. Report this to the user and let them decide.",
             ))

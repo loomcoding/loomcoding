@@ -12,12 +12,12 @@ use crate::subagent::SubagentLauncher;
 use crate::subagent_phase::SubagentPhase;
 use crate::task::{TaskState, TaskStatus};
 use async_trait::async_trait;
-use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 
 mod decide;
 mod events;
+mod guards;
 mod rounds;
 mod start;
 mod support;

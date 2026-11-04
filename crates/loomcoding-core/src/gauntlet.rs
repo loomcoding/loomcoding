@@ -300,6 +300,10 @@ pub struct Gauntlet {
     /// Huella del artefacto cuando se presentó a la persona; la aceptación se liga a ella.
     #[serde(default)]
     pub presented_sha256: Option<String>,
+    /// Comprobación objetiva opcional (un comando): se ejecuta al acabar el constructor y, si falla,
+    /// su salida es la brecha y no se gasta crítico.
+    #[serde(default)]
+    pub check: Option<String>,
     pub created_at_ms: i64,
     pub updated_at_ms: i64,
 }
@@ -346,6 +350,7 @@ impl Gauntlet {
             rounds: Vec::new(),
             last_gap: None,
             presented_sha256: None,
+            check: None,
             created_at_ms: data.now_ms,
             updated_at_ms: data.now_ms,
         })
@@ -472,6 +477,41 @@ impl Gauntlet {
             _ => {}
         }
     }
+}
+
+/// Candidatos que el crítico no abrió con `view`: un veredicto sin haber leído a los dos no cuenta.
+///
+/// Cabe señalar que solo `view` vale como lectura; un `grep` devuelve fragmentos, no el candidato.
+/// Las rutas se comparan normalizadas (barras, `./`) y por sufijo, porque el crítico puede usar la
+/// ruta absoluta del proyecto.
+pub fn unread_candidates(
+    messages: &[crate::message::Message],
+    candidates: &[String],
+) -> Vec<String> {
+    let normalize = |path: &str| {
+        let path = path.replace('\\', "/");
+        path.trim_start_matches("./").to_owned()
+    };
+    let viewed: Vec<String> = messages
+        .iter()
+        .flat_map(|message| message.parts.iter())
+        .filter_map(|part| match part {
+            crate::message::ContentPart::ToolCall { name, input, .. } if name == "view" => {
+                input["path"].as_str().map(normalize)
+            }
+            _ => None,
+        })
+        .collect();
+    candidates
+        .iter()
+        .filter(|candidate| {
+            let wanted = normalize(candidate);
+            !viewed
+                .iter()
+                .any(|seen| *seen == wanted || seen.ends_with(&format!("/{wanted}")))
+        })
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]
@@ -819,5 +859,53 @@ mod tests {
         g.apply_verdict(Verdict::NoGap).unwrap();
         let json = serde_json::to_string(&g).unwrap();
         assert_eq!(serde_json::from_str::<Gauntlet>(&json).unwrap(), g);
+    }
+
+    fn view_of(path: &str) -> crate::message::Message {
+        crate::message::Message::assistant(vec![crate::message::ContentPart::ToolCall {
+            id: "c".into(),
+            name: "view".into(),
+            input: serde_json::json!({ "path": path }),
+        }])
+    }
+
+    #[test]
+    fn a_critic_that_viewed_both_candidates_has_nothing_unread() {
+        let history = vec![view_of("out/portada.md"), view_of("ref/portada.md")];
+        let candidates = vec!["out/portada.md".to_string(), "ref/portada.md".to_string()];
+        assert!(unread_candidates(&history, &candidates).is_empty());
+    }
+
+    #[test]
+    fn a_candidate_never_viewed_is_reported() {
+        let history = vec![view_of("out/portada.md"), view_of("out/portada.md")];
+        let candidates = vec!["out/portada.md".to_string(), "ref/portada.md".to_string()];
+        assert_eq!(unread_candidates(&history, &candidates), ["ref/portada.md"]);
+    }
+
+    #[test]
+    fn absolute_and_backslash_paths_count_as_a_read() {
+        let history = vec![view_of("G:\\proyecto\\ref\\portada.md")];
+        let candidates = vec!["ref/portada.md".to_string()];
+        assert!(unread_candidates(&history, &candidates).is_empty());
+    }
+
+    #[test]
+    fn a_grep_is_not_a_read() {
+        let grep =
+            crate::message::Message::assistant(vec![crate::message::ContentPart::ToolCall {
+                id: "c".into(),
+                name: "grep".into(),
+                input: serde_json::json!({ "path": "ref/portada.md", "pattern": "x" }),
+            }]);
+        let candidates = vec!["ref/portada.md".to_string()];
+        assert_eq!(unread_candidates(&[grep], &candidates), candidates);
+    }
+
+    #[test]
+    fn a_similar_name_is_not_the_same_file() {
+        let history = vec![view_of("out/otra-portada.md")];
+        let candidates = vec!["portada.md".to_string()];
+        assert_eq!(unread_candidates(&history, &candidates), candidates);
     }
 }

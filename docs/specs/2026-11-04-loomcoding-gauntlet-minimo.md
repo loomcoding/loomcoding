@@ -68,6 +68,15 @@ objetivo, nunca los nombres de las posiciones A/B.
    afirmativa explícita por el mecanismo de pregunta existente, ligada a la huella del artefacto presentado.
 8. **Sin cambio de permisos**: el registro del gauntlet no concede herramientas, allowlists ni modo de
    ejecución. Cada perfil conserva sus límites.
+9. **Un veredicto exige haber leído a los dos** (enmienda tras el piloto con Qwen3.5-9B): el coordinador
+   comprueba en el historial del crítico que hizo `view` de cada candidato; si falta alguno, el veredicto
+   cuenta como ilegible (`inconclusive`) y el evento nombra el fichero sin leer. Un `grep` no es una lectura.
+10. **Comprobación objetiva opcional** (`check`, enmienda del piloto): un comando que el coordinador ejecuta
+    al acabar cada ronda del constructor, con el mismo permiso que `bash`, plazo de 600 s y cola de salida
+    acotada. Si falla, su salida es la brecha: vuelve al constructor (o `stopped` si no quedan rondas) sin
+    gastar crítico. Si pasa, juzga el crítico como siempre. No sustituye a la decisión humana.
+11. **Barra oculta opcional** (`hide_bar`, enmienda del piloto): el constructor no recibe la ruta de la barra;
+    el crítico sí, sin rotular. Para código, donde una referencia legible se copia.
 
 ## 5. Veredicto del crítico
 
@@ -113,6 +122,10 @@ Un veredicto malformado cuenta como `inconclusive`, no como `no_gap`.
 6. Ni el silencio, el tiempo agotado ni la cancelación aceptan el resultado.
 7. Estado y eventos sobreviven a un reinicio del almacén.
 8. No hay red real en las pruebas: proveedor simulado.
+9. Un crítico que no hizo `view` de los dos candidatos no aprueba: `inconclusive` con el fichero nombrado.
+10. Con `check` fallido no se lanza crítico: la salida del comando es la brecha del constructor, o
+    `stopped` en la última ronda. Con `check` denegado, `start` falla sin lanzar nada.
+11. Con `hide_bar`, el prompt del constructor no nombra la barra.
 
 ## Decisiones cerradas (2026-11-04, por la persona usuaria)
 

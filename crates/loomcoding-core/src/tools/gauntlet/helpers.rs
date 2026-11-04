@@ -4,6 +4,13 @@ use super::*;
 use crate::gauntlet::{AbOrder, GauntletProblem};
 use sha2::{Digest, Sha256};
 
+/// Tope del comando de comprobación.
+pub(super) const MAX_CHECK_BYTES: usize = 1_000;
+/// Plazo de la comprobación; agotado, cuenta como fallo.
+const CHECK_TIMEOUT_SECS: u64 = 600;
+/// Cola de la salida de la comprobación que se entrega al constructor como brecha.
+const CHECK_TAIL_BYTES: usize = 800;
+
 /// Tope de tamaño de un fichero de la pieza o de la barra: son texto que el crítico lee entero.
 const MAX_TEXT_FILE_BYTES: u64 = 1_000_000;
 
@@ -68,33 +75,110 @@ pub(super) fn draw_seed() -> u64 {
     nanos ^ (nanos >> 7)
 }
 
+/// Resultado de la comprobación objetiva.
+pub(super) struct CheckOutcome {
+    pub(super) passed: bool,
+    /// Cola de la salida (o motivo del fallo), acotada.
+    pub(super) tail: String,
+}
+
+/// Ejecuta la comprobación con la misma herramienta `bash`, con plazo y salida acotada por la cola.
+pub(super) async fn run_check(
+    ctx: &ToolCtx,
+    command: &str,
+    cancel: &CancellationToken,
+) -> Result<CheckOutcome> {
+    use crate::tools::Tool;
+    let run = crate::tools::bash::BashTool.run(
+        ctx.clone(),
+        serde_json::json!({ "command": command }),
+        cancel.clone(),
+    );
+    let output =
+        match tokio::time::timeout(std::time::Duration::from_secs(CHECK_TIMEOUT_SECS), run).await {
+            Ok(output) => output?,
+            Err(_) => {
+                return Ok(CheckOutcome {
+                    passed: false,
+                    tail: format!("the check timed out after {CHECK_TIMEOUT_SECS} s"),
+                })
+            }
+        };
+    let text = output.content.trim();
+    let mut start = text.len().saturating_sub(CHECK_TAIL_BYTES);
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    Ok(CheckOutcome {
+        passed: !output.is_error,
+        tail: text[start..].to_owned(),
+    })
+}
+
+/// Frase para el constructor cuando hay comprobación: el comando que debe pasar al terminar.
+fn check_sentence(gauntlet: &Gauntlet) -> String {
+    gauntlet
+        .check
+        .as_deref()
+        .map(|command| {
+            format!(
+                "
+When you finish, this command must succeed (run it yourself): {command}"
+            )
+        })
+        .unwrap_or_default()
+}
+
+/// Brecha que la comprobación fallida entrega al constructor.
+pub(super) fn check_gap(command: &str, tail: &str) -> String {
+    format!(
+        "The check command `{command}` fails. Fix this before anything else. Output (tail):
+{tail}"
+    )
+}
+
 /// Primera ronda: el objetivo, la pieza y, salvo que se oculte, la barra a la que apuntar.
 ///
 /// Con `hide_bar` el constructor no sabe dónde está la referencia: para código, una barra legible se
 /// copia (ocurrió en el piloto con un modelo local). El crítico la sigue recibiendo, sin rotular.
 pub(super) fn first_builder_prompt(gauntlet: &Gauntlet, hide_bar: bool) -> String {
-    if hide_bar {
-        return format!(
+    let base = if hide_bar {
+        format!(
             "Improve the piece below until it fully meets the goal. Edit it in place. An independent reviewer will compare your result with a hidden reference, so do the work yourself from the goal.
 Goal: {}
-Piece to improve: {}
-Report briefly what you changed and why.",
+Piece to improve: {}",
             gauntlet.goal, gauntlet.artifact
-        );
-    }
+        )
+    } else {
+        format!(
+            "Improve the piece below until it reaches the quality of the quality bar. Edit it in place; do not modify the bar files.
+Goal: {}
+Piece to improve: {}
+Quality bar (read-only files to aim at): {}",
+            gauntlet.goal,
+            gauntlet.artifact,
+            gauntlet.bar.join(", ")
+        )
+    };
     format!(
-        "Improve the piece below until it reaches the quality of the quality bar. Edit it in place; do not modify the bar files.\nGoal: {}\nPiece to improve: {}\nQuality bar (read-only files to aim at): {}\nReport briefly what you changed and why.",
-        gauntlet.goal,
-        gauntlet.artifact,
-        gauntlet.bar.join(", ")
+        "{base}{}
+Report briefly what you changed and why.",
+        check_sentence(gauntlet)
     )
 }
 
-/// Rondas siguientes: solo la brecha del crítico, nunca su informe entero.
+/// Rondas siguientes: solo la brecha del crítico (o de la comprobación), nunca su informe entero.
 pub(super) fn rebuild_prompt(gauntlet: &Gauntlet, gap: &str) -> String {
     format!(
-        "Your previous version was compared with the quality bar and the most important remaining gap is:\n{gap}\nFix this gap by editing the piece in place.\nGoal: {}\nPiece: {}\nReport briefly what you changed and why.",
-        gauntlet.goal, gauntlet.artifact
+        "Your previous version was checked and the most important remaining gap is:
+{gap}
+Fix this gap by editing the piece in place.
+Goal: {}
+Piece: {}{}
+Report briefly what you changed and why.",
+        gauntlet.goal,
+        gauntlet.artifact,
+        check_sentence(gauntlet)
     )
 }
 

@@ -12,23 +12,23 @@ pub(super) struct Launch {
 }
 
 pub(super) struct TestLauncher {
-    next: AtomicI64,
+    store: Arc<SqliteStore>,
     children: Mutex<Vec<SubagentDescriptor>>,
     pub(super) launches: Mutex<Vec<Launch>>,
     pub(super) cancelled: Mutex<Vec<SessionId>>,
 }
 
 impl TestLauncher {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(store: Arc<SqliteStore>) -> Self {
         Self {
-            next: AtomicI64::new(100),
+            store,
             children: Mutex::new(Vec::new()),
             launches: Mutex::new(Vec::new()),
             cancelled: Mutex::new(Vec::new()),
         }
     }
 
-    fn add_child(
+    async fn add_child(
         &self,
         parent: SessionId,
         label: String,
@@ -36,7 +36,8 @@ impl TestLauncher {
         agent: String,
         read_only: bool,
     ) -> (SessionId, JobId) {
-        let child = SessionId(self.next.fetch_add(1, Ordering::SeqCst));
+        // Sesión real: el coordinador lee de ella las lecturas del hijo.
+        let child = self.store.create_session("gauntlet-child").await.unwrap();
         self.launches.lock().unwrap().push(Launch {
             child,
             agent: agent.clone(),
@@ -120,7 +121,7 @@ impl SubagentLauncher for TestLauncher {
         agent: String,
         _cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)> {
-        Ok(self.add_child(parent, label, prompt, agent, true))
+        Ok(self.add_child(parent, label, prompt, agent, true).await)
     }
 
     async fn start_local_workflow_agent(
@@ -131,7 +132,7 @@ impl SubagentLauncher for TestLauncher {
         agent: String,
         _cancel: CancellationToken,
     ) -> Result<(SessionId, JobId)> {
-        Ok(self.add_child(parent, label, prompt, agent, false))
+        Ok(self.add_child(parent, label, prompt, agent, false).await)
     }
 
     async fn control(
@@ -180,8 +181,13 @@ pub(super) struct TestResponder {
 
 #[async_trait]
 impl PermissionResponder for TestResponder {
-    async fn decide(&self, _request: &PermissionRequest) -> Decision {
-        Decision::Allow
+    async fn decide(&self, request: &PermissionRequest) -> Decision {
+        // Con `accept = false` se deniega también `bash`, para probar los comandos de comprobación.
+        if request.tool == "bash" && !self.accept {
+            Decision::Deny
+        } else {
+            Decision::Allow
+        }
     }
 
     async fn ask(&self, questions: &[crate::question::Question]) -> Option<Vec<Answer>> {
@@ -229,9 +235,9 @@ impl Entorno {
         Self {
             project,
             _db: db,
+            launcher: Arc::new(TestLauncher::new(store.clone())),
             store,
             session,
-            launcher: Arc::new(TestLauncher::new()),
             bus: crate::event::EventBus::new(64),
         }
     }
@@ -292,8 +298,35 @@ impl Entorno {
             .unwrap()
     }
 
-    /// Termina el hijo activo con `report` y llama a `advance`.
+    /// Anota en el historial del hijo una lectura con `view` de cada ruta.
+    pub(super) async fn record_views(&self, child: SessionId, paths: &[&str]) {
+        for path in paths {
+            let call =
+                crate::message::Message::assistant(vec![crate::message::ContentPart::ToolCall {
+                    id: format!("v-{path}"),
+                    name: "view".into(),
+                    input: serde_json::json!({ "path": path }),
+                }]);
+            self.store.append_message(child, &call).await.unwrap();
+        }
+    }
+
+    /// Termina el hijo activo con `report` y llama a `advance`. Si es el crítico, antes lee los
+    /// dos candidatos, como haría uno diligente.
     pub(super) async fn finish_and_advance(&self, report: &str) -> ToolOutput {
+        let g = self.active().await;
+        if g.phase == GauntletPhase::Judging {
+            self.record_views(
+                g.active_child.unwrap(),
+                &["out/portada.md", "ref/portada.md"],
+            )
+            .await;
+        }
+        self.finish_without_reading(report).await
+    }
+
+    /// Termina el hijo activo con `report` sin anotar ninguna lectura y llama a `advance`.
+    pub(super) async fn finish_without_reading(&self, report: &str) -> ToolOutput {
         let child = self.active().await.active_child.unwrap();
         self.launcher.complete(child, report);
         self.run(serde_json::json!({"action": "advance"}))
