@@ -169,7 +169,7 @@ pub struct AgentsConfig {
     /// Segundos sin latido tras los que un subagente se da por perdido (`Lost`).
     /// Sin valor, `DEFAULT_LOST_THRESHOLD_SECS`; ver `lost_threshold_ms`.
     pub lost_threshold_secs: Option<u64>,
-    /// Qué se hace con un subagente dado por perdido. Por defecto, `fail`.
+    /// Qué se hace con un subagente dado por perdido. Por defecto, `notify`.
     pub lost_action: LostAction,
     /// Raíces de catálogos externos de agentes y skills (`<raíz>/.agents/agents` y `<raíz>/.agents/skills`).
     /// Sus agentes son contenido de terceros y exigen aprobación; ver `catalog_roots_effective`.
@@ -210,9 +210,9 @@ pub const LOST_MARGIN_MS: u64 = 30_000;
 #[serde(rename_all = "snake_case")]
 pub enum LostAction {
     /// Solo marcarlo y avisar: la tarea sigue como estaba.
+    #[default]
     Notify,
     /// Asentar la tarea como `failed`, con el motivo, y detener su trabajo.
-    #[default]
     Fail,
 }
 
@@ -742,8 +742,8 @@ max_depth = {valor}
     }
 
     #[test]
-    fn lost_action_por_defecto_da_el_hijo_por_fallido() {
-        assert_eq!(AgentsConfig::default().lost_action, LostAction::Fail);
+    fn lost_action_por_defecto_solo_avisa() {
+        assert_eq!(AgentsConfig::default().lost_action, LostAction::Notify);
         let cfg = AgentsConfig::from_toml(
             "[agents]
 lost_action = \"notify\"

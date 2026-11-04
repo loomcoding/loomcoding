@@ -196,9 +196,9 @@ fase y `health=ok|stalled|lost`.
 - El eco de `Stalled`/`Lost` que el propio supervisor publica **no** cuenta como latido
   (test `lo_que_publica_el_propio_supervisor_no_cuenta_como_latido`).
 - `Stalled → Working` lo dispara un evento real del hijo (`ChildEvent`), nunca el tick.
-- **Resuelto (2026-11-05): un hijo perdido pasa a `failed` y se detiene su trabajo.**
-  `[agents] lost_action = "fail"` (defecto) o `"notify"` (solo marcar y avisar; un valor
-  desconocido es un error de configuración). Con `fail`, `SupervisorAction::Fail` llega al
+- **Resuelto (2026-11-05): un hijo perdido puede pasar a `failed` y detenerse su trabajo.**
+  `[agents] lost_action = "notify"` (defecto desde 2026-11-04 con los remotos ya vigilados: solo
+  marcar y avisar) o `"fail"` (un valor desconocido es un error de configuración). Con `fail`, `SupervisorAction::Fail` llega al
   agente (`LostHandler` sobre `Weak<AgentLoop>`, para no mantenerlo vivo) y el lanzador
   (`fail_lost` → `dar_por_perdido`) **primero persiste `failed` con el motivo y luego mata
   el trabajo**: así el asiento lee `failed` y no `canceled`, y el padre recibe
