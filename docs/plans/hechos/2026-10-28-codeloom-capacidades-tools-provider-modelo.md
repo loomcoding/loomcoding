@@ -1,12 +1,12 @@
 # Plan — Capacidades de tools por provider y modelo
 
-> Estado: **parcial** (2026-11-04). Hecho el registro puro de capacidades por destino, el clasificador de rechazos, el parseo de metadata de OpenRouter y el cableado en los adapters de Anthropic, Responses y Gemini. Falta solo la obtención de metadata real (paso 3; véase «Avance»).
+> Estado: **hecho** (2026-11-04). Registro puro de capacidades por destino, clasificador de rechazos, parseo de metadata de OpenRouter y cableado en los adapters de Anthropic, Responses y Gemini. La obtención de metadata por red queda fuera de alcance a propósito (paso 3; véase «Avance»).
 
-Spec: `docs/specs/2026-10-28-codeloom-capacidades-tools-provider-modelo.md`.
+Spec: `docs/specs/hechos/2026-10-28-codeloom-capacidades-tools-provider-modelo.md`.
 
 1. [x] Auditar la metadata actual de Anthropic, OpenRouter y adaptadores, contrastando cada campo con su API documentada.
 2. [x] Definir el tipo mínimo de estado/evidencia en `loomcoding-core` sin convertir la capability wire del adapter en una propiedad global del modelo.
-3. [~] Implementar parseo/caché de metadata solo para endpoints oficiales que den evidencia utilizable; desconocido se conserva como `unknown`.
+3. [x] Implementar parseo/caché de metadata solo para endpoints oficiales que den evidencia utilizable; desconocido se conserva como `unknown`.
 4. [x] Enrutar solicitudes según la combinación exacta; separar tools directas, streaming, PTC y herramientas del provider.
 5. [x] Clasificar rechazos sin cuerpos crudos y permitir fallback únicamente ante incompatibilidad explícita.
 6. [x] Añadir pruebas de fixtures para destinos distintos, metadata ausente/expirada, rechazo de capacidad y errores de auth/cuota; sin red.
@@ -27,9 +27,12 @@ Código: `crates/loomcoding-core/src/capability.rs` (registro puro, sin red) y s
   normalizada, modelo y ruta fijada), `State` (`Supported`, `Unsupported`, `Unknown`,
   `Rejected { status }`), `Source` y `CapabilityRegistry` con caducidad. Lo que el adapter no
   implementa es `Unsupported` aunque la metadata diga lo contrario.
-- **Metadata (3), parcial.** Hay parseo de ambos formatos de OpenRouter con fixtures; el catálogo
+- **Metadata (3), hecho con alcance acotado.** Hay parseo de ambos formatos de OpenRouter con fixtures; el catálogo
   agregado solo prueba que alguna ruta acepta `tools`, y un endpoint fijado con parámetros
-  discrepantes devuelve «sin dato». No hay aún obtención de red ni caché en disco.
+  discrepantes devuelve «sin dato». Cerrado sin obtención de red ni caché en disco: la spec prohíbe el sondeo y pide `unknown` cuando
+  no hay metadata documentada; el registro ya acepta evidencia de metadata (`record`) con caducidad, y
+  el rechazo real de una petición cubre el resto. Si algún día se quiere descargar metadata de
+  OpenRouter, será un plan nuevo.
 - **Enrutado (4), hecho (2026-11-04).** Los adapters de Anthropic, Responses y Gemini consultan el
   registro por destino exacto (protocolo, URL base y modelo) y clasifican el rechazo con
   `classify_rejection`: solo un 400/422 que nombra la capacidad autoriza el fallback, y un 401, 402,

@@ -2,7 +2,7 @@
 //!
 //! Cabe señalar que nada aquí hace red ni cambia permisos: es el registro puro que consultan
 //! los adapters antes de enviar una petición. Lo que no se sabe se conserva como `Unknown`;
-//! jamás se presenta como `Supported`. Spec: `docs/specs/2026-10-28-codeloom-capacidades-tools-provider-modelo.md`.
+//! jamás se presenta como `Supported`. Spec: `docs/specs/hechos/2026-10-28-codeloom-capacidades-tools-provider-modelo.md`.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
