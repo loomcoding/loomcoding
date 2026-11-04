@@ -207,6 +207,18 @@ pub struct RoundRecord {
     pub verdict: Option<Verdict>,
 }
 
+/// Entrada de la bitácora, solo de añadir: una por cada cambio de fase.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GauntletEvent {
+    pub sequence: i64,
+    pub gauntlet: GauntletId,
+    pub from: Option<GauntletPhase>,
+    pub to: GauntletPhase,
+    pub actor: String,
+    pub detail: String,
+    pub created_at_ms: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum GauntletProblem {
     #[error("el constructor y el crítico deben ser agentes distintos (`{0}`)")]

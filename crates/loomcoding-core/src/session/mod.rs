@@ -279,6 +279,64 @@ pub trait SessionStore: Send + Sync {
             "development workflow storage unavailable".into(),
         ))
     }
+
+    async fn create_gauntlet(
+        &self,
+        gauntlet: crate::gauntlet::Gauntlet,
+        detail: &str,
+    ) -> Result<crate::gauntlet::Gauntlet> {
+        let _ = (gauntlet, detail);
+        Err(crate::error::CoreError::Store(
+            "gauntlet storage unavailable".into(),
+        ))
+    }
+    async fn update_gauntlet(
+        &self,
+        gauntlet: crate::gauntlet::Gauntlet,
+        actor: &str,
+        detail: &str,
+    ) -> Result<crate::gauntlet::Gauntlet> {
+        let _ = (gauntlet, actor, detail);
+        Err(crate::error::CoreError::Store(
+            "gauntlet storage unavailable".into(),
+        ))
+    }
+    async fn gauntlet(
+        &self,
+        id: crate::gauntlet::GauntletId,
+    ) -> Result<Option<crate::gauntlet::Gauntlet>> {
+        let _ = id;
+        Err(crate::error::CoreError::Store(
+            "gauntlet storage unavailable".into(),
+        ))
+    }
+    async fn active_gauntlet(
+        &self,
+        parent: SessionId,
+    ) -> Result<Option<crate::gauntlet::Gauntlet>> {
+        let _ = parent;
+        Err(crate::error::CoreError::Store(
+            "gauntlet storage unavailable".into(),
+        ))
+    }
+    async fn latest_gauntlet(
+        &self,
+        parent: SessionId,
+    ) -> Result<Option<crate::gauntlet::Gauntlet>> {
+        let _ = parent;
+        Err(crate::error::CoreError::Store(
+            "gauntlet storage unavailable".into(),
+        ))
+    }
+    async fn gauntlet_events(
+        &self,
+        id: crate::gauntlet::GauntletId,
+    ) -> Result<Vec<crate::gauntlet::GauntletEvent>> {
+        let _ = id;
+        Err(crate::error::CoreError::Store(
+            "gauntlet storage unavailable".into(),
+        ))
+    }
 }
 
 #[cfg(test)]

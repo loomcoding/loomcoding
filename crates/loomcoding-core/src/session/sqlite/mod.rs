@@ -4,6 +4,7 @@
 use super::{SessionId, SessionInfo, SessionStore, SubagentDescriptor, UsageRecord};
 use crate::a2a::Artifact;
 use crate::error::{CoreError, Result};
+use crate::gauntlet::{Gauntlet, GauntletEvent, GauntletId};
 use crate::message::Message;
 use crate::subagent_phase::SubagentPhase;
 use crate::task::TaskStatus;
@@ -13,6 +14,7 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
 
 mod codec;
+mod gauntlets;
 mod schema;
 mod sessions;
 mod subagents;
@@ -172,5 +174,34 @@ impl SessionStore for SqliteStore {
         id: WorkflowId,
     ) -> Result<Vec<DevelopmentWorkflowEvent>> {
         self.sql_development_workflow_events(id).await
+    }
+
+    async fn create_gauntlet(&self, gauntlet: Gauntlet, detail: &str) -> Result<Gauntlet> {
+        self.sql_create_gauntlet(gauntlet, detail).await
+    }
+
+    async fn update_gauntlet(
+        &self,
+        gauntlet: Gauntlet,
+        actor: &str,
+        detail: &str,
+    ) -> Result<Gauntlet> {
+        self.sql_update_gauntlet(gauntlet, actor, detail).await
+    }
+
+    async fn gauntlet(&self, id: GauntletId) -> Result<Option<Gauntlet>> {
+        self.sql_gauntlet(id).await
+    }
+
+    async fn active_gauntlet(&self, parent: SessionId) -> Result<Option<Gauntlet>> {
+        self.sql_active_gauntlet(parent).await
+    }
+
+    async fn latest_gauntlet(&self, parent: SessionId) -> Result<Option<Gauntlet>> {
+        self.sql_latest_gauntlet(parent).await
+    }
+
+    async fn gauntlet_events(&self, id: GauntletId) -> Result<Vec<GauntletEvent>> {
+        self.sql_gauntlet_events(id).await
     }
 }

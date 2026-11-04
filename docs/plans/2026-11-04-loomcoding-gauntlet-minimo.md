@@ -17,7 +17,9 @@ Se sigue el patrón de `development_workflow` (`workflow.rs`, `tools/development
    determinista en pruebas.
 2. [x] (2026-11-04) **Parseo acotado del veredicto**: texto del crítico → `Verdict`; malformado o fuera de cota →
    `inconclusive`. Cotas de bytes según el decálogo.
-3. [ ] **Persistencia**: tabla y métodos `create/update/get/active/latest/events` en `SessionStore` y SQLite,
+3. [x] (2026-11-04) **Persistencia** (`session/sqlite/gauntlets.rs`; 5 pruebas en `tests/gauntlets.rs`). Queda casi
+   calcada de `workflows.rs` (carga útil JSON, versión optimista, bitácora, un activo por sesión): el riesgo del
+   plan se cumple, así que extraer lo común es un plan aparte, no se hace aquí. **Persistencia**: tabla y métodos `create/update/get/active/latest/events` en `SessionStore` y SQLite,
    con migración, siguiendo `update_development_workflow`. Prueba de reapertura del almacén.
 4. [ ] **Herramienta `gauntlet`** (`tools/gauntlet/`, `ExecutionMode::Exclusive`): acciones `start`, `advance`,
    `accept`, `cancel`, `status`. Validaciones del §8.1 y rutas legibles. Constructor con

@@ -203,6 +203,40 @@ pub(super) async fn migrate(pool: &SqlitePool) -> Result<()> {
     .execute(&pool)
     .await
     .map_err(|e| CoreError::Store(e.to_string()))?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS gauntlets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_session_id INTEGER NOT NULL,
+                phase TEXT NOT NULL,
+                version INTEGER NOT NULL,
+                payload TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL,
+                updated_at_ms INTEGER NOT NULL)",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| CoreError::Store(e.to_string()))?;
+    sqlx::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS one_active_gauntlet_per_session
+             ON gauntlets(parent_session_id)
+             WHERE phase NOT IN ('completed', 'stopped', 'inconclusive', 'cancelled', 'failed')",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| CoreError::Store(e.to_string()))?;
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS gauntlet_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                gauntlet_id INTEGER NOT NULL,
+                from_phase TEXT,
+                to_phase TEXT NOT NULL,
+                actor TEXT NOT NULL,
+                detail TEXT NOT NULL,
+                created_at_ms INTEGER NOT NULL)",
+    )
+    .execute(&pool)
+    .await
+    .map_err(|e| CoreError::Store(e.to_string()))?;
     // shortcut: one process per DB; use leases if concurrent Loom processes share it.
     // Lo no terminado al reabrir (y la cadena antigua «running») pasa a fallido, con un
     // mensaje que explica por qué: A2A no define qué le corresponde a un proceso que desapareció.

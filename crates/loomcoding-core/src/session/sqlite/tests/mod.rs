@@ -5,6 +5,7 @@ use super::*;
 use crate::message::{ContentPart, Message};
 use crate::task::{TaskState, TaskStatus};
 
+mod gauntlets;
 mod migrations;
 mod runtime;
 mod sessions;
