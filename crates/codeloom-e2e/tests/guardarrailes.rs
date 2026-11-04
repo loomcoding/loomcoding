@@ -52,11 +52,6 @@ const LISTA_BLANCA: &[(&str, usize, &str)] = &[
         1100,
         "pendiente de evaluar en una oleada posterior",
     ),
-    (
-        "crates/codeloom-a2a/src/serve/host.rs",
-        1100,
-        "pendiente de evaluar en una oleada posterior",
-    ),
 ];
 
 fn raiz() -> PathBuf {
