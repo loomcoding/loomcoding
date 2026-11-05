@@ -21,7 +21,7 @@ impl AgentLoop {
         let motivo = match reason {
             StopReason::StepBudget => "the work-step budget is spent",
             StopReason::ReadBudget => "the read-round budget is spent",
-            StopReason::RepeatedToolCalls => return false,
+            StopReason::RepeatedToolCalls | StopReason::OutputLimit => return false,
         };
         self.bus.publish(LiveEvent::RuntimeNotice {
             message: format!("step limit reached: {motivo}"),

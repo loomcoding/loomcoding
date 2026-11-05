@@ -5,6 +5,14 @@ use super::*;
 /// Cota del razonamiento que se conserva por si hay que recuperarlo como respuesta (decálogo de contexto).
 const MAX_RECOVERED_REASONING_BYTES: usize = 16 * 1024;
 
+/// Respuestas seguidas cortadas por el tope de salida que se toleran antes de dar el turno por perdido.
+const MAX_CONSECUTIVE_LENGTH_CUTS: usize = 2;
+
+/// Resultado que recibe el modelo cuando su llamada a herramienta llegó cortada por el tope de salida.
+const OUTPUT_LIMIT_NOTICE: &str = "Your response was cut by the output limit, so this tool call arrived \
+incomplete and was NOT run. Do not repeat it as is: split the work into smaller pieces (a shorter file, \
+or several small `edit` calls) and think less before acting.";
+
 /// Añade `piece` y, si se pasa de `cap` bytes, conserva solo la cola: la respuesta va al final.
 pub(super) fn push_tail_capped(buf: &mut String, piece: &str, cap: usize) {
     buf.push_str(piece);
@@ -64,6 +72,8 @@ impl AgentLoop {
         let mut provider_states_this_turn: Vec<(Vec<String>, crate::message::ProviderState)> =
             Vec::new();
         let mut provider_state_bytes_this_turn = 0usize;
+        // Respuestas seguidas cortadas por el tope de salida.
+        let mut length_cuts = 0usize;
 
         loop {
             if cancel.is_cancelled() {
@@ -617,6 +627,32 @@ impl AgentLoop {
             if let Some(error) = stream_error {
                 return Err(crate::error::CoreError::Provider(error));
             }
+
+            // Respuesta cortada por el tope de salida. Si traía llamadas, llegaron incompletas: no se
+            // ejecutan y se le explica al modelo por qué, para que las rehaga en trozos menores. Si no
+            // traía ninguna, o se repite demasiadas veces seguidas, el turno acaba y lo dice.
+            if matches!(finish, FinishReason::Length) {
+                length_cuts += 1;
+                if tool_calls.is_empty() || length_cuts > MAX_CONSECUTIVE_LENGTH_CUTS {
+                    stopped = Some(crate::agent::stop::StopReason::OutputLimit);
+                    break;
+                }
+                for (id, _, _) in tool_calls {
+                    let tr = Message::new(
+                        Role::Tool,
+                        vec![ContentPart::ToolResult {
+                            call_id: id,
+                            content: OUTPUT_LIMIT_NOTICE.into(),
+                            is_error: true,
+                        }],
+                    );
+                    self.store.append_message(session, &tr).await?;
+                    self.bus.publish(LiveEvent::MessageAdded(tr.clone()));
+                    history.push(tr);
+                }
+                continue;
+            }
+            length_cuts = 0;
 
             if tool_calls.is_empty() {
                 break;

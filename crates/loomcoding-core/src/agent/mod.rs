@@ -119,7 +119,9 @@ impl TurnOutcome {
     /// Cabe señalar que quien lanza el agente sin interfaz solo ve este texto: callar el motivo
     /// de la parada lo deja a ciegas.
     pub fn unfinished_report(&self) -> Option<String> {
-        if !self.final_text.trim().is_empty() {
+        // Un texto cortado por el tope de salida no es una respuesta: suele ser un bucle de repetición.
+        let cut = self.stopped == Some(stop::StopReason::OutputLimit);
+        if !self.final_text.trim().is_empty() && !cut {
             return None;
         }
         let cause = self.stopped.map_or(

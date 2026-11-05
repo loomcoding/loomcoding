@@ -40,6 +40,8 @@ pub enum StopReason {
     RepeatedToolCalls,
     /// Se agotó el tope de rondas de solo lectura.
     ReadBudget,
+    /// El proveedor cortó la respuesta por el tope de salida, sin que el modelo la terminase.
+    OutputLimit,
 }
 
 impl StopReason {
@@ -49,6 +51,7 @@ impl StopReason {
             StopReason::StepBudget => "the step limit",
             StopReason::RepeatedToolCalls => "repeated tool calls",
             StopReason::ReadBudget => "the read limit",
+            StopReason::OutputLimit => "the output limit",
         }
     }
 }
