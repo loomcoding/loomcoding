@@ -95,6 +95,22 @@ Cotejado leyendo el código de los clones, no el resumen de un tercero:
 Licencias: se estudian las ideas; si se llegara a copiar código de `aider` (Apache-2.0) se atribuye y se
 declara en el commit.
 
+## Sondeo de coste (2026-11-05, tarea 0 del plan)
+
+Proyecto desechable fuera del repositorio, `-j 2`, mientras Strata servía otra tarea (CPU compartida):
+
+- Dependencias: `tree-sitter` **0.25** (con la 0.24 la gramática `tree-sitter-rust` 0.24.2 falla: versión de
+  lenguaje 15 frente a máximo 14), `tree-sitter-rust` y `streaming-iterator`. Compilación en limpio:
+  40 s; binario de sondeo: 3,1 MB. `TAGS_QUERY` no es público en la gramática: se copia `queries/tags.scm`.
+- Este repositorio: 635 ficheros `.rs`, 4,7 MB, 10 963 definiciones, 47 085 referencias, **0** ficheros con
+  error sintáctico.
+- Tiempo: 27 s la primera pasada (disco en frío) y 3,0 s con el disco caliente (análisis 1,7 s, consulta
+  0,8 s, recorrido y lectura el resto). Sale **por encima del umbral de 2 s** del plan, aunque la medición está
+  contaminada por la carga de Strata; se repite con el equipo en reposo.
+- Consecuencia de diseño, válida con cualquier resultado: el índice no se reconstruye entero en cada
+  llamada; se construye una vez, se **persiste** en disco por fecha de fichero (tarea 2) y se completa en
+  segundo plano con plazo, devolviendo un paquete parcial declarado mientras tanto.
+
 ## Riesgos
 
 - Un paquete mal elegido **distrae** a un modelo pequeño más de lo que ayuda: de ahí el tope bajo, el
