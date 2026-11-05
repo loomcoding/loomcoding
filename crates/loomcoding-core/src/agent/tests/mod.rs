@@ -34,5 +34,6 @@ mod step_limit;
 mod steps;
 mod stopped;
 mod system_prompt;
+mod temperature;
 mod turn;
 mod usage_records;

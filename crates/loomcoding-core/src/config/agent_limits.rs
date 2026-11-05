@@ -5,7 +5,7 @@ use std::path::Path;
 /// Configuración de límites (`[limits]`).
 ///
 /// Vive aparte de `LoomcodingConfig` para que su ausencia no afecte a la configuración principal.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(default)]
 pub struct LimitsConfig {
     /// Tope de pasos de lectura en una sola respuesta del proveedor.
@@ -26,7 +26,15 @@ pub struct LimitsConfig {
     /// corto, la respuesta se corta antes de que el modelo llegue a actuar.
     #[serde(default)]
     pub max_output_tokens: u32,
+    /// Temperatura de muestreo de cada petición, entre `0.0` y `MAX_TEMPERATURE`. Por defecto `0.0`.
+    ///
+    /// Cabe señalar que un modelo pequeño a temperatura cero, si cae en un bucle de texto, lo repite
+    /// sin remedio; subirla un poco (0.3–0.7) suele romperlo.
+    pub temperature: f32,
 }
+
+/// Máxima temperatura aceptada (decálogo: toda cota tiene techo).
+pub const MAX_TEMPERATURE: f32 = 2.0;
 
 /// Valor por defecto de `max_output_tokens`.
 pub const DEFAULT_OUTPUT_TOKENS: u32 = 4096;
@@ -41,6 +49,7 @@ impl Default for LimitsConfig {
             max_parallel_tools: 8,
             max_concurrent_requests: 4,
             max_output_tokens: DEFAULT_OUTPUT_TOKENS,
+            temperature: 0.0,
         }
     }
 }
@@ -52,6 +61,12 @@ impl LimitsConfig {
             .map(|fichero| fichero.limits)
             .map_err(|e| CoreError::Config(e.to_string()))?;
         config.apply_defaults();
+        if !(0.0..=MAX_TEMPERATURE).contains(&config.temperature) {
+            return Err(CoreError::Config(format!(
+                "`temperature` must be between 0 and {MAX_TEMPERATURE}, not {}",
+                config.temperature
+            )));
+        }
         Ok(config)
     }
 
@@ -100,6 +115,24 @@ struct FicheroConLimits {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn temperature_defaults_to_zero_and_reads_from_section() {
+        assert_eq!(LimitsConfig::from_toml("").unwrap().temperature, 0.0);
+        let config = LimitsConfig::from_toml("[limits]\ntemperature = 0.7\n").unwrap();
+        assert_eq!(config.temperature, 0.7);
+    }
+
+    #[test]
+    fn temperature_out_of_range_is_rejected_naming_the_key() {
+        for text in [
+            "[limits]\ntemperature = 3.0\n",
+            "[limits]\ntemperature = -1.0\n",
+        ] {
+            let error = LimitsConfig::from_toml(text).unwrap_err().to_string();
+            assert!(error.contains("temperature"), "{error}");
+        }
+    }
 
     #[test]
     fn limits_default_when_section_missing() {

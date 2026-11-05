@@ -6,7 +6,7 @@ los cuatro chequeos, un commit.
 ## Tarea 1 — `[limits] temperature` y herencia en subagentes
 - `config/agent_limits.rs`: campo `temperature: f32` (defecto 0.0), validación 0..=2 en `from_toml`
   (pierde `Eq`; quitar donde estorbe). Pruebas: defecto, lectura, rechazo de 3.0 y -1.
-- `agent/turn.rs`, `agent/compaction.rs`, `agent/handoff.rs`: usar `limits.temperature`.
+- `agent/turn.rs`, `agent/handoff.rs`: usar `limits.temperature`.
 - `subagent/launcher.rs` + `agent/subagents.rs` + `subagent/local_body.rs`: el lanzador recibe `with_limits` y
   el hijo `.with_limits(...)`. Prueba: el proveedor simulado del hijo ve `max_tokens` y `temperature` del padre.
 - CLI: nada que cablear (ya llama a `with_limits`).

@@ -86,6 +86,7 @@ impl AgentLoop {
         )
         .with_catalog(self.catalog.clone())
         .with_budget(self.budget.clone())
+        .with_limits(self.limits.clone())
         .with_max_active(self.max_active_subagents)
         .with_delegation_confirm(self.delegation_confirm)
         .with_delegation_mode(self.delegation)

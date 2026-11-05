@@ -32,6 +32,7 @@ pub(super) struct EjecucionLocal {
     pub(super) system: Option<String>,
     pub(super) skill_usage: Vec<crate::session::UsageComponent>,
     pub(super) budget: BudgetConfig,
+    pub(super) limits: crate::config::LimitsConfig,
     pub(super) family: SessionId,
     pub(super) spill: Option<ToolSpill>,
     pub(super) registry: Option<Arc<AgentRegistry>>,
@@ -65,6 +66,7 @@ pub(super) fn cuerpo_local(ejecucion: EjecucionLocal) -> JobBody {
                 system: child_system,
                 skill_usage: skill_usage_components,
                 budget: child_budget,
+                limits: child_limits,
                 family: child_family,
                 spill: child_spill,
                 registry: child_registry,
@@ -101,6 +103,7 @@ pub(super) fn cuerpo_local(ejecucion: EjecucionLocal) -> JobBody {
             .with_catalog(child_catalog)
             .with_system_extra(child_system)
             .with_system_usage_components(skill_usage_components)
+            .with_limits(child_limits)
             .with_budget(child_budget)
             .with_budget_family(child_family);
             if let Some(spill) = child_spill {

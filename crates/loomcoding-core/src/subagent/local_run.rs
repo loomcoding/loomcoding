@@ -193,6 +193,7 @@ impl InProcessSubagentLauncher {
                 system: child_system,
                 skill_usage: skill_usage_components,
                 budget: self.budget.clone(),
+                limits: self.limits.clone(),
                 family: child_family,
                 spill: self.spill.clone(),
                 registry: child_registry,

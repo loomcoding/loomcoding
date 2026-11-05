@@ -28,6 +28,8 @@ pub struct InProcessSubagentLauncher {
     pub(super) spill: Option<ToolSpill>,
     /// Presupuesto del padre: cada hijo lo recibe y suma su consumo al total de la familia.
     pub(super) budget: BudgetConfig,
+    /// Topes y temperatura del padre: los hijos piden al proveedor lo mismo que él.
+    pub(super) limits: crate::config::LimitsConfig,
     /// Lo máximo que `cancel` espera a que el hijo se asiente; `CANCEL_WAIT` salvo en las pruebas.
     pub(super) cancel_wait: std::time::Duration,
     /// Fábrica de clientes de agentes remotos (A8a). Sin ella, un remoto no se ejecuta.
@@ -115,6 +117,7 @@ impl InProcessSubagentLauncher {
             registry: None,
             spill: None,
             budget: BudgetConfig::default(),
+            limits: crate::config::LimitsConfig::default(),
             cancel_wait: CANCEL_WAIT,
             remote_clients: None,
             remote_poll: REMOTE_POLL,
@@ -175,6 +178,7 @@ impl InProcessSubagentLauncher {
             registry: self.registry.clone(),
             spill: self.spill.clone(),
             budget: self.budget.clone(),
+            limits: self.limits.clone(),
             cancel_wait: self.cancel_wait,
             remote_clients: self.remote_clients.clone(),
             remote_poll: self.remote_poll,
@@ -243,6 +247,12 @@ impl InProcessSubagentLauncher {
     #[cfg(test)]
     pub(super) fn with_cancel_wait(mut self, espera: std::time::Duration) -> Self {
         self.cancel_wait = espera;
+        self
+    }
+
+    /// Fija los topes y la temperatura que heredan los hijos. Por defecto, `LimitsConfig::default()`.
+    pub fn with_limits(mut self, limits: crate::config::LimitsConfig) -> Self {
+        self.limits = limits;
         self
     }
 

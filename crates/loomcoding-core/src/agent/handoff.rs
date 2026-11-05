@@ -44,7 +44,7 @@ impl AgentLoop {
                 clear::KEEP_TOOL_RESULTS,
             ),
             tools: Vec::new(),
-            temperature: 0.0,
+            temperature: self.limits.temperature,
             max_tokens: 4096,
             effort: config.effort.clone(),
             programmatic_tool_calling: false,

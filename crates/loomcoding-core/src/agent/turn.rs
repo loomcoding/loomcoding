@@ -237,7 +237,7 @@ impl AgentLoop {
                     clear::KEEP_TOOL_RESULTS,
                 ),
                 tools,
-                temperature: 0.0,
+                temperature: self.limits.temperature,
                 max_tokens: self.limits.max_output_tokens,
                 effort: config.effort.clone(),
                 programmatic_tool_calling: programmatic_tool_calling_enabled(),

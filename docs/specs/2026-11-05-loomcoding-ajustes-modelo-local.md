@@ -17,8 +17,8 @@ Pilotando un modelo local de 9B (Ornith) con el Gauntlet se observó que la ofic
 
 1. **`[limits] temperature`** (número, por defecto `0.0`, rango `0.0..=2.0`; fuera de rango es error de
    configuración). Vive en `LimitsConfig` porque ese es el único estado de petición que ya recibe `AgentLoop`
-   (`with_limits`). Se usa en turno, compactación y relevo. El clasificador del enrutador conserva `0.0`
-   (decisión determinista). Los subagentes locales **heredan los límites del padre** (hoy construyen su
+   (`with_limits`). Se usa en el turno y en el relevo. La compactación (un resumen aislado, sin bucle) y el clasificador
+   del enrutador conservan `0.0`: son decisiones deterministas. Los subagentes locales **heredan los límites del padre** (hoy construyen su
    `AgentLoop` con los de por defecto, lo que también ignoraba `max_output_tokens`).
 2. **`[provider] efforts = ["none", "low", ...]`** (lista opcional de cadenas no vacías, máximo 16). Alimenta
    `effort_options()` de la TUI cuando el catálogo no conoce el modelo; «default» (no enviar nada) siempre
@@ -30,7 +30,7 @@ Pilotando un modelo local de 9B (Ornith) con el Gauntlet se observó que la ofic
 
 ## 3. Criterios de aceptación
 
-1. Una configuración con `temperature = 0.7` produce peticiones con `0.7` en el turno, la compactación y los
+1. Una configuración con `temperature = 0.7` produce peticiones con `0.7` en el turno, el relevo y los
    subagentes; `3.0` o `-1` falla al cargar nombrando la clave.
 2. `efforts` declarados aparecen como opciones de esfuerzo sin catálogo; vacío o ausente no cambia nada.
 3. Tres respuestas idénticas seguidas detienen el turno con `RepeatedOutput`; dos no; textos cortos no.
