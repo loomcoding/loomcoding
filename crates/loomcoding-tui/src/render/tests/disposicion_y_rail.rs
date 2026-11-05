@@ -192,7 +192,7 @@ fn crush_without_width_for_the_rail_uses_the_whole_screen() {
     let mut app = crush_ctx();
     let content = buffer_of(&mut app, 70, 24);
     assert!(!content.contains("MODEL"));
-    assert!(content.contains("CODEL∞M"));
+    assert!(content.contains("loom"));
 }
 
 #[test]
@@ -230,8 +230,9 @@ fn crush_header_is_one_flat_line() {
     let content = buffer_of(&mut app, 120, 30);
     // `buffer_of` no inserta saltos de línea: la primera fila son las primeras 120 celdas.
     let first: String = content.chars().take(120).collect();
-    assert!(first.contains("CODEL∞M"));
-    assert!(first.contains("/proj"));
+    assert!(first.contains("loom"));
+    // El directorio ya no va en la cabecera plana; el modelo sí.
+    assert!(first.contains("mistral-nemo"));
     assert!(first.contains("ready"));
     assert!(!content.contains("WORKSPACE"));
 }

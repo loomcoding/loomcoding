@@ -148,48 +148,51 @@ pub(super) fn background_suffix(app: &App) -> String {
         .map_or_else(String::new, |label| format!("  · {label}"))
 }
 
-/// Cabecera de una línea del chrome `Flat`: marca, directorio, modelo y estado.
+/// Cabecera de una línea del chrome `Flat`: marca, modelo, esfuerzo (si lo hay), estado y, solo
+/// cuando hay dato, la cola y los recuentos. Cabe señalar que el directorio y las capacidades no
+/// van aquí: el rail ya las muestra, y la cabecera se queda en una fila.
 pub(super) fn draw_flat_header(frame: &mut Frame, area: Rect, app: &App) {
     let status_style = if app.status.starts_with("error:") {
         app.theme.styles.error
     } else {
         app.theme.styles.muted
     };
-    let mut lines = vec![Line::from(vec![
+    let mut spans = vec![
         Span::styled(
-            " CODEL∞M ",
+            " loom",
             app.theme.styles.heading.add_modifier(Modifier::BOLD),
         ),
-        Span::styled("╱╱╱╱", app.theme.styles.muted),
-        Span::styled(format!("  {}", app.cwd), app.theme.styles.muted),
-        Span::styled(format!("  • {}", app.model), app.theme.styles.muted),
-        Span::styled(
-            format!("  • {}{}", app.status, background_suffix(app)),
-            status_style,
-        ),
-    ])];
+        Span::styled(format!(" · {}", app.model), app.theme.styles.muted),
+    ];
+    if let Some(effort) = app
+        .provider_settings
+        .as_ref()
+        .and_then(|settings| settings.effort.as_deref())
+        .filter(|effort| !effort.is_empty())
+    {
+        spans.push(Span::styled(format!(" · {effort}"), app.theme.styles.muted));
+    }
+    spans.push(Span::styled(
+        format!(" · {}{}", app.status, background_suffix(app)),
+        status_style,
+    ));
     if app.queued > 0 {
-        lines[0].spans.push(Span::styled(
-            format!("  • {} queued", app.queued),
+        spans.push(Span::styled(
+            format!(" · {} queued", app.queued),
             app.theme.styles.muted,
         ));
     }
     if app.queue_paused {
-        lines[0]
-            .spans
-            .push(Span::styled("  • queue paused", app.theme.styles.warning));
+        spans.push(Span::styled(" · queue paused", app.theme.styles.warning));
     }
     let (running, finished, subagents, subagents_finished) = job_counts(app);
     if running > 0 || finished > 0 || subagents > 0 || subagents_finished > 0 {
-        lines[0].spans.push(Span::styled(
-            format!("  • {} · {running} jobs", app.running_summary()),
+        spans.push(Span::styled(
+            format!(" · {} · {running} jobs", app.running_summary()),
             app.theme.styles.muted,
         ));
     }
-    if let Some(capabilities) = capabilities_summary(app) {
-        lines.push(capabilities);
-    }
-    frame.render_widget(Paragraph::new(lines), area);
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 /// Atajos del pie del chrome `Flat`, en el orden en que se muestran.

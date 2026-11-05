@@ -40,8 +40,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     app.composer_area = None;
     let flat = app.theme.look.chrome == ChromeStyle::Flat;
     let rows = Layout::vertical([
+        // La cabecera plana es siempre una fila; la de espacio de trabajo calcula la suya.
         Constraint::Length(if flat {
-            1 + u16::from(app.runtime_capabilities.is_some())
+            1
         } else {
             workspace_header_height(app)
         }),

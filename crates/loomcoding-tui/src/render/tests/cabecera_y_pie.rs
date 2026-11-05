@@ -536,3 +536,83 @@ fn prompt_queue_previews_the_selected_full_prompt() {
     assert!(content.contains("Preview"));
     assert!(content.contains("Then summarize any risks"));
 }
+
+/// Texto de la fila `fila` de la pantalla entera, tras pintar la app.
+fn fila_de(app: &mut App, w: u16, h: u16, fila: u16) -> String {
+    let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
+    term.draw(|f| render(f, app)).unwrap();
+    let buffer = term.backend().buffer();
+    let inicio = usize::from(fila) * usize::from(w);
+    buffer.content[inicio..inicio + usize::from(w)]
+        .iter()
+        .map(|c| c.symbol())
+        .collect()
+}
+
+/// Ajustes de proveedor con el modelo indicado y el esfuerzo dado (o ninguno).
+fn ajustes_con_esfuerzo(modelo: &str, esfuerzo: Option<&str>) -> crate::app::ProviderSettings {
+    crate::app::ProviderSettings {
+        kind: loomcoding_core::config::ProviderKind::OpenAiCompat,
+        model: modelo.into(),
+        base_url: "https://acme.example/v1".into(),
+        api_key_env: "ACME_KEY".into(),
+        effort: esfuerzo.map(str::to_owned),
+    }
+}
+
+#[test]
+fn flat_header_is_a_single_line() {
+    // Con capacidades cargadas, la cabecera plana antes ocupaba dos filas. A 70 columnas no hay
+    // rail, así que la fila 1 es del transcript y no puede llevar la línea de MCP.
+    let mut app = crush_ctx();
+    app.runtime_capabilities = Some(crate::app::RuntimeCapabilities {
+        mcp_config: crate::app::McpConfigState::NotConfigured,
+        ..Default::default()
+    });
+    let segunda = fila_de(&mut app, 70, 10, 1);
+    assert!(
+        !segunda.contains("MCP"),
+        "la cabecera plana ocupa dos filas: {segunda}"
+    );
+}
+
+#[test]
+fn flat_header_shows_model_and_effort() {
+    let mut con = crush_ctx();
+    con.model = "Ornith-1.5-9B".into();
+    con.provider_settings = Some(ajustes_con_esfuerzo("Ornith-1.5-9B", Some("low")));
+    let cabecera = fila_de(&mut con, 120, 10, 0);
+    assert!(cabecera.contains("loom"), "{cabecera}");
+    assert!(cabecera.contains("Ornith-1.5-9B"), "{cabecera}");
+    assert!(cabecera.contains(" · low"), "{cabecera}");
+
+    let mut sin = crush_ctx();
+    sin.model = "Ornith-1.5-9B".into();
+    sin.provider_settings = Some(ajustes_con_esfuerzo("Ornith-1.5-9B", None));
+    let cabecera = fila_de(&mut sin, 120, 10, 0);
+    assert!(cabecera.contains("Ornith-1.5-9B"), "{cabecera}");
+    assert!(!cabecera.contains(" · low"), "{cabecera}");
+}
+
+#[test]
+fn flat_header_has_no_cwd() {
+    let mut app = crush_ctx();
+    app.cwd = "/algun/directorio".into();
+    let cabecera = fila_de(&mut app, 120, 10, 0);
+    assert!(!cabecera.contains("/algun/directorio"), "{cabecera}");
+    assert!(!cabecera.contains("╱╱╱╱"), "{cabecera}");
+}
+
+#[test]
+fn workspace_header_is_unchanged() {
+    let mut app = App::new();
+    app.runtime_capabilities = Some(crate::app::RuntimeCapabilities {
+        mcp_config: crate::app::McpConfigState::NotConfigured,
+        ..Default::default()
+    });
+    let content = buffer_of(&mut app, 120, 30);
+    assert!(content.contains("CODEL∞M / WORKSPACE"));
+    // La cabecera de espacio de trabajo conserva su línea de capacidades (tres filas primeras).
+    let primeras: String = content.chars().take(3 * 120).collect();
+    assert!(primeras.contains("MCP not configured"), "{primeras}");
+}
