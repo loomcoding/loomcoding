@@ -1,6 +1,6 @@
 # Despertar del padre sin TUI
 
-Estado: propuesto (2026-11-05). Plan: `docs/plans/2026-11-05-loomcoding-despertar-sin-tui.md`.
+Estado: hecho (2026-11-05): `run_until_settled` (`f22a06d`) cableado en `--print` con `run_print_turn`. Plan: `docs/plans/2026-11-05-loomcoding-despertar-sin-tui.md`.
 
 ## Problema
 

@@ -133,6 +133,22 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
    `loomcoding-cli/src/server/client.rs`. Matar procesos: `tools/bash.rs::kill_tree` (todo el árbol).
 6. Tests: `agent/tests/{steps,step_limit,kill}.rs`, `provider/limited.rs` (módulo `tests`).
 
+## Quiero tocar el despertar del padre
+
+1. Quien decide despertar al padre en la TUI: `App::take_wake` en `crates/loomcoding-tui/src/app/turn.rs`
+   (causas: hijo `Completed`, `Failed` o que pide entrada; `Canceled` y `Rejected` no despiertan; presupuesto
+   `MAX_AUTO_TURNS` en `crates/loomcoding-tui/src/app/child_types.rs`). El envío al servidor es `dispatch_wake` en
+   `crates/loomcoding-tui/src/run/events.rs`.
+2. Quien ejecuta el despertar: `AgentLoop::run_woken` en `crates/loomcoding-core/src/agent/entry.rs`, invocado por
+   `AgentCommand::Wake` en `crates/loomcoding-cli/src/server/worker.rs`.
+3. Sin TUI (`loomcoding --print`) el bucle es `AgentLoop::run_until_settled` en
+   `crates/loomcoding-core/src/agent/settle.rs` (cotas `MAX_WAKE_TURNS` y `MAX_SETTLE_WAIT`, mismas causas que la TUI);
+   lo llama `run_print_turn` en `crates/loomcoding-cli/src/server/daemon.rs`, que además cancela el turno si el
+   cliente se desconecta.
+4. Un turno cortado por un tope sin respuesta final se informa con `TurnOutcome::unfinished_report`
+   (`crates/loomcoding-core/src/agent/mod.rs`; incluye `StopReason::OutputLimit`); `--print` lo devuelve como
+   error mediante `print_text` en `daemon.rs`.
+
 ## Quiero añadir un umbral o ajuste en `[agents]`
 
 1. Campo `Option<...>` en `AgentsConfig` (`crates/loomcoding-core/src/config/mod.rs`); la clave del

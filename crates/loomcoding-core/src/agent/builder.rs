@@ -134,7 +134,7 @@ impl AgentLoop {
 
     /// Sustituye el lanzador de subagentes del agente. Lo usa el lanzador para dar al hijo que puede
     /// delegar uno anidado, que comparte con el árbol el tope de activos y el presupuesto.
-    pub(crate) fn with_subagent_launcher(
+    pub fn with_subagent_launcher(
         mut self,
         launcher: Arc<dyn crate::subagent::SubagentLauncher>,
     ) -> Self {

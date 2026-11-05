@@ -507,3 +507,170 @@ async fn a_connected_client_does_not_cancel_the_print_turn() {
         "con el cliente conectado no se cancela"
     );
 }
+
+/// Lanzador de prueba: un hijo vivo cuyo aviso solo existe cuando la prueba lo activa.
+struct OneChildLauncher {
+    parent: SessionId,
+    ready: Arc<AtomicBool>,
+    delivered: AtomicBool,
+}
+
+fn live_child(parent: SessionId, done: bool) -> loomcoding_core::session::SubagentDescriptor {
+    use loomcoding_core::task::{TaskState, TaskStatus};
+    loomcoding_core::session::SubagentDescriptor {
+        phase: loomcoding_core::subagent_phase::SubagentPhase::Queued,
+        last_activity_at_ms: 0,
+        steps: 0,
+        tool_calls: 0,
+        tokens_in: 0,
+        tokens_out: 0,
+        parent,
+        child: SessionId(99),
+        job_id: "subagent-99".into(),
+        label: "hijo".into(),
+        status: TaskStatus::new(if done {
+            TaskState::Completed
+        } else {
+            TaskState::Working
+        }),
+        artifacts: Vec::new(),
+        notice_delivered: false,
+        agent: None,
+        agent_origin: None,
+        reference_task_ids: Vec::new(),
+    }
+}
+
+#[async_trait::async_trait]
+impl loomcoding_core::subagent::SubagentLauncher for OneChildLauncher {
+    async fn start(
+        &self,
+        _parent: SessionId,
+        _label: String,
+        _prompt: String,
+        _agent: Option<String>,
+        _cancel: CancellationToken,
+    ) -> loomcoding_core::error::Result<(SessionId, loomcoding_core::job::JobId)> {
+        unreachable!("la prueba no lanza hijos")
+    }
+    async fn control(
+        &self,
+        _parent: SessionId,
+        _child: SessionId,
+        _action: &str,
+        _message: Option<String>,
+    ) -> loomcoding_core::error::Result<()> {
+        Ok(())
+    }
+    async fn list(
+        &self,
+        _parent: SessionId,
+    ) -> loomcoding_core::error::Result<Vec<loomcoding_core::session::SubagentDescriptor>> {
+        let done = self.delivered.load(Ordering::SeqCst);
+        Ok(vec![live_child(self.parent, done)])
+    }
+    async fn deliver_notices(
+        &self,
+        _parent: SessionId,
+    ) -> loomcoding_core::error::Result<Vec<loomcoding_core::message::Message>> {
+        if self.ready.swap(false, Ordering::SeqCst) {
+            self.delivered.store(true, Ordering::SeqCst);
+            return Ok(vec![loomcoding_core::message::Message::user(
+                "[Subagent hijo completed]\nlisto",
+            )]);
+        }
+        Ok(Vec::new())
+    }
+}
+
+/// Proveedor guionizado: sirve un texto por petición.
+struct ScriptedProvider {
+    texts: std::sync::Mutex<std::collections::VecDeque<&'static str>>,
+}
+
+#[async_trait::async_trait]
+impl loomcoding_core::provider::Provider for ScriptedProvider {
+    fn capabilities(&self) -> Capabilities {
+        Capabilities {
+            tool_use: true,
+            reasoning: false,
+            streaming: true,
+        }
+    }
+    async fn stream(
+        &self,
+        _req: loomcoding_core::provider::ProviderRequest,
+        _cancel: CancellationToken,
+    ) -> loomcoding_core::error::Result<ProviderStream> {
+        let text = self.texts.lock().unwrap().pop_front().unwrap_or("sobra");
+        Ok(Box::pin(futures::stream::iter(vec![
+            loomcoding_core::provider::StreamChunk::TextDelta(text.into()),
+            loomcoding_core::provider::StreamChunk::Done(FinishReason::Stop),
+        ])))
+    }
+}
+
+#[tokio::test]
+async fn the_print_turn_waits_for_a_live_child_and_wakes_the_parent() {
+    let directory = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        loomcoding_core::session::sqlite::SqliteStore::open(
+            directory.path().join("p.db").to_str().unwrap(),
+        )
+        .await
+        .unwrap(),
+    );
+    let session = store.create_session("/p").await.unwrap();
+    let bus = loomcoding_core::event::EventBus::new(64);
+    let ready = Arc::new(AtomicBool::new(false));
+    let provider = Arc::new(ScriptedProvider {
+        texts: std::sync::Mutex::new(["lanzado", "resumen del hijo"].into()),
+    });
+    let config = loomcoding_core::config::LoomcodingConfig {
+        provider: loomcoding_core::config::ProviderConfig {
+            kind: loomcoding_core::config::ProviderKind::OpenAiCompat,
+            base_url: "http://x".into(),
+            api_key_env: "K".into(),
+        },
+        model: "m".into(),
+        max_steps: 5,
+        effort: None,
+    };
+    let agent = loomcoding_core::agent::AgentLoop::new(
+        provider.clone(),
+        store,
+        Arc::new(loomcoding_core::tools::ToolRegistry::new()),
+        bus.clone(),
+        Arc::new(loomcoding_core::permission::PermissionService::allow_all()),
+        config,
+        directory.path().to_path_buf(),
+    )
+    .with_subagent_launcher(Arc::new(OneChildLauncher {
+        parent: session,
+        ready: ready.clone(),
+        delivered: AtomicBool::new(false),
+    }));
+    // El hijo termina cuando el primer turno ya consumió su guion.
+    let waiting = provider.clone();
+    tokio::spawn(async move {
+        while waiting.texts.lock().unwrap().len() == 2 {
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        ready.store(true, Ordering::SeqCst);
+        bus.publish(loomcoding_core::event::LiveEvent::SubagentSettled {
+            parent: session,
+            child: SessionId(99),
+            status: loomcoding_core::task::TaskState::Completed,
+            summary: None,
+        });
+    });
+    let (_client, mut reader) = tokio::io::duplex(64);
+    let outcome = tokio::time::timeout(
+        Duration::from_secs(10),
+        daemon::run_print_turn(&agent, session, "hola".into(), &mut reader),
+    )
+    .await
+    .expect("el turno no debía quedarse esperando")
+    .unwrap();
+    assert_eq!(outcome.final_text, "resumen del hijo");
+}

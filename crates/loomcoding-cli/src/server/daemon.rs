@@ -314,15 +314,7 @@ where
                 let setup =
                     build_agent(&manager, cwd, ui, store.clone(), data_dir, yolo, false).await?;
                 let session = store.create_session(&setup.project).await?;
-                let cancel = CancellationToken::new();
-                let turn = setup.agent.run(session, prompt, cancel.clone());
-                tokio::pin!(turn);
-                // Si el cliente desaparece nadie espera la respuesta: se cancela el turno en lugar
-                // de dejar al modelo generando solo (con un modelo local, GPU encendida para nada).
-                let outcome = tokio::select! {
-                    outcome = &mut turn => outcome?,
-                    _ = cancel_on_disconnect(reader, cancel.clone()) => turn.await?,
-                };
+                let outcome = run_print_turn(&setup.agent, session, prompt, reader).await?;
                 print_text(outcome)
             }
             .await;
@@ -451,6 +443,31 @@ pub(super) fn print_text(outcome: loomcoding_core::agent::TurnOutcome) -> anyhow
         Some(report) => Err(anyhow::anyhow!(report)),
         None => Ok(outcome.final_text),
     }
+}
+
+/// Turno de `--print`: el del usuario más los despertares que pidan sus subagentes, y se cancela solo
+/// si el cliente desaparece.
+///
+/// Cabe señalar que sin TUI nadie despierta al padre: `run_until_settled` lo hace aquí, acotado.
+pub(super) async fn run_print_turn<R>(
+    agent: &loomcoding_core::agent::AgentLoop,
+    session: SessionId,
+    prompt: String,
+    reader: &mut R,
+) -> anyhow::Result<loomcoding_core::agent::TurnOutcome>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let cancel = CancellationToken::new();
+    let turn = agent.run_until_settled(session, prompt, cancel.clone());
+    tokio::pin!(turn);
+    // Si el cliente desaparece nadie espera la respuesta: se cancela el turno en lugar de dejar al
+    // modelo generando solo (con un modelo local, GPU encendida para nada).
+    let outcome = tokio::select! {
+        outcome = &mut turn => outcome?,
+        _ = cancel_on_disconnect(reader, cancel.clone()) => turn.await?,
+    };
+    Ok(outcome)
 }
 
 /// Espera a que el otro extremo cierre la conexión y entonces cancela `cancel`.
