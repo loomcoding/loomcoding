@@ -75,6 +75,26 @@ guía de herramientas del prompt con una instrucción corta («antes de `grep`/`
 - Otros lenguajes distintos de Rust en la primera entrega.
 - Reescribir `lsp`, `grep` o `view`.
 
+## Referencias estudiadas (clones en `G:\loom-references\`, anotados en su `REGISTRY.md`)
+
+Cotejado leyendo el código de los clones, no el resumen de un tercero:
+
+- **`aider` (`aider/repomap.py`, Apache-2.0)**: extrae definiciones y referencias de cada fichero con
+  `tree-sitter` y las consultas de etiquetas (`tags.scm`), construye un grafo fichero a fichero, lo
+  ordena con PageRank personalizado hacia los ficheros del encargo y pinta el resultado dentro de un
+  presupuesto de tokens. Las etiquetas se cachean por fecha de fichero. Es el modelo más próximo de
+  `context`: índice sintáctico, ranking y tope. En Rust el PageRank son unas decenas de líneas propias.
+- **`ACAR` (`graph_retrieval/`, `ranking/`, MIT)**: recuperación híbrida. La parte estructural resuelve
+  los identificadores cercanos al punto de trabajo hasta sus definiciones, sigue **una** llamada anidada
+  (profundidad 2, hasta 10 cuerpos) y funde el resultado con la recuperación léxica mediante fusión de
+  rangos recíprocos. Declara 87 a 95 ms de sobrecarga con cachés calientes (cifra suya, sin reproducir).
+  Confirma que la profundidad y el número de cuerpos deben ir **acotados**.
+- **`tree-sitter` y `tree-sitter-rust`**: la gramática trae `queries/tags.scm`, que ya define qué es una
+  definición y qué una referencia en Rust; no hay que escribirlas.
+
+Licencias: se estudian las ideas; si se llegara a copiar código de `aider` (Apache-2.0) se atribuye y se
+declara en el commit.
+
 ## Riesgos
 
 - Un paquete mal elegido **distrae** a un modelo pequeño más de lo que ayuda: de ahí el tope bajo, el
