@@ -113,6 +113,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | development-workflow-interactive-reliability, runtime-capabilities-dashboard (10-29) | sin cierre declarado | anotado en la higiene del 11-01 |
 | local-server-client-runtime (10-26) | hecho | es el «Runtime R1 a R6» de más arriba |
 | mejorar-el-sistema-del-modelo-pequeno (11-05) | propuesta | método de experimentos (una variable cada vez) para ver cuánto rinde un modelo pequeño con mejor ciclo de verificación, edición y contexto estructural; sin plan ni código |
+| verificar-tras-editar (11-05) | propuesta | herramienta `check` y puerta de cierre: un turno que edita Rust no termina sin compilar; línea 1 del anterior; sin plan ni código |
 
 ## Dependencia vigilada: crossterm
 
