@@ -56,10 +56,17 @@ no se crean presets nuevos. Ficheros: `loomcoding-cloth/src/widgets/theme/look.r
 
 ## Tarea 4 — Cabecera de una línea
 
-**Fichero:** `crates/loomcoding-tui/src/render/chrome.rs` (`draw_flat_header`).
-`loom · modelo · esfuerzo` a la izquierda; `ctx usado/ventana ██░░` a la derecha y, en `Minimal` y `Cards`, la
-etiqueta del flujo activo. Sin ruta, sin segunda línea. Cuando no hay ventana conocida se muestra `ctx 2.2k`.
-- [ ] Pruebas con `TestBackend`: una sola línea de cabecera; la etiqueta del flujo aparece solo en A y C.
+**Fichero:** `crates/loomcoding-tui/src/render/chrome.rs` (`draw_flat_header`) y el cálculo de su altura en
+`render/mod.rs`. **Alcance acotado (2026-11-05):** el medidor `ctx` ya vive en el pie (`split_footer_meter`) y se
+trata en la Tarea 8; la etiqueta del flujo activo espera a la extracción de flujos (la TUI hoy no guarda su estado,
+solo escribe líneas en el transcript).
+La cabecera del chrome `Flat` queda en **una** línea: `loom` (negrita, acento) · modelo · esfuerzo (si lo hay, de
+`app.provider_settings.effort`) · estado (con el sufijo de resumen anticipado), más lo que ya añade solo cuando hay
+dato (`N queued`, `queue paused`, recuento de subagentes y jobs). Fuera: el directorio, el adorno `╱╱╱╱` y la
+segunda línea de capacidades (MCP/LSP/skills, que ya muestra el rail). La cabecera `Workspace` no cambia.
+- [ ] Pruebas con `TestBackend`: `flat_header_is_a_single_line`, `flat_header_shows_model_and_effort`,
+  `flat_header_has_no_cwd_nor_capabilities_line`, `workspace_header_is_unchanged`; ajustar lo mínimo las que
+  buscaban `CODEL∞M` o el directorio en la cabecera plana.
 
 ## Tarea 5 — Rail adelgazado (B)
 
