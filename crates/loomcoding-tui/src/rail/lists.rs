@@ -13,8 +13,8 @@ pub(super) fn push_todos<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
             .count();
         out.push(Line::from(vec![
             Span::styled(
-                "TODOS",
-                app.theme.styles.accent.add_modifier(Modifier::BOLD),
+                "Todos",
+                app.theme.styles.default.add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!("  {done}/{}", app.todos.len()),
@@ -46,7 +46,7 @@ pub(super) fn push_todos<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
 pub(super) fn push_files<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
     if !app.changes.is_empty() {
         push_gap(out);
-        out.push(title("FILES", app));
+        out.push(title("Files", app));
         for change in app.changes.iter().take(FILE_LIMIT) {
             out.push(Line::from(vec![
                 Span::styled("● ", app.theme.styles.success),
@@ -63,7 +63,7 @@ pub(super) fn push_files<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
 pub(super) fn push_tools<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
     if !app.tools.is_empty() {
         push_gap(out);
-        out.push(title("TOOLS", app));
+        out.push(title("Tools", app));
         let skip = app.tools.len().saturating_sub(TOOL_LIMIT);
         for tool in app.tools.iter().skip(skip) {
             out.push(glyph_line(
@@ -85,7 +85,7 @@ pub(super) fn push_jobs<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
     let job_total = jobs().count();
     if job_total > 0 {
         push_gap(out);
-        out.push(title("JOBS", app));
+        out.push(title("Jobs", app));
         for job in jobs().take(JOB_LIMIT) {
             let style = match job.status {
                 JobStatus::Running | JobStatus::Stopping => app.theme.styles.tool_running,

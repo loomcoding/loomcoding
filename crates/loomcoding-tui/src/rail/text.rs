@@ -29,11 +29,11 @@ pub(crate) fn partir_por_palabras(texto: &str, width: usize) -> Vec<String> {
     lineas
 }
 
-/// Título de sección: acento en negrita.
+/// Título de sección: negrita con el estilo por defecto del tema, sin acento.
 pub(super) fn title<'a>(text: &'a str, app: &App) -> Line<'a> {
     Line::from(Span::styled(
         text,
-        app.theme.styles.accent.add_modifier(Modifier::BOLD),
+        app.theme.styles.default.add_modifier(Modifier::BOLD),
     ))
 }
 

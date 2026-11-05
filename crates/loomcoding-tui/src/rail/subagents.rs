@@ -94,22 +94,22 @@ pub fn agent_state(state: TaskState) -> AgentState {
     }
 }
 
-/// Título de SUBAGENTS. Con actividad o tokens acumulados añade el número de
-/// agentes en marcha y los totales de la jerarquía: `SUBAGENTS · 2 · 2k/400`.
+/// Título de Agents, en negrita y con el estilo por defecto. Con actividad o tokens acumulados
+/// añade el número de agentes en marcha y los totales de la jerarquía: `Agents · 2 · 2k/400`.
 pub(super) fn subagents_title(app: &App) -> Line<'static> {
     let (input, output) = app.hierarchy_tokens();
     let activos = app.active_agents();
     let texto = if (input, output) != (0, 0) || activos > 0 {
         format!(
-            "SUBAGENTS · {activos} · {}/{}",
+            "Agents · {activos} · {}/{}",
             format_tokens(input),
             format_tokens(output)
         )
     } else {
-        "SUBAGENTS".to_owned()
+        "Agents".to_owned()
     };
     Line::from(Span::styled(
         texto,
-        app.theme.styles.accent.add_modifier(Modifier::BOLD),
+        app.theme.styles.default.add_modifier(Modifier::BOLD),
     ))
 }

@@ -191,7 +191,7 @@ fn token_usage_panel_shows_breakdown_and_cache_only_with_data() {
 fn crush_without_width_for_the_rail_uses_the_whole_screen() {
     let mut app = crush_ctx();
     let content = buffer_of(&mut app, 70, 24);
-    assert!(!content.contains("MODEL"));
+    assert!(!content.contains("Session"));
     assert!(content.contains("loom"));
 }
 
@@ -199,26 +199,26 @@ fn crush_without_width_for_the_rail_uses_the_whole_screen() {
 fn minimal_and_cards_draw_no_rail() {
     use loomcoding_cloth::widgets::LayoutStyle;
     let mut app = crush_ctx();
-    // `MODEL` es el título del rail: lo pinta siempre, también con la sesión vacía.
-    assert!(buffer_of(&mut app, 120, 30).contains("MODEL"));
+    // `Session` es el título del rail: lo pinta siempre, también con la sesión vacía.
+    assert!(buffer_of(&mut app, 120, 30).contains("Session"));
     for layout in [LayoutStyle::Minimal, LayoutStyle::Cards] {
         app.theme.look.layout = layout;
         let content = buffer_of(&mut app, 120, 30);
-        assert!(!content.contains("MODEL"), "{layout:?} dibuja el rail");
+        assert!(!content.contains("Session"), "{layout:?} dibuja el rail");
     }
     app.theme.look.layout = LayoutStyle::ContextRail;
-    assert!(buffer_of(&mut app, 120, 30).contains("MODEL"));
+    assert!(buffer_of(&mut app, 120, 30).contains("Session"));
 }
 
 #[test]
 fn toggle_sidebar_follows_the_look() {
     let mut app = crush_ctx();
-    assert!(buffer_of(&mut app, 120, 30).contains("MODEL"));
+    assert!(buffer_of(&mut app, 120, 30).contains("Session"));
     app.toggle_sidebar();
     assert!(app.rail_hidden && !app.sidebar_expanded);
-    assert!(!buffer_of(&mut app, 120, 30).contains("MODEL"));
+    assert!(!buffer_of(&mut app, 120, 30).contains("Session"));
     app.toggle_sidebar();
-    assert!(buffer_of(&mut app, 120, 30).contains("MODEL"));
+    assert!(buffer_of(&mut app, 120, 30).contains("Session"));
     let mut classic = App::with_context("/proj", "m");
     classic.toggle_sidebar();
     assert!(classic.sidebar_expanded && !classic.rail_hidden);
@@ -250,13 +250,13 @@ fn rail_lists_files_tools_jobs_and_subagents() {
     let mut app = loaded_crush_app();
     let content = buffer_of(&mut app, 120, 40);
     for expected in [
-        "FILES",
+        "Files",
         "src/main.rs",
-        "TOOLS",
+        "Tools",
         "View",
-        "JOBS",
+        "Jobs",
         "build",
-        "SUBAGENTS",
+        "Agents",
         "review",
     ] {
         assert!(content.contains(expected), "falta {expected:?} en el rail");
@@ -312,7 +312,7 @@ fn rail_lists_todos_with_progress() {
         ],
     });
     let content = buffer_of(&mut app, 120, 40);
-    assert!(content.contains("TODOS"));
+    assert!(content.contains("Todos"));
     assert!(content.contains("1/2"));
     assert!(content.contains("Pintar el rail"));
 }

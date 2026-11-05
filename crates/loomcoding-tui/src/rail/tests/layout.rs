@@ -22,8 +22,8 @@ fn rail_without_subagents_is_unchanged() {
 
     let rows = rows_of(&app, 40, 24);
     assert!(
-        !rows.iter().any(|row| row.contains("SUBAGENTS")),
-        "aparece la sección SUBAGENTS sin subagentes: {rows:?}"
+        !rows.iter().any(|row| row.contains("Agents")),
+        "aparece la sección Agents sin subagentes: {rows:?}"
     );
 }
 
@@ -37,13 +37,16 @@ fn rail_shows_return_hint_inside_a_child() {
     let rows = rows_of(&app, 40, 24);
     let idx = rows
         .iter()
-        .position(|row| row.contains("LOOMCODING"))
-        .expect("el rail muestra el título LOOMCODING");
-    assert!(rows[idx + 1].contains("/proj"), "falta el cwd: {rows:?}");
+        .position(|row| row.contains("Session"))
+        .expect("el rail muestra el bloque Session");
     assert!(
-        rows[idx + 2].contains("↩ /parent · Alt+←"),
-        "falta la línea de retorno bajo el cwd: {:?}",
-        rows[idx + 2]
+        rows[idx + 1].contains("↩ /parent · Alt+←"),
+        "falta la línea de retorno justo bajo Session: {:?}",
+        rows[idx + 1]
+    );
+    assert!(
+        !rows.iter().any(|row| row.contains("/proj")),
+        "el cwd sigue en el rail: {rows:?}"
     );
 }
 
@@ -67,7 +70,7 @@ fn return_hint_is_clipped_to_rail_width() {
     app.cwd = "/proj".into();
     app.parent_stack.push(SessionId(1));
 
-    // Con un borde izquierdo, la anchura útil del rail es 11 columnas.
+    // Con dos columnas de aire a la izquierda, la anchura útil del rail es 10.
     let rows = rows_of(&app, 12, 24);
     let fila = rows
         .iter()
@@ -81,13 +84,13 @@ fn return_hint_is_clipped_to_rail_width() {
 }
 
 #[test]
-fn rail_shows_effort_when_set() {
+fn rail_leaves_effort_to_the_header() {
     let mut app = App::new();
     app.set_provider_settings(saved_settings(Some("high")));
     let rows = rows_of(&app, 40, 20);
     assert!(
-        rows.iter().any(|row| row.contains("effort high")),
-        "el rail muestra el esfuerzo bajo el modelo: {rows:?}"
+        !rows.iter().any(|row| row.contains("effort high")),
+        "el rail repite el esfuerzo que ya muestra la cabecera: {rows:?}"
     );
 
     app.set_provider_settings(saved_settings(None));

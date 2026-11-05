@@ -6,7 +6,7 @@ use super::*;
 pub(super) fn push_capabilities<'a>(out: &mut Vec<Line<'a>>, app: &'a App, width: usize) {
     if let Some(capabilities) = &app.runtime_capabilities {
         push_gap(out);
-        out.push(title("CAPABILITIES", app));
+        out.push(title("Capabilities", app));
         let (mcp_summary, mcp_issue) = match capabilities.mcp_config {
             crate::app::McpConfigState::Unknown => ("snapshot pending".to_owned(), None),
             crate::app::McpConfigState::NotConfigured => ("not configured".to_owned(), None),

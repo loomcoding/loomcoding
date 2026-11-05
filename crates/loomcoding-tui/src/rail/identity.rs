@@ -1,14 +1,12 @@
-//! Cabecera del rail: cwd, modelo, fase y coste.
+//! Bloque `Session` del rail: recordatorio de `/parent`, precios, fase, pasos, tokens y coste.
 
 use super::*;
 
-/// Cabecera: cwd, modelo, precio, esfuerzo, fase, pasos, tokens y coste de la sesión.
+/// Bloque `Session`: recordatorio de `/parent`, precios del modelo, fase y tiempo, pasos, tokens
+/// y coste de la sesión. La marca, el modelo y el esfuerzo ya van en la cabecera, así que no se
+/// repiten aquí.
 pub(super) fn push_identity<'a>(out: &mut Vec<Line<'a>>, app: &'a App, width: usize) {
-    out.push(title("LOOMCODING", app));
-    out.push(Line::from(Span::styled(
-        app.cwd.as_str(),
-        app.theme.styles.muted,
-    )));
+    out.push(title("Session", app));
     // Dentro de un subagente, recordatorio de cómo volver al padre. Se recorta al rail.
     if !app.parent_stack.is_empty() {
         out.push(Line::from(Span::styled(
@@ -16,25 +14,10 @@ pub(super) fn push_identity<'a>(out: &mut Vec<Line<'a>>, app: &'a App, width: us
             app.theme.styles.muted,
         )));
     }
-
-    push_gap(out);
-    out.push(title("MODEL", app));
-    out.push(Line::from(app.model.as_str()));
     // Precio por millón del modelo actual, solo si el catálogo lo conoce.
     if let Some((input, output)) = app.model_prices() {
         out.push(Line::from(Span::styled(
             recortar(&format_prices(input, output), width),
-            app.theme.styles.muted,
-        )));
-    }
-    // El nivel se lee de la copia guardada, la misma que `app.model`.
-    if let Some(level) = app
-        .settings_baseline
-        .as_ref()
-        .and_then(|settings| settings.effort.as_deref())
-    {
-        out.push(Line::from(Span::styled(
-            format!("effort {level}"),
             app.theme.styles.muted,
         )));
     }

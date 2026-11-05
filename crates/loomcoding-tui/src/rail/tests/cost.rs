@@ -147,7 +147,7 @@ fn rail_has_no_cost_line_without_prices() {
 
 #[test]
 fn rail_clips_huge_cost_to_width() {
-    // Tres mil millones de dólares: la cifra no debe desbordar un rail de 11 columnas.
+    // Tres mil millones de dólares: la cifra no debe desbordar un rail de 12 columnas.
     let mut app = priced_rail_app("priced");
     app.usage_records = vec![record(1_000_000_000_000_000, 0, Some((3.0, 15.0)))];
 

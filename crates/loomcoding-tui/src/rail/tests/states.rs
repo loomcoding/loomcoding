@@ -40,8 +40,7 @@ fn rail_title_shows_hierarchy_totals() {
 
     let rows = rows_of(&app, 40, 24);
     assert!(
-        rows.iter()
-            .any(|row| row.contains("SUBAGENTS · 2 · 2k/400")),
+        rows.iter().any(|row| row.contains("Agents · 2 · 2k/400")),
         "el título no muestra los totales: {rows:?}"
     );
 }

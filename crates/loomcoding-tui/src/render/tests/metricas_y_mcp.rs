@@ -74,7 +74,7 @@ fn mcp_load_warning_ignores_servers_that_failed_to_initialize() {
 fn crush_layout_has_only_a_right_rail_when_wide() {
     let mut app = crush_ctx();
     let content = buffer_of(&mut app, 120, 40);
-    assert!(content.contains("MODEL"));
+    assert!(content.contains("Session"));
     assert!(content.contains("mistral-nemo"));
     assert!(!content.contains("PROJECT")); // secciones del sidebar izquierdo
     assert!(!content.contains("FLOCK"));

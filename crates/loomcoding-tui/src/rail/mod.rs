@@ -9,7 +9,7 @@ use loomcoding_core::todo::TodoStatus;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::{Block, Padding, Paragraph};
 use ratatui::Frame;
 use std::time::{Duration, Instant};
 
@@ -50,14 +50,22 @@ const JOB_LIMIT: usize = 5;
 /// Máximo de subagentes mostrados.
 const SUBAGENT_LIMIT: usize = 5;
 
-/// Dibuja el rail en `area`, separado del chat por un borde izquierdo.
+/// Dibuja el rail en `area`, separado del chat por dos columnas de aire y sin bordes.
 /// El contenido se recorta al alto disponible; no hay desplazamiento.
 pub fn draw_context_rail(frame: &mut Frame, area: Rect, app: &App) {
-    let block = Block::default()
-        .borders(Borders::LEFT)
-        .border_style(app.theme.styles.border);
+    // Cabe señalar que el aire lateral sustituye al antiguo borde izquierdo.
+    let block = Block::default().padding(Padding::new(2, 0, 0, 0));
     let inner = block.inner(area);
     frame.render_widget(block, area);
+    // Con el foco en el rail, su primera columna lleva una marca fina de acento: señal de foco, no borde.
+    if app.focus == Focus::Rail {
+        let buffer = frame.buffer_mut();
+        for y in area.y..area.bottom() {
+            buffer[(area.x, y)]
+                .set_symbol("▏")
+                .set_style(app.theme.styles.accent);
+        }
+    }
     if inner.is_empty() {
         return;
     }
