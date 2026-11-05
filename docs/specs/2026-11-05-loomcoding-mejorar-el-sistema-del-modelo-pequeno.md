@@ -46,7 +46,8 @@ sirven para priorizar, no para prometer resultados. Antes de implementar cada un
 | 6 | Infilling, BitNet, razonamiento latente | cambian el modelo | sí | no (investigación) |
 
 Las filas 1 a 4 mejoran el **sistema**; la 5 depende del servidor de modelos (que levanta el usuario) y la
-6 queda fuera de alcance. Prioridad propuesta: 1, luego 2 y 3, luego 4.
+6 queda fuera de alcance. Prioridad (corregida el 2026-11-05 por el usuario): primero 3, que da más contexto con menos llamadas
+(`2026-11-05-loomcoding-contexto-estructural.md`), luego 1 y 2, luego 4.
 
 La línea 4 tiene un dato local que la justifica: con Strata el tiempo se va en razonamiento a unos 18
 tokens por segundo (16 243 tokens de salida frente a 2 754 del 9B en la tarea 6, con la caché de prefijo
