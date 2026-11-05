@@ -226,6 +226,9 @@ pub struct App {
     pub queue_editing: bool,
     pub queue_editor: loomcoding_cloth::state::Composer,
     pub turn_in_flight: bool,
+    /// Instante en que acabó el último turno y si acabó bien (`true`) o con error (`false`).
+    /// Lo lee el muñeco de estado; se borra al empezar un turno nuevo.
+    pub last_turn_end: Option<(Instant, bool)>,
     /// Hay un despertar pedido por un hijo (pregunta o cierre) que aún no se ha lanzado.
     pub wake_pending: bool,
     /// Despertar ya pedido al trabajador, sin turno iniciado ni `WakeIdle` de respuesta.
@@ -458,6 +461,7 @@ impl App {
             queue_editing: false,
             queue_editor: loomcoding_cloth::state::Composer::new(),
             turn_in_flight: false,
+            last_turn_end: None,
             wake_pending: false,
             wake_in_flight: false,
             compact_requested: false,

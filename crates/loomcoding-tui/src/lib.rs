@@ -3,6 +3,7 @@ pub mod app;
 pub mod clipboard;
 pub mod commands;
 pub mod frame;
+pub mod mascot;
 pub mod permission_flow;
 pub mod prefs;
 pub mod rail;

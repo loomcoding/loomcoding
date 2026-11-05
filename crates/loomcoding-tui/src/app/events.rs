@@ -22,6 +22,7 @@ impl App {
                     self.wake_causes.clear();
                 }
                 self.turn_in_flight = true;
+                self.last_turn_end = None;
                 self.status = if woken { "auto-turn" } else { "working" }.into();
                 self.finish_phase();
                 self.phase_durations.clear();
@@ -45,6 +46,7 @@ impl App {
                 // El texto ya no crece: los bloques largos se pliegan.
                 self.transcript.settle();
                 self.turn_in_flight = false;
+                self.last_turn_end = Some((Instant::now(), true));
                 self.wake_in_flight = false;
                 self.cancel_requested = false;
                 self.status = "ready".into();
@@ -166,6 +168,7 @@ impl App {
             }
             LiveEvent::Error { message } => {
                 self.turn_in_flight = false;
+                self.last_turn_end = Some((Instant::now(), false));
                 self.wake_in_flight = false;
                 self.cancel_requested = false;
                 self.status = format!("error: {message}");
