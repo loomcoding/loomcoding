@@ -1,6 +1,6 @@
 # Loomcoding — Autonomía y límite de pasos
 
-> Estado: **propuesta** (2026-11-04). Sin código. Primero de tres proyectos acordados
+> Estado: **implementada** (2026-11-04 a 2026-11-05; véase el plan y `docs/INDEX.md`). Primero de tres proyectos acordados
 > (1: este; 2: ajustes desde la TUI y `/model`; 3: selector de agentes). Cada uno con su spec y su plan.
 >
 > Lo que dijo la persona usuaria va como decisión; lo que decide quien escribe va marcado **(mío)**.

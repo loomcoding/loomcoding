@@ -102,6 +102,7 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
 | Herramientas | `trait Tool`, `ToolRegistry`, `ExecutionMode` | `crates/loomcoding-core/src/tools/mod.rs` (registro de las integradas en `project_registry`) |
 | Bus de eventos | `LiveEvent`, `EventBus` | `crates/loomcoding-core/src/event/mod.rs` |
 | Sesiones | `trait SessionStore`, `SqliteStore` | `crates/loomcoding-core/src/session/{mod,sqlite}.rs` |
+| Límites del agente | `LimitsConfig` (`[limits]`), `stop_reason_budgets`, `LimitedProvider`, `KillReport` | `crates/loomcoding-core/src/config/agent_limits.rs`, `agent/{stop,step_limit,kill}.rs`, `provider/limited.rs` |
 | Subagentes | `SubagentLauncher`, `InProcessSubagentLauncher`, `SubagentPhase`, observador de fases, vigilante de latidos y supervisor | `crates/loomcoding-core/src/subagent/` (`mod.rs`, `launcher.rs`, `phase.rs`, `phase_observer.rs`, `watchdog.rs`, `supervisor.rs`, `supervisor_driver.rs`, `input/` (buzón en `mod.rs`, responder del hijo en `responder.rs`), y el ciclo de vida en `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`) |
 
 Ojo con el nombre: `crates/loomcoding-core/src/registry/` es el **registro de agentes**

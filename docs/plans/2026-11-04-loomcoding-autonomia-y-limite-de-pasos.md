@@ -1,5 +1,14 @@
 # Plan — Autonomía y límite de pasos
 
+> Estado: **ejecutado** (2026-11-05). Desviaciones respecto al texto: (1) `LimitsConfig` vive en
+> `config/agent_limits.rs`, porque `config/limits.rs` ya alberga los límites del proveedor; (2) la tarea 5
+> (traspaso) se hizo antes, como `agent/handoff.rs` con `HANDOFF_MAX_BYTES` y el rótulo
+> `[PARTIAL: step limit (n/m)]`; (3) los hijos nunca preguntan al llegar al tope: se distinguen por
+> `budget_family`, porque su responder encamina las preguntas al padre y se quedarían esperando;
+> (4) `TurnOutcome` gana `read_steps`, para que el fallo de un hijo nombre el «read limit»;
+> (5) la prueba de la tarea 9 destapó que cancelar `bash` o matar un job dejaba el proceso nieto vivo, y
+> se arregló con `kill_tree`.
+
 > **Para quien ejecute:** cada tarea es independiente y se ejecuta de una en una, con la prueba en rojo
 > primero. La ejecuta Loomcoding con el Qwen3.5-9B local (ver «Ejecución»), y la verifica y revisa Claude.
 

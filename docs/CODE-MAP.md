@@ -111,6 +111,26 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
 3. Lectura y escritura en el mismo archivo; un valor desconocido debe leerse sin romper.
 4. Test de ida y vuelta con `SqliteStore`.
 
+## Quiero tocar los límites del agente
+
+1. Topes de pasos: las rondas de solo lectura no gastan `max_steps` y tienen su propio tope
+   (`LimitsConfig::read_step_cap`, `4 × max_steps` por defecto). La clasificación vive en
+   `crates/loomcoding-core/src/agent/stop.rs` (`is_read_round`, `is_write_tool`, `stop_reason_budgets`) y
+   los contadores, en `agent/turn.rs` (`steps`, `read_steps`).
+2. Pregunta al llegar al tope (`"Continue"` / `"Stop"`, hasta `MAX_STEP_EXTENSIONS`): `agent/step_limit.rs`.
+   Los subagentes nunca preguntan (`budget_family.is_some()`); su fallo nombra el límite en
+   `subagent/local_body.rs` (`step limit` o `read limit`).
+3. Ajustes `[limits]` (`max_read_steps`, `max_parallel_tools`, `max_concurrent_requests`):
+   `crates/loomcoding-core/src/config/agent_limits.rs`, con cargador propio; no se añaden campos a
+   `LoomcodingConfig`. Un cero equivale al valor por defecto.
+4. Paralelismo de herramientas: `execute_tools(.., max_parallel, ..)` en `agent/dispatch.rs`. De peticiones al
+   proveedor: `provider/limited.rs` (`LimitedProvider`: semáforo y reintento ante `http 429`), aplicado en
+   `loomcoding-cli/src/main.rs::limit_provider`.
+5. Parada de emergencia (`Ctrl+X` fuera del panel de la cola): `agent/kill.rs` (`kill_everything`),
+   `SessionCommand::KillAll` en `loomcoding-tui/src/run/` y el atendedor inmediato en
+   `loomcoding-cli/src/server/client.rs`. Matar procesos: `tools/bash.rs::kill_tree` (todo el árbol).
+6. Tests: `agent/tests/{steps,step_limit,kill}.rs`, `provider/limited.rs` (módulo `tests`).
+
 ## Quiero añadir un umbral o ajuste en `[agents]`
 
 1. Campo `Option<...>` en `AgentsConfig` (`crates/loomcoding-core/src/config/mod.rs`); la clave del
