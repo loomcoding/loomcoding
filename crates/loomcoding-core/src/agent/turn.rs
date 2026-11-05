@@ -92,8 +92,11 @@ impl AgentLoop {
             ) {
                 None => {}
                 Some(reason)
-                    if reason != crate::agent::stop::StopReason::RepeatedToolCalls
-                        && extensions < crate::agent::stop::MAX_STEP_EXTENSIONS
+                    if !matches!(
+                        reason,
+                        crate::agent::stop::StopReason::RepeatedToolCalls
+                            | crate::agent::stop::StopReason::RepeatedOutput
+                    ) && extensions < crate::agent::stop::MAX_STEP_EXTENSIONS
                         && self.ask_to_continue(reason, &cancel).await =>
                 {
                     extensions += 1;
@@ -104,6 +107,13 @@ impl AgentLoop {
                     }
                 }
                 Some(reason) => {
+                    if reason == crate::agent::stop::StopReason::RepeatedOutput {
+                        self.bus.publish(LiveEvent::RuntimeNotice {
+                            message:
+                                "salida repetida: el modelo repite el mismo texto, turno cortado"
+                                    .into(),
+                        });
+                    }
                     stopped = Some(reason);
                     break;
                 }

@@ -122,7 +122,10 @@ impl TurnOutcome {
     /// de la parada lo deja a ciegas.
     pub fn unfinished_report(&self) -> Option<String> {
         // Un texto cortado por el tope de salida no es una respuesta: suele ser un bucle de repetición.
-        let cut = self.stopped == Some(stop::StopReason::OutputLimit);
+        let cut = matches!(
+            self.stopped,
+            Some(stop::StopReason::OutputLimit | stop::StopReason::RepeatedOutput)
+        );
         if !self.final_text.trim().is_empty() && !cut {
             return None;
         }

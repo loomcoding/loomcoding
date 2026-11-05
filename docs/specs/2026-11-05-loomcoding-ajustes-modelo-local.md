@@ -24,8 +24,8 @@ Pilotando un modelo local de 9B (Ornith) con el Gauntlet se observó que la ofic
    `effort_options()` de la TUI cuando el catálogo no conoce el modelo; «default» (no enviar nada) siempre
    se ofrece. El valor elegido se envía tal cual.
 3. **`StopReason::RepeatedOutput`**: el turno se corta cuando las **tres** últimas respuestas del asistente
-   del turno actual tienen el mismo texto (normalizado: espacios colapsados, mínimo 40 caracteres) y ninguna
-   llama a herramientas que escriban. Se avisa en el transcript («salida repetida») y el motivo se informa
+   del turno actual tienen el mismo texto (normalizado: espacios colapsados, mínimo 40 caracteres), llamen o no a
+   herramientas: lo que se repite es el comentario, no el trabajo. Se avisa en el transcript («salida repetida») y el motivo se informa
    al modelo/usuario con `label()`. Un mensaje de usuario rearma la detección.
 
 ## 3. Criterios de aceptación

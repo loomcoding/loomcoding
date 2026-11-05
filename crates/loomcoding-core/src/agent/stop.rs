@@ -10,6 +10,13 @@ use crate::message::{ContentPart, Message, Role};
 /// una **escritura**: eso sí es un bucle que no avanza.
 const REPEAT_THRESHOLD: usize = 6;
 
+/// Cuántas respuestas seguidas con el mismo texto hacen falta para cortar. Menos que las herramientas:
+/// aquí no se pierde trabajo, porque el modelo no está haciendo nada nuevo.
+const REPEAT_TEXT_THRESHOLD: usize = 3;
+
+/// Longitud mínima del texto normalizado para contar como repetición: un «Leyendo.» repetido es normal.
+const REPEAT_TEXT_MIN_CHARS: usize = 40;
+
 /// Herramientas cuyo bucle es peligroso: escriben o lanzan trabajo.
 ///
 /// Las de solo lectura (`view`, `grep`, `glob`, `ls`) quedan fuera a propósito: un
@@ -42,6 +49,8 @@ pub enum StopReason {
     ReadBudget,
     /// El proveedor cortó la respuesta por el tope de salida, sin que el modelo la terminase.
     OutputLimit,
+    /// El asistente repitió el mismo comentario en las últimas respuestas: está dando vueltas.
+    RepeatedOutput,
 }
 
 impl StopReason {
@@ -52,6 +61,7 @@ impl StopReason {
             StopReason::RepeatedToolCalls => "repeated tool calls",
             StopReason::ReadBudget => "the read limit",
             StopReason::OutputLimit => "the output limit",
+            StopReason::RepeatedOutput => "repeated output",
         }
     }
 }
@@ -87,6 +97,40 @@ fn es_escritura(sig: &[String]) -> bool {
     })
 }
 
+/// Texto de una respuesta del asistente con los espacios colapsados, o vacío si no tiene.
+fn texto_normalizado(message: &Message) -> String {
+    let texto: Vec<&str> = message
+        .parts
+        .iter()
+        .filter_map(|part| match part {
+            ContentPart::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    texto
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Si las últimas respuestas del asistente dicen exactamente lo mismo.
+fn texto_repetido(history: &[Message]) -> bool {
+    let textos: Vec<String> = history
+        .iter()
+        .filter(|m| m.role == Role::Assistant)
+        .map(texto_normalizado)
+        .collect();
+    if textos.len() < REPEAT_TEXT_THRESHOLD {
+        return false;
+    }
+    let ultimo = &textos[textos.len() - 1];
+    ultimo.chars().count() >= REPEAT_TEXT_MIN_CHARS
+        && textos[textos.len() - REPEAT_TEXT_THRESHOLD..]
+            .iter()
+            .all(|t| t == ultimo)
+}
+
 /// Motivo por el que hay que parar, si lo hay.
 ///
 /// Solo mira el turno actual: un mensaje de usuario rearma la detección, de modo que
@@ -99,6 +143,9 @@ pub fn stop_reason(history: &[Message], steps: usize, max_steps: usize) -> Optio
         .iter()
         .rposition(|message| message.role == Role::User)
         .unwrap_or(0);
+    if texto_repetido(&history[turno..]) {
+        return Some(StopReason::RepeatedOutput);
+    }
     let sigs: Vec<Vec<String>> = history[turno..]
         .iter()
         .filter(|m| m.role == Role::Assistant)
@@ -191,6 +238,69 @@ mod tests {
             name: name.into(),
             input,
         }])
+    }
+
+    fn with_text_and_call(text: &str, path: &str) -> Message {
+        Message::assistant(vec![
+            ContentPart::Text { text: text.into() },
+            ContentPart::ToolCall {
+                id: "x".into(),
+                name: "view".into(),
+                input: json!({ "path": path }),
+            },
+        ])
+    }
+
+    const PARRAFO: &str = "I need to add context: None, then check the rest of the module again.";
+
+    #[test]
+    fn three_identical_texts_in_a_row_stop_the_turn() {
+        // Los ficheros leídos difieren: lo que se repite es el comentario, no el trabajo.
+        let h = vec![
+            with_text_and_call(PARRAFO, "a"),
+            with_text_and_call(PARRAFO, "b"),
+            with_text_and_call(PARRAFO, "c"),
+        ];
+        assert_eq!(stop_reason(&h, 1, 100), Some(StopReason::RepeatedOutput));
+    }
+
+    #[test]
+    fn spacing_differences_do_not_hide_a_repeated_text() {
+        let h = vec![
+            with_text_and_call(PARRAFO, "a"),
+            with_text_and_call(&format!("  {}\n", PARRAFO.replace(' ', "  ")), "b"),
+            with_text_and_call(PARRAFO, "c"),
+        ];
+        assert_eq!(stop_reason(&h, 1, 100), Some(StopReason::RepeatedOutput));
+    }
+
+    #[test]
+    fn two_identical_texts_do_not_stop_the_turn() {
+        let h = vec![
+            with_text_and_call(PARRAFO, "a"),
+            with_text_and_call(PARRAFO, "b"),
+        ];
+        assert_eq!(stop_reason(&h, 1, 100), None);
+    }
+
+    #[test]
+    fn short_texts_never_count_as_repetition() {
+        let h: Vec<Message> = (0..5)
+            .map(|n| with_text_and_call("Reading it.", &n.to_string()))
+            .collect();
+        assert_eq!(stop_reason(&h, 1, 100), None);
+    }
+
+    #[test]
+    fn a_user_message_rearms_the_text_detection() {
+        let h = vec![
+            with_text_and_call(PARRAFO, "a"),
+            with_text_and_call(PARRAFO, "b"),
+            with_text_and_call(PARRAFO, "c"),
+            Message::user("sigue"),
+            with_text_and_call(PARRAFO, "d"),
+        ];
+        assert_eq!(stop_reason(&h, 1, 100), None);
     }
 
     #[test]

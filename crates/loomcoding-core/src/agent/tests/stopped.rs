@@ -46,3 +46,25 @@ async fn an_unfinished_turn_reports_the_reason_and_the_counts() {
     assert!(report.contains("1 work steps"), "{report}");
     assert!(report.contains("0 read steps"), "{report}");
 }
+
+#[tokio::test]
+async fn a_turn_whose_text_repeats_stops_and_reports_repeated_output() {
+    let paragraph = "I need to add context: None, then check the rest of the module again.";
+    let talking_round = |n: usize| {
+        let mut chunks = vec![StreamChunk::TextDelta(paragraph.into())];
+        chunks.extend(round("view", n));
+        chunks
+    };
+    let scripts = vec![
+        talking_round(1),
+        talking_round(2),
+        talking_round(3),
+        talking_round(4),
+        final_round(),
+    ];
+    let (outcome, left) = run_with_limits(scripts, 20, LimitsConfig::default(), allow()).await;
+    assert_eq!(outcome.stopped, Some(StopReason::RepeatedOutput));
+    let report = outcome.unfinished_report().expect("turno incompleto");
+    assert!(report.contains("repeated output"), "{report}");
+    assert_eq!(left, 2, "la cuarta ronda no debía consultarse");
+}
