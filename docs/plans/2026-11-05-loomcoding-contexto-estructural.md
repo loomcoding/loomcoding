@@ -63,7 +63,7 @@ en `lib.rs`; dependencias en `crates/loomcoding-core/Cargo.toml`; pruebas en `co
 
 **Interfaces — Produces:**
 - `pub struct Symbol { pub name: String, pub kind: SymbolKind, pub path: PathBuf, pub line: u32, pub signature: String }`
-- `pub enum SymbolKind { Function, Method, Struct, Enum, Trait, Const, Module, Other }`
+- `pub enum SymbolKind { Function, Method, Type, Trait, Module, Macro }` (las siete capturas `definition.*` de `tags.scm`; `class` agrupa `struct`, `enum`, `union` y `type`)
 - `pub struct SymbolIndex` con `pub fn build(root: &Path, deadline: Duration) -> SymbolIndex`,
   `pub fn definitions(&self, name: &str) -> &[Symbol]`, `pub fn references(&self, name: &str) -> &[Reference]`,
   `pub fn files(&self) -> impl Iterator<Item = &Path>`.
