@@ -238,7 +238,7 @@ impl AgentLoop {
                 ),
                 tools,
                 temperature: 0.0,
-                max_tokens: 4096,
+                max_tokens: self.limits.max_output_tokens,
                 effort: config.effort.clone(),
                 programmatic_tool_calling: programmatic_tool_calling_enabled(),
             };

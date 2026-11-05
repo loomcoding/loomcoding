@@ -19,7 +19,20 @@ pub struct LimitsConfig {
     /// `0` equivale al valor por defecto (4).
     #[serde(default)]
     pub max_concurrent_requests: usize,
+    /// Tope de tokens de salida de cada petición, razonamiento incluido.
+    /// `0` equivale al valor por defecto (4096); nunca pasa de `MAX_OUTPUT_TOKENS_HARD`.
+    ///
+    /// Cabe señalar que con un modelo de razonamiento el pensamiento gasta este presupuesto: si es
+    /// corto, la respuesta se corta antes de que el modelo llegue a actuar.
+    #[serde(default)]
+    pub max_output_tokens: u32,
 }
+
+/// Valor por defecto de `max_output_tokens`.
+pub const DEFAULT_OUTPUT_TOKENS: u32 = 4096;
+
+/// Máximo duro de `max_output_tokens` (decálogo: toda cota tiene techo).
+pub const MAX_OUTPUT_TOKENS_HARD: u32 = 32_768;
 
 impl Default for LimitsConfig {
     fn default() -> Self {
@@ -27,6 +40,7 @@ impl Default for LimitsConfig {
             max_read_steps: None,
             max_parallel_tools: 8,
             max_concurrent_requests: 4,
+            max_output_tokens: DEFAULT_OUTPUT_TOKENS,
         }
     }
 }
@@ -56,6 +70,10 @@ impl LimitsConfig {
         if self.max_concurrent_requests == 0 {
             self.max_concurrent_requests = 4;
         }
+        if self.max_output_tokens == 0 {
+            self.max_output_tokens = DEFAULT_OUTPUT_TOKENS;
+        }
+        self.max_output_tokens = self.max_output_tokens.min(MAX_OUTPUT_TOKENS_HARD);
     }
 
     /// Devuelve el tope de pasos de lectura para un `max_steps` dado.
@@ -134,5 +152,35 @@ max_parallel_tools = 0
             ..LimitsConfig::default()
         };
         assert_eq!(config_with_cap.read_step_cap(30), 7);
+    }
+
+    #[test]
+    fn the_output_cap_defaults_to_4096_and_zero_means_default() {
+        assert_eq!(LimitsConfig::default().max_output_tokens, 4096);
+        let config = LimitsConfig::from_toml(
+            "[limits]
+max_output_tokens = 0
+",
+        )
+        .unwrap();
+        assert_eq!(config.max_output_tokens, 4096);
+        let config = LimitsConfig::from_toml(
+            "[limits]
+max_output_tokens = 12000
+",
+        )
+        .unwrap();
+        assert_eq!(config.max_output_tokens, 12000);
+    }
+
+    #[test]
+    fn the_output_cap_is_clamped_to_the_hard_maximum() {
+        let config = LimitsConfig::from_toml(
+            "[limits]
+max_output_tokens = 9999999
+",
+        )
+        .unwrap();
+        assert_eq!(config.max_output_tokens, MAX_OUTPUT_TOKENS_HARD);
     }
 }

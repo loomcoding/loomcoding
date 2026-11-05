@@ -120,7 +120,9 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
 2. Pregunta al llegar al tope (`"Continue"` / `"Stop"`, hasta `MAX_STEP_EXTENSIONS`): `agent/step_limit.rs`.
    Los subagentes nunca preguntan (`budget_family.is_some()`); su fallo nombra el límite en
    `subagent/local_body.rs` (`step limit` o `read limit`).
-3. Ajustes `[limits]` (`max_read_steps`, `max_parallel_tools`, `max_concurrent_requests`):
+3. Ajustes `[limits]` (`max_read_steps`, `max_parallel_tools`, `max_concurrent_requests`,
+   `max_output_tokens`: tope de salida por petición, razonamiento incluido; 4096 por defecto y techo duro
+   `MAX_OUTPUT_TOKENS_HARD`; una respuesta cortada por él termina el turno con `StopReason::OutputLimit`):
    `crates/loomcoding-core/src/config/agent_limits.rs`, con cargador propio; no se añaden campos a
    `LoomcodingConfig`. Un cero equivale al valor por defecto.
 4. Paralelismo de herramientas: `execute_tools(.., max_parallel, ..)` en `agent/dispatch.rs`. De peticiones al
