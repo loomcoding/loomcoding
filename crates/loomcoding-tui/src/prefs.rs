@@ -12,11 +12,12 @@ use std::path::Path;
 
 use loomcoding_cloth::state::StyleToken;
 use loomcoding_cloth::widgets::matrix_rain::{GlyphSet, MatrixConfig};
-use loomcoding_cloth::widgets::ThemePreset;
+use loomcoding_cloth::widgets::{LayoutStyle, ThemePreset};
 
 const THEME_KEY: &str = "theme";
 const MOUSE_KEY: &str = "mouse";
 const SPINNER_KEY: &str = "spinner";
+const LAYOUT_KEY: &str = "layout";
 const MATRIX_GLYPHS_KEY: &str = "matrix_glyphs";
 const MATRIX_SPEED_KEY: &str = "matrix_speed";
 const MATRIX_DENSITY_KEY: &str = "matrix_density";
@@ -128,6 +129,19 @@ pub fn load_spinner(path: &Path) -> Option<String> {
 /// Guarda el spinner elegido, conservando el resto de líneas del fichero.
 pub fn save_spinner(path: &Path, name: &str) -> io::Result<()> {
     save_value(path, SPINNER_KEY, &format!("\"{name}\""))
+}
+
+/// Lee la disposición guardada (`layout = "rail"`, `"minimal"`, ...). Es una
+/// preferencia independiente del color: un nombre desconocido produce `None`.
+pub fn load_layout(path: &Path) -> Option<LayoutStyle> {
+    load_value(path, LAYOUT_KEY, |value| {
+        LayoutStyle::from_name(value.strip_prefix('"')?.strip_suffix('"')?)
+    })
+}
+
+/// Guarda la disposición, conservando el resto de líneas del fichero.
+pub fn save_layout(path: &Path, layout: LayoutStyle) -> io::Result<()> {
+    save_value(path, LAYOUT_KEY, &format!("\"{}\"", layout.name()))
 }
 
 /// Aplica sobre `base` (la config del tema) los ajustes de lluvia que el
@@ -402,6 +416,39 @@ mod tests {
             load_matrix(&path, &MatrixConfig::default()),
             MatrixConfig::default()
         );
+    }
+
+    #[test]
+    fn layout_survives_a_save_and_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        save_theme(&path, ThemePreset::Crush).unwrap();
+        save_spinner(&path, "random").unwrap();
+        for layout in [
+            LayoutStyle::Minimal,
+            LayoutStyle::Cards,
+            LayoutStyle::ContextRail,
+            LayoutStyle::Workspace,
+        ] {
+            save_layout(&path, layout).unwrap();
+            assert_eq!(load_layout(&path), Some(layout), "layout {layout:?}");
+        }
+        // Guardar el layout no toca el tema ni el spinner, y no duplica la clave.
+        save_layout(&path, LayoutStyle::Cards).unwrap();
+        assert_eq!(load_theme(&path), Some(ThemePreset::Crush));
+        assert_eq!(load_spinner(&path).as_deref(), Some("random"));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.matches("layout").count(), 1);
+    }
+
+    #[test]
+    fn layout_missing_or_unknown_loads_none() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(load_layout(&dir.path().join("no-existe.toml")), None);
+
+        let path = dir.path().join("ui.toml");
+        std::fs::write(&path, "layout = \"tabla\"\n").unwrap();
+        assert_eq!(load_layout(&path), None);
     }
 
     #[test]

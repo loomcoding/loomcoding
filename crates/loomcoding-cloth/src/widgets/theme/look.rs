@@ -36,6 +36,44 @@ pub enum LayoutStyle {
     Workspace,
     /// Transcript a la izquierda y un rail de contexto a la derecha.
     ContextRail,
+    /// Solo el transcript, a todo el ancho; sin rail ni panel lateral.
+    Minimal,
+    /// Solo el transcript a todo el ancho; las tarjetas se añadirán en otra tarea.
+    Cards,
+}
+
+impl LayoutStyle {
+    /// Nombre estable con el que se escribe la disposición en `ui.toml` y en `/layout`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Workspace => "workspace",
+            Self::ContextRail => "rail",
+            Self::Minimal => "minimal",
+            Self::Cards => "cards",
+        }
+    }
+
+    /// Resuelve un nombre producido por `name`; cualquier otro texto produce `None`.
+    pub fn from_name(name: &str) -> Option<Self> {
+        [
+            Self::Workspace,
+            Self::ContextRail,
+            Self::Minimal,
+            Self::Cards,
+        ]
+        .into_iter()
+        .find(|layout| layout.name() == name)
+    }
+
+    /// Disposición siguiente en la rotación de `/layout`. Cabe señalar que
+    /// `Workspace` no forma parte del ciclo: pasa directamente a `ContextRail`.
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Workspace | Self::Cards => Self::ContextRail,
+            Self::ContextRail => Self::Minimal,
+            Self::Minimal => Self::Cards,
+        }
+    }
 }
 
 /// Marco visual de los paneles y de la barra de estado.

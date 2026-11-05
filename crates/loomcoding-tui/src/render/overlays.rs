@@ -209,7 +209,8 @@ pub(super) fn draw_tool_inspector(frame: &mut Frame, area: Rect, app: &mut App) 
 pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width.min(78).saturating_sub(2);
     // Diecinueve líneas de contenido más el marco; por eso el recuadro crece a 23 filas.
-    let height = area.height.min(23).saturating_sub(2);
+    // Una fila más que antes: cabe la línea de `/layout` sin cortar la última.
+    let height = area.height.min(24).saturating_sub(2);
     if width < 54 || height < 20 {
         draw_resize_hint(frame, area, "Keyboard shortcuts", app);
         return;
@@ -244,6 +245,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
             Line::from("Ctrl+G      Send to a subagent (cycle)"),
             Line::from("/           Commands at start of composer"),
             Line::from("/theme      Cycle terminal color theme"),
+            Line::from("/layout     Cycle the screen layout (rail, minimal, cards)"),
             Line::from("F3          Switch or create session (when idle)"),
             Line::from("F2          Provider settings"),
             Line::from("Esc         Cancel turn; press twice to quit"),

@@ -28,6 +28,29 @@ fn set_prefs_path_applies_the_saved_theme_without_rewriting() {
 }
 
 #[test]
+fn a_saved_layout_overrides_the_preset_look_after_theme_change() {
+    use loomcoding_cloth::widgets::{ComposerStyle, LayoutStyle, ThemePreset};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ui.toml");
+    let mut app = App::new();
+    app.set_prefs_path(path.clone());
+    app.set_layout(LayoutStyle::Cards);
+    assert_eq!(app.layout_override, Some(LayoutStyle::Cards));
+    assert_eq!(app.theme.look.layout, LayoutStyle::Cards);
+    // El preset Crush trae `ContextRail`; el layout guardado manda sobre él.
+    app.set_theme(ThemePreset::Crush);
+    assert_eq!(app.theme.look.layout, LayoutStyle::Cards);
+    assert_eq!(app.theme.look.composer, ComposerStyle::Crush);
+
+    // Al arrancar con el tema y el layout guardados, el layout también manda.
+    let mut reboot = App::new();
+    reboot.set_prefs_path(path.clone());
+    assert_eq!(reboot.theme_preset, ThemePreset::Crush);
+    assert_eq!(reboot.theme.look.layout, LayoutStyle::Cards);
+    assert_eq!(reboot.layout_override, Some(LayoutStyle::Cards));
+}
+
+#[test]
 fn set_theme_persists_when_a_path_is_set() {
     use loomcoding_cloth::widgets::ThemePreset;
     let dir = tempfile::tempdir().unwrap();

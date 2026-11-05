@@ -27,6 +27,31 @@ fn crush_and_classic_commands_switch_the_look() {
 }
 
 #[test]
+fn layout_command_cycles() {
+    use loomcoding_cloth::widgets::LayoutStyle;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ui.toml");
+    let mut app = App::new();
+    app.set_prefs_path(path.clone());
+    assert_eq!(app.theme.look.layout, LayoutStyle::Workspace);
+    for (expected, feedback) in [
+        (LayoutStyle::ContextRail, "layout: rail"),
+        (LayoutStyle::Minimal, "layout: minimal"),
+        (LayoutStyle::Cards, "layout: cards"),
+        (LayoutStyle::ContextRail, "layout: rail"),
+    ] {
+        app.composer.set_text("/layout");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert_eq!(app.theme.look.layout, expected);
+        assert_eq!(app.slash_feedback.as_deref(), Some(feedback));
+        assert_eq!(crate::prefs::load_layout(&path), Some(expected));
+    }
+}
+
+#[test]
 fn agents_command_opens_a_popup_that_esc_closes() {
     let mut app = App::new();
     app.composer.set_text("/agents");

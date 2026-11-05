@@ -31,11 +31,30 @@ impl App {
         }
     }
 
+    /// Fija la disposición (`/layout`), la persiste si hay `prefs_path` y la aplica
+    /// al look actual. Un fallo al guardar no impide el cambio: se avisa en `slash_feedback`.
+    pub fn set_layout(&mut self, layout: loomcoding_cloth::widgets::LayoutStyle) {
+        self.layout_override = Some(layout);
+        self.theme.look.layout = layout;
+        self.slash_feedback = None;
+        if let Some(path) = &self.prefs_path {
+            if let Err(err) = crate::prefs::save_layout(path, layout) {
+                self.slash_feedback = Some(format!("Layout not saved: {err}"));
+            }
+        }
+    }
+
     /// Fija el fichero de preferencias y aplica el tema guardado en él, si lo hay.
     /// No vuelve a escribir el fichero al aplicarlo.
     pub fn set_prefs_path(&mut self, path: std::path::PathBuf) {
         if let Some(preset) = crate::prefs::load_theme(&path) {
             self.apply_theme(preset);
+        }
+        // La disposición es independiente del color: un layout guardado manda
+        // sobre el del preset, también si se ha cargado un tema.
+        if let Some(layout) = crate::prefs::load_layout(&path) {
+            self.layout_override = Some(layout);
+            self.theme.look.layout = layout;
         }
         // Se aplica sin marcar `mouse_capture_dirty`: el arranque ya usa este valor.
         if let Some(on) = crate::prefs::load_mouse(&path) {
@@ -88,6 +107,10 @@ impl App {
     pub(super) fn apply_theme(&mut self, preset: loomcoding_cloth::widgets::ThemePreset) {
         self.theme_preset = preset;
         self.theme = loomcoding_cloth::widgets::Theme::preset(preset);
+        // El preset trae su propio layout; el elegido por el usuario lo sustituye.
+        if let Some(layout) = self.layout_override {
+            self.theme.look.layout = layout;
+        }
         self.sync_all_tools();
     }
 

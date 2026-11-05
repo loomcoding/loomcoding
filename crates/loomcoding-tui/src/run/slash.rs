@@ -42,6 +42,14 @@ pub(super) fn execute_slash_command(
             confirm_theme(app);
             None
         }
+        Command::Layout => {
+            // Rota desde la disposición actual; el aviso conserva un fallo de guardado.
+            let next = app.theme.look.layout.next();
+            app.set_layout(next);
+            app.slash_feedback
+                .get_or_insert_with(|| format!("layout: {}", next.name()));
+            None
+        }
         Command::Temas => {
             app.open_temas();
             None

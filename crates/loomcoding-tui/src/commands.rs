@@ -9,6 +9,7 @@ pub enum Command {
     Queue,
     Tools,
     Theme,
+    Layout,
     Temas,
     Crush,
     Classic,
@@ -40,6 +41,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
     (Command::Queue, "/queue", "Manage pending prompts"),
     (Command::Tools, "/tools", "Inspect recent tool calls"),
     (Command::Theme, "/theme", "Cycle terminal color theme"),
+    (
+        Command::Layout,
+        "/layout",
+        "Cycle the screen layout (rail, minimal, cards)",
+    ),
     (
         Command::Temas,
         "/temas",

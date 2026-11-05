@@ -95,6 +95,9 @@ pub struct App {
     pub theme_preset: loomcoding_cloth::widgets::ThemePreset,
     /// Fichero donde se guardan las preferencias de la interfaz. `None` = no persistir.
     pub prefs_path: Option<std::path::PathBuf>,
+    /// Disposición elegida por el usuario (`/layout` o `ui.toml`). Si es `Some`,
+    /// manda sobre el layout del preset, también tras `/theme`.
+    pub layout_override: Option<loomcoding_cloth::widgets::LayoutStyle>,
     /// Captura del ratón (`/mouse`). Apagada, la terminal conserva su selección nativa.
     pub mouse_capture: bool,
     /// Hay un cambio de `mouse_capture` pendiente de aplicar al terminal.
@@ -391,6 +394,7 @@ impl App {
             theme: loomcoding_cloth::widgets::Theme::default_dark(),
             theme_preset: loomcoding_cloth::widgets::ThemePreset::Cloth,
             prefs_path: None,
+            layout_override: None,
             mouse_capture: true,
             mouse_capture_dirty: false,
             matrix_rain: loomcoding_cloth::widgets::matrix_rain::MatrixRain::default(),

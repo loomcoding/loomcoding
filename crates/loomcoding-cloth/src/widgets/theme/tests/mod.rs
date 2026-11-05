@@ -9,6 +9,7 @@ use crate::state::StyleToken;
 use ratatui::style::Color;
 
 mod adapt;
+mod layout;
 mod matrix;
 mod presets;
 mod tokens;

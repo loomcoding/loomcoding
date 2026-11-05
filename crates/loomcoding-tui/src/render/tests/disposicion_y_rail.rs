@@ -196,6 +196,21 @@ fn crush_without_width_for_the_rail_uses_the_whole_screen() {
 }
 
 #[test]
+fn minimal_and_cards_draw_no_rail() {
+    use loomcoding_cloth::widgets::LayoutStyle;
+    let mut app = crush_ctx();
+    // `MODEL` es el título del rail: lo pinta siempre, también con la sesión vacía.
+    assert!(buffer_of(&mut app, 120, 30).contains("MODEL"));
+    for layout in [LayoutStyle::Minimal, LayoutStyle::Cards] {
+        app.theme.look.layout = layout;
+        let content = buffer_of(&mut app, 120, 30);
+        assert!(!content.contains("MODEL"), "{layout:?} dibuja el rail");
+    }
+    app.theme.look.layout = LayoutStyle::ContextRail;
+    assert!(buffer_of(&mut app, 120, 30).contains("MODEL"));
+}
+
+#[test]
 fn toggle_sidebar_follows_the_look() {
     let mut app = crush_ctx();
     assert!(buffer_of(&mut app, 120, 30).contains("MODEL"));

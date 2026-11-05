@@ -54,7 +54,13 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     } else {
         draw_workspace_header(frame, rows[0], app);
     }
-    if app.theme.look.layout == LayoutStyle::ContextRail {
+    if matches!(
+        app.theme.look.layout,
+        LayoutStyle::Minimal | LayoutStyle::Cards
+    ) {
+        // Solo el transcript, a todo el ancho: sin rail, sidebar ni métricas.
+        draw_transcript(frame, rows[1], app, &mut panes);
+    } else if app.theme.look.layout == LayoutStyle::ContextRail {
         // Sin sidebar izquierdo ni métricas: el chat y, si hay ancho, el rail derecho.
         if rows[1].width >= 80 && !app.rail_hidden {
             let [chat, context] =
