@@ -10,7 +10,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use ratatui::Frame;
 
-mod chrome;
+pub(crate) mod chrome;
 use chrome::*;
 
 mod transcript;

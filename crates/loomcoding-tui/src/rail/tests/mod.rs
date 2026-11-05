@@ -11,6 +11,7 @@ use loomcoding_core::task::{TaskState, TaskStatus};
 use ratatui::backend::TestBackend;
 use ratatui::Terminal;
 
+mod capacidades;
 mod cost;
 mod layout;
 mod limpio;

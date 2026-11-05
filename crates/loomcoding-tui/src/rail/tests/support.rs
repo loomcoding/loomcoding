@@ -1,6 +1,17 @@
 //! Piezas comunes de los tests.
 
 use super::*;
+use ratatui::style::Style;
+
+/// Estilo del primer tramo del rail cuyo texto empieza por `inicio`.
+pub(super) fn estilo_de(app: &App, inicio: &str) -> Style {
+    rail_lines(app, 40)
+        .into_iter()
+        .flat_map(|line| line.spans)
+        .find(|span| span.content.starts_with(inicio))
+        .unwrap_or_else(|| panic!("falta el título {inicio:?} en el rail"))
+        .style
+}
 
 /// Subagente en marcha de la sesión 1 con el id interno `child`.
 pub(super) fn running(child: i64, label: &str) -> SubagentDescriptor {

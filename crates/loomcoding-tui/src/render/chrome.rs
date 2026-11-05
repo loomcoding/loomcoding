@@ -38,7 +38,9 @@ pub(super) fn workspace_header_height(app: &App) -> u16 {
         + u16::from(app.runtime_capabilities.is_some())
 }
 
-pub(super) fn capabilities_summary(app: &App) -> Option<Line<'static>> {
+/// Textos de MCP, LSP y skills, en ese orden. Los comparten la cabecera del espacio de trabajo
+/// y el rail, así que ambos dicen lo mismo con las mismas palabras.
+pub(crate) fn capabilities_parts(app: &App) -> Option<[String; 3]> {
     let capabilities = app.runtime_capabilities.as_ref()?;
     let mcp = match capabilities.mcp_config {
         crate::app::McpConfigState::Unknown => "MCP pending".to_owned(),
@@ -64,18 +66,25 @@ pub(super) fn capabilities_summary(app: &App) -> Option<Line<'static>> {
         (true, false) => "LSP rust-analyzer missing".to_owned(),
         (true, true) => "LSP rust-analyzer found".to_owned(),
     };
+    let skills = format!(
+        "skills {}/{} cards, {} scopes{}",
+        capabilities.available_skill_total,
+        capabilities.announced_skill_total,
+        capabilities.declared_skill_scope_total,
+        if capabilities.local_skill_loader_available {
+            ""
+        } else {
+            " · SKILL.md unavailable"
+        }
+    );
+    Some([mcp, lsp, skills])
+}
+
+/// Línea de capacidades de la cabecera del espacio de trabajo.
+pub(super) fn capabilities_summary(app: &App) -> Option<Line<'static>> {
+    let [mcp, lsp, skills] = capabilities_parts(app)?;
     Some(Line::from(Span::styled(
-        format!(
-            "   {mcp}  ·  {lsp}  ·  skills {}/{} cards, {} scopes{}",
-            capabilities.available_skill_total,
-            capabilities.announced_skill_total,
-            capabilities.declared_skill_scope_total,
-            if capabilities.local_skill_loader_available {
-                ""
-            } else {
-                " · SKILL.md unavailable"
-            }
-        ),
+        format!("   {mcp}  ·  {lsp}  ·  {skills}"),
         app.theme.styles.muted,
     )))
 }

@@ -263,3 +263,68 @@ fn rail_shows_metrics_second_line_for_a_subagent_with_stats() {
         rows[idx_tests + 1]
     );
 }
+
+#[test]
+fn finished_agent_takes_one_line_with_elapsed() {
+    let mut app = App::new();
+    app.session_id = Some(SessionId(1));
+    app.subagents.insert(
+        9,
+        SubagentDescriptor {
+            status: TaskStatus::new(TaskState::Completed),
+            ..running(9, "review")
+        },
+    );
+    // El tiempo sale de `finished_at`, no de «ahora»: el hijo acabó 7 s después de arrancar.
+    let inicio = Instant::now() - Duration::from_secs(60);
+    app.agent_stats.insert(
+        9,
+        AgentStats {
+            finished_at: Some(inicio + Duration::from_secs(7)),
+            ..stats(2, 5, Some("read_file"), 1_200, 300, Some(inicio))
+        },
+    );
+
+    let rows = rows_of(&app, 40, 24);
+    let idx = rows
+        .iter()
+        .position(|row| row.contains("review"))
+        .expect("el rail lista el subagente review");
+    assert!(
+        rows[idx].contains("7s"),
+        "falta el tiempo transcurrido del hijo terminado: {:?}",
+        rows[idx]
+    );
+    // La herramienta solo aparece en la línea de métricas; el título de Agents no la nombra.
+    assert!(
+        !rows.iter().any(|row| row.contains("read_file")),
+        "un hijo terminado conserva su línea de métricas: {rows:?}"
+    );
+}
+
+#[test]
+fn running_agent_keeps_its_metrics_line() {
+    let mut app = App::new();
+    app.session_id = Some(SessionId(1));
+    app.subagents.insert(9, running(9, "review"));
+    app.agent_stats.insert(
+        9,
+        stats(2, 5, Some("read_file"), 1_200, 300, Some(Instant::now())),
+    );
+
+    let rows = rows_of(&app, 40, 24);
+    let idx = rows
+        .iter()
+        .position(|row| row.contains("review"))
+        .expect("el rail lista el subagente review");
+    assert!(
+        rows[idx].contains("0s"),
+        "falta el tiempo transcurrido del hijo en marcha: {:?}",
+        rows[idx]
+    );
+    assert!(
+        rows[idx + 1].contains("2/5 read_file"),
+        "un hijo en marcha pierde su línea de métricas: {:?}",
+        rows[idx + 1]
+    );
+}

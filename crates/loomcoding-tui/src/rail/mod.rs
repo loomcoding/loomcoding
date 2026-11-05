@@ -82,6 +82,7 @@ pub fn draw_context_rail(frame: &mut Frame, area: Rect, app: &App) {
 fn rail_lines(app: &App, width: usize) -> Vec<Line<'_>> {
     let mut out: Vec<Line<'_>> = Vec::new();
     push_identity(&mut out, app, width);
+    push_tokens(&mut out, app, width);
     push_capabilities(&mut out, app, width);
     push_todos(&mut out, app);
     push_files(&mut out, app);

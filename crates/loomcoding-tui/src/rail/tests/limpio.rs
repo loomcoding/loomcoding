@@ -4,17 +4,7 @@ use super::support::*;
 use super::*;
 use loomcoding_core::event::LiveEvent;
 use loomcoding_core::todo::{TodoItem, TodoStatus};
-use ratatui::style::{Modifier, Style};
-
-/// Estilo del primer tramo del rail cuyo texto empieza por `inicio`.
-fn estilo_de(app: &App, inicio: &str) -> Style {
-    rail_lines(app, 40)
-        .into_iter()
-        .flat_map(|line| line.spans)
-        .find(|span| span.content.starts_with(inicio))
-        .unwrap_or_else(|| panic!("falta el título {inicio:?} en el rail"))
-        .style
-}
+use ratatui::style::Modifier;
 
 /// Rail con ficheros, herramienta, job, subagente y tareas de la sesión 1.
 fn rail_con_todo() -> App {
@@ -114,6 +104,64 @@ fn session_block_replaces_model_block() {
             "el rail aún muestra {prohibido:?}: {rows:?}"
         );
     }
+}
+
+#[test]
+fn tokens_block_moves_out_of_session() {
+    let mut app = App::with_context("/proj", "mistral-nemo");
+    app.session_id = Some(SessionId(1));
+    app.phase = "thinking".into();
+    app.input_tokens = 1200;
+    app.output_tokens = 300;
+
+    let rows = rows_of(&app, 40, 24);
+    let idx_session = rows
+        .iter()
+        .position(|row| row.contains("Session"))
+        .expect("falta el bloque Session");
+    let idx_fase = rows
+        .iter()
+        .position(|row| row.contains("thinking"))
+        .expect("falta la fase");
+    let idx_tokens = rows
+        .iter()
+        .position(|row| row.contains("Tokens"))
+        .expect("falta el bloque Tokens");
+    assert!(
+        idx_session < idx_fase && idx_fase < idx_tokens,
+        "Tokens no va justo tras Session: {rows:?}"
+    );
+    assert!(
+        rows[idx_session..idx_tokens]
+            .iter()
+            .all(|row| !row.contains('↑')),
+        "las cifras de tokens siguen bajo Session: {rows:?}"
+    );
+    assert!(
+        rows[idx_tokens + 1].contains("↑1200 ↓300"),
+        "la cifra de tokens no va bajo el título Tokens: {:?}",
+        rows[idx_tokens + 1]
+    );
+    assert_eq!(
+        estilo_de(&app, "Tokens"),
+        app.theme.styles.default.add_modifier(Modifier::BOLD),
+        "el título Tokens no va en negrita"
+    );
+}
+
+#[test]
+fn empty_tokens_block_is_not_drawn() {
+    let mut app = App::new();
+    app.session_id = Some(SessionId(1));
+    let rows = rows_of(&app, 40, 24);
+    assert!(
+        !rows.iter().any(|row| row.contains("Tokens")),
+        "sin tokens ni coste se pinta el bloque Tokens: {rows:?}"
+    );
+    assert!(
+        !rows.iter().any(|row| row.contains('↑')),
+        "sin tokens aparece una cifra ↑: {rows:?}"
+    );
 }
 
 #[test]

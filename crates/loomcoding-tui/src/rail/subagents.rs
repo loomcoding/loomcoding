@@ -56,10 +56,20 @@ pub(super) fn push_subagents<'a>(out: &mut Vec<Line<'a>>, app: &'a App, width: u
                 spans.push(Span::raw(" "));
             }
             spans.push(Span::raw(subagent.label.as_str()));
-            let line = Line::from(spans);
-            out.push(line);
-            // Segunda línea tenue con las métricas, solo si el hijo tiene estadísticas.
-            if let Some(stats) = app.agent_stats.get(&subagent.child.0) {
+            // Tiempo transcurrido al final de la primera línea, tenue. Sin arranque, no hay tiempo que dar.
+            let stats = app.agent_stats.get(&subagent.child.0);
+            if let Some(inicio) = stats.and_then(|stats| stats.started_at) {
+                let fin = stats.and_then(|stats| stats.finished_at).unwrap_or(ahora);
+                spans.push(Span::styled(
+                    format!(" {}", format_elapsed(fin.saturating_duration_since(inicio))),
+                    app.theme.styles.muted,
+                ));
+            }
+            out.push(Line::from(spans));
+            // Segunda línea tenue con las métricas, solo para los hijos en marcha y con estadísticas.
+            // Un hijo terminado ya muestra su tiempo en la primera línea y ocupa una sola.
+            let stats = stats.filter(|_| !subagent.status.state.is_terminal());
+            if let Some(stats) = stats {
                 let coste = child_cost_label(
                     app.child_cost(subagent.child),
                     app.child_cost_is_estimated(subagent.child),
