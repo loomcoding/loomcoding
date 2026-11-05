@@ -27,14 +27,26 @@ pub struct Symbol {
     pub signature: String,
 }
 
+/// Lo que se extrae de un fichero: definiciones y llamadas (nombre y línea).
+type FileFacts = (Vec<Symbol>, Vec<(String, u32)>);
+
+/// Uso (llamada) de un símbolo: ruta relativa y línea.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reference {
+    pub path: PathBuf,
+    pub line: u32,
+}
+
 pub struct SymbolIndex {
     defs: HashMap<String, Vec<Symbol>>,
+    refs: HashMap<String, Vec<Reference>>,
 }
 
 impl SymbolIndex {
     pub fn build(root: &Path) -> SymbolIndex {
         let mut index = SymbolIndex {
             defs: HashMap::new(),
+            refs: HashMap::new(),
         };
 
         let lang: tree_sitter::Language = tree_sitter_rust::LANGUAGE.into();
@@ -67,9 +79,17 @@ impl SymbolIndex {
                 Err(_) => continue,
             };
 
-            if let Some(symbols) = index.analyze_file(&src, relative_path, &query, &mut parser) {
+            if let Some((symbols, calls)) =
+                Self::analyze_file(&src, relative_path, &query, &mut parser)
+            {
                 for sym in symbols {
                     index.defs.entry(sym.name.clone()).or_default().push(sym);
+                }
+                for (name, line) in calls {
+                    index.refs.entry(name).or_default().push(Reference {
+                        path: relative_path.to_path_buf(),
+                        line,
+                    });
                 }
             }
         }
@@ -77,13 +97,13 @@ impl SymbolIndex {
         index
     }
 
+    /// Definiciones y llamadas (nombre y línea) de un fichero.
     fn analyze_file(
-        &self,
         src: &[u8],
         path: &Path,
         query: &Query,
         parser: &mut Parser,
-    ) -> Option<Vec<Symbol>> {
+    ) -> Option<FileFacts> {
         use streaming_iterator::StreamingIterator;
         use tree_sitter::QueryCursor;
 
@@ -93,20 +113,32 @@ impl SymbolIndex {
         let mut matches = cursor.matches(query, tree.root_node(), src);
 
         let mut symbols = Vec::new();
+        let mut calls: Vec<(String, u32)> = Vec::new();
 
         while let Some(m) = matches.next() {
             let mut name: Option<String> = None;
+            let mut name_line = 0u32;
+            let mut call = false;
             let mut def: Option<(&str, tree_sitter::Node)> = None;
 
             for c in m.captures {
                 let cap = query.capture_names()[c.index as usize];
                 if cap == "name" {
                     name = c.node.utf8_text(src).ok().map(str::to_string);
+                    name_line = c.node.start_position().row as u32 + 1;
+                } else if cap == "reference.call" {
+                    call = true;
                 } else if cap.starts_with("definition.") {
                     def = Some((cap, c.node));
                 }
             }
 
+            if call {
+                if let Some(name) = name.filter(|n| !n.is_empty()) {
+                    calls.push((name, name_line));
+                }
+                continue;
+            }
             let (Some(name), Some((cap, node))) = (name, def) else {
                 continue;
             };
@@ -160,11 +192,21 @@ impl SymbolIndex {
             !(s.kind == SymbolKind::Function && methods.contains(&(s.name.clone(), s.line)))
         });
 
-        if symbols.is_empty() {
+        if symbols.is_empty() && calls.is_empty() {
             None
         } else {
-            Some(symbols)
+            Some((symbols, calls))
         }
+    }
+
+    /// Llamadas conocidas a `name`, en el orden en que se recorrió el repositorio.
+    pub fn references(&self, name: &str) -> &[Reference] {
+        self.refs.get(name).map(|v| v.as_slice()).unwrap_or(&[])
+    }
+
+    /// Nombres con al menos una definición, para buscar por aproximación.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.defs.keys().map(String::as_str)
     }
 
     pub fn definitions(&self, name: &str) -> &[Symbol] {

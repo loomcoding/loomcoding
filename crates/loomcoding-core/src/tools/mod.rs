@@ -9,6 +9,7 @@ pub mod artifact_publish;
 pub mod artifact_read;
 pub mod ask_user;
 pub mod bash;
+pub mod context;
 pub mod development_workflow;
 pub mod edit;
 pub mod gauntlet;
@@ -303,6 +304,7 @@ pub fn project_registry(project_env: std::collections::HashMap<String, String>) 
     tools.register(Arc::new(write::WriteTool));
     tools.register(Arc::new(multiedit::MultiEditTool));
     tools.register(Arc::new(lsp::LspTool));
+    tools.register(Arc::new(context::ContextTool));
     tools.register(Arc::new(web::WebTool));
     tools.register(Arc::new(bash::ProjectBashTool::new(project_env)));
     tools.register(Arc::new(job_list::JobListTool));
@@ -326,7 +328,7 @@ mod tests {
     fn project_registry_exposes_the_expected_tools() {
         let registro = super::project_registry(std::collections::HashMap::new());
         let nombres: Vec<String> = registro.specs().into_iter().map(|s| s.name).collect();
-        assert_eq!(nombres.len(), 22, "{nombres:?}");
+        assert_eq!(nombres.len(), 23, "{nombres:?}");
         for esperada in [
             "bash",
             "edit",
@@ -334,6 +336,7 @@ mod tests {
             "artifact_read",
             "development_workflow",
             "gauntlet",
+            "context",
         ] {
             assert!(nombres.iter().any(|n| n == esperada), "falta {esperada}");
         }

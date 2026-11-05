@@ -115,7 +115,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | despertar-sin-tui (11-05) | hecho | `AgentLoop::run_until_settled` (`agent/settle.rs`) usado por `--print` mediante `run_print_turn`; incluye informe de turno sin respuesta, cancelación al desconectar y `StopReason::OutputLimit` |
 | mejorar-el-sistema-del-modelo-pequeno (11-05) | propuesta | método de experimentos (una variable cada vez) para ver cuánto rinde un modelo pequeño con mejor ciclo de verificación, edición y contexto estructural; sin plan ni código |
 | verificar-tras-editar (11-05) | propuesta | herramienta `check` y puerta de cierre: un turno que edita Rust no termina sin compilar; línea 1 del anterior; sin plan ni código |
-| contexto-estructural (11-05) | propuesta (con plan de 9 tareas) | herramienta `context` (símbolos, usos y pruebas en una llamada, índice sintáctico) y orientación previa en la oficina; línea 3 del método; sin plan ni código |
+| contexto-estructural (11-05) | en curso (tareas 0, 1, 4 y 5 hechas: índice, paquete y herramienta `context`; faltan PageRank, caché en disco, orientación previa y medición) | herramienta `context` (símbolos, usos y pruebas en una llamada, índice sintáctico) y orientación previa en la oficina; línea 3 del método; sin plan ni código |
 
 ## Dependencia vigilada: crossterm
 

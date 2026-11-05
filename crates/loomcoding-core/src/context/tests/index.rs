@@ -141,3 +141,25 @@ impl S {
     assert_eq!(defs[0].kind, SymbolKind::Method);
     assert_eq!(defs[0].line, 3);
 }
+
+#[test]
+fn records_call_references_with_file_and_line() {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("c.rs"),
+        "fn a() { b(); }
+fn b() {}
+fn c(x: S) { b(); x.metodo(); }
+",
+    )
+    .unwrap();
+    let index = SymbolIndex::build(dir.path());
+    let lines: Vec<u32> = index.references("b").iter().map(|r| r.line).collect();
+    assert_eq!(lines, vec![1, 3]);
+    assert_eq!(
+        index.references("b")[0].path,
+        std::path::PathBuf::from("c.rs")
+    );
+    assert_eq!(index.references("metodo").len(), 1);
+    assert!(index.references("inexistente").is_empty());
+}

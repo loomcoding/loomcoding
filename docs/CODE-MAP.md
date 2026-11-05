@@ -149,6 +149,19 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
    (`crates/loomcoding-core/src/agent/mod.rs`; incluye `StopReason::OutputLimit`); `--print` lo devuelve como
    error mediante `print_text` en `daemon.rs`.
 
+## Quiero tocar el contexto estructural
+
+1. Índice de símbolos de Rust (definiciones y llamadas, con `tree-sitter` y `context/tags.scm`):
+   `SymbolIndex::build` en `crates/loomcoding-core/src/context/index.rs`. El analizador y la consulta se crean
+   una vez; cada método se indexa una sola vez (`tags.scm` lo registra también como función).
+2. Caché por raíz con huella del árbol (nº de ficheros, última fecha, tamaño): `index_for` en
+   `context/cache.rs`; una edición durante el turno reconstruye el índice.
+3. Paquete acotado de un símbolo: `compose` y `PackOptions` en `context/pack.rs` (`MAX_CHARS_HARD`, usos,
+   pruebas, sección de `docs/CODE-MAP.md` que lo nombra).
+4. Herramienta del modelo: `ContextTool` en `crates/loomcoding-core/src/tools/context.rs`, registrada en
+   `project_registry` (`tools/mod.rs`). Pendiente del plan `docs/plans/2026-11-05-loomcoding-contexto-estructural.md`:
+   ordenación por PageRank (hoy: más usado primero), caché en disco y orientación previa en la oficina.
+
 ## Quiero añadir un umbral o ajuste en `[agents]`
 
 1. Campo `Option<...>` en `AgentsConfig` (`crates/loomcoding-core/src/config/mod.rs`); la clave del
