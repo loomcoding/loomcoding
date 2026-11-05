@@ -3,6 +3,7 @@ use crate::error::{CoreError, Result};
 use async_trait::async_trait;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 
 const BANNED: [&str; 3] = ["rm -rf /", "mkfs", ":(){"];
@@ -26,6 +27,30 @@ fn shell_description() -> &'static str {
     } else {
         "Run a shell command using sh -c. Params: command (string)."
     }
+}
+
+/// Mata el proceso y todos sus descendientes. `kill_on_drop` solo alcanza al proceso directo: el shell
+/// muere y su hijo (`cargo`, `ping`…) queda huérfano y vivo.
+pub(crate) async fn kill_tree(pid: Option<u32>) {
+    let Some(pid) = pid else { return };
+    #[cfg(windows)]
+    let mut killer = {
+        let mut killer = tokio::process::Command::new("taskkill");
+        killer.args(["/PID", &pid.to_string(), "/T", "/F"]);
+        killer
+    };
+    // En Unix el shell lidera su propio grupo de procesos (`process_group(0)` al lanzarlo).
+    #[cfg(not(windows))]
+    let mut killer = {
+        let mut killer = tokio::process::Command::new("kill");
+        killer.args(["-KILL", "--", &format!("-{pid}")]);
+        killer
+    };
+    let _ = killer
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
 }
 
 async fn run_command(
@@ -54,6 +79,8 @@ async fn run_command(
         process.arg("-c").arg(command);
         process
     };
+    #[cfg(unix)]
+    process.process_group(0);
     process
         .current_dir(&ctx.cwd)
         .kill_on_drop(true)
@@ -62,16 +89,33 @@ async fn run_command(
     if let Some(env) = project_env {
         process.env_clear().envs(env);
     }
-    let child = process
+    let mut child = process
         .spawn()
         .map_err(|e| CoreError::Tool(e.to_string()))?;
-    let out = tokio::select! {
-        out = child.wait_with_output() => out.map_err(|e| CoreError::Tool(e.to_string()))?,
-        _ = cancel.cancelled() => return Ok(super::ToolOutput::err("cancelled")),
+    let pid = child.id();
+    // El `child` debe seguir vivo mientras se mata el árbol: soltarlo antes mataría solo al shell y
+    // `taskkill /T` ya no encontraría a sus descendientes.
+    let (Some(mut stdout), Some(mut stderr)) = (child.stdout.take(), child.stderr.take()) else {
+        return Err(CoreError::Tool("child pipes unavailable".into()));
     };
-    let mut text = String::from_utf8_lossy(&out.stdout).to_string();
-    text.push_str(&String::from_utf8_lossy(&out.stderr));
-    if out.status.success() {
+    let (mut out_bytes, mut err_bytes) = (Vec::new(), Vec::new());
+    let status = tokio::select! {
+        result = async {
+            let (status, _, _) = tokio::join!(
+                child.wait(),
+                stdout.read_to_end(&mut out_bytes),
+                stderr.read_to_end(&mut err_bytes),
+            );
+            status
+        } => result.map_err(|e| CoreError::Tool(e.to_string()))?,
+        _ = cancel.cancelled() => {
+            kill_tree(pid).await;
+            return Ok(super::ToolOutput::err("cancelled"));
+        }
+    };
+    let mut text = String::from_utf8_lossy(&out_bytes).to_string();
+    text.push_str(&String::from_utf8_lossy(&err_bytes));
+    if status.success() {
         Ok(super::ToolOutput::ok(text))
     } else {
         Ok(super::ToolOutput::err(text))
@@ -131,7 +175,7 @@ impl Tool for ProjectBashTool {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::permission::PermissionService;
     use std::sync::Arc;
@@ -284,5 +328,57 @@ mod tests {
         let output = output.unwrap();
         assert!(output.content.contains("project-only"));
         assert!(!output.content.contains("host-secret"));
+    }
+
+    /// Cuántos procesos de la prueba siguen vivos (el comando lleva un plazo poco habitual, 37, que los distingue).
+    pub(crate) fn survivors() -> usize {
+        #[cfg(windows)]
+        let output = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "@(Get-CimInstance Win32_Process -Filter \"Name='PING.EXE'\" | Where-Object { $_.CommandLine -match '-n 37 ' }).Count",
+            ])
+            .output();
+        #[cfg(not(windows))]
+        let output = std::process::Command::new("sh")
+            .args(["-c", "pgrep -f 'sleep 37' | wc -l"])
+            .output();
+        let output = output.expect("no se pudo contar los procesos");
+        String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse()
+            .unwrap_or(0)
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_bash_call_leaves_no_process_alive() {
+        let dir = tempfile::tempdir().unwrap();
+        #[cfg(windows)]
+        let command = "ping -n 37 127.0.0.1 >nul";
+        #[cfg(not(windows))]
+        let command = "sleep 37";
+        let cancel = CancellationToken::new();
+        let token = cancel.clone();
+        let cwd = dir.path().to_path_buf();
+        let task = tokio::spawn(async move {
+            BashTool
+                .run(ctx(&cwd), serde_json::json!({ "command": command }), token)
+                .await
+        });
+        // Sin esperar a que arranque el proceso la prueba sería vacua: debe existir antes de cancelar.
+        let started = std::time::Instant::now();
+        while survivors() == 0 {
+            assert!(started.elapsed().as_secs() < 10, "el proceso nunca arrancó");
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        cancel.cancel();
+        let out = task.await.unwrap().unwrap();
+        assert!(out.is_error && out.content.contains("cancelled"));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while survivors() > 0 && std::time::Instant::now() < deadline {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        assert_eq!(survivors(), 0, "la cancelación dejó procesos vivos");
     }
 }

@@ -35,6 +35,13 @@ pub(super) async fn handle_client_command(
             }
         }
         ClientCommand::Session(command) => {
+            // Los comandos de sesión se encolan tras el turno en curso. La parada de emergencia no
+            // puede esperar: se cancela el turno ya y el trabajador cancela hijos y jobs al soltarlo.
+            if matches!(command, loomcoding_tui::run::SessionCommand::KillAll) {
+                if let Some(cancel) = entry.active_cancel.lock().unwrap().as_ref() {
+                    cancel.cancel();
+                }
+            }
             entry.commands.send(AgentCommand::Session(command)).await?
         }
         ClientCommand::ProviderSettings {

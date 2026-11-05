@@ -605,6 +605,15 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         }
         return None;
     }
+    // Parada de emergencia: cancela el turno (si lo hay), los hijos y los jobs. Dentro del panel de la
+    // cola, `Ctrl+X` conserva su significado de pausar la cola (rama de arriba).
+    if code == KeyCode::Char('x') && mods.contains(KeyModifiers::CONTROL) {
+        app.kill_all_requested = true;
+        if app.turn_in_flight {
+            app.request_cancel();
+        }
+        return None;
+    }
     if code == KeyCode::Tab {
         // Solo al pulsar Tab (nunca por pulsación de texto) y con la lista de agentes ya en memoria.
         let completado = crate::agent_command::complete_agent_name(

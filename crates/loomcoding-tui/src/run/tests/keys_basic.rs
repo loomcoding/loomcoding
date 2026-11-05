@@ -239,3 +239,46 @@ fn up_moves_the_cursor_when_multiline() {
     handle_key(&mut app, KeyCode::Up, KeyModifiers::NONE);
     assert_eq!(app.composer.cursor_row_col().0, 0);
 }
+
+#[test]
+fn ctrl_x_outside_the_queue_requests_a_kill_all() {
+    let mut app = App::new();
+    handle_key(&mut app, KeyCode::Char('x'), KeyModifiers::CONTROL);
+    assert!(app.kill_all_requested);
+    assert!(!app.queue_paused);
+    assert!(!app.should_quit);
+}
+
+#[test]
+fn ctrl_x_with_a_turn_running_also_cancels_it() {
+    let mut app = App::new();
+    app.turn_in_flight = true;
+    handle_key(&mut app, KeyCode::Char('x'), KeyModifiers::CONTROL);
+    assert!(app.kill_all_requested);
+    assert!(app.cancel_requested);
+}
+
+#[test]
+fn ctrl_x_inside_the_queue_keeps_pausing_the_queue() {
+    let mut app = App::new();
+    app.queue_open = true;
+    app.turn_in_flight = true;
+    handle_key(&mut app, KeyCode::Char('x'), KeyModifiers::CONTROL);
+    assert!(app.queue_paused);
+    assert!(app.cancel_requested);
+    assert!(
+        !app.kill_all_requested,
+        "dentro de la cola no es parada de emergencia"
+    );
+}
+
+#[test]
+fn a_kill_all_request_is_sent_once_as_a_session_command() {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let mut app = App::new();
+    app.kill_all_requested = true;
+    send_session_commands(&mut app, &tx);
+    send_session_commands(&mut app, &tx);
+    assert!(matches!(rx.try_recv(), Ok(SessionCommand::KillAll)));
+    assert!(rx.try_recv().is_err());
+}

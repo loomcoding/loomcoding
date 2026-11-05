@@ -105,13 +105,18 @@ impl Tool for JobStartTool {
                     } else {
                         ("sh", "-c")
                     };
-                    let mut child = tokio::process::Command::new(program)
+                    let mut process = tokio::process::Command::new(program);
+                    process
                         .arg(flag)
                         .arg(command)
                         .current_dir(cwd)
                         .kill_on_drop(true)
                         .stdout(std::process::Stdio::piped())
-                        .stderr(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
+                    // El shell lidera su propio grupo para poder matar también a sus descendientes.
+                    #[cfg(unix)]
+                    process.process_group(0);
+                    let mut child = process
                         .spawn()
                         .map_err(|e| CoreError::Tool(e.to_string()))?;
                     let (tx, mut rx) = mpsc::channel::<Vec<u8>>(8);
@@ -129,6 +134,7 @@ impl Tool for JobStartTool {
                                 handle.append(&String::from_utf8_lossy(&chunk));
                             },
                             _ = cancel.cancelled() => {
+                                super::bash::kill_tree(child.id()).await;
                                 let _ = child.kill().await;
                                 return Ok(None);
                             }
@@ -202,5 +208,52 @@ mod tests {
             .read(SessionId(12), &crate::job::JobId(id.into()), 0)
             .unwrap();
         assert!(output.text.contains("m2-job-test"));
+    }
+
+    #[tokio::test]
+    async fn killing_a_background_job_leaves_no_process_alive() {
+        use crate::tools::bash::tests::survivors;
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let ctx = ToolCtx {
+            cwd: std::env::current_dir().unwrap(),
+            store: None,
+            permission: Arc::new(PermissionService::allow_all()),
+            session: SessionId(13),
+            jobs: jobs.clone(),
+            bus: crate::event::EventBus::new(8),
+            subagents: None,
+        };
+        #[cfg(windows)]
+        let command = "ping -n 37 127.0.0.1 >nul";
+        #[cfg(not(windows))]
+        let command = "sleep 37";
+        let started = JobStartTool
+            .run(
+                ctx,
+                serde_json::json!({ "command": command }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        let id = crate::job::JobId(
+            started
+                .content
+                .split_whitespace()
+                .nth(3)
+                .unwrap()
+                .trim_end_matches('.')
+                .into(),
+        );
+        let began = std::time::Instant::now();
+        while survivors() == 0 {
+            assert!(began.elapsed().as_secs() < 10, "el proceso nunca arrancó");
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        jobs.kill(SessionId(13), &id).unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while survivors() > 0 && std::time::Instant::now() < deadline {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+        assert_eq!(survivors(), 0, "matar el job dejó procesos vivos");
     }
 }

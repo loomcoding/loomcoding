@@ -54,6 +54,10 @@ pub(super) async fn run_agent_worker(
                             .await;
                     }
                 }
+                loomcoding_tui::run::SessionCommand::KillAll => {
+                    // El aviso «emergency stop: N children, M jobs» lo publica el propio agente.
+                    agent.kill_everything(session).await;
+                }
                 loomcoding_tui::run::SessionCommand::CancelSubagent(child) => {
                     match agent.cancel_subagent(session, child).await {
                         Ok(descriptor) if !descriptor.status.state.is_terminal() => {

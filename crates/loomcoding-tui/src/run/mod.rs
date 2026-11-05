@@ -44,6 +44,8 @@ pub enum SessionCommand {
     Refresh,
     Select(SessionChoice),
     CancelSubagent(loomcoding_core::session::SessionId),
+    /// Parada de emergencia: cancela los hijos y los jobs de la sesión.
+    KillAll,
     /// Contesta la pregunta pendiente (`input-required`) de un hijo.
     AnswerSubagent(loomcoding_core::session::SessionId, String),
     /// Lanza un agente por orden directa de la persona usuaria (`/agent` o `@`).
@@ -414,6 +416,9 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
     }
     if let Some(choice) = app.session_choice.take() {
         let _ = tx.send(SessionCommand::Select(choice));
+    }
+    if std::mem::take(&mut app.kill_all_requested) {
+        let _ = tx.send(SessionCommand::KillAll);
     }
     if let Some(child) = app.cancel_subagent_requested.take() {
         let _ = tx.send(SessionCommand::CancelSubagent(child));

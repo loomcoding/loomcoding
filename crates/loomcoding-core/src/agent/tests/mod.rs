@@ -24,6 +24,7 @@ mod compaction_in_turn;
 mod delegation;
 mod exploration;
 mod handoff;
+mod kill;
 mod notices;
 mod reasoning;
 mod spill;

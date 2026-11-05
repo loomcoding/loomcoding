@@ -81,6 +81,8 @@ pub struct App {
     pub should_quit: bool,
     pub cancel_requested: bool,
     pub cancel_subagent_requested: Option<SessionId>,
+    /// Parada de emergencia pedida con `Ctrl+X` fuera del panel de la cola.
+    pub kill_all_requested: bool,
     /// Agente que la persona usuaria pidió lanzar con `/agent` o `@`; lo recoge el bucle para enviarlo.
     pub run_agent_requested: Option<crate::agent_command::AgentInvocation>,
     pub(crate) last_escape: Option<Instant>,
@@ -375,6 +377,7 @@ impl App {
             should_quit: false,
             cancel_requested: false,
             cancel_subagent_requested: None,
+            kill_all_requested: false,
             run_agent_requested: None,
             last_escape: None,
             cwd: String::new(),

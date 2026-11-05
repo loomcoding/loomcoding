@@ -426,3 +426,29 @@ fn the_snapshot_names_phase_and_health_of_each_subagent() {
     );
     assert_eq!(manager::subagent_lines(Vec::new()), "");
 }
+
+#[tokio::test]
+async fn a_kill_all_command_cancels_the_active_turn_without_waiting_for_the_queue() {
+    let directory = tempfile::tempdir().unwrap();
+    let project = directory.path().join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let store = Arc::new(
+        loomcoding_core::session::sqlite::SqliteStore::open(
+            directory.path().join("sessions.db").to_str().unwrap(),
+        )
+        .await
+        .unwrap(),
+    );
+    let entry = test_entry(&project, store).await;
+    let cancel = CancellationToken::new();
+    *entry.active_cancel.lock().unwrap() = Some(cancel.clone());
+
+    // La cola de comandos de la prueba no tiene lector: el envío falla, pero la cancelación ya se hizo.
+    let _ = crate::server::client::handle_client_command(
+        &entry,
+        ClientCommand::Session(loomcoding_tui::run::SessionCommand::KillAll),
+    )
+    .await;
+
+    assert!(cancel.is_cancelled());
+}
