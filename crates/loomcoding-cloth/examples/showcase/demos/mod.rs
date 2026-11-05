@@ -23,6 +23,7 @@ mod crush_thinking;
 mod crush_tool_call;
 mod crush_tool_renderers;
 mod dashboard;
+mod dashboard_clean;
 mod dotmax_spinners;
 mod dotmax_visual_lab;
 mod file_changes;
@@ -747,6 +748,27 @@ pub fn catalog() -> Vec<CatalogItem> {
             "Navigation rail",
             "Cloth · base",
             Box::new(sidebar::SidebarDemo::new()),
+        ),
+        item(
+            "Dashboard limpio",
+            "B · panel estrecho (por defecto)",
+            Box::new(dashboard_clean::CleanDashboardDemo::new(
+                dashboard_clean::Variant::Rail,
+            )),
+        ),
+        item(
+            "Dashboard limpio",
+            "A · sin panel, estado en una línea",
+            Box::new(dashboard_clean::CleanDashboardDemo::new(
+                dashboard_clean::Variant::Minimal,
+            )),
+        ),
+        item(
+            "Dashboard limpio",
+            "C · tarjeta de agentes",
+            Box::new(dashboard_clean::CleanDashboardDemo::new(
+                dashboard_clean::Variant::Cards,
+            )),
         ),
         item(
             "Context sidebar",
