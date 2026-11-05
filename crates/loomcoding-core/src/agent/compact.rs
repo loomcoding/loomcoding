@@ -283,6 +283,30 @@ pub fn should_compact(history: &[Message], system_bytes: usize, window: u64) -> 
     estimate_context_tokens(history, system_bytes) as f64 >= window as f64 * COMPACT_RATIO
 }
 
+/// Suelo del tope de salida cuando la ventana va justa: por debajo de esto la respuesta no serviría.
+pub const MIN_OUTPUT_TOKENS: u32 = 512;
+
+/// Holgura sobre la estimación local de entrada (`bytes / 4` se queda corta con código y español).
+const INPUT_ESTIMATE_MARGIN: f64 = 1.15;
+
+/// Tokens que se dejan libres además de la holgura proporcional.
+const OUTPUT_ROOM_SLACK: u64 = 256;
+
+/// Tope de salida que cabe en `window` tras la entrada estimada, sin pasar de `cap` ni bajar de
+/// `MIN_OUTPUT_TOKENS`.
+///
+/// Cabe señalar que un servidor local como llama-server o Strata rechaza la petición entera si
+/// `entrada + max_tokens` excede la ventana y nunca recorta; con una ventana de 32k y 8192 de salida
+/// reservados, un historial de 26k ya no cabía y el turno moría con un 400. Compactar no lo arregla
+/// si no hay corte posible, así que primero se encoge la reserva de salida.
+pub fn fit_output_cap(window: u64, estimated_input: u64, cap: u32) -> u32 {
+    let input = (estimated_input as f64 * INPUT_ESTIMATE_MARGIN) as u64;
+    let room = window
+        .saturating_sub(input)
+        .saturating_sub(OUTPUT_ROOM_SLACK);
+    (room.min(u64::from(cap)) as u32).max(MIN_OUTPUT_TOKENS.min(cap))
+}
+
 /// `true` si el error es el rechazo del proveedor por exceder la ventana de contexto: un `400` o
 /// `413` cuyo cuerpo menciona alguna de las fórmulas habituales («maximum context length»,
 /// «prompt is too long»…). Casi todas son las que se recuerdan de los proveedores, sin contrastarlas
@@ -503,6 +527,21 @@ mod tests {
         ];
         // Ancla 3000 + 200, más el mensaje de usuario posterior (400 bytes, 100 tokens).
         assert_eq!(estimate_context_tokens(&history, 0), 3300);
+    }
+
+    #[test]
+    fn fit_output_cap_makes_the_real_rejected_request_fit() {
+        // Caso real de Strata: 26331 tokens de entrada, 8192 de salida y ventana de 32768.
+        let fitted = fit_output_cap(32_768, 26_331, 8192);
+        assert!(fitted < 8192);
+        assert!(u64::from(fitted) + 26_331 <= 32_768, "no cabe: {fitted}");
+    }
+
+    #[test]
+    fn fit_output_cap_never_raises_the_cap_and_keeps_a_floor() {
+        assert_eq!(fit_output_cap(1_000_000, 100, 4096), 4096);
+        assert_eq!(fit_output_cap(1000, 5000, 4096), MIN_OUTPUT_TOKENS);
+        assert_eq!(fit_output_cap(1000, 5000, 100), 100);
     }
 
     #[test]

@@ -159,6 +159,11 @@ impl Provider for CapProvider {
 }
 
 async fn cap_seen(limits: LimitsConfig) -> Vec<u32> {
+    cap_seen_in(limits, None, "hi".into()).await
+}
+
+/// Como `cap_seen`, con una ventana de contexto conocida (catálogo) y un mensaje del tamaño que se quiera.
+async fn cap_seen_in(limits: LimitsConfig, window: Option<u64>, prompt: String) -> Vec<u32> {
     let provider = Arc::new(CapProvider {
         seen: Mutex::new(Vec::new()),
     });
@@ -189,8 +194,12 @@ async fn cap_seen(limits: LimitsConfig) -> Vec<u32> {
         dir.path().to_path_buf(),
     )
     .with_limits(limits);
+    let agent = match window {
+        Some(window) => agent.with_catalog(super::support::catalogo_de_ventana(window)),
+        None => agent,
+    };
     agent
-        .run(sid, "hi".into(), CancellationToken::new())
+        .run(sid, prompt, CancellationToken::new())
         .await
         .unwrap();
     let seen = provider.seen.lock().unwrap().clone();
@@ -209,4 +218,23 @@ async fn the_request_carries_the_configured_output_cap() {
         ..LimitsConfig::default()
     };
     assert_eq!(cap_seen(limits).await, vec![12345]);
+}
+
+#[tokio::test]
+async fn the_output_cap_shrinks_to_the_room_left_in_a_small_window() {
+    // Ventana de 6000 tokens y un mensaje de unos 1500: con 4096 de salida la petición no cabría.
+    let seen = cap_seen_in(LimitsConfig::default(), Some(6000), "x".repeat(6000)).await;
+    assert_eq!(seen.len(), 1);
+    assert!(seen[0] < 4096, "el tope debía encogerse, fue {}", seen[0]);
+    assert!(
+        seen[0] >= 512,
+        "nunca por debajo del suelo, fue {}",
+        seen[0]
+    );
+}
+
+#[tokio::test]
+async fn a_roomy_window_leaves_the_output_cap_alone() {
+    let seen = cap_seen_in(LimitsConfig::default(), Some(1_000_000), "hi".into()).await;
+    assert_eq!(seen, vec![4096]);
 }

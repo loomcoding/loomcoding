@@ -229,7 +229,7 @@ impl AgentLoop {
             if self.delegation == Some(crate::config::DelegationMode::Off) {
                 tools.retain(|tool| !DELEGATION_TOOLS.contains(&tool.name.as_str()));
             }
-            let req = ProviderRequest {
+            let mut req = ProviderRequest {
                 model: config.model.clone(),
                 system: system.clone(),
                 messages: clear::clear_old_tool_results(
@@ -250,6 +250,21 @@ impl AgentLoop {
             request_components
                 .sort_by(|left, right| (left.kind, &left.id).cmp(&(right.kind, &right.id)));
             let estimated_input = estimate_provider_request_tokens(&req);
+            // Con ventana conocida, el tope de salida cede ante una entrada grande: el servidor
+            // rechaza la petición entera si `entrada + max_tokens` excede el contexto.
+            if let Some(window) = window {
+                let fitted =
+                    compact::fit_output_cap(window, u64::from(estimated_input), req.max_tokens);
+                if fitted < req.max_tokens {
+                    self.bus.publish(LiveEvent::RuntimeNotice {
+                        message: format!(
+                            "output cap reduced from {} to {fitted} tokens to fit the context window",
+                            req.max_tokens
+                        ),
+                    });
+                    req.max_tokens = fitted;
+                }
+            }
             self.bus.publish(LiveEvent::ContextBreakdown {
                 request_id,
                 breakdown: compact::breakdown_request(&req.system, &req.messages, &req.tools),
