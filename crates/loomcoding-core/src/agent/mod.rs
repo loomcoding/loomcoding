@@ -28,6 +28,8 @@ mod entry;
 mod handoff;
 mod kill;
 pub use kill::KillReport;
+mod settle;
+pub use settle::{MAX_SETTLE_WAIT, MAX_WAKE_TURNS};
 mod step_limit;
 pub use handoff::HANDOFF_MAX_BYTES;
 mod subagents;

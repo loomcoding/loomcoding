@@ -28,6 +28,7 @@ mod kill;
 mod notices;
 mod output_limit;
 mod reasoning;
+mod settle;
 mod spill;
 mod step_limit;
 mod steps;
