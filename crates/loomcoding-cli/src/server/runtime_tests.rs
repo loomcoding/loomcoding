@@ -482,3 +482,28 @@ fn print_fails_loudly_when_the_turn_ended_without_an_answer() {
     assert!(text.contains("step limit"), "{text}");
     assert!(text.contains("4 work steps"), "{text}");
 }
+
+#[tokio::test]
+async fn the_print_turn_is_cancelled_when_the_client_disconnects() {
+    let (client, mut server) = tokio::io::duplex(64);
+    let cancel = CancellationToken::new();
+    let watcher = cancel.clone();
+    tokio::spawn(async move { daemon::cancel_on_disconnect(&mut server, watcher).await });
+    drop(client);
+    tokio::time::timeout(Duration::from_secs(2), cancel.cancelled())
+        .await
+        .expect("al cerrarse el cliente el turno debía cancelarse");
+}
+
+#[tokio::test]
+async fn a_connected_client_does_not_cancel_the_print_turn() {
+    let (_client, mut server) = tokio::io::duplex(64);
+    let cancel = CancellationToken::new();
+    let watcher = cancel.clone();
+    tokio::spawn(async move { daemon::cancel_on_disconnect(&mut server, watcher).await });
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert!(
+        !cancel.is_cancelled(),
+        "con el cliente conectado no se cancela"
+    );
+}

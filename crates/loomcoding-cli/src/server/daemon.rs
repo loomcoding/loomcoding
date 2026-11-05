@@ -314,10 +314,15 @@ where
                 let setup =
                     build_agent(&manager, cwd, ui, store.clone(), data_dir, yolo, false).await?;
                 let session = store.create_session(&setup.project).await?;
-                let outcome = setup
-                    .agent
-                    .run(session, prompt, CancellationToken::new())
-                    .await?;
+                let cancel = CancellationToken::new();
+                let turn = setup.agent.run(session, prompt, cancel.clone());
+                tokio::pin!(turn);
+                // Si el cliente desaparece nadie espera la respuesta: se cancela el turno en lugar
+                // de dejar al modelo generando solo (con un modelo local, GPU encendida para nada).
+                let outcome = tokio::select! {
+                    outcome = &mut turn => outcome?,
+                    _ = cancel_on_disconnect(reader, cancel.clone()) => turn.await?,
+                };
                 print_text(outcome)
             }
             .await;
@@ -446,4 +451,18 @@ pub(super) fn print_text(outcome: loomcoding_core::agent::TurnOutcome) -> anyhow
         Some(report) => Err(anyhow::anyhow!(report)),
         None => Ok(outcome.final_text),
     }
+}
+
+/// Espera a que el otro extremo cierre la conexión y entonces cancela `cancel`.
+///
+/// Cabe señalar que tras la petición `--print` el cliente no envía nada más: cualquier lectura
+/// que termine, por cierre o por error, significa que ya no hay nadie esperando la respuesta.
+pub(super) async fn cancel_on_disconnect<R>(reader: &mut R, cancel: CancellationToken)
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    use tokio::io::AsyncReadExt;
+    let mut byte = [0u8; 1];
+    let _ = reader.read(&mut byte).await;
+    cancel.cancel();
 }
