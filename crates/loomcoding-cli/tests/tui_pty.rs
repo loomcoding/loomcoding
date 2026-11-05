@@ -132,7 +132,7 @@ async fn large_multiline_paste_keeps_composer_alive() {
 #[tokio::test(flavor = "multi_thread")]
 async fn tiny_terminal_does_not_panic() {
     let s = Session::start("ok", 20, 60).await;
-    s.expect("CODEL", BOOT);
+    s.expect("loom", BOOT);
     s.shot("tiny");
     assert_eq!(
         s.term.exit_code(),

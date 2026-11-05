@@ -91,6 +91,14 @@ pub(super) fn execute_slash_command(
             confirm_mouse(app);
             None
         }
+        Command::Mascot => {
+            // Alterna el muñeco; el aviso conserva un fallo de guardado.
+            let on = !app.mascot;
+            app.set_mascot(on);
+            app.slash_feedback
+                .get_or_insert_with(|| format!("mascot: {}", if on { "on" } else { "off" }));
+            None
+        }
         Command::Verbose => {
             // El texto todavía contiene `/verbose ...`; nos quedamos con lo que sigue al nombre.
             let arg = verbose_arg

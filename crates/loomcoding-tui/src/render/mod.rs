@@ -16,6 +16,8 @@ use chrome::*;
 mod transcript;
 use transcript::*;
 
+mod mascot_strip;
+
 mod sidebar;
 use sidebar::*;
 

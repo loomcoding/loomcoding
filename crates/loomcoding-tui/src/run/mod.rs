@@ -197,11 +197,7 @@ pub async fn run(
     frames.drawn(Instant::now());
 
     while !app.should_quit {
-        let animating = (fx.is_some() && app.permission.is_some())
-            || app.matrix_rain.animating()
-            || app.thinking
-            || app.provider_in_flight > 0
-            || app.tools.iter().any(|tool| tool.is_spinning());
+        let animating = wants_clock(&app, fx.is_some(), Instant::now());
         let deadline = frames.deadline();
         tokio::select! {
             biased;
@@ -429,6 +425,18 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
     if let Some((child, text)) = app.answer_subagent_requested.take() {
         let _ = tx.send(SessionCommand::AnswerSubagent(child, text));
     }
+}
+
+/// Indica si el reloj de 50 ms debe seguir avanzando. Además de los efectos, la lluvia, el
+/// pensamiento, el proveedor y las herramientas que giran, cuenta el muñeco: mientras tenga
+/// postura que mostrar (también `Done` y `Fail`), el reloj corre, y al vencer se para solo.
+fn wants_clock(app: &App, fx_active: bool, now: Instant) -> bool {
+    (fx_active && app.permission.is_some())
+        || app.matrix_rain.animating()
+        || app.thinking
+        || app.provider_in_flight > 0
+        || app.tools.iter().any(|tool| tool.is_spinning())
+        || crate::mascot::pose_of(app, now).is_some()
 }
 
 #[cfg(test)]

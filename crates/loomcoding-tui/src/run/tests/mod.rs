@@ -14,6 +14,7 @@ mod block_navigation;
 mod commands_ui;
 mod dialogs;
 mod keys_basic;
+mod mascot_clock;
 mod mouse_and_selection;
 mod rail_and_focus;
 mod selection_and_quit;

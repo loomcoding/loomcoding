@@ -52,6 +52,30 @@ fn layout_command_cycles() {
 }
 
 #[test]
+fn mascot_command_toggles() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("ui.toml");
+    let mut app = App::new();
+    app.set_prefs_path(path.clone());
+    assert!(app.mascot);
+    for (expected, feedback) in [
+        (false, "mascot: off"),
+        (true, "mascot: on"),
+        (false, "mascot: off"),
+    ] {
+        app.composer.set_text("/mascot");
+        assert_eq!(
+            handle_key(&mut app, KeyCode::Enter, KeyModifiers::NONE),
+            None
+        );
+        assert_eq!(app.mascot, expected);
+        assert_eq!(app.slash_feedback.as_deref(), Some(feedback));
+        assert_eq!(crate::prefs::load_mascot(&path), Some(expected));
+        assert!(app.composer.is_empty());
+    }
+}
+
+#[test]
 fn agents_command_opens_a_popup_that_esc_closes() {
     let mut app = App::new();
     app.composer.set_text("/agents");

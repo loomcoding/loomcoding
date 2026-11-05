@@ -19,6 +19,7 @@ pub enum Command {
     Parent,
     Sidebar,
     Mouse,
+    Mascot,
     Verbose,
     Agent,
     Focus,
@@ -66,6 +67,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         Command::Mouse,
         "/mouse",
         "Toggle mouse capture (off: select text with the mouse)",
+    ),
+    (
+        Command::Mascot,
+        "/mascot",
+        "Toggle the status mascot (off: one text line)",
     ),
     (
         Command::Verbose,

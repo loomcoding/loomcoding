@@ -60,6 +60,10 @@ impl App {
         if let Some(on) = crate::prefs::load_mouse(&path) {
             self.mouse_capture = on;
         }
+        // El muñeco de estado (`/mascot`) está encendido por defecto.
+        if let Some(on) = crate::prefs::load_mascot(&path) {
+            self.mascot = on;
+        }
         // La lluvia parte de la config del tema y encima aplica el override
         // del usuario, si lo hay.
         let matrix = crate::prefs::load_matrix(&path, &self.theme.matrix);
@@ -83,6 +87,18 @@ impl App {
         if let Some(path) = &self.prefs_path {
             if let Err(err) = crate::prefs::save_mouse(path, on) {
                 self.slash_feedback = Some(format!("Mouse setting not saved: {err}"));
+            }
+        }
+    }
+
+    /// Fija si el muñeco de estado se dibuja (`/mascot`), lo persiste si hay `prefs_path`
+    /// y avisa en `slash_feedback` si el guardado falla, sin impedir el cambio.
+    pub fn set_mascot(&mut self, on: bool) {
+        self.mascot = on;
+        self.slash_feedback = None;
+        if let Some(path) = &self.prefs_path {
+            if let Err(err) = crate::prefs::save_mascot(path, on) {
+                self.slash_feedback = Some(format!("Mascot setting not saved: {err}"));
             }
         }
     }

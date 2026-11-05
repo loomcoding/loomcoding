@@ -16,6 +16,7 @@ use loomcoding_cloth::widgets::{LayoutStyle, ThemePreset};
 
 const THEME_KEY: &str = "theme";
 const MOUSE_KEY: &str = "mouse";
+const MASCOT_KEY: &str = "mascot";
 const SPINNER_KEY: &str = "spinner";
 const LAYOUT_KEY: &str = "layout";
 const MATRIX_GLYPHS_KEY: &str = "matrix_glyphs";
@@ -115,6 +116,21 @@ pub fn load_mouse(path: &Path) -> Option<bool> {
 /// Guarda la captura del ratón, conservando el resto de líneas del fichero.
 pub fn save_mouse(path: &Path, on: bool) -> io::Result<()> {
     save_value(path, MOUSE_KEY, if on { "true" } else { "false" })
+}
+
+/// Lee el muñeco de estado guardado (`mascot = true|false`). Cualquier otro
+/// valor, o la ausencia de la clave, produce `None` y se queda el de por defecto.
+pub fn load_mascot(path: &Path) -> Option<bool> {
+    load_value(path, MASCOT_KEY, |value| match value {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    })
+}
+
+/// Guarda si el muñeco de estado está encendido, conservando el resto de líneas.
+pub fn save_mascot(path: &Path, on: bool) -> io::Result<()> {
+    save_value(path, MASCOT_KEY, if on { "true" } else { "false" })
 }
 
 /// Lee el spinner guardado: un nombre de estilo, `"random"` o `"crush"`.
@@ -449,6 +465,25 @@ mod tests {
         let path = dir.path().join("ui.toml");
         std::fs::write(&path, "layout = \"tabla\"\n").unwrap();
         assert_eq!(load_layout(&path), None);
+    }
+
+    #[test]
+    fn mascot_pref_survives_a_save_and_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ui.toml");
+        assert_eq!(load_mascot(&path), None);
+
+        save_theme(&path, ThemePreset::Pawan).unwrap();
+        save_mouse(&path, false).unwrap();
+        for on in [false, true, false] {
+            save_mascot(&path, on).unwrap();
+            assert_eq!(load_mascot(&path), Some(on), "mascot {on}");
+        }
+        // Guardar el muñeco no toca el tema ni el ratón, y no duplica la clave.
+        assert_eq!(load_theme(&path), Some(ThemePreset::Pawan));
+        assert_eq!(load_mouse(&path), Some(false));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.matches("mascot").count(), 1);
     }
 
     #[test]

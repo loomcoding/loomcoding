@@ -102,6 +102,8 @@ pub struct App {
     pub mouse_capture: bool,
     /// Hay un cambio de `mouse_capture` pendiente de aplicar al terminal.
     pub mouse_capture_dirty: bool,
+    /// Muñeco de estado en la franja sobre el composer (`/mascot`). Apagado, queda una línea de texto.
+    pub mascot: bool,
     pub matrix_rain: loomcoding_cloth::widgets::matrix_rain::MatrixRain,
     pub animation: loomcoding_cloth::widgets::Anim,
     pub tools: VecDeque<loomcoding_cloth::state::ToolItem>,
@@ -397,6 +399,7 @@ impl App {
             layout_override: None,
             mouse_capture: true,
             mouse_capture_dirty: false,
+            mascot: true,
             matrix_rain: loomcoding_cloth::widgets::matrix_rain::MatrixRain::default(),
             animation: loomcoding_cloth::widgets::Anim::new(),
             tools: VecDeque::new(),

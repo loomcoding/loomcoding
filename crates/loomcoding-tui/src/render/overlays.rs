@@ -208,8 +208,8 @@ pub(super) fn draw_tool_inspector(frame: &mut Frame, area: Rect, app: &mut App) 
 
 pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width.min(78).saturating_sub(2);
-    // Diecinueve líneas de contenido más el marco; por eso el recuadro crece a 23 filas.
-    // Una fila más que antes: cabe la línea de `/layout` sin cortar la última.
+    // Veinte líneas de contenido más el marco; por eso el recuadro crece a 23 filas.
+    // La indicación de cierre va en el borde inferior: así cabe `/mascot` a 80×24 sin cortar nada.
     let height = area.height.min(24).saturating_sub(2);
     if width < 54 || height < 20 {
         draw_resize_hint(frame, area, "Keyboard shortcuts", app);
@@ -224,6 +224,10 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Clear, popup);
     let block = Block::default()
         .title(" CodeL∞M · Keyboard shortcuts ")
+        .title_bottom(Line::styled(
+            "Press F1 or Esc to close",
+            app.theme.styles.muted,
+        ))
         .borders(Borders::ALL)
         .border_type(ratatui::widgets::BorderType::Rounded)
         .border_style(app.theme.styles.border);
@@ -246,11 +250,11 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
             Line::from("/           Commands at start of composer"),
             Line::from("/theme      Cycle terminal color theme"),
             Line::from("/layout     Cycle the screen layout (rail, minimal, cards)"),
+            Line::from("/mascot     Toggle the status mascot (off: one text line)"),
             Line::from("F3          Switch or create session (when idle)"),
             Line::from("F2          Provider settings"),
             Line::from("Esc         Cancel turn; press twice to quit"),
             Line::from("Ctrl+C/Q    Quit"),
-            Line::styled("Press F1 or Esc to close", app.theme.styles.muted),
         ])
         .wrap(Wrap { trim: true }),
         inner,

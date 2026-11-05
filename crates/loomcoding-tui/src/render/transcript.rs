@@ -1,6 +1,7 @@
 //! Transcript y su canal de árbol: glifos, estilo y pintado de la conversación.
 
 use super::*;
+use std::time::Instant;
 
 /// Columnas del carril de árbol a la izquierda del texto: guía, filete y un hueco.
 pub(super) const TREE_GUTTER: u16 = 3;
@@ -210,6 +211,16 @@ pub(super) fn draw_transcript(
         Constraint::Length(composer_height),
     ])
     .split(inner);
+    // La franja del muñeco se apoya en la parte baja del transcript, sobre el composer. Si no
+    // cabe (el transcript conserva al menos tres filas), no se dibuja y todo queda como antes.
+    let braille = mascot_strip::braille_allowed();
+    let now = Instant::now();
+    let strip = mascot_strip::strip_rows(app, now, braille);
+    let strip = if rows[1].height > strip + 3 { strip } else { 0 };
+    let body = Rect {
+        height: rows[1].height - strip,
+        ..rows[1]
+    };
     app.composer_area = Some(rows[6]);
     panes.push((Focus::Composer, rows[6]));
     if !flat {
@@ -226,13 +237,8 @@ pub(super) fn draw_transcript(
         );
     }
     // El carril de árbol ocupa el borde izquierdo; el texto (y su selección) va a su derecha.
-    let gutter = tree_gutter(rows[1].width);
-    let texto = Rect::new(
-        rows[1].x + gutter,
-        rows[1].y,
-        rows[1].width - gutter,
-        rows[1].height,
-    );
+    let gutter = tree_gutter(body.width);
+    let texto = Rect::new(body.x + gutter, body.y, body.width - gutter, body.height);
     app.transcript_area = Some(texto);
     loomcoding_cloth::widgets::transcript::render(
         frame,
@@ -262,6 +268,10 @@ pub(super) fn draw_transcript(
         );
     }
     draw_tree_gutter(frame, texto, app);
+    if strip > 0 {
+        let franja = Rect::new(rows[1].x, rows[1].y + body.height, rows[1].width, strip);
+        mascot_strip::draw_strip(frame, franja, app, now, braille);
+    }
     if app.thinking {
         let line = app.reasoning.lines().last().unwrap_or("Thinking…");
         loomcoding_cloth::widgets::thinking::render(

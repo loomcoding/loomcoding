@@ -14,6 +14,7 @@ mod support;
 use support::*;
 mod cabecera_y_pie;
 mod disposicion_y_rail;
+mod franja_del_muneco;
 mod metricas_y_mcp;
 mod paneles_y_overlays;
 mod transcript_y_arbol;
