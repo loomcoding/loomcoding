@@ -38,7 +38,42 @@ fn var_or(name: &str, default: &str) -> String {
     std::env::var(name).unwrap_or_else(|_| default.to_string())
 }
 
-const BUILDER_PROFILE: &str = "---\nname: constructor\ndescription: Implementa la pieza pedida\n---\n\nEres el constructor. Haces exactamente lo que pide el objetivo, con ediciones pequeñas y sin borrar nada que no debas. Edita con `edit` o `multiedit`; no reescribas archivos existentes enteros ni crees ficheros auxiliares. No ejecutes `cargo`, `clippy` ni los tests tú mismo: el coordinador los ejecuta al acabar tu ronda y te devuelve su salida como brecha; léela y corrige exactamente eso. Cuando termines, di en un mensaje escrito qué cambiaste.\n";
+/// Entorno mínimo del `bash` de los hijos, el mismo criterio que `shell_env` del binario.
+///
+/// Cabe señalar que `bash` limpia el entorno y solo pasa lo que se le da: con un mapa vacío el
+/// constructor no encontraba `cargo` ni `powershell` y gastaba la ronda entera peleándose con el
+/// shell. `CARGO_TARGET_DIR` se hereda para que compile donde el resto de la prueba.
+fn shell_env() -> std::collections::HashMap<String, String> {
+    const SAFE: &[&str] = &[
+        "PATH",
+        "PATHEXT",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "SYSTEMDRIVE",
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "HOME",
+        "USER",
+        "USERNAME",
+        "LOGNAME",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "TERM",
+        "CARGO_HOME",
+        "RUSTUP_HOME",
+        "CARGO_TARGET_DIR",
+    ];
+    std::env::vars()
+        .filter(|(name, _)| SAFE.iter().any(|safe| name.eq_ignore_ascii_case(safe)))
+        .collect()
+}
+
+const BUILDER_PROFILE: &str = "---\nname: constructor\ndescription: Implementa la pieza pedida\n---\n\nEres el constructor. Haces exactamente lo que pide el objetivo, con ediciones pequeñas y sin borrar nada que no debas. Edita con `edit` o `multiedit`; no reescribas archivos existentes enteros ni crees ficheros auxiliares. Cuando termines, di en un mensaje escrito qué cambiaste.\n";
 
 const CRITIC_PROFILE: &str = "---\nname: critico\ndescription: Juzga dos candidatos a ciegas\n---\n\nEres un crítico independiente. Lees cada candidato UNA sola vez con `view` (dos lecturas en total) y juzgas solo lo que contienen. No uses `grep`, `bash` ni más lecturas: tras las dos lecturas respondes. Termina siempre con el objeto JSON que se te pide en la última línea; sin ese JSON tu trabajo no sirve.\n";
 
@@ -95,7 +130,7 @@ async fn gauntlet_against_a_local_server() {
         InProcessSubagentLauncher::new(
             Arc::new(RwLock::new(provider)),
             store.clone(),
-            Arc::new(project_registry(std::collections::HashMap::new())),
+            Arc::new(project_registry(shell_env())),
             Arc::new(PermissionService::allow_all()),
             Arc::new(RwLock::new(config)),
             cwd.clone(),
