@@ -78,6 +78,12 @@ pub fn map_openai_event(data: &str, acc: &mut ToolCallAcc) -> Vec<StreamChunk> {
         }));
         out.extend(cache_usage(u).map(StreamChunk::CacheUsage));
     }
+    // Un servidor puede avisar de un fallo a mitad de flujo con `{"error": ...}` y cerrar con
+    // `[DONE]`: sin esto el fallo pasaba por una parada normal y el turno quedaba vacío.
+    if let Some(error) = v.get("error").filter(|error| !error.is_null()) {
+        out.push(StreamChunk::Error(stream_error_text(error)));
+        return out;
+    }
     let Some(choices) = v.get("choices").and_then(|c| c.as_array()) else {
         return out;
     };
@@ -179,6 +185,26 @@ impl OpenAiCompatProvider {
 
 /// Cota del cuerpo de una respuesta de error que viaja en el mensaje (decálogo de contexto y coste).
 const MAX_ERROR_BODY_CHARS: usize = 512;
+
+/// Texto de un error recibido dentro del flujo, acotado por caracteres.
+fn stream_error_text(error: &serde_json::Value) -> String {
+    let text = match error {
+        serde_json::Value::String(text) => text.clone(),
+        serde_json::Value::Object(map) => {
+            let field = |name: &str| map.get(name).and_then(|value| value.as_str());
+            match (field("type"), field("message")) {
+                (Some(kind), Some(message)) => format!("{kind}: {message}"),
+                (None, Some(message)) => message.to_string(),
+                _ => error.to_string(),
+            }
+        }
+        other => other.to_string(),
+    };
+    format!(
+        "provider stream error: {}",
+        text.chars().take(MAX_ERROR_BODY_CHARS).collect::<String>()
+    )
+}
 
 /// `http {estado}: {cuerpo}`, con el cuerpo acotado por caracteres; sin cuerpo, solo `http {estado}`.
 pub(super) fn http_error_text(status: reqwest::StatusCode, body: &str) -> String {

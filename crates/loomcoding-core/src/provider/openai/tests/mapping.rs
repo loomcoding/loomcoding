@@ -98,3 +98,45 @@ fn assembles_tool_call_across_events() {
         Some(StreamChunk::Done(FinishReason::ToolCalls))
     ));
 }
+
+#[test]
+fn an_error_object_in_the_stream_becomes_an_error_chunk() {
+    let mut acc = ToolCallAcc::default();
+    let data = json!({"error":{"type":"server_error",
+        "message":"the engine stopped unexpectedly (exit code 3221226505)"}})
+    .to_string();
+    let chunks = map_openai_event(&data, &mut acc);
+    assert!(
+        matches!(chunks.as_slice(), [StreamChunk::Error(text)]
+            if text.contains("engine stopped unexpectedly") && text.contains("server_error")),
+        "{chunks:?}"
+    );
+}
+
+#[test]
+fn a_plain_string_error_in_the_stream_becomes_an_error_chunk() {
+    let mut acc = ToolCallAcc::default();
+    let chunks = map_openai_event(r#"{"error":"model unloaded"}"#, &mut acc);
+    assert!(
+        matches!(chunks.as_slice(), [StreamChunk::Error(text)] if text.contains("model unloaded"))
+    );
+}
+
+#[test]
+fn a_huge_stream_error_is_bounded() {
+    let mut acc = ToolCallAcc::default();
+    let data = json!({"error":{"message":"x".repeat(5000)}}).to_string();
+    let chunks = map_openai_event(&data, &mut acc);
+    let [StreamChunk::Error(text)] = chunks.as_slice() else {
+        panic!("se esperaba un único error: {chunks:?}");
+    };
+    assert!(text.chars().count() <= 600, "{}", text.chars().count());
+}
+
+#[test]
+fn a_null_error_field_is_not_an_error() {
+    let mut acc = ToolCallAcc::default();
+    let data = json!({"error":null,"choices":[{"delta":{"content":"hi"}}]}).to_string();
+    let chunks = map_openai_event(&data, &mut acc);
+    assert!(matches!(chunks.as_slice(), [StreamChunk::TextDelta(t)] if t == "hi"));
+}
