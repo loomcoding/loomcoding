@@ -40,14 +40,19 @@ herramienta de búsqueda en curso (`grep`, `glob`, `view`, `ls`) → `Hunt`; otr
 (solo los primeros 3 s); sin actividad → `None` (no hay franja).
 - [ ] Pruebas, una por regla, más `question_wins_over_a_running_tool` y `idle_has_no_mascot`.
 
-## Tarea 3 — Valores nuevos del `Look` y de los presets
+## Tarea 3 — Disposición como preferencia propia (`/layout`)
 
-**Ficheros:** `loomcoding-cloth/src/widgets/theme/look.rs`, `presets.rs`; `loomcoding-tui/src/render/mod.rs`.
-`LayoutStyle::{Minimal, Cards}` (los existentes no cambian). Los presets existentes siguen con su layout; se añade
-un preset **«Loomcoding»** si no existe ya con `ContextRail`, `ChromeStyle::Flat` y el composer de Crush, y dos
-variantes (`LoomcodingMinimal`, `LoomcodingCards`) que solo cambian el layout.
-- [ ] Pruebas: `/theme` recorre todos los presets sin perder el layout; `ui.toml` guarda y restaura cada uno.
-- [ ] `render/mod.rs`: `Minimal` y `Cards` se dibujan sin panel (de momento sin tarjeta ni muñeco).
+**Decisión (2026-11-05):** la disposición es una preferencia **independiente del color**, como `spinner` o `mouse`;
+no se crean presets nuevos. Ficheros: `loomcoding-cloth/src/widgets/theme/look.rs`; `loomcoding-tui/src/prefs.rs`,
+`app/prefs.rs`, `commands.rs`, `render/mod.rs`, `render/overlays.rs` (ayuda).
+**Produce:** `LayoutStyle::{Minimal, Cards}` (los existentes no cambian), con `name() -> &'static str`
+(`"rail"`, `"minimal"`, `"cards"`, `"workspace"`), `from_name(&str) -> Option<Self>` y `next(self) -> Self`
+(`ContextRail → Minimal → Cards → ContextRail`; `Workspace → ContextRail`); `prefs::{load_layout, save_layout}`
+(clave `layout` de `ui.toml`, mismo patrón que `spinner`); `App::set_layout`, que persiste; `Command::Layout`
+(`/layout`: rota y avisa del layout elegido). Un layout guardado manda sobre el del preset, también tras `/theme`.
+`Minimal` y `Cards` dibujan el transcript a todo el ancho, sin rail ni panel lateral (de momento sin tarjeta ni muñeco).
+- [ ] Pruebas: `layout_names_round_trip`, `next_cycles_rail_minimal_cards`, `layout_survives_a_save_and_load`,
+  `a_saved_layout_overrides_the_preset_look_after_theme_change`, `minimal_and_cards_draw_no_rail`, `layout_command_cycles`.
 
 ## Tarea 4 — Cabecera de una línea
 
