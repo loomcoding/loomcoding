@@ -138,9 +138,17 @@ con esquema `{query: string (obligatoria), budget?: integer}`.
 
 ### Task 6: Orientación previa en la oficina
 
-**Files:** `crates/loomcoding-core/src/config/` (sección `[context]`: `enabled: bool = false`,
-`max_chars: usize = 6000`); `agent/` (función nueva `orientation.rs`, enganche en `run_with_origin`);
-pruebas en `agent/tests/orientation.rs`.
+**Files:** `crates/loomcoding-core/src/config/orientation.rs` (fichero **nuevo**, exportado desde `config/mod.rs`);
+`crates/loomcoding-core/src/agent/orientation.rs` (**nuevo**, más `mod orientation;` en `agent/mod.rs`);
+enganche en `run_with_origin`; pruebas en `agent/tests/orientation.rs` (**nuevo**).
+
+**Alcance: solo `loomcoding-core`.** El cableado en `loomcoding-cli` lo hace quien revisa; no lo toques.
+
+**Configuración.** Struct propio `ContextConfig { enabled: bool = false, max_chars: usize = 6000 }` con
+`Default`, `from_toml(&str)` (lee la sección `[context]`; su ausencia da los valores por defecto) y `load(&Path)`,
+igual que `LimitsConfig` en `config/agent_limits.rs`. **No añadas campos a `LoomcodingConfig`** (se construye en
+unos 70 sitios) y **no confundas** este fichero con `config/context.rs`, que ya existe y es otra cosa.
+`AgentLoop::with_context_config(ContextConfig) -> Self` fija la configuración; por defecto, apagada.
 
 **Interfaces — Produces:** `pub(super) fn orientation_for(&self, prompt: &str) -> Option<String>`; devuelve
 `None` si está apagada o si el encargo no cita ninguna ruta ni símbolo que exista en el índice.
