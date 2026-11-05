@@ -211,14 +211,22 @@ pub(super) fn draw_transcript(
         Constraint::Length(composer_height),
     ])
     .split(inner);
+    // La tarjeta de agentes (solo en `Cards`) va entre el transcript y la franja del muñeco. Como
+    // esta, no se dibuja si no cabe: el transcript conserva al menos tres filas.
+    let card = agents_card::card_rows(app, rows[1].height);
+    let card = if rows[1].height > card + 3 { card } else { 0 };
     // La franja del muñeco se apoya en la parte baja del transcript, sobre el composer. Si no
     // cabe (el transcript conserva al menos tres filas), no se dibuja y todo queda como antes.
     let braille = mascot_strip::braille_allowed();
     let now = Instant::now();
     let strip = mascot_strip::strip_rows(app, now, braille);
-    let strip = if rows[1].height > strip + 3 { strip } else { 0 };
+    let strip = if rows[1].height - card > strip + 3 {
+        strip
+    } else {
+        0
+    };
     let body = Rect {
-        height: rows[1].height - strip,
+        height: rows[1].height - card - strip,
         ..rows[1]
     };
     app.composer_area = Some(rows[6]);
@@ -268,8 +276,17 @@ pub(super) fn draw_transcript(
         );
     }
     draw_tree_gutter(frame, texto, app);
+    if card > 0 {
+        let tarjeta = Rect::new(rows[1].x, rows[1].y + body.height, rows[1].width, card);
+        agents_card::draw_card(frame, tarjeta, app, rows[1].height);
+    }
     if strip > 0 {
-        let franja = Rect::new(rows[1].x, rows[1].y + body.height, rows[1].width, strip);
+        let franja = Rect::new(
+            rows[1].x,
+            rows[1].y + body.height + card,
+            rows[1].width,
+            strip,
+        );
         mascot_strip::draw_strip(frame, franja, app, now, braille);
     }
     if app.thinking {

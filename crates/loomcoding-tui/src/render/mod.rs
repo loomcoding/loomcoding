@@ -18,6 +18,8 @@ use transcript::*;
 
 mod mascot_strip;
 
+mod agents_card;
+
 mod sidebar;
 use sidebar::*;
 

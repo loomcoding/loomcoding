@@ -283,6 +283,8 @@ pub struct App {
     pub sidebar_expanded: bool,
     /// Oculta el rail derecho del layout `ContextRail` (look Crush).
     pub rail_hidden: bool,
+    /// Pliega la tarjeta de agentes del layout `Cards` (solo la cabecera).
+    pub agents_card_folded: bool,
     /// `true` when loading a session (shows loading spinner).
     /// Set after user makes a selection and before messages are loaded.
     pub session_loading: bool,
@@ -533,6 +535,7 @@ impl App {
             agents_status: None,
             sidebar_expanded: false,
             rail_hidden: false,
+            agents_card_folded: false,
         }
     }
 

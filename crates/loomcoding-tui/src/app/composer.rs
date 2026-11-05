@@ -179,13 +179,14 @@ impl App {
         Some(text)
     }
 
-    /// Alterna la visibilidad lateral: el rail con el layout `ContextRail` y
-    /// el sidebar izquierdo con el resto. Cada uno conserva su propio estado.
+    /// Alterna la visibilidad lateral: el rail con el layout `ContextRail`, la tarjeta de agentes
+    /// con `Cards` y el sidebar izquierdo con el resto. Cada uno conserva su propio estado.
     pub fn toggle_sidebar(&mut self) {
-        if self.theme.look.layout == loomcoding_cloth::widgets::LayoutStyle::ContextRail {
-            self.rail_hidden = !self.rail_hidden;
-        } else {
-            self.sidebar_expanded = !self.sidebar_expanded;
+        use loomcoding_cloth::widgets::LayoutStyle;
+        match self.theme.look.layout {
+            LayoutStyle::ContextRail => self.rail_hidden = !self.rail_hidden,
+            LayoutStyle::Cards => self.agents_card_folded = !self.agents_card_folded,
+            _ => self.sidebar_expanded = !self.sidebar_expanded,
         }
     }
 
