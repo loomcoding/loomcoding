@@ -42,6 +42,17 @@ pub enum StopReason {
     ReadBudget,
 }
 
+impl StopReason {
+    /// Nombre corto para avisos e informes.
+    pub fn label(self) -> &'static str {
+        match self {
+            StopReason::StepBudget => "the step limit",
+            StopReason::RepeatedToolCalls => "repeated tool calls",
+            StopReason::ReadBudget => "the read limit",
+        }
+    }
+}
+
 fn signature(m: &Message) -> Option<Vec<String>> {
     let calls: Vec<String> = m
         .parts

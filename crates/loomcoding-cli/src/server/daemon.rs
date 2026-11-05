@@ -318,7 +318,7 @@ where
                     .agent
                     .run(session, prompt, CancellationToken::new())
                     .await?;
-                Ok::<String, anyhow::Error>(outcome.final_text)
+                print_text(outcome)
             }
             .await;
             let response = result
@@ -436,5 +436,14 @@ where
             .await;
             None
         }
+    }
+}
+
+/// Texto que devuelve `--print`. Un turno sin respuesta final es un fallo, no un éxito vacío:
+/// quien lo lanza sin interfaz necesita saber qué tope lo cortó.
+pub(super) fn print_text(outcome: loomcoding_core::agent::TurnOutcome) -> anyhow::Result<String> {
+    match outcome.unfinished_report() {
+        Some(report) => Err(anyhow::anyhow!(report)),
+        None => Ok(outcome.final_text),
     }
 }

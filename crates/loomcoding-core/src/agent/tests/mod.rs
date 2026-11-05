@@ -30,6 +30,7 @@ mod reasoning;
 mod spill;
 mod step_limit;
 mod steps;
+mod stopped;
 mod system_prompt;
 mod turn;
 mod usage_records;

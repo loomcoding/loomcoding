@@ -1,4 +1,5 @@
 use super::*;
+use loomcoding_core::agent::TurnOutcome;
 use loomcoding_core::message::{FinishReason, Usage};
 use loomcoding_core::provider::{Capabilities, ProviderStream};
 
@@ -451,4 +452,33 @@ async fn a_kill_all_command_cancels_the_active_turn_without_waiting_for_the_queu
     .await;
 
     assert!(cancel.is_cancelled());
+}
+
+fn outcome(
+    final_text: &str,
+    stopped: Option<loomcoding_core::agent::stop::StopReason>,
+) -> TurnOutcome {
+    TurnOutcome {
+        session: SessionId(1),
+        final_text: final_text.into(),
+        steps: 4,
+        read_steps: 2,
+        stopped,
+    }
+}
+
+#[test]
+fn print_returns_the_final_text_when_there_is_one() {
+    let text = daemon::print_text(outcome("hecho", None)).unwrap();
+    assert_eq!(text, "hecho");
+}
+
+#[test]
+fn print_fails_loudly_when_the_turn_ended_without_an_answer() {
+    use loomcoding_core::agent::stop::StopReason;
+    let error = daemon::print_text(outcome("  ", Some(StopReason::StepBudget)))
+        .expect_err("un turno sin respuesta no es un éxito");
+    let text = error.to_string();
+    assert!(text.contains("step limit"), "{text}");
+    assert!(text.contains("4 work steps"), "{text}");
 }

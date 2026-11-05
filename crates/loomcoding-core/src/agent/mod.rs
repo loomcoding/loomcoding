@@ -109,6 +109,28 @@ pub struct TurnOutcome {
     pub steps: usize,
     /// Rondas de solo lectura, que tienen su propio tope.
     pub read_steps: usize,
+    /// Tope que cortó el turno, si lo hubo (cancelación y `hard_stop` no lo rellenan).
+    pub stopped: Option<stop::StopReason>,
+}
+
+impl TurnOutcome {
+    /// Informe de un turno que terminó sin respuesta final, o `None` si la hubo.
+    ///
+    /// Cabe señalar que quien lanza el agente sin interfaz solo ve este texto: callar el motivo
+    /// de la parada lo deja a ciegas.
+    pub fn unfinished_report(&self) -> Option<String> {
+        if !self.final_text.trim().is_empty() {
+            return None;
+        }
+        let cause = self.stopped.map_or(
+            "cancellation or an exhausted budget",
+            stop::StopReason::label,
+        );
+        Some(format!(
+            "the turn ended without a final answer: stopped by {cause} after {} work steps and {} read steps",
+            self.steps, self.read_steps
+        ))
+    }
 }
 
 pub struct AgentLoop {

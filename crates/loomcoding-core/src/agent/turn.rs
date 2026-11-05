@@ -55,6 +55,7 @@ impl AgentLoop {
         // Prórrogas concedidas al llegar a un tope: suben ese tope y nada más.
         let (mut extensions, mut extra_steps, mut extra_read_steps) = (0usize, 0usize, 0usize);
         let mut final_text = String::new();
+        let mut stopped = None;
         let mut compactions = 0usize;
         let mut compaction_failed = false;
         let mut tool_calls_this_turn = 0usize;
@@ -92,7 +93,10 @@ impl AgentLoop {
                         extra_read_steps += config.max_steps.max(1);
                     }
                 }
-                Some(_) => break,
+                Some(reason) => {
+                    stopped = Some(reason);
+                    break;
+                }
             }
             // Exploración atascada: tras muchas rondas de lectura seguidas se avisa al modelo una vez
             // (el aviso es un mensaje de usuario, así que rearma la cuenta).
@@ -712,6 +716,7 @@ impl AgentLoop {
             final_text,
             steps,
             read_steps,
+            stopped,
         })
     }
 }
