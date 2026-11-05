@@ -2,6 +2,7 @@
 //! postura dice qué hace el agente. Es un mock de diseño: los datos son de mentira.
 
 use crate::demo::Demo;
+use loomcoding_cloth::widgets::mascot::{mascot_frame, Pose};
 use loomcoding_cloth::widgets::{Anim, Theme};
 use ratatui::crossterm::event::KeyCode;
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -21,17 +22,6 @@ pub enum Variant {
     Cards,
 }
 
-/// Lo que hace el agente, y por tanto la postura del muñeco.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Pose {
-    Think,
-    Run,
-    Hunt,
-    Wait,
-    Done,
-    Fail,
-}
-
 const POSES: [(Pose, &str, &str); 6] = [
     (Pose::Think, "pensando", "razonando…"),
     (
@@ -44,160 +34,6 @@ const POSES: [(Pose, &str, &str); 6] = [
     (Pose::Done, "terminado", "ronda 2/3 · check verde"),
     (Pose::Fail, "fallido", "subagent reached its step limit"),
 ];
-
-/// Muñecos de 12×8 puntos (6×2 celdas braille). `#` es punto encendido.
-const RUN: [[&str; 8]; 4] = [
-    [
-        ".....##.....",
-        ".....##.....",
-        "....####....",
-        "...#.##.#...",
-        ".....##.....",
-        "....#..#....",
-        "...#....#...",
-        "..#......#..",
-    ],
-    [
-        ".....##.....",
-        ".....##.....",
-        "....####....",
-        "....#.##.#..",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "...#....#...",
-    ],
-    [
-        ".....##.....",
-        ".....##.....",
-        "....####....",
-        "...#.##.#...",
-        ".....##.....",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-    ],
-    [
-        ".....##.....",
-        ".....##.....",
-        "....####....",
-        "..#..##..#..",
-        ".....##.....",
-        "....#..#....",
-        "....#..#....",
-        "...#....#...",
-    ],
-];
-const THINK: [[&str; 8]; 2] = [
-    [
-        ".....##...#.",
-        ".....##..#.#",
-        "....####..#.",
-        "...#.##.#...",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "....#..#....",
-    ],
-    [
-        ".....##.....",
-        ".....##..#.#",
-        "....####.#.#",
-        "...#.##.#.#.",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "....#..#....",
-    ],
-];
-const WAIT: [[&str; 8]; 2] = [
-    [
-        ".....##..##.",
-        ".....##....#",
-        "....####..#.",
-        "....#.##....",
-        ".....##..#..",
-        ".....##.....",
-        "....#..#....",
-        "....#..#....",
-    ],
-    [
-        ".....##.....",
-        ".....##.....",
-        "....####....",
-        "....#.##....",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "....#..#....",
-    ],
-];
-const DONE: [[&str; 8]; 2] = [
-    [
-        "..#..##..#..",
-        "...#.##.#...",
-        "....####....",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "....#..#....",
-        "............",
-    ],
-    [
-        "............",
-        "..#..##..#..",
-        "...#.##.#...",
-        "....####....",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "...#....#...",
-    ],
-];
-const FAIL: [[&str; 8]; 1] = [[
-    "............",
-    "............",
-    "............",
-    "............",
-    "............",
-    "..##........",
-    ".####.#####.",
-    "..##..#...#.",
-]];
-
-/// Convierte un mapa de puntos de 12×8 en dos líneas de seis celdas braille.
-fn braille(bitmap: &[&str; 8]) -> [String; 2] {
-    // Bit de cada punto dentro de la celda: (columna, fila) → máscara Unicode braille.
-    const BIT: [[u32; 4]; 2] = [[0x01, 0x02, 0x04, 0x40], [0x08, 0x10, 0x20, 0x80]];
-    let mut rows = [String::new(), String::new()];
-    for (cell_row, out) in rows.iter_mut().enumerate() {
-        for cell_col in 0..6 {
-            let mut mask = 0u32;
-            for dx in 0..2 {
-                for dy in 0..4 {
-                    let line = bitmap[cell_row * 4 + dy].as_bytes();
-                    if line.get(cell_col * 2 + dx) == Some(&b'#') {
-                        mask |= BIT[dx][dy];
-                    }
-                }
-            }
-            out.push(char::from_u32(0x2800 + mask).unwrap_or(' '));
-        }
-    }
-    rows
-}
-
-/// Fotograma del muñeco para una postura y un reloj de 50 ms.
-fn sprite(pose: Pose, tick: u64) -> [String; 2] {
-    let step = (tick / 3) as usize;
-    match pose {
-        Pose::Run | Pose::Hunt => braille(&RUN[step % RUN.len()]),
-        Pose::Think => braille(&THINK[(step / 2) % THINK.len()]),
-        Pose::Wait => braille(&WAIT[(step / 3) % WAIT.len()]),
-        Pose::Done => braille(&DONE[(step / 2) % DONE.len()]),
-        Pose::Fail => braille(&FAIL[0]),
-    }
-}
 
 pub struct CleanDashboardDemo {
     variant: Variant,
@@ -307,7 +143,7 @@ impl Demo for CleanDashboardDemo {
         if self.mascot {
             let [mascot_area, text_area] =
                 Layout::horizontal([Constraint::Length(9), Constraint::Min(1)]).areas(rows[3]);
-            let [top, bottom] = sprite(pose, self.tick);
+            let [top, bottom] = mascot_frame(pose, self.tick);
             let paint = match pose {
                 Pose::Fail => s.error,
                 Pose::Done => s.success,
@@ -497,32 +333,4 @@ fn card_lines(theme: &Theme, width: u16) -> Vec<Line<'static>> {
             "9B · low    7.6k     12s",
         ),
     ]
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn braille_maps_dots_to_the_right_bits() {
-        let mut bitmap = ["............"; 8];
-        bitmap[0] = "#...........";
-        assert_eq!(braille(&bitmap)[0].chars().next(), Some('\u{2801}'));
-        bitmap[0] = ".#..........";
-        assert_eq!(braille(&bitmap)[0].chars().next(), Some('\u{2808}'));
-        bitmap[0] = "............";
-        bitmap[3] = "#...........";
-        assert_eq!(braille(&bitmap)[0].chars().next(), Some('\u{2840}'));
-    }
-
-    #[test]
-    fn every_pose_draws_two_lines_of_six_cells_and_running_moves() {
-        for (pose, _, _) in POSES {
-            for tick in [0, 3, 6, 9, 12] {
-                let [a, b] = sprite(pose, tick);
-                assert_eq!((a.chars().count(), b.chars().count()), (6, 6));
-            }
-        }
-        assert_ne!(sprite(Pose::Run, 0), sprite(Pose::Run, 3));
-    }
 }

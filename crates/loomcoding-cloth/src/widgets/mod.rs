@@ -22,6 +22,7 @@ pub mod key_help;
 #[cfg(feature = "links")]
 pub mod link;
 pub mod logo;
+pub mod mascot;
 pub mod matrix_rain;
 pub mod model_picker;
 pub mod panel;
@@ -54,6 +55,7 @@ pub use button::{button, button_row};
 pub use chip::chip;
 pub use composer::render as render_composer;
 pub use key_help::key_help;
+pub use mascot::{mascot_frame, Pose};
 pub use panel::{render as render_panel, Panel};
 pub use progress::{progress, progress_smooth};
 
