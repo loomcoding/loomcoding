@@ -23,6 +23,9 @@ regex = "1"
 ignore = "0.4"
 serde_yaml_bw = "2.5.8"
 sha2 = "0.10"
+streaming-iterator = "0.1"
+tree-sitter = "0.25"
+tree-sitter-rust = "0.24"
 
 [features]
 # Expone las suites de contrato (`transport::contract`) a otros crates, para sus pruebas.

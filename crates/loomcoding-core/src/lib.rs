@@ -7,6 +7,7 @@ pub mod capability;
 pub mod card;
 pub mod catalog;
 pub mod config;
+pub mod context;
 pub mod error;
 pub mod event;
 pub mod job;
