@@ -68,14 +68,29 @@ segunda línea de capacidades (MCP/LSP/skills, que ya muestra el rail). La cabec
   `flat_header_has_no_cwd_nor_capabilities_line`, `workspace_header_is_unchanged`; ajustar lo mínimo las que
   buscaban `CODEL∞M` o el directorio en la cabecera plana.
 
-## Tarea 5 — Rail adelgazado (B)
+## Tarea 5 — Rail adelgazado (B), primera parte: marco, títulos y duplicados
 
-**Ficheros:** `crates/loomcoding-tui/src/rail/mod.rs` y submódulos.
-Sin `Borders::LEFT`; títulos en negrita (`Agentes`, `Tokens`); bloques `Agentes`, `Tokens` y una línea de MCP/LSP;
-fuera `MODEL`, ruta y el resto de secciones que ya cubre la cabecera; **un bloque vacío no se pinta**.
-Cada fila de agente: glifo de estado (`◐ ○ ✓ ✗`), nombre, tiempo; si agrupa estados, el A2A original entre paréntesis.
-- [ ] Pruebas: `empty_blocks_are_not_drawn`, `no_left_border`, `agent_rows_show_glyph_name_and_elapsed`,
-  `a2a_state_is_named_in_parentheses`.
+**Ficheros:** `crates/loomcoding-tui/src/rail/mod.rs`, `identity.rs`, `text.rs` (`title`) y los bloques que llaman a
+`title` (`lists.rs`, `subagents.rs`, `capabilities.rs`); pruebas en `rail/tests/` y `render/tests/`.
+**Alcance acotado (2026-11-05):** el rail conserva sus bloques y su comportamiento (TODOS, ficheros, herramientas,
+jobs, subagentes con selección ↑/↓, capacidades); esta tarea solo cambia lo que lo satura sin quitar función.
+1. **Sin borde:** `draw_context_rail` no dibuja `Borders::LEFT`; deja dos columnas de aire a la izquierda
+   (`Padding`). El contenido sigue recortándose al área interior.
+2. **Títulos:** `title()` pinta en negrita con el estilo por defecto (no el acento) y los textos pasan de MAYÚSCULAS
+   a `Files`, `Tools`, `Jobs`, `Todos`, `Agents`, `Capabilities`. Un título nunca queda solo: si el bloque no
+   tiene filas, no se pinta (ya ocurre; las pruebas lo fijan).
+3. **Identidad sin duplicados:** la cabecera ya muestra marca, modelo y esfuerzo, así que el rail pierde el título
+   `LOOMCODING`, el directorio, el bloque `MODEL`, la línea de modelo y la de `effort`. Queda un bloque `Session`
+   con: recordatorio de `/parent` (solo dentro de un subagente), precios del modelo si el catálogo los conoce,
+   fase y tiempo, `step a/b` si hay, `↑in ↓out` y el coste si es mayor que cero.
+- [ ] Pruebas: `rail_has_no_left_border`, `titles_are_bold_and_not_uppercase`, `session_block_replaces_model_block`
+  (sin `LOOMCODING`, sin cwd, sin línea de modelo; con fase y tokens), `empty_blocks_draw_no_title`; ajustar lo mínimo las
+  que buscaban `MODEL`, `LOOMCODING`, el directorio o los títulos en mayúsculas (el marcador del rail pasa a ser `Session`).
+
+## Tarea 5b — Rail adelgazado, segunda parte (después de ver la 5 en pantalla)
+
+Fila de agente con glifo, nombre y tiempo en una sola línea; capacidades en una línea tenue (`MCP – · LSP …`)
+salvo avisos o errores; el medidor de coste/tokens como bloque `Tokens`. Se detalla tras revisar la Tarea 5.
 
 ## Tarea 6 — Franja del muñeco y preferencia `mascot`
 
