@@ -249,20 +249,24 @@ async fn wake_turns_are_capped() {
     let scripts: Vec<_> = (0..20).map(|n| text(&format!("t{n}"))).collect();
     let rig = rig(scripts, Some((true, true))).await;
     let (bus, sid) = (rig.bus.clone(), rig.sid);
-    tokio::spawn(async move {
-        for _ in 0..60 {
+    // Cabe señalar que el aviso no puede ser finito: bajo carga el consumidor agrupa los que
+    // encuentra en cola y, si se acabaran antes de los despertares pedidos, esperaría para siempre.
+    let publisher = tokio::spawn(async move {
+        loop {
             tokio::time::sleep(Duration::from_millis(15)).await;
             bus.publish(settled(sid, TaskState::Completed));
         }
     });
-    tokio::time::timeout(
+    let result = tokio::time::timeout(
         Duration::from_secs(20),
         rig.agent
             .run_until_settled(rig.sid, "hi".into(), CancellationToken::new()),
     )
-    .await
-    .expect("el tope de despertares debía cortar el bucle")
-    .unwrap();
+    .await;
+    publisher.abort();
+    result
+        .expect("el tope de despertares debía cortar el bucle")
+        .unwrap();
     let consulted = 20 - left(&rig);
     assert_eq!(consulted, 1 + MAX_WAKE_TURNS as usize);
 }
