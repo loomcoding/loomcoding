@@ -1,6 +1,6 @@
 # Contexto estructural: más contexto con menos llamadas
 
-Estado: propuesta (2026-11-05). Plan: pendiente. Es la línea 3 (con la 2 como segundo paso) de
+Estado: propuesta (2026-11-05). Plan: `docs/plans/2026-11-05-loomcoding-contexto-estructural.md`. Es la línea 3 (con la 2 como segundo paso) de
 `2026-11-05-loomcoding-mejorar-el-sistema-del-modelo-pequeno.md`. Complementa, sin sustituirla, a
 `2026-11-05-loomcoding-verificar-tras-editar.md` (línea 1).
 

@@ -114,7 +114,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | local-server-client-runtime (10-26) | hecho | es el «Runtime R1 a R6» de más arriba |
 | mejorar-el-sistema-del-modelo-pequeno (11-05) | propuesta | método de experimentos (una variable cada vez) para ver cuánto rinde un modelo pequeño con mejor ciclo de verificación, edición y contexto estructural; sin plan ni código |
 | verificar-tras-editar (11-05) | propuesta | herramienta `check` y puerta de cierre: un turno que edita Rust no termina sin compilar; línea 1 del anterior; sin plan ni código |
-| contexto-estructural (11-05) | propuesta | herramienta `context` (símbolos, usos y pruebas en una llamada, índice sintáctico) y orientación previa en la oficina; línea 3 del método; sin plan ni código |
+| contexto-estructural (11-05) | propuesta (con plan de 9 tareas) | herramienta `context` (símbolos, usos y pruebas en una llamada, índice sintáctico) y orientación previa en la oficina; línea 3 del método; sin plan ni código |
 
 ## Dependencia vigilada: crossterm
 
