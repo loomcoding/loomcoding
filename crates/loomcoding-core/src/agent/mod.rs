@@ -65,6 +65,9 @@ const DELEGATION_TOOLS: [&str; 6] = [
 /// agentes del registro y viaja en cada petición.
 const MAX_AGENT_SECTION_BYTES: usize = 8_000;
 
+/// Guía de paralelismo del prompt de sistema; solo va si el agente puede delegar. Cota: 400 bytes.
+pub(crate) const PARALLEL_GUIDANCE: &str = "When several reads or searches are independent, issue them together in the same response so they run in parallel. When a specialist agent is available for part of the work, delegate that part to it instead of doing everything yourself.";
+
 /// Tope del prompt propio de un agente (el cuerpo de su perfil), que se suma al contexto.
 /// Tope del prompt adicional del hijo: la persona del perfil, su separador y el prompt de skills, cada
 /// uno con su cota propia (véase `subagent::compose_child_system`), más la holgura del marcador de recorte

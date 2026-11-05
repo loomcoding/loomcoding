@@ -360,3 +360,73 @@ async fn request_clears_old_tool_results_but_store_keeps_them() {
     assert_eq!(stored.len(), 10);
     assert!(stored.iter().all(|c| c.len() == 3000));
 }
+
+/// Prompt de sistema de la primera petición de un agente con registro (puede delegar) y el modo dado.
+async fn system_with_delegation(mode: Option<crate::config::DelegationMode>) -> String {
+    let dir = tempfile::tempdir().unwrap();
+    let registro = Arc::new(crate::registry::AgentRegistry::new(vec![Box::new(
+        crate::registry::BuiltInSource,
+    )]));
+    let provider = Arc::new(SystemSpy {
+        seen: Mutex::new(Vec::new()),
+    });
+    let store = Arc::new(
+        SqliteStore::open(dir.path().join("s.db").to_str().unwrap())
+            .await
+            .unwrap(),
+    );
+    let sid = store.create_session("/p").await.unwrap();
+    let cfg = LoomcodingConfig {
+        provider: crate::config::ProviderConfig {
+            kind: crate::config::ProviderKind::OpenAiCompat,
+            base_url: "http://x".into(),
+            api_key_env: "K".into(),
+        },
+        model: "m".into(),
+        max_steps: 5,
+        effort: None,
+    };
+    let mut tools = ToolRegistry::new();
+    tools.register(Arc::new(crate::tools::subagent::SubagentTool));
+    let agent = AgentLoop::new(
+        provider.clone(),
+        store,
+        Arc::new(tools),
+        EventBus::new(64),
+        Arc::new(PermissionService::allow_all()),
+        cfg,
+        dir.path().to_path_buf(),
+    )
+    .with_agent_registry(registro)
+    .with_delegation_mode(mode);
+    agent
+        .run(sid, "hi".into(), CancellationToken::new())
+        .await
+        .unwrap();
+    let vistos = provider.seen.lock().unwrap();
+    vistos[0].clone()
+}
+
+#[tokio::test]
+async fn prompt_tells_the_model_to_batch_independent_reads() {
+    let system = system_with_delegation(None).await;
+    assert!(
+        system.contains(crate::agent::PARALLEL_GUIDANCE),
+        "falta la guía de paralelismo: {system}"
+    );
+    assert!(system.contains("same response"));
+}
+
+#[tokio::test]
+async fn delegation_hint_is_absent_when_delegation_is_off() {
+    let system = system_with_delegation(Some(crate::config::DelegationMode::Off)).await;
+    assert!(
+        !system.contains(crate::agent::PARALLEL_GUIDANCE),
+        "{system}"
+    );
+}
+
+#[test]
+fn parallel_guidance_stays_under_its_cap() {
+    assert!(crate::agent::PARALLEL_GUIDANCE.len() <= 400);
+}

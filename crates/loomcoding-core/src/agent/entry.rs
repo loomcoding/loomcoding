@@ -14,6 +14,13 @@ impl AgentLoop {
             let seccion = registro.snapshot().prompt_section(self.delegation_confirm);
             system.push_str(&limit_bytes(&seccion, MAX_AGENT_SECTION_BYTES));
         }
+        // Solo quien puede delegar recibe la guía de paralelismo y delegación.
+        if self.subagents_visibles().is_some() {
+            if !system.is_empty() {
+                system.push_str("\n\n");
+            }
+            system.push_str(PARALLEL_GUIDANCE);
+        }
         // Las reglas de `on_request` y `proactive` son persuasión del prompt, no una garantía.
         if let Some(regla) = self
             .delegation
