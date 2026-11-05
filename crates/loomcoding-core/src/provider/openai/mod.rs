@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 mod compat;
 mod responses;
 
+pub(crate) use compat::stream_error_text;
 pub use compat::{map_openai_event, OpenAiCompatProvider, ToolCallAcc};
 pub use responses::OpenAiResponsesProvider;
 

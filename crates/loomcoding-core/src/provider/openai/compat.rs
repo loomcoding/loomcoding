@@ -187,7 +187,7 @@ impl OpenAiCompatProvider {
 const MAX_ERROR_BODY_CHARS: usize = 512;
 
 /// Texto de un error recibido dentro del flujo, acotado por caracteres.
-fn stream_error_text(error: &serde_json::Value) -> String {
+pub(crate) fn stream_error_text(error: &serde_json::Value) -> String {
     let text = match error {
         serde_json::Value::String(text) => text.clone(),
         serde_json::Value::Object(map) => {

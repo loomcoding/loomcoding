@@ -110,6 +110,15 @@ pub fn map_anthropic_event(event: &str, data: &str, acc: &mut AnthropicAcc) -> V
         Ok(v) => v,
         Err(_) => return out,
     };
+    // Anthropic avisa de un fallo a mitad de flujo con `event: error`; algunos servidores compatibles
+    // solo mandan el cuerpo. Sin esto el turno quedaba vacío y nadie sabía qué había pasado.
+    if event == "error" || v["type"] == "error" {
+        let error = v.get("error").unwrap_or(&v);
+        out.push(StreamChunk::Error(
+            crate::provider::openai::stream_error_text(error),
+        ));
+        return out;
+    }
     match event {
         "content_block_start" => {
             let idx = v["index"].as_u64().unwrap_or(0) as usize;

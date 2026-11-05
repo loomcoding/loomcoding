@@ -131,3 +131,40 @@ fn maps_message_start_usage() {
         matches!(chunks.as_slice(), [StreamChunk::UsageUpdate(u)] if u.input_tokens == Some(12) && !u.final_update)
     );
 }
+
+#[test]
+fn an_error_event_becomes_an_error_chunk() {
+    let chunks = ev(
+        "error",
+        json!({"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}),
+    );
+    assert!(
+        matches!(chunks.as_slice(), [StreamChunk::Error(text)]
+            if text.contains("overloaded_error") && text.contains("Overloaded")),
+        "{chunks:?}"
+    );
+}
+
+#[test]
+fn an_error_payload_without_an_event_name_is_still_an_error() {
+    let chunks = ev(
+        "",
+        json!({"type":"error","error":{"type":"api_error","message":"the engine stopped"}}),
+    );
+    assert!(
+        matches!(chunks.as_slice(), [StreamChunk::Error(text)] if text.contains("the engine stopped")),
+        "{chunks:?}"
+    );
+}
+
+#[test]
+fn a_huge_anthropic_stream_error_is_bounded() {
+    let chunks = ev(
+        "error",
+        json!({"type":"error","error":{"type":"api_error","message":"x".repeat(5000)}}),
+    );
+    let [StreamChunk::Error(text)] = chunks.as_slice() else {
+        panic!("se esperaba un único error: {chunks:?}");
+    };
+    assert!(text.chars().count() <= 600, "{}", text.chars().count());
+}
