@@ -87,10 +87,22 @@ jobs, subagentes con selección ↑/↓, capacidades); esta tarea solo cambia lo
   (sin `LOOMCODING`, sin cwd, sin línea de modelo; con fase y tokens), `empty_blocks_draw_no_title`; ajustar lo mínimo las
   que buscaban `MODEL`, `LOOMCODING`, el directorio o los títulos en mayúsculas (el marcador del rail pasa a ser `Session`).
 
-## Tarea 5b — Rail adelgazado, segunda parte (después de ver la 5 en pantalla)
+## Tarea 5b — Rail adelgazado, segunda parte
 
-Fila de agente con glifo, nombre y tiempo en una sola línea; capacidades en una línea tenue (`MCP – · LSP …`)
-salvo avisos o errores; el medidor de coste/tokens como bloque `Tokens`. Se detalla tras revisar la Tarea 5.
+**Ficheros:** `crates/loomcoding-tui/src/rail/` (`mod.rs`, `identity.rs`, `capabilities.rs`, `subagents.rs`);
+pruebas en `rail/tests/` y `render/tests/`. **Decisión (2026-11-05):** la observabilidad de los agentes en marcha
+no se toca; solo se compacta lo que ya terminó o lo que no avisa de nada.
+1. **Capacidades en una línea tenue** (`MCP … · LSP … · skills …`, mismos textos que la cabecera antigua daba en
+   `capabilities_summary` de `render/chrome.rs`), sin título. Debajo, solo lo que avisa: una línea `! servidor: motivo`
+   por cada servidor MCP fallido o con incidencia, con el estilo de error. Fuera: la lista de servidores sanos y la de skills.
+2. **Fila de agente**: la primera línea (glifo de estado A2A, etiqueta, nombre) añade el tiempo transcurrido al final,
+   tenue (`format_elapsed`, desde `started_at` hasta `finished_at` o ahora). La segunda línea de métricas se conserva
+   **solo para agentes no terminales** (`!state.is_terminal()`); los terminados ocupan una línea.
+3. **Bloque `Tokens`** tras `Session`: `↑in ↓out` y el coste (si es mayor que cero) salen de `Session` y van aquí;
+   el bloque no se pinta si los tokens son cero y no hay coste.
+- [ ] Pruebas: `capabilities_are_one_muted_line`, `failed_mcp_server_keeps_an_error_line`,
+  `finished_agent_takes_one_line_with_elapsed`, `running_agent_keeps_its_metrics_line`,
+  `tokens_block_moves_out_of_session`, `empty_tokens_block_is_not_drawn`; ajustar lo mínimo las existentes.
 
 ## Tarea 6 — Franja del muñeco y preferencia `mascot`
 
