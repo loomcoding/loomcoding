@@ -222,7 +222,7 @@ async fn subagent_without_final_text_fails_instead_of_completing_empty() {
     let started = Instant::now();
     let snap = loop {
         let snap = s.term.snapshot();
-        if snap.text.contains("step limit") {
+        if snap.text.contains("read limit") {
             break snap;
         }
         if snap.text.contains("Permitir") {
@@ -240,7 +240,7 @@ async fn subagent_without_final_text_fails_instead_of_completing_empty() {
     s.shot("subagent-empty");
     // El texto se parte en dos filas, de ahí que se compruebe solo el principio del motivo.
     assert!(
-        snap.text.contains("(3/3) without a final"),
+        snap.text.contains("(12/12) without a final"),
         "falta el motivo del fallo con el límite:
 {}",
         snap.text

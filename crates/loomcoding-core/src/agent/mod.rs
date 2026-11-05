@@ -100,7 +100,10 @@ const MARCADOR_DE_RECORTE: usize = 64;
 pub struct TurnOutcome {
     pub session: SessionId,
     pub final_text: String,
+    /// Rondas que gastaron presupuesto de trabajo.
     pub steps: usize,
+    /// Rondas de solo lectura, que tienen su propio tope.
+    pub read_steps: usize,
 }
 
 pub struct AgentLoop {

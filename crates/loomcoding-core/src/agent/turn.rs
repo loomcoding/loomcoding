@@ -711,6 +711,7 @@ impl AgentLoop {
             session,
             final_text,
             steps,
+            read_steps,
         })
     }
 }

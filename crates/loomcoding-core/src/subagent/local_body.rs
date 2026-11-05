@@ -133,15 +133,24 @@ pub(super) fn cuerpo_local(ejecucion: EjecucionLocal) -> JobBody {
                 }
             };
             let steps = outcome.steps;
+            // Los hijos usan los topes por defecto: el de lectura es `4 × max_steps`.
+            let read_cap = crate::config::LimitsConfig::default().read_step_cap(child_max_steps);
+            let cut = if steps >= child_max_steps {
+                format!("step limit ({steps}/{child_max_steps})")
+            } else if outcome.read_steps >= read_cap {
+                format!("read limit ({}/{read_cap})", outcome.read_steps)
+            } else {
+                String::new()
+            };
             let mut text = outcome.final_text;
             if text.trim().is_empty() && !job_cancel.is_cancelled() && !parent_cancel.is_cancelled()
             {
                 // Traspaso: una petición sin herramientas para no perder lo que el hijo llevaba. Si el
                 // modelo contesta, el trabajo termina como parcial y el padre lo ve rotulado.
-                let why = if steps >= child_max_steps {
-                    format!("step limit ({steps}/{child_max_steps})")
-                } else {
+                let why = if cut.is_empty() {
                     format!("turn cut early after {steps} steps")
+                } else {
+                    cut.clone()
                 };
                 match child_agent.handoff_report(child, &why, &child_cancel).await {
                     Ok(report) if !report.trim().is_empty() => {
@@ -161,10 +170,8 @@ pub(super) fn cuerpo_local(ejecucion: EjecucionLocal) -> JobBody {
                 // El motivo importa: antes todo se reportaba como "sin respuesta
                 // final tras N pasos", que sonaba a presupuesto agotado incluso
                 // cuando el corte había sido por repetición de tool calls.
-                let reason = if steps >= child_max_steps {
-                    format!(
-                        "subagent reached its step limit ({steps}/{child_max_steps}) without a final response"
-                    )
+                let reason = if !cut.is_empty() {
+                    format!("subagent reached its {cut} without a final response")
                 } else {
                     format!(
                         "subagent produced no final response after {steps} steps \

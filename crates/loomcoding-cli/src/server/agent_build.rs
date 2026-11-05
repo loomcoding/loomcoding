@@ -166,8 +166,11 @@ pub(super) async fn build_agent(
     // Un valor inválido de `request_timeout_secs` se muestra como error de configuración al arrancar.
     let limits = loomcoding_core::config::ProviderLimitsConfig::load(&config_path)?;
     let request_timeout = crate::request_timeout_from_secs(limits.request_timeout_secs);
+    // Un `[limits]` inválido se muestra como error de configuración al arrancar.
+    let agent_limits = loomcoding_core::config::LimitsConfig::load(&config_path)?;
     let (provider, api_key_configured) =
         crate::build_provider_state(&cfg, &project_env, None, prompt_cache, request_timeout)?;
+    let provider = crate::limit_provider(provider, &agent_limits);
     let project = format!("{}#loomcoding-agent", cwd.display());
     let bus = loomcoding_core::event::EventBus::new(1024);
     let bus_rx = bus.subscribe();
@@ -286,6 +289,7 @@ pub(super) async fn build_agent(
         cfg.clone(),
         cwd.clone(),
     )
+    .with_limits(agent_limits)
     .with_catalog(catalog)
     .with_subagent_tools(mcp_tools)
     .with_profile_provider_resolver(profile_provider_resolver)

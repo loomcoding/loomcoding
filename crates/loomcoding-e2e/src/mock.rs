@@ -28,7 +28,7 @@ pub async fn mock_provider(reply: &str) -> MockServer {
 ///
 /// Cabe señalar que el padre se reconoce porque su petición ofrece la herramienta `subagent`
 /// (el hijo no la recibe): en su primer turno delega; en los siguientes, responde con `parent_reply`.
-/// El hijo pide `ls` sin descanso, de modo que agota `max_steps` sin producir respuesta.
+/// El hijo pide `ls` sin descanso, de modo que agota el tope de rondas de lectura (`4 × max_steps`) sin producir respuesta.
 struct SubagentScript {
     parent_reply: String,
 }

@@ -57,6 +57,17 @@ fn request_timeout_from_secs(secs: Option<u64>) -> Option<std::time::Duration> {
     secs.map(std::time::Duration::from_secs)
 }
 
+/// Envuelve el proveedor con el tope de peticiones simultáneas y el reintento ante 429 de `[limits]`.
+fn limit_provider(
+    provider: Arc<dyn Provider>,
+    limits: &loomcoding_core::config::LimitsConfig,
+) -> Arc<dyn Provider> {
+    Arc::new(loomcoding_core::provider::limited::LimitedProvider::new(
+        provider,
+        limits.max_concurrent_requests,
+    ))
+}
+
 fn build_provider(
     cfg: &LoomcodingConfig,
     project_env: &HashMap<String, String>,
@@ -196,6 +207,11 @@ fn apply_provider_settings(
         request_timeout,
     )
     .map_err(|error| error.to_string())?;
+    // Un fichero ilegible no impide guardar los ajustes: se usan los topes por defecto.
+    let provider = limit_provider(
+        provider,
+        &loomcoding_core::config::LimitsConfig::load(config_path).unwrap_or_default(),
+    );
     candidate
         .save(config_path)
         .map_err(|error| error.to_string())?;
@@ -740,6 +756,15 @@ a2a:
         assert_eq!(catalog.context_window("http://x/v1", "m"), Some(35_584));
         let sin = with_declared_window(Catalog::default(), &None);
         assert_eq!(sin.context_window("http://x/v1", "m"), None);
+    }
+
+    #[test]
+    fn a_limited_provider_keeps_the_capabilities_of_the_inner_one() {
+        let limited = limit_provider(
+            Arc::new(UnconfiguredProvider),
+            &loomcoding_core::config::LimitsConfig::default(),
+        );
+        assert!(!limited.capabilities().tool_use);
     }
 
     #[test]

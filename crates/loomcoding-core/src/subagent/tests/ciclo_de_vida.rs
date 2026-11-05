@@ -188,6 +188,83 @@ async fn child_at_step_limit_without_final_text_fails_instead_of_completing_empt
 }
 
 #[tokio::test]
+async fn a_child_that_only_reads_fails_naming_the_read_limit() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        SqliteStore::open(dir.path().join("read-limit.db").to_str().unwrap())
+            .await
+            .unwrap(),
+    );
+    let parent = store.create_session("/project").await.unwrap();
+    let provider: Arc<dyn Provider> = Arc::new(QueueProvider {
+        scripts: std::sync::Mutex::new(
+            (0..10)
+                .map(|n| {
+                    vec![
+                        StreamChunk::ToolCallComplete {
+                            id: format!("c{n}"),
+                            name: "echo".into(),
+                            input: serde_json::json!({"text": format!("inspect {n}")}),
+                        },
+                        StreamChunk::Done(FinishReason::ToolCalls),
+                    ]
+                })
+                .collect::<std::collections::VecDeque<_>>(),
+        ),
+    });
+    let mut tools = ToolRegistry::new();
+    tools.register(Arc::new(EchoTool));
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let runtime = InProcessSubagentLauncher::new(
+        Arc::new(RwLock::new(provider)),
+        store.clone(),
+        Arc::new(tools),
+        Arc::new(PermissionService::allow_all()),
+        Arc::new(RwLock::new(LoomcodingConfig {
+            provider: ProviderConfig {
+                kind: ProviderKind::OpenAiCompat,
+                base_url: "http://localhost".into(),
+                api_key_env: "KEY".into(),
+            },
+            model: "test".into(),
+            max_steps: 1,
+            effort: None,
+        })),
+        dir.path().to_path_buf(),
+        jobs.clone(),
+        EventBus::new(64),
+    );
+
+    let (child, job) = runtime
+        .start(
+            parent,
+            "review".into(),
+            "inspect files".into(),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let outcome = jobs.wait(parent, &job).await.unwrap();
+    assert_eq!(outcome.status, JobStatus::Failed);
+    espera_estado_del_hijo(&store, parent, child, TaskState::Failed).await;
+    let descriptor = store
+        .list_subagents(parent)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|descriptor| descriptor.child == child)
+        .unwrap();
+    assert_eq!(descriptor.status.state, TaskState::Failed);
+    assert!(descriptor
+        .status
+        .message_text()
+        .unwrap()
+        .contains("read limit (4/4)"));
+    assert_eq!(descriptor.result_text(), None);
+}
+
+#[tokio::test]
 async fn child_at_step_limit_hands_off_a_partial_report_instead_of_failing() {
     let dir = tempfile::tempdir().unwrap();
     let store = Arc::new(

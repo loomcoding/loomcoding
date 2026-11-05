@@ -6,6 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 pub mod anthropic;
 pub mod gemini;
+pub mod limited;
 pub mod openai;
 pub mod sse;
 
