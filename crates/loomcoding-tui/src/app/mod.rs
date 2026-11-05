@@ -279,6 +279,8 @@ pub struct App {
     /// Set after user makes a selection and before messages are loaded.
     pub session_loading: bool,
     pub provider_settings: Option<ProviderSettings>,
+    /// Niveles de esfuerzo declarados en `[provider] efforts`; solo valen si el catálogo no sabe los del modelo.
+    pub declared_efforts: Vec<String>,
     /// Catálogo de proveedores y modelos de models.dev. Vacío hasta que llega la carga en segundo plano.
     pub catalog: Arc<Catalog>,
     /// Registro de agentes, para `/agents`. `None` si el binario no lo cablea.
@@ -478,6 +480,7 @@ impl App {
             session_choice: None,
             session_loading: false,
             provider_settings: None,
+            declared_efforts: Vec::new(),
             catalog: Arc::new(Catalog::default()),
             agent_registry: None,
             refresh_agents_hook: None,

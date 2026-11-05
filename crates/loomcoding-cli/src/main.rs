@@ -742,6 +742,7 @@ a2a:
         let con = ProviderLimitsConfig {
             context_window: Some(35_584),
             request_timeout_secs: None,
+            efforts: Vec::new(),
         };
         assert_eq!(
             declared_window(&con, "http://x/v1", "m"),

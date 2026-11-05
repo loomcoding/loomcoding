@@ -9,6 +9,11 @@ impl App {
         self.provider_settings = Some(settings);
     }
 
+    /// Fija los niveles de esfuerzo declarados en la configuración (`[provider] efforts`).
+    pub fn set_declared_efforts(&mut self, efforts: Vec<String>) {
+        self.declared_efforts = efforts;
+    }
+
     /// Sustituye el catálogo por otro recién llegado de la carga en segundo plano.
     pub fn set_catalog(&mut self, catalog: Arc<Catalog>) {
         self.catalog = catalog;

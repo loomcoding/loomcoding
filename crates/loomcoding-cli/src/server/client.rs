@@ -437,6 +437,7 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let mut app = loomcoding_tui::app::App::with_context(cwd, model).with_ui_config(ui_config);
     app.use_product_default_view();
     app.set_provider_settings(settings);
+    app.set_declared_efforts(limits.efforts.clone());
     app.settings_api_key_configured = api_key_configured;
     if !api_key_configured {
         app.status = "API key missing · /settings".into();

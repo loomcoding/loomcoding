@@ -234,22 +234,28 @@ impl App {
     }
 
     /// Niveles de esfuerzo que admite el modelo de los ajustes, según el catálogo (proveedor
-    /// con la misma URL base y modelo con el mismo identificador). Vacío si no hay catálogo,
-    /// si el modelo no razona o si no publica niveles con nombre.
+    /// con la misma URL base y modelo con el mismo identificador) o, si el catálogo no publica niveles
+    /// con nombre, los declarados en `[provider] efforts`. Vacío si no hay ni unos ni otros.
     pub fn effort_options(&self) -> Vec<String> {
         let Some(settings) = &self.provider_settings else {
             return Vec::new();
         };
-        let Some(provider) = self.model_catalog_provider() else {
-            return Vec::new();
-        };
-        provider
-            .models
-            .iter()
-            .find(|model| model.id == settings.model)
+        let from_catalog = self
+            .model_catalog_provider()
+            .and_then(|provider| {
+                provider
+                    .models
+                    .iter()
+                    .find(|model| model.id == settings.model)
+            })
             .and_then(|model| model.reasoning.as_ref())
             .map(|reasoning| reasoning.efforts.clone())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        if from_catalog.is_empty() {
+            self.declared_efforts.clone()
+        } else {
+            from_catalog
+        }
     }
 
     /// `true` si `/settings` muestra el campo «Effort» (el modelo admite niveles).

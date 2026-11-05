@@ -7,12 +7,42 @@ pub const MAX_REQUEST_TIMEOUT_SECS: u64 = 3600;
 /// Claves opcionales `context_window` y `request_timeout_secs` de la sección `[provider]`, para quien usa
 /// servidores locales. Van en un cargador aparte, como `ProviderCacheConfig`, porque `ProviderConfig` se
 /// construye en muchos sitios; el resto de claves de `[provider]` se ignora.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ProviderLimitsConfig {
     /// Tokens por petición que el servidor procesa con holgura dentro del plazo. Sin valor, manda el catálogo.
     pub context_window: Option<u64>,
     /// Plazo total de cada petición del adaptador OpenAI-compatible, en segundos. Sin valor, rigen 120 s.
     pub request_timeout_secs: Option<u64>,
+    /// Niveles de esfuerzo que admite el modelo local, en el orden en que la TUI los ofrece (`none`, `low`,
+    /// `xhigh`…): el catálogo no conoce un servidor propio. Vacío, la TUI se atiene al catálogo.
+    pub efforts: Vec<String>,
+}
+
+/// Cuántos niveles de esfuerzo se pueden declarar como máximo (decálogo: toda lista tiene cota).
+pub const MAX_DECLARED_EFFORTS: usize = 16;
+
+/// Lee `efforts` de `[provider]`: lista de cadenas no vacías, como mucho `MAX_DECLARED_EFFORTS`.
+fn declared_efforts(provider: Option<&toml::Value>) -> Result<Vec<String>> {
+    let Some(value) = provider.and_then(|section| section.get("efforts")) else {
+        return Ok(Vec::new());
+    };
+    let invalid = || CoreError::Config("`efforts` must be a list of non-empty strings".into());
+    let list = value.as_array().ok_or_else(invalid)?;
+    if list.len() > MAX_DECLARED_EFFORTS {
+        return Err(CoreError::Config(format!(
+            "`efforts` must have at most {MAX_DECLARED_EFFORTS} levels, not {}",
+            list.len()
+        )));
+    }
+    list.iter()
+        .map(|item| {
+            item.as_str()
+                .map(str::trim)
+                .filter(|level| !level.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(invalid)
+        })
+        .collect()
 }
 
 /// Lee una clave entera estrictamente positiva de `[provider]`, con cota superior opcional. Su ausencia
@@ -55,6 +85,7 @@ impl ProviderLimitsConfig {
                 "request_timeout_secs",
                 Some(MAX_REQUEST_TIMEOUT_SECS),
             )?,
+            efforts: declared_efforts(provider)?,
         })
     }
 
@@ -109,6 +140,38 @@ mod tests {
                     .expect_err(&format!("{key} = {value} debía rechazarse"));
                 assert!(error.to_string().contains(key), "{key} = {value}: {error}");
             }
+        }
+    }
+
+    #[test]
+    fn declared_efforts_are_read_in_order_and_default_to_none() {
+        assert!(ProviderLimitsConfig::from_toml("")
+            .unwrap()
+            .efforts
+            .is_empty());
+        let text = "[provider]\nefforts = [\"none\", \"low\", \"xhigh\"]\n";
+        let limits = ProviderLimitsConfig::from_toml(text).unwrap();
+        assert_eq!(limits.efforts, ["none", "low", "xhigh"]);
+    }
+
+    #[test]
+    fn invalid_declared_efforts_name_their_key() {
+        let too_many = format!(
+            "[provider]\nefforts = [{}]\n",
+            (0..=MAX_DECLARED_EFFORTS)
+                .map(|n| format!("\"e{n}\""))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        for text in [
+            "[provider]\nefforts = \"high\"\n".to_string(),
+            "[provider]\nefforts = [1, 2]\n".to_string(),
+            "[provider]\nefforts = [\"\"]\n".to_string(),
+            "[provider]\nefforts = [\"  \"]\n".to_string(),
+            too_many,
+        ] {
+            let error = ProviderLimitsConfig::from_toml(&text).unwrap_err();
+            assert!(error.to_string().contains("efforts"), "{text}: {error}");
         }
     }
 

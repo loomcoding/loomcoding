@@ -694,3 +694,30 @@ fn initial_settings_take_effort_from_config() {
     let settings = ProviderSettings::from(&config);
     assert_eq!(settings.effort.as_deref(), Some("low"));
 }
+
+#[test]
+fn declared_efforts_fill_in_when_the_catalog_knows_no_levels() {
+    let mut app = App::new();
+    app.set_provider_settings(ProviderSettings {
+        kind: loomcoding_core::config::ProviderKind::OpenAiCompat,
+        model: "ornith-local".into(),
+        base_url: "http://127.0.0.1:8081/v1".into(),
+        api_key_env: "LLAMA_API_KEY".into(),
+        effort: None,
+    });
+    assert!(app.effort_options().is_empty());
+    assert!(!app.settings_effort_visible());
+
+    app.set_declared_efforts(vec!["none".into(), "low".into(), "xhigh".into()]);
+    assert_eq!(app.effort_options(), ["none", "low", "xhigh"]);
+    assert!(app.settings_effort_visible());
+    app.cycle_effort(true);
+    assert_eq!(effort_of(&app).as_deref(), Some("none"));
+}
+
+#[test]
+fn the_catalog_levels_win_over_the_declared_ones() {
+    let mut app = reasoning_app("claude-think");
+    app.set_declared_efforts(vec!["none".into()]);
+    assert_eq!(app.effort_options(), ["low", "medium", "high"]);
+}
