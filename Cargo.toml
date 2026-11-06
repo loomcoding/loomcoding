@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/loomcoding-core", "crates/loomcoding-tui", "crates/loomcoding-cli", "crates/loomcoding-herdr", "crates/loomcoding-cloth", "crates/loomcoding-a2a", "crates/loomcoding-mcp", "crates/loomcoding-e2e"]
+members = ["crates/loomcoding-core", "crates/loomcoding-tui", "crates/loomcoding-cli", "crates/loomcoding-herdr", "crates/loomcoding-cloth", "crates/loomcoding-a2a", "crates/loomcoding-mcp", "crates/loomcoding-e2e", "crates/loomcoding-workflows"]
 
 [workspace.package]
 version = "0.1.0"
