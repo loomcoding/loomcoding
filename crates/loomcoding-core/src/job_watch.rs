@@ -263,12 +263,19 @@ impl EventQueue {
     /// Devuelve el siguiente lote si ha pasado `BATCH_INTERVAL` desde el anterior. Las líneas que
     /// no caben en el lote se descartan y se cuentan como suprimidas.
     pub fn drain_batch(&mut self, now: Instant) -> Option<WatchBatch> {
+        self.drain_batch_with(now, BATCH_INTERVAL)
+    }
+
+    /// Como [`EventQueue::drain_batch`], pero con el intervalo mínimo que se exige entre lotes.
+    /// Un job asentado usa intervalo cero: ya no volverá a emitir líneas, así que su resto se
+    /// entrega en el aviso final en vez de quedarse retenido.
+    fn drain_batch_with(&mut self, now: Instant, interval: Duration) -> Option<WatchBatch> {
         let announce = self.limit_reached && !self.limit_announced;
         if self.lines.is_empty() && self.pending_suppressed == 0 && !announce {
             return None;
         }
         if let Some(last) = self.last_batch {
-            if now.saturating_duration_since(last) < BATCH_INTERVAL {
+            if now.saturating_duration_since(last) < interval {
                 return None;
             }
         }
@@ -332,8 +339,15 @@ impl Watch {
         self.closed = true;
     }
 
+    /// Devuelve el lote listo en `now`. Tras `finish` no hay intervalo que esperar: el resto del
+    /// job se entrega en cuanto se pide.
     pub fn drain(&mut self, now: Instant) -> Option<WatchBatch> {
-        self.queue.drain_batch(now)
+        let interval = if self.closed {
+            Duration::ZERO
+        } else {
+            BATCH_INTERVAL
+        };
+        self.queue.drain_batch_with(now, interval)
     }
 
     pub fn info(&self) -> WatchInfo {

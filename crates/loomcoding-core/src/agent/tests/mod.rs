@@ -37,3 +37,4 @@ mod system_prompt;
 mod temperature;
 mod turn;
 mod usage_records;
+mod watch_notices;

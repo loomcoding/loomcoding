@@ -20,7 +20,9 @@ impl App {
             Notice::Compaction { covers, body } => {
                 format!("{}\n{body}", compaction_label(covers))
             }
-            Notice::Job { .. } | Notice::SubagentInput { .. } => text.to_string(),
+            Notice::Job { .. } | Notice::JobWatch | Notice::SubagentInput { .. } => {
+                text.to_string()
+            }
             Notice::Subagent { label } => {
                 format!("[Subagent {label} completed; open its chat to read the response]")
             }
@@ -367,6 +369,8 @@ impl App {
                 &compaction_label(covers),
                 &body,
             ),
+            // Un lote de vigilancia no es un elemento de actividad: se pinta como línea de sistema.
+            Notice::JobWatch => return false,
         }
         true
     }

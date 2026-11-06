@@ -432,6 +432,24 @@ fn unparseable_notice_falls_back_to_a_plain_message() {
 }
 
 #[test]
+fn watch_batch_is_a_system_line_of_the_job_and_does_not_block_its_final_notice() {
+    let mut app = crush_app();
+    app.session_id = Some(SessionId(1));
+    app.apply(notice_for(
+        "[Job build-1 watch] FAIL uno\nwatch limit reached",
+    ));
+    assert!(heads(&app).is_empty());
+    assert!(!has_user_line(&app));
+    let lineas = texts(&app);
+    assert!(lineas.iter().any(|t| t == "[Job build-1 watch] FAIL uno"));
+    // Sin reconocerlo caería en el texto genérico de mensaje interno.
+    assert!(!lineas.iter().any(|t| t == "[Mensaje interno]"));
+    // El aviso de fin no se considera ya entregado por los lotes de vigilancia.
+    app.apply(notice_for("[Job build-1 completed] build\nok"));
+    assert_eq!(heads(&app).len(), 1);
+}
+
+#[test]
 fn compaction_summary_renders_as_a_notice_not_as_user_text() {
     use loomcoding_core::agent::compact::summary_message;
     let mut app = crush_app();

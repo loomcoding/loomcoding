@@ -38,6 +38,9 @@ pub(super) enum Notice<'a> {
         label: &'a str,
         body: &'a str,
     },
+    /// Lote de vigilancia de un job en marcha. Va como línea de sistema, con el actor «job» en
+    /// su cabecera; no abre ni cierra ningún elemento de actividad.
+    JobWatch,
     Subagent {
         label: &'a str,
     },
@@ -62,8 +65,8 @@ pub(super) fn compaction_label(covers: usize) -> String {
     }
 }
 
-/// Interpreta `[Job {id} {estado}] {etiqueta}\n{cuerpo}`,
-/// `[Subagent {etiqueta} completed]\n{cuerpo}` y el resumen de compactación
+/// Interpreta `[Job {id} {estado}] {etiqueta}\n{cuerpo}`, `[Job {id} watch] {líneas}` (lote de
+/// vigilancia), `[Subagent {etiqueta} completed]\n{cuerpo}` y el resumen de compactación
 /// `[Context summary: first {N} messages]\n{cuerpo}`. Devuelve `None` si el texto no
 /// encaja con ninguno de los formatos.
 pub(super) fn parse_notice(text: &str) -> Option<Notice<'_>> {
@@ -77,6 +80,10 @@ pub(super) fn parse_notice(text: &str) -> Option<Notice<'_>> {
         let (id, status) = (parts.next()?, parts.next()?);
         if parts.next().is_some() {
             return None;
+        }
+        // `[Job {id} watch] …`: lote de vigilancia de un job en marcha, no un estado terminal.
+        if status == "watch" {
+            return Some(Notice::JobWatch);
         }
         let status = match status {
             "completed" => loomcoding_cloth::state::ToolStatus::Success,

@@ -210,6 +210,41 @@ async fn finished_job_delivers_its_unterminated_rest_once() {
         .is_empty());
 }
 
+/// Un job que se asienta dentro del intervalo de un lote anterior no debe retener sus líneas
+/// pendientes: el aviso final es la última ocasión de entregarlas.
+#[tokio::test]
+async fn settled_job_pending_lines_are_not_held_by_the_interval() {
+    let registry = LocalJobRegistry::default();
+    let (go_tx, go_rx) = tokio::sync::oneshot::channel();
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+    let job = registry
+        .start(job_spec(
+            OWNER,
+            Some(spec("FAIL", 20)),
+            Box::new(move |handle, _| {
+                Box::pin(async move {
+                    handle.append("FAIL a\n");
+                    let _ = ready_tx.send(());
+                    let _ = go_rx.await;
+                    handle.append("FAIL b\n");
+                    Ok(None)
+                })
+            }),
+        ))
+        .unwrap();
+    ready_rx.await.unwrap();
+    let now = Instant::now();
+    let first = registry.take_watch_batches(OWNER, now);
+    assert_eq!(first[0].1.lines, vec!["FAIL a".to_string()]);
+
+    go_tx.send(()).ok();
+    registry.wait(OWNER, job.id()).await.unwrap();
+    // Dentro de los 5 s del lote anterior, pero el job ya está asentado.
+    let tail = registry.take_watch_batches(OWNER, now + Duration::from_secs(1));
+    assert_eq!(tail.len(), 1, "el resto de un job asentado debe salir ya");
+    assert_eq!(tail[0].1.lines, vec!["FAIL b".to_string()]);
+}
+
 #[tokio::test]
 async fn two_watched_jobs_keep_their_own_lines_and_limits() {
     let registry = LocalJobRegistry::default();
