@@ -33,6 +33,7 @@ mod model_effort;
 mod pointer;
 mod prefs;
 mod prompts;
+mod provider_command;
 mod providers_refresh;
 mod session;
 mod session_diff_state;
@@ -374,6 +375,9 @@ pub struct App {
     /// Selector de esfuerzo abierto con `/effort` sin argumento: índice de la fila resaltada
     /// (0 es «default»; `i + 1` es `effort_options()[i]`). `None` si está cerrado.
     pub quick_effort_picker: Option<usize>,
+    /// Selector de proveedores abierto con `/provider` sin argumento: se dibuja aparte de `/settings`
+    /// y al elegir fija el proveedor por el mismo camino de guardado que `/model`.
+    pub quick_provider_picker: bool,
     pub help_open: bool,
     /// Popup de `/agents` abierto, con el informe que mostraba el registro al abrirlo.
     pub agents_open: bool,
@@ -568,6 +572,7 @@ impl App {
             picker_selected: 0,
             quick_model_picker: false,
             quick_effort_picker: None,
+            quick_provider_picker: false,
             help_open: false,
             agents_open: false,
             agent_rows: Vec::new(),

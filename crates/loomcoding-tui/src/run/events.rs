@@ -109,6 +109,7 @@ pub fn handle_event(app: &mut App, ev: Event) -> Option<String> {
                 && !app.agents_open
                 && !app.tools_open
                 && !app.quick_model_picker
+                && !app.quick_provider_picker
                 && app.quick_effort_picker.is_none()
                 && app.permission.is_none()
                 && app.question.is_none() =>

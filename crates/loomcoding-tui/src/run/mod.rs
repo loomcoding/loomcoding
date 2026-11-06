@@ -33,6 +33,7 @@ mod effort_picker_keys;
 mod events;
 mod keys;
 mod model_picker_keys;
+mod provider_picker_keys;
 mod sidebar_keys;
 mod slash;
 
@@ -42,6 +43,7 @@ use effort_picker_keys::*;
 pub use events::*;
 pub use keys::*;
 use model_picker_keys::*;
+use provider_picker_keys::*;
 use slash::*;
 
 #[derive(serde::Serialize, serde::Deserialize)]

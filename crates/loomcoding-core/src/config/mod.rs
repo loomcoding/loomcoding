@@ -597,6 +597,31 @@ mod tests {
     }
 
     #[test]
+    fn guarda_y_relee_una_variable_de_clave_vacia() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("loomcoding.toml");
+        std::fs::write(
+            &path,
+            "model = \"old\"\n[provider]\nkind = \"openai_compat\"\nbase_url = \"http://127.0.0.1:8081/v1\"\napi_key_env = \"OLD_KEY\"\n",
+        )
+        .unwrap();
+        let config = LoomcodingConfig {
+            provider: ProviderConfig {
+                kind: ProviderKind::OpenAiCompat,
+                base_url: "http://127.0.0.1:8081/v1".into(),
+                api_key_env: String::new(),
+            },
+            model: "Ornith-1.5-9B".into(),
+            max_steps: 8,
+            effort: None,
+        };
+        config.save(&path).unwrap();
+        let loaded = LoomcodingConfig::load(&path).unwrap();
+        assert_eq!(loaded.provider.api_key_env, "");
+        assert_eq!(loaded.model, "Ornith-1.5-9B");
+    }
+
+    #[test]
     fn config_without_effort_still_loads() {
         let mut f = tempfile::NamedTempFile::new().unwrap();
         write!(f, r#"

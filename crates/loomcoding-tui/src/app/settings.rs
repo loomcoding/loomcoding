@@ -573,11 +573,18 @@ impl App {
                 Some("API key must be at most 4096 bytes and contain no control characters".into());
             return;
         }
+        // Un servidor de bucle local no pide clave, así que su variable puede quedar vacía.
+        let exige_variable = !loomcoding_core::config::is_loopback_url(&settings.base_url);
         if settings.model.trim().is_empty()
             || settings.base_url.trim().is_empty()
-            || settings.api_key_env.trim().is_empty()
+            || (exige_variable && settings.api_key_env.trim().is_empty())
         {
             self.settings_feedback = Some("Model, URL and API key variable are required".into());
+            return;
+        }
+        // Sin nombre de variable no hay dónde guardar la clave escrita.
+        if settings.api_key_env.is_empty() && !self.settings_api_key.is_empty() {
+            self.settings_feedback = Some("Name the API key variable to store this key".into());
             return;
         }
         self.settings_save_requested = true;

@@ -179,6 +179,10 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         handle_model_picker_key(app, code, mods);
         return None;
     }
+    if app.quick_provider_picker {
+        handle_provider_picker_key(app, code, mods);
+        return None;
+    }
     if app.quick_effort_picker.is_some() {
         handle_effort_picker_key(app, code);
         return None;

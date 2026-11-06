@@ -36,6 +36,19 @@ pub(super) fn execute_slash_command(
             return None;
         }
     }
+    // `/provider` decide igual que `/model`: con un rechazo, el texto escrito se conserva.
+    if command == Command::Provider {
+        let arg = typed.strip_prefix("/provider").map(str::trim).unwrap_or("");
+        let outcome = if arg.is_empty() {
+            app.open_provider_picker_now()
+        } else {
+            app.set_provider_now(arg)
+        };
+        if let Err(message) = outcome {
+            app.slash_feedback = Some(message);
+            return None;
+        }
+    }
     // `/effort` decide igual que `/model`: con un rechazo, el texto escrito se conserva.
     if command == Command::Effort {
         let arg = typed.strip_prefix("/effort").map(str::trim).unwrap_or("");
@@ -184,7 +197,9 @@ pub(super) fn execute_slash_command(
         }
         // Ya pedida arriba: el bucle la entrega al trabajador con `dispatch_compact`.
         // Ya resuelto arriba, antes de borrar el compositor.
-        Command::Compact | Command::Model | Command::Effort | Command::Ui => None,
+        Command::Compact | Command::Model | Command::Effort | Command::Provider | Command::Ui => {
+            None
+        }
         Command::Quit => handle_key(app, KeyCode::Char('q'), KeyModifiers::CONTROL),
         Command::Parent => {
             if !app.go_parent() {

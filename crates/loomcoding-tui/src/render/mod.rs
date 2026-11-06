@@ -34,6 +34,8 @@ mod effort_picker;
 use effort_picker::draw_effort_picker;
 mod model_picker;
 use model_picker::draw_model_picker;
+mod provider_picker;
+use provider_picker::draw_provider_picker;
 
 mod ui_root;
 
@@ -179,6 +181,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.quick_model_picker {
         draw_model_picker(frame, area, app);
+    }
+    if app.quick_provider_picker {
+        draw_provider_picker(frame, area, app);
     }
     if app.quick_effort_picker.is_some() {
         draw_effort_picker(frame, area, app);

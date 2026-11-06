@@ -168,6 +168,13 @@ fn config_from_provider_settings(
         return Err("Model cannot be empty".into());
     }
     loomcoding_core::config::validate_base_url(&candidate.provider.base_url)?;
+    // Un servidor de bucle local (llama-server) no pide clave: la variable puede quedar vacía.
+    // Para cualquier otra URL es obligatoria y debe ser un nombre de variable válido.
+    if candidate.provider.api_key_env.is_empty()
+        && loomcoding_core::config::is_loopback_url(&candidate.provider.base_url)
+    {
+        return Ok(candidate);
+    }
     let mut chars = candidate.provider.api_key_env.chars();
     if !chars
         .next()
@@ -622,6 +629,28 @@ mod tests {
         let mut invalid = settings;
         invalid.base_url = "https://".into();
         assert!(config_from_provider_settings(invalid, &current).is_err());
+    }
+
+    #[test]
+    fn la_variable_de_clave_puede_quedar_vacia_solo_en_bucle_local() {
+        let current = test_config();
+        let local = ProviderSettings {
+            kind: ProviderKind::OpenAiCompat,
+            model: "Ornith-1.5-9B".into(),
+            base_url: "http://127.0.0.1:8081/v1".into(),
+            api_key_env: String::new(),
+            effort: None,
+        };
+        let updated = config_from_provider_settings(local.clone(), &current)
+            .expect("un servidor de bucle local no pide clave");
+        assert_eq!(updated.provider.api_key_env, "");
+
+        let mut sin_bucle = local;
+        sin_bucle.base_url = "https://api.example.test/v1".into();
+        assert_eq!(
+            config_from_provider_settings(sin_bucle, &current).unwrap_err(),
+            "API key variable must be a valid environment variable name"
+        );
     }
 
     #[test]

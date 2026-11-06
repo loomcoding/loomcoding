@@ -20,6 +20,7 @@ mod logo_fx_command;
 mod mascot_clock;
 mod model_command;
 mod mouse_and_selection;
+mod provider_command;
 mod rail_and_focus;
 mod selection_and_quit;
 mod settings;
