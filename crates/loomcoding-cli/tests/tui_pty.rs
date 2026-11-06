@@ -286,6 +286,65 @@ async fn the_mascot_is_drawn_while_waiting_for_a_permission() {
     assert!(snap.text.contains("waiting"), "{}", snap.text);
 }
 
+/// Cabe señalar que el menú izquierdo solo existe con el layout `Workspace`, que no entra en el
+/// ciclo de `/layout`: se fija en `ui.toml` antes de arrancar. El intervalo mínimo (5 s) hace que el
+/// efecto del logo se dispare durante la prueba; el efecto concreto es aleatorio, así que solo se
+/// comprueba que la pantalla sigue viva y que el logo reaparece íntegro cuando la ráfaga acaba.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_left_menu_shows_the_logo_and_survives_its_effects() {
+    std::env::remove_var("NO_COLOR");
+    let provider = mock_provider("hola").await;
+    let ws = Workspace::new(&provider.uri()).unwrap();
+    std::fs::write(
+        ws.home.path().join(".loomcoding").join("ui.toml"),
+        "layout = \"workspace\"
+logo_fx_interval = 5
+",
+    )
+    .unwrap();
+    let term = Term::spawn(TermConfig {
+        program: PathBuf::from(env!("CARGO_BIN_EXE_loomcoding")),
+        args: vec![],
+        cwd: ws.project.path().to_path_buf(),
+        env: ws.env(),
+        rows: 40,
+        cols: 130,
+    })
+    .unwrap();
+    let s = Session { term, ws, provider };
+    let snap = s.expect(READY, BOOT);
+    s.shot("left-menu-idle");
+    assert!(
+        snap.text.contains("█▄▄"),
+        "falta el logo LOOM:
+{}",
+        snap.text
+    );
+    assert!(snap.text.contains("loomcoding"), "{}", snap.text);
+    for viejo in ["FLOCK", "AGENT", "SESSION", "PROJECT"] {
+        assert!(
+            !snap.text.contains(viejo),
+            "queda `{viejo}`:
+{}",
+            snap.text
+        );
+    }
+    // Espera a que pase al menos una ráfaga (5 s de intervalo + hasta 3 s de efecto).
+    std::thread::sleep(Duration::from_secs(9));
+    assert!(
+        s.term.exit_code().is_none(),
+        "la TUI murió durante el efecto"
+    );
+    s.shot("left-menu-after-effect");
+    let snap = s.term.snapshot();
+    assert!(
+        snap.text.contains("█▄▄"),
+        "el logo no reapareció:
+{}",
+        snap.text
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_child_question_is_answered_from_the_composer_with_ctrl_g() {
     let mut s = Session::with_provider(mock_provider_child_asks().await, 40, 120);
