@@ -9,5 +9,6 @@ pub mod prefs;
 pub mod rail;
 pub mod render;
 pub mod run;
+pub mod session_diff;
 pub mod tool_facts;
 pub mod widgets;
