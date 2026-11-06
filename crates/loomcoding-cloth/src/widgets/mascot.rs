@@ -80,31 +80,31 @@ const THINK: [[&str; 8]; 2] = [
         "....#..#....",
     ],
 ];
-const WAIT: [[&str; 8]; 2] = [
+const DONE: [[&str; 8]; 2] = [
     [
-        ".....##..##.",
-        ".....##....#",
-        "....####..#.",
-        "....#.##....",
-        ".....##..#..",
+        "..#..##..#..",
+        "...#.##.#...",
+        "....####....",
+        ".....##.....",
         ".....##.....",
         "....#..#....",
         "....#..#....",
+        "............",
     ],
     [
-        ".....##.....",
-        ".....##.....",
+        "............",
+        "..#..##..#..",
+        "...#.##.#...",
         "....####....",
-        "....#.##....",
         ".....##.....",
         ".....##.....",
         "....#..#....",
-        "....#..#....",
+        "...#....#...",
     ],
 ];
-/// Paseíllo de victoria: el moonwalk. Con sombrero, un pie plano que apunta a la derecha y el otro
+/// Espera con garbo: el moonwalk. Con sombrero, un pie plano que apunta a la derecha y el otro
 /// de puntillas; las piernas se alternan y `moonwalk` desliza toda la figura hacia la izquierda.
-const DONE: [[&str; 8]; 4] = [
+const MOONWALK: [[&str; 8]; 4] = [
     [
         ".....####...",
         "......##....",
@@ -147,19 +147,35 @@ const DONE: [[&str; 8]; 4] = [
     ],
 ];
 
-/// Puntos que se desliza el moonwalk hacia la izquierda antes de volver a empezar.
-const MOONWALK_GLIDE: usize = 4;
+/// Puntos que recorre el moonwalk en cada sentido antes de darse la vuelta.
+const MOONWALK_TRAVEL: usize = 4;
 
-/// Mapa del moonwalk para un paso del reloj: las piernas cambian en cada paso y la figura avanza
-/// un punto hacia la izquierda cada dos, de modo que el paseo da la vuelta sin salirse de las celdas.
-fn moonwalk(step: usize) -> [String; 8] {
-    let glide = (step / 2) % MOONWALK_GLIDE;
-    DONE[step % DONE.len()].map(|row| {
-        let mut shifted: String = row.chars().skip(glide).collect();
-        while shifted.chars().count() < 12 {
-            shifted.push('.');
+/// Desplaza una fila de 12 puntos `delta` puntos (negativo, a la izquierda), rellenando de vacío.
+fn shifted(row: &str, delta: isize) -> String {
+    let mut cells = vec!['.'; 12];
+    for (i, c) in row.chars().enumerate() {
+        let target = i as isize + delta;
+        if (0..12).contains(&target) {
+            cells[target as usize] = c;
         }
-        shifted
+    }
+    cells.into_iter().collect()
+}
+
+/// Mapa del moonwalk para un paso del reloj. Las piernas cambian en cada paso y la figura avanza
+/// un punto cada dos. Cabe señalar que primero se desliza hacia la izquierda y, al tocar la pared,
+/// se da la vuelta (el dibujo en espejo, de modo que los pies sigan apuntando al revés de la
+/// marcha) y regresa hacia la derecha; en el extremo derecho vuelve a girar y sigue. El giro cae
+/// en el mismo lugar por ambos lados, así que el paseo no da saltos.
+fn moonwalk(step: usize) -> [String; 8] {
+    let glide = (step / 2) % (2 * MOONWALK_TRAVEL);
+    MOONWALK[step % MOONWALK.len()].map(|row| {
+        if glide < MOONWALK_TRAVEL {
+            shifted(row, -(glide as isize))
+        } else {
+            let mirrored: String = row.chars().rev().collect();
+            shifted(&mirrored, glide as isize - MOONWALK_TRAVEL as isize - 2)
+        }
     })
 }
 const FAIL: [[&str; 8]; 1] = [[
@@ -204,8 +220,8 @@ pub fn mascot_frame(pose: Pose, tick: u64) -> [String; 2] {
     match pose {
         Pose::Run | Pose::Hunt => braille(&RUN[step % RUN.len()]),
         Pose::Think => braille(&THINK[(step / 2) % THINK.len()]),
-        Pose::Wait => braille(&WAIT[(step / 3) % WAIT.len()]),
-        Pose::Done => braille(&moonwalk(step)),
+        Pose::Wait => braille(&moonwalk(step)),
+        Pose::Done => braille(&DONE[(step / 2) % DONE.len()]),
         Pose::Fail => braille(&FAIL[0]),
     }
 }
@@ -250,11 +266,11 @@ mod tests {
     }
 
     #[test]
-    fn done_moonwalks_gliding_to_the_left() {
+    fn wait_moonwalks_gliding_to_the_left() {
         // Cabe señalar que la figura avanza un punto a la izquierda cada dos pasos de 150 ms: tras
         // cuatro pasos (tick 12) el ala del sombrero ha cruzado a la celda anterior.
         let hueco = |tick: u64| {
-            let [alto, _] = mascot_frame(Pose::Done, tick);
+            let [alto, _] = mascot_frame(Pose::Wait, tick);
             alto.chars().position(|c| c != '\u{2800}').unwrap()
         };
         assert!(
@@ -262,11 +278,41 @@ mod tests {
             "el paseo debe deslizarse a la izquierda"
         );
         // Las piernas cambian entre pasos consecutivos y el reloj da la vuelta: no hay salto raro.
-        assert_ne!(mascot_frame(Pose::Done, 0), mascot_frame(Pose::Done, 3));
+        assert_ne!(mascot_frame(Pose::Wait, 0), mascot_frame(Pose::Wait, 3));
+        // El ciclo completo (ida, vuelta y piernas) dura 16 pasos de 150 ms: 48 ticks.
         assert_eq!(
-            mascot_frame(Pose::Done, 0),
-            mascot_frame(Pose::Done, 3 * 8 * 5)
+            mascot_frame(Pose::Wait, 0),
+            mascot_frame(Pose::Wait, 3 * 16 * 3)
         );
+        // Y `Done` recupera su celebración con los brazos en alto, que no se desliza.
+        let [alto, _] = mascot_frame(Pose::Done, 0);
+        assert_ne!(alto, mascot_frame(Pose::Wait, 0)[0]);
+    }
+
+    #[test]
+    fn wait_turns_around_at_the_wall_and_glides_back() {
+        // Cabe señalar que, al llegar a la pared izquierda (paso 8, tick 24), el muñeco se da la
+        // vuelta y regresa hacia la derecha: el ala del sombrero vuelve a cruzar de celda.
+        let hueco = |tick: u64| {
+            let [alto, _] = mascot_frame(Pose::Wait, tick);
+            alto.chars().position(|c| c != '\u{2800}').unwrap()
+        };
+        assert!(
+            hueco(42) > hueco(24),
+            "tras la vuelta debe deslizarse a la derecha"
+        );
+        // Sin saltos: de un punto al siguiente la figura solo se mueve un punto como mucho,
+        // y la vuelta no deja el sombrero más lejos que eso de donde estaba.
+        let ala = |tick: u64| {
+            let [alto, _] = mascot_frame(Pose::Wait, tick);
+            alto.chars().position(|c| c != '\u{2800}').unwrap()
+        };
+        for tick in (0..96u64).step_by(6) {
+            let delta = ala(tick + 6).abs_diff(ala(tick));
+            assert!(delta <= 1, "salto de {delta} celdas en el tick {tick}");
+        }
+        // El espejo cambia el dibujo: la vuelta no repite el mismo fotograma de la ida.
+        assert_ne!(mascot_frame(Pose::Wait, 21), mascot_frame(Pose::Wait, 27));
     }
 
     #[test]
