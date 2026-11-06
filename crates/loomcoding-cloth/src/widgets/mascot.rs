@@ -102,28 +102,66 @@ const WAIT: [[&str; 8]; 2] = [
         "....#..#....",
     ],
 ];
-const DONE: [[&str; 8]; 2] = [
+/// Paseíllo de victoria: el moonwalk. Con sombrero, un pie plano que apunta a la derecha y el otro
+/// de puntillas; las piernas se alternan y `moonwalk` desliza toda la figura hacia la izquierda.
+const DONE: [[&str; 8]; 4] = [
     [
-        "..#..##..#..",
-        "...#.##.#...",
-        "....####....",
+        ".....####...",
+        "......##....",
+        ".....####...",
+        "....#.##.#..",
+        "......##....",
+        ".....#..#...",
+        ".....#..#...",
         ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "....#..#....",
-        "............",
     ],
     [
-        "............",
-        "..#..##..#..",
-        "...#.##.#...",
-        "....####....",
-        ".....##.....",
-        ".....##.....",
-        "....#..#....",
-        "...#....#...",
+        ".....####...",
+        "......##....",
+        ".....####...",
+        "....#.##.#..",
+        "......##....",
+        "......##....",
+        "......##....",
+        "......##....",
+    ],
+    [
+        ".....####...",
+        "......##....",
+        ".....####...",
+        "....#.##.#..",
+        "......##....",
+        ".....#..#...",
+        ".....#..#...",
+        "........##..",
+    ],
+    [
+        ".....####...",
+        "......##....",
+        ".....####...",
+        "....#.##.#..",
+        "......##....",
+        "......##....",
+        "......##....",
+        "......##....",
     ],
 ];
+
+/// Puntos que se desliza el moonwalk hacia la izquierda antes de volver a empezar.
+const MOONWALK_GLIDE: usize = 4;
+
+/// Mapa del moonwalk para un paso del reloj: las piernas cambian en cada paso y la figura avanza
+/// un punto hacia la izquierda cada dos, de modo que el paseo da la vuelta sin salirse de las celdas.
+fn moonwalk(step: usize) -> [String; 8] {
+    let glide = (step / 2) % MOONWALK_GLIDE;
+    DONE[step % DONE.len()].map(|row| {
+        let mut shifted: String = row.chars().skip(glide).collect();
+        while shifted.chars().count() < 12 {
+            shifted.push('.');
+        }
+        shifted
+    })
+}
 const FAIL: [[&str; 8]; 1] = [[
     "............",
     "............",
@@ -136,7 +174,7 @@ const FAIL: [[&str; 8]; 1] = [[
 ]];
 
 /// Convierte un mapa de puntos de 12×8 en dos líneas de seis celdas braille.
-fn braille(bitmap: &[&str; 8]) -> [String; 2] {
+fn braille<S: AsRef<str>>(bitmap: &[S; 8]) -> [String; 2] {
     // Bit de cada punto dentro de la celda: (columna, fila) → máscara Unicode braille.
     const BIT: [[u32; 4]; 2] = [[0x01, 0x02, 0x04, 0x40], [0x08, 0x10, 0x20, 0x80]];
     let mut rows = [String::new(), String::new()];
@@ -145,7 +183,7 @@ fn braille(bitmap: &[&str; 8]) -> [String; 2] {
             let mut mask = 0u32;
             for (dx, column_bits) in BIT.iter().enumerate() {
                 for (dy, &bit) in column_bits.iter().enumerate() {
-                    let line = bitmap[cell_row * 4 + dy].as_bytes();
+                    let line = bitmap[cell_row * 4 + dy].as_ref().as_bytes();
                     if line.get(cell_col * 2 + dx) == Some(&b'#') {
                         mask |= bit;
                     }
@@ -167,7 +205,7 @@ pub fn mascot_frame(pose: Pose, tick: u64) -> [String; 2] {
         Pose::Run | Pose::Hunt => braille(&RUN[step % RUN.len()]),
         Pose::Think => braille(&THINK[(step / 2) % THINK.len()]),
         Pose::Wait => braille(&WAIT[(step / 3) % WAIT.len()]),
-        Pose::Done => braille(&DONE[(step / 2) % DONE.len()]),
+        Pose::Done => braille(&moonwalk(step)),
         Pose::Fail => braille(&FAIL[0]),
     }
 }
@@ -209,6 +247,26 @@ mod tests {
     #[test]
     fn running_changes_between_frames() {
         assert_ne!(mascot_frame(Pose::Run, 0), mascot_frame(Pose::Run, 3));
+    }
+
+    #[test]
+    fn done_moonwalks_gliding_to_the_left() {
+        // Cabe señalar que la figura avanza un punto a la izquierda cada dos pasos de 150 ms: tras
+        // cuatro pasos (tick 12) el ala del sombrero ha cruzado a la celda anterior.
+        let hueco = |tick: u64| {
+            let [alto, _] = mascot_frame(Pose::Done, tick);
+            alto.chars().position(|c| c != '\u{2800}').unwrap()
+        };
+        assert!(
+            hueco(12) < hueco(0),
+            "el paseo debe deslizarse a la izquierda"
+        );
+        // Las piernas cambian entre pasos consecutivos y el reloj da la vuelta: no hay salto raro.
+        assert_ne!(mascot_frame(Pose::Done, 0), mascot_frame(Pose::Done, 3));
+        assert_eq!(
+            mascot_frame(Pose::Done, 0),
+            mascot_frame(Pose::Done, 3 * 8 * 5)
+        );
     }
 
     #[test]
