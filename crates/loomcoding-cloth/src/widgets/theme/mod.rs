@@ -12,7 +12,7 @@ mod presets;
 mod styles;
 
 pub use loading::ThemeError;
-pub use look::{ChromeStyle, ColorDepth, ComposerStyle, LayoutStyle, Look, ToolStyle};
+pub use look::{ChromeStyle, ColorDepth, ComposerStyle, LayoutStyle, Look, StyleBundle, ToolStyle};
 pub use presets::ThemePreset;
 pub use styles::{Glyphs, Styles};
 

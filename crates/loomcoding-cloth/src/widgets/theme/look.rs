@@ -94,22 +94,97 @@ pub struct Look {
     pub chrome: ChromeStyle,
 }
 
+/// Ejes de composer, herramientas y chrome de cada paquete. Son la única
+/// fuente de verdad: `Look::classic`, `Look::crush` y `with_bundle` las leen.
+const CLASSIC_AXES: (ComposerStyle, ToolStyle, ChromeStyle) = (
+    ComposerStyle::Classic,
+    ToolStyle::Pinned,
+    ChromeStyle::Panels,
+);
+const FLAT_AXES: (ComposerStyle, ToolStyle, ChromeStyle) =
+    (ComposerStyle::Crush, ToolStyle::Inline, ChromeStyle::Flat);
+
+/// Paquete de estilo: fija a la vez composer, herramientas y chrome; el layout
+/// queda fuera, porque se elige aparte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StyleBundle {
+    /// Caja con líneas y herramientas fijadas (`Look::classic`).
+    Classic,
+    /// Sin líneas y herramientas en el transcript (`Look::crush`).
+    Flat,
+}
+
+impl StyleBundle {
+    /// Todos los paquetes, en el orden de rotación.
+    pub const ALL: [StyleBundle; 2] = [StyleBundle::Classic, StyleBundle::Flat];
+
+    /// Nombre estable con el que se escribe el paquete en `ui.toml` y en `/ui`.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Classic => "classic",
+            Self::Flat => "flat",
+        }
+    }
+
+    /// Resuelve un nombre producido por `name`; cualquier otro texto produce `None`.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|bundle| bundle.name() == name)
+    }
+
+    /// Paquete siguiente en la rotación. Ciclo de dos pasos.
+    pub const fn next(self) -> Self {
+        match self {
+            Self::Classic => Self::Flat,
+            Self::Flat => Self::Classic,
+        }
+    }
+
+    const fn axes(self) -> (ComposerStyle, ToolStyle, ChromeStyle) {
+        match self {
+            Self::Classic => CLASSIC_AXES,
+            Self::Flat => FLAT_AXES,
+        }
+    }
+}
+
 impl Look {
     pub const fn classic() -> Self {
+        let (composer, tool, chrome) = CLASSIC_AXES;
         Self {
-            composer: ComposerStyle::Classic,
-            tool: ToolStyle::Pinned,
+            composer,
+            tool,
             layout: LayoutStyle::Workspace,
-            chrome: ChromeStyle::Panels,
+            chrome,
         }
     }
 
     pub const fn crush() -> Self {
+        let (composer, tool, chrome) = FLAT_AXES;
         Self {
-            composer: ComposerStyle::Crush,
-            tool: ToolStyle::Inline,
+            composer,
+            tool,
             layout: LayoutStyle::ContextRail,
-            chrome: ChromeStyle::Flat,
+            chrome,
+        }
+    }
+
+    /// Paquete al que equivale el look, si coincide exactamente en composer,
+    /// herramientas y chrome. El layout no cuenta. Un look mixto devuelve `None`.
+    pub fn bundle(&self) -> Option<StyleBundle> {
+        let axes = (self.composer, self.tool, self.chrome);
+        StyleBundle::ALL
+            .into_iter()
+            .find(|bundle| bundle.axes() == axes)
+    }
+
+    /// Copia del look con composer, herramientas y chrome del paquete. El layout no se toca.
+    pub const fn with_bundle(self, bundle: StyleBundle) -> Self {
+        let (composer, tool, chrome) = bundle.axes();
+        Self {
+            composer,
+            tool,
+            layout: self.layout,
+            chrome,
         }
     }
 }
