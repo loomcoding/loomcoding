@@ -6,7 +6,7 @@
 //! exacta: el pulgar toca siempre los dos extremos de la pista.
 
 use crate::state::{Scroll, StyleToken};
-use crate::widgets::Theme;
+use crate::widgets::{ChromeStyle, Theme};
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::Frame;
@@ -18,6 +18,9 @@ const ARROW_DOWN: &str = "▼";
 const TRACK: &str = "▒";
 const THUMB: &str = "█";
 const GRIP: &str = "≡";
+/// Línea fina del aspecto sin cajas: pista tenue y pulgar más grueso.
+const THIN_TRACK: &str = "│";
+const THIN_THUMB: &str = "┃";
 /// Altura mínima del área para dibujar las flechas (dos) y al menos dos filas de pista.
 const MIN_HEIGHT_FOR_ARROWS: u16 = 4;
 /// Longitud mínima del pulgar para dibujarle el agarre.
@@ -43,12 +46,31 @@ pub fn thumb(track: usize, scroll: Scroll) -> Option<(usize, usize)> {
 }
 
 /// Pinta una barra vertical en `area` según la posición de `scroll`.
+///
+/// Cabe señalar que el aspecto sigue al marco del tema: con paneles (`Panels`) se dibuja la barra
+/// clásica con flechas; sin cajas (`Flat`), una línea fina, sin flechas ni agarre.
 pub fn render(frame: &mut Frame, area: Rect, scroll: Scroll, theme: &Theme) {
     if area.is_empty() {
         return;
     }
     let accent = theme.style(StyleToken::Accent);
     let muted = theme.style(StyleToken::Muted);
+    if theme.look.chrome == ChromeStyle::Flat {
+        let thumb = thumb(usize::from(area.height), scroll);
+        let buf = frame.buffer_mut();
+        for row in 0..usize::from(area.height) {
+            let on = thumb.is_some_and(|(start, len)| (start..start + len).contains(&row));
+            let (symbol, style) = if on {
+                (THIN_THUMB, accent)
+            } else {
+                (THIN_TRACK, muted)
+            };
+            buf[(area.x, area.y + row as u16)]
+                .set_symbol(symbol)
+                .set_style(style);
+        }
+        return;
+    }
     let arrows = area.height >= MIN_HEIGHT_FOR_ARROWS;
     let track_len = usize::from(area.height) - if arrows { 2 } else { 0 };
     let first_track_row = area.y + u16::from(arrows);
@@ -207,6 +229,31 @@ mod tests {
         let rows = column(3, scroll(0, 100, 10));
         assert!(!rows.iter().any(|s| s == "▲" || s == "▼"), "{rows:?}");
         assert!(rows.iter().any(|s| s == "█"));
+    }
+
+    /// Columna pintada con un tema de aspecto plano.
+    fn flat_column(h: u16, scroll: Scroll) -> Vec<String> {
+        let mut theme = Theme::test();
+        theme.look.chrome = ChromeStyle::Flat;
+        let mut term = Terminal::new(TestBackend::new(1, h)).unwrap();
+        term.draw(|f| render(f, f.area(), scroll, &theme)).unwrap();
+        let buf = term.backend().buffer();
+        (0..h).map(|y| buf[(0, y)].symbol().to_string()).collect()
+    }
+
+    #[test]
+    fn the_flat_look_draws_a_thin_line_without_arrows() {
+        let rows = flat_column(10, scroll(0, 100, 10));
+        assert!(rows.iter().all(|s| s == "│" || s == "┃"), "{rows:?}");
+        assert_eq!(rows[0], "┃", "el pulgar toca arriba");
+        assert_eq!(rows[9], "│");
+    }
+
+    #[test]
+    fn the_flat_thumb_reaches_the_last_row() {
+        let rows = flat_column(10, scroll(90, 100, 10));
+        assert_eq!(rows[9], "┃", "el pulgar toca abajo: {rows:?}");
+        assert_eq!(rows[0], "│");
     }
 
     #[test]
