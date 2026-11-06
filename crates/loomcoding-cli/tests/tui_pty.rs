@@ -261,6 +261,31 @@ async fn subagent_without_final_text_fails_instead_of_completing_empty() {
     );
 }
 
+/// Cabe señalar que el muñeco braille se apaga con `NO_COLOR` (lo pide el spec) y que esa variable
+/// se hereda del entorno que lanza las pruebas; por eso este test la retira antes de arrancar.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_mascot_is_drawn_while_waiting_for_a_permission() {
+    std::env::remove_var("NO_COLOR");
+    let mut s = Session::with_provider(mock_provider_child_asks().await, 40, 120);
+    s.expect(READY, BOOT);
+    s.term.send_text("delega la pregunta").unwrap();
+    s.term.press(Key::Enter).unwrap();
+    // El permiso de `subagent` deja al agente esperando a la persona: postura `Wait`.
+    let snap = s.expect("Permitir", TURN);
+    s.shot("mascot-waiting");
+    let braille = snap
+        .text
+        .chars()
+        .filter(|c| ('\u{2801}'..='\u{28FF}').contains(c))
+        .count();
+    assert!(
+        braille > 0,
+        "esperando un permiso debía verse el muñeco braille; pantalla:\n{}",
+        snap.text
+    );
+    assert!(snap.text.contains("waiting"), "{}", snap.text);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_child_question_is_answered_from_the_composer_with_ctrl_g() {
     let mut s = Session::with_provider(mock_provider_child_asks().await, 40, 120);
