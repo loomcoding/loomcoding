@@ -220,6 +220,11 @@ pub enum LiveEvent {
     /// Un despertar del padre no encontró avisos: no hubo turno. Permite a la
     /// interfaz limpiar su marca de despertar en curso.
     WakeIdle,
+    /// Hay un lote de vigilancia listo para entregar al padre `session`: como mucho uno por tick de
+    /// `BATCH_INTERVAL`. Es una bandera, no un recuento; no se persiste.
+    JobWatchReady {
+        session: crate::session::SessionId,
+    },
     /// Un hijo ha llegado a su estado final y el estado ya está persistido. Se
     /// publica tras guardarlo, de modo que el padre puede leer el aviso al recibirlo.
     SubagentSettled {
@@ -294,6 +299,7 @@ impl LiveEvent {
             | LiveEvent::TodosChanged { .. }
             | LiveEvent::AgentRegistryChanged { .. }
             | LiveEvent::WakeIdle
+            | LiveEvent::JobWatchReady { .. }
             | LiveEvent::ManualCompactionEnded { .. }
             | LiveEvent::SubagentSettled { .. }
             | LiveEvent::SubagentPhaseChanged { .. }
@@ -368,6 +374,7 @@ mod tests {
             output_end: 0,
             detail: None,
             result: None,
+            watch: None,
         };
         let excluded = [
             LiveEvent::ReasoningDelta { text: "x".into() },

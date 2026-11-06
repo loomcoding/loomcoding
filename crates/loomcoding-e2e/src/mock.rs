@@ -127,6 +127,49 @@ impl Respond for ChildAsksScript {
     }
 }
 
+/// Guion de un padre que lanza un job vigilado y, cuando le llega el aviso `[Job … watch]`, despierta.
+///
+/// Primero ofrece `job_start` con un `watch` cuyo patrón casa con la línea que imprime el job. Con el
+/// resultado de la herramienta contesta «job lanzado»; si en el historial ya hay un aviso de vigilancia,
+/// contesta «aviso recibido», que es la señal de que el turno despertado ocurrió.
+struct WatchScript;
+
+impl Respond for WatchScript {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let body: serde_json::Value = request.body_json().unwrap_or_default();
+        let has_tool_result = body["messages"]
+            .as_array()
+            .is_some_and(|messages| messages.iter().any(|m| m["role"] == "tool"));
+        let has_watch_notice = body["messages"].to_string().contains("watch]");
+        let say = |text: &str| {
+            sse(&[
+                serde_json::json!({"choices":[{"delta":{"content":text}}]}),
+                serde_json::json!({"choices":[{"finish_reason":"stop"}]}),
+            ])
+        };
+        match (has_tool_result, has_watch_notice) {
+            (false, _) => tool_call(
+                "job_start",
+                serde_json::json!({"command":"echo FAIL uno","label":"vigilado",
+                    "watch":{"pattern":"FAIL","max_events":5}}),
+            ),
+            (true, true) => say("aviso recibido"),
+            (true, false) => say("job lanzado, vigilo la salida"),
+        }
+    }
+}
+
+/// Servidor OpenAI-compatible con el guion de un padre que vigila un job y despierta con su aviso.
+pub async fn mock_provider_watch() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(WatchScript)
+        .mount(&server)
+        .await;
+    server
+}
+
 /// Servidor OpenAI-compatible con el guion de un hijo que pregunta a la persona y espera su respuesta.
 pub async fn mock_provider_child_asks() -> MockServer {
     let server = MockServer::start().await;

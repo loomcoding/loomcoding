@@ -406,6 +406,7 @@ pub(super) async fn hijo_que_no_se_detiene(
             label: "terco".into(),
             owner: parent,
             output_limit: 1024,
+            watch: None,
             run: Box::new(|_handle, _cancel| {
                 Box::pin(async move {
                     std::future::pending::<()>().await;

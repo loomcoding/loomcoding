@@ -23,6 +23,7 @@ pub(super) fn job(id: &str, status: JobStatus, owner: SessionId) -> JobSnapshot 
         output_end: 0,
         detail: None,
         result: None,
+        watch: None,
     }
 }
 

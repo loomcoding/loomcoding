@@ -14,6 +14,9 @@ pub struct ActivityView<'a> {
     /// Nombre o etiqueta del elemento.
     pub label: &'a str,
     pub status: ToolStatus,
+    /// Nota de una línea sobre el elemento (p. ej. su vigilancia). No es un estado: se pinta
+    /// también cuando ya terminó, justo bajo la cabecera.
+    pub note: Option<&'a str>,
     /// Fracción de progreso y su etiqueta. Solo se pinta mientras corre.
     pub progress: Option<(f64, &'a str)>,
     /// Resultado o detalle final.
@@ -47,6 +50,9 @@ pub fn activity_lines(view: &ActivityView<'_>) -> Vec<Line> {
     };
 
     let mut lines = vec![head];
+    if let Some(note) = view.note.map(str::trim).filter(|n| !n.is_empty()) {
+        lines.push(Line::new(LineKind::ToolBody, note));
+    }
     if view.status == ToolStatus::Running {
         if let Some((fraction, progress)) = view.progress {
             let pct = percent(fraction);
@@ -99,6 +105,7 @@ mod tests {
             kind: "job",
             label: "build",
             status,
+            note: None,
             progress: None,
             body: None,
         }
@@ -156,6 +163,23 @@ mod tests {
         assert_eq!(lines.len(), 1 + 6 + 1);
         assert_eq!(lines[7].kind, LineKind::ToolMore);
         assert_eq!(lines[7].plain(), "… (3 more lines)");
+    }
+
+    #[test]
+    fn note_is_shown_under_the_header_even_once_settled() {
+        // La nota es información del elemento, no un estado: sale también cuando ya terminó.
+        let mut v = view(ToolStatus::Success);
+        v.note = Some("watching: 2 alerts");
+        let lines = activity_lines(&v);
+        assert_eq!(lines[1].kind, LineKind::ToolBody);
+        assert_eq!(lines[1].plain(), "watching: 2 alerts");
+    }
+
+    #[test]
+    fn blank_note_adds_nothing() {
+        let mut v = view(ToolStatus::Success);
+        v.note = Some("  ");
+        assert_eq!(activity_lines(&v).len(), 1);
     }
 
     #[test]

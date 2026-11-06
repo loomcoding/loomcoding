@@ -267,6 +267,7 @@ async fn job_notice_detail_is_capped() {
             label: "tarea larga".into(),
             owner: sid,
             output_limit: 20,
+            watch: None,
             run: Box::new(|_, _| {
                 Box::pin(async { Err(crate::error::CoreError::Tool("e".repeat(50_000))) })
             }),

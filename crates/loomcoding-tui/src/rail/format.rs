@@ -89,6 +89,25 @@ pub fn format_elapsed(d: Duration) -> String {
     }
 }
 
+/// Nota de vigilancia de un job, para el rail y la actividad del transcript:
+/// `watching: 3 alerts`, con `· +2 suppressed` si hubo líneas sin entregar y `· limit reached`
+/// al agotarse `max_events`. Es información de Loomcoding, no un estado A2A.
+pub fn format_watch(watch: &WatchInfo) -> String {
+    let avisos = if watch.delivered == 1 {
+        "1 alert".to_owned()
+    } else {
+        format!("{} alerts", watch.delivered)
+    };
+    let mut nota = format!("watching: {avisos}");
+    if watch.suppressed > 0 {
+        nota.push_str(&format!(" · +{} suppressed", watch.suppressed));
+    }
+    if watch.limit_reached {
+        nota.push_str(" · limit reached");
+    }
+    nota
+}
+
 /// Grupo de coste de un hijo para su línea de métricas: `format_cost` sin el espacio tras `≈`
 /// (`≈$0.004`, `≈$0.004+`). `None` sin precio o si el coste es nulo, para no mostrar `≈$0`.
 pub(super) fn child_cost_label(cost: Option<(f64, bool)>, estimated: bool) -> Option<String> {
@@ -100,4 +119,53 @@ pub(super) fn child_cost_label(cost: Option<(f64, bool)>, estimated: bool) -> Op
                 format_actual_cost(dollars, partial)
             }
         })
+}
+
+#[cfg(test)]
+mod watch_tests {
+    use super::*;
+
+    fn info(delivered: usize, suppressed: usize, limit_reached: bool) -> WatchInfo {
+        WatchInfo {
+            pattern: "FAIL".into(),
+            delivered,
+            suppressed,
+            limit_reached,
+        }
+    }
+
+    #[test]
+    fn plain_count_says_watching_with_the_alerts() {
+        assert_eq!(format_watch(&info(3, 0, false)), "watching: 3 alerts");
+    }
+
+    #[test]
+    fn a_single_alert_keeps_the_singular() {
+        assert_eq!(format_watch(&info(1, 0, false)), "watching: 1 alert");
+    }
+
+    #[test]
+    fn no_alerts_yet_is_still_watching() {
+        assert_eq!(format_watch(&info(0, 0, false)), "watching: 0 alerts");
+    }
+
+    #[test]
+    fn suppressed_lines_are_counted_after_the_alerts() {
+        assert_eq!(
+            format_watch(&info(3, 2, false)),
+            "watching: 3 alerts · +2 suppressed"
+        );
+    }
+
+    #[test]
+    fn a_reached_limit_is_announced_last() {
+        assert_eq!(
+            format_watch(&info(20, 4, true)),
+            "watching: 20 alerts · +4 suppressed · limit reached"
+        );
+        assert_eq!(
+            format_watch(&info(20, 0, true)),
+            "watching: 20 alerts · limit reached"
+        );
+    }
 }

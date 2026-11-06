@@ -207,6 +207,7 @@ impl InProcessSubagentLauncher {
             label,
             owner: parent,
             output_limit: 64 * 1024,
+            watch: None,
             run,
         })?;
         reenviar_eventos_del_hijo(self.bus.clone(), child_rx, parent, child);

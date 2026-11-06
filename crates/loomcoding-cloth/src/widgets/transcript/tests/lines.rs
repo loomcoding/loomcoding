@@ -83,6 +83,7 @@ fn activity_entries_paint_a_prefix_that_is_not_part_of_the_text() {
         kind: "job",
         label: "build",
         status: ToolStatus::Running,
+        note: None,
         progress: None,
         body: None,
     });

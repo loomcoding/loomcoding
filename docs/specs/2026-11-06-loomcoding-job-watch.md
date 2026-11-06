@@ -1,6 +1,6 @@
 # Vigilancia de jobs en segundo plano (`watch`) — spec
 
-Estado: **aprobada**. Nace de una pregunta del usuario sobre cómo manejar las tareas lanzadas y de que otros
+Estado: **hecho** (T1–T5; aprobada el 6 de noviembre, implementada el 7). Nace de una pregunta del usuario sobre cómo manejar las tareas lanzadas y de que otros
 agentes ofrecen una herramienta `Monitor` que convierte un proceso en segundo plano en un flujo de avisos.
 
 ## Problema

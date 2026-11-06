@@ -22,13 +22,14 @@ const REPEAT_TEXT_MIN_CHARS: usize = 40;
 /// Las de solo lectura (`view`, `grep`, `glob`, `ls`) quedan fuera a propósito: un
 /// agente que relee no está atascado, está mirando. Cortarle ahí mataba el turno en
 /// mitad de una tarea normal y el subagente se quedaba sin escribir nada.
-const WRITE_TOOLS: [&str; 9] = [
+const WRITE_TOOLS: [&str; 10] = [
     "write",
     "edit",
     "multiedit",
     "apply_patch",
     "bash",
     "job_start",
+    "job_watch",
     "subagent",
     "development_workflow",
     "gauntlet",
@@ -357,6 +358,26 @@ mod tests {
             with_call("view", json!({"path":"b"})),
         ];
         assert!(!should_stop(&h, 1, 10));
+    }
+
+    #[test]
+    fn repetir_job_watch_cuenta_como_trabajo() {
+        // `job_watch` arma un aviso que despierta al modelo: es trabajo que lanza, como `job_start`.
+        // Repetirlo idéntico sin avanzar es un bucle, y debe cortarse igual.
+        let h: Vec<Message> = (0..REPEAT_THRESHOLD)
+            .map(|_| with_call("job_watch", json!({"job_id":"j1","pattern":"FAIL"})))
+            .collect();
+        assert_eq!(
+            stop_reason(&h, 1, 100),
+            Some(StopReason::RepeatedToolCalls),
+            "repetir job_watch sin avanzar debe contar como escritura"
+        );
+    }
+
+    #[test]
+    fn una_ronda_con_job_watch_no_es_de_lectura() {
+        assert!(!is_read_round(&with_calls(&["view", "job_watch"])));
+        assert!(is_write_tool("job_watch"));
     }
 
     #[test]

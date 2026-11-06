@@ -1,11 +1,13 @@
 use crate::error::{CoreError, Result};
+use crate::job_watch::{Watch, WatchBatch, WatchInfo, WatchSpec};
 use crate::session::SessionId;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
@@ -52,6 +54,9 @@ pub struct JobSnapshot {
     pub output_end: usize,
     pub detail: Option<String>,
     pub result: Option<JobResult>,
+    /// Vigilancia activa (`watch`); ausente en snapshots anteriores a esta función.
+    #[serde(default)]
+    pub watch: Option<WatchInfo>,
 }
 
 #[derive(Debug, Clone)]
@@ -80,14 +85,21 @@ pub struct JobSpec {
     pub owner: SessionId,
     /// Maximum retained output bytes per job.
     pub output_limit: usize,
+    /// Vigilancia inicial (`job_start` con `watch`); `None` sin vigilancia.
+    pub watch: Option<WatchSpec>,
     pub run: JobBody,
 }
+
+/// Vigilancia compartida entre el `JobHandle` (que alimenta la salida) y el registro (que la
+/// cambia y la drena). Orden de cierre siempre: primero esta ranura, después el canal de estado.
+type WatchSlot = Arc<Mutex<Option<Watch>>>;
 
 #[derive(Clone)]
 pub struct JobHandle {
     id: JobId,
     state: watch::Sender<JobSnapshot>,
     output_limit: usize,
+    watch: WatchSlot,
 }
 
 impl JobHandle {
@@ -96,6 +108,10 @@ impl JobHandle {
     }
 
     pub fn append(&self, text: &str) {
+        let mut current = self.watch.lock().unwrap();
+        if let Some(live) = current.as_mut() {
+            live.feed(text);
+        }
         self.state.send_modify(|snapshot| {
             snapshot.output.push_str(text);
             snapshot.output_end = snapshot.output_end.saturating_add(text.len());
@@ -107,6 +123,7 @@ impl JobHandle {
                 snapshot.output.drain(..cut);
                 snapshot.output_start = snapshot.output_start.saturating_add(cut);
             }
+            snapshot.watch = current.as_ref().map(Watch::info);
         });
     }
 
@@ -134,12 +151,20 @@ pub trait JobRegistry: Send + Sync {
     async fn wait(&self, owner: SessionId, id: &JobId) -> Result<JobOutcome>;
     fn pending_settled_notices(&self, owner: SessionId) -> Vec<JobSnapshot>;
     fn mark_notice_delivered(&self, owner: SessionId, id: &JobId) -> Result<()>;
+    /// Añade, sustituye (`Some`) o quita (`None`) la vigilancia de un job en marcha. Solo vigila
+    /// líneas posteriores; lo pendiente de la vigilancia anterior se descarta.
+    fn set_watch(&self, owner: SessionId, id: &JobId, spec: Option<WatchSpec>) -> Result<()>;
+    /// Drena un lote por cada job vigilado del dueño que tenga avisos listos en `now`.
+    fn take_watch_batches(&self, owner: SessionId, now: Instant) -> Vec<(JobSnapshot, WatchBatch)>;
+    /// Dice si `take_watch_batches` entregaría algún lote del dueño en `now`, sin consumir nada.
+    fn watch_ready(&self, owner: SessionId, now: Instant) -> bool;
 }
 
 struct Entry {
     state: watch::Sender<JobSnapshot>,
     cancel: CancellationToken,
     notice_delivered: bool,
+    watch: WatchSlot,
 }
 
 #[derive(Default)]
@@ -165,6 +190,20 @@ impl LocalJobRegistry {
         }
         Ok((entry.state.subscribe(), entry.cancel.clone()))
     }
+
+    /// Canal de estado y ranura de vigilancia de un job del dueño. Suelta el mapa antes de usarlos.
+    fn watch_parts(
+        &self,
+        owner: SessionId,
+        id: &JobId,
+    ) -> Result<(watch::Sender<JobSnapshot>, WatchSlot)> {
+        let jobs = self.jobs.lock().unwrap();
+        let entry = jobs
+            .get(id)
+            .filter(|entry| entry.state.borrow().owner == owner)
+            .ok_or_else(|| CoreError::Tool("unknown job".into()))?;
+        Ok((entry.state.clone(), entry.watch.clone()))
+    }
 }
 
 #[async_trait]
@@ -188,6 +227,8 @@ impl JobRegistry for LocalJobRegistry {
             self.next.fetch_add(1, Ordering::Relaxed) + 1
         ));
         let cancel = CancellationToken::new();
+        let live = spec.watch.map(Watch::new);
+        let slot: WatchSlot = Arc::new(Mutex::new(live));
         let initial = JobSnapshot {
             id: id.clone(),
             kind: spec.kind,
@@ -200,12 +241,14 @@ impl JobRegistry for LocalJobRegistry {
             output_end: 0,
             detail: None,
             result: None,
+            watch: slot.lock().unwrap().as_ref().map(Watch::info),
         };
         let (state, _) = watch::channel(initial);
         let handle = JobHandle {
             id: id.clone(),
             state: state.clone(),
             output_limit: spec.output_limit,
+            watch: slot.clone(),
         };
         self.jobs.lock().unwrap().insert(
             id.clone(),
@@ -213,6 +256,7 @@ impl JobRegistry for LocalJobRegistry {
                 state: state.clone(),
                 cancel: cancel.clone(),
                 notice_delivered: false,
+                watch: slot.clone(),
             },
         );
 
@@ -228,10 +272,17 @@ impl JobRegistry for LocalJobRegistry {
                 Err(_) if cancel.is_cancelled() => (JobStatus::Killed, None, None),
                 Err(error) => (JobStatus::Failed, Some(error.to_string()), None),
             };
+            // El resto sin salto se prueba al cerrar; el cierre va bajo la ranura para que
+            // `set_watch` no pueda colarse entre ambos pasos.
+            let mut current = slot.lock().unwrap();
+            if let Some(live) = current.as_mut() {
+                live.finish();
+            }
             state.send_modify(|snapshot| {
                 snapshot.status = status;
                 snapshot.detail = detail;
                 snapshot.result = result;
+                snapshot.watch = current.as_ref().map(Watch::info);
             });
         });
         Ok(handle)
@@ -332,6 +383,60 @@ impl JobRegistry for LocalJobRegistry {
         entry.notice_delivered = true;
         Ok(())
     }
+
+    fn set_watch(&self, owner: SessionId, id: &JobId, spec: Option<WatchSpec>) -> Result<()> {
+        let (state, slot) = self.watch_parts(owner, id)?;
+        let mut current = slot.lock().unwrap();
+        if state.borrow().status.settled() {
+            return Err(CoreError::Tool(
+                "job already finished; its watch cannot change".into(),
+            ));
+        }
+        *current = spec.map(Watch::new);
+        state.send_modify(|snapshot| snapshot.watch = current.as_ref().map(Watch::info));
+        Ok(())
+    }
+
+    fn watch_ready(&self, owner: SessionId, now: Instant) -> bool {
+        // Las ranuras se copian antes de bloquearlas: el mapa de jobs no se mantiene abierto.
+        let slots: Vec<WatchSlot> = self
+            .jobs
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|entry| entry.state.borrow().owner == owner)
+            .map(|entry| entry.watch.clone())
+            .collect();
+        slots.iter().any(|slot| {
+            slot.lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|live| live.ready(now))
+        })
+    }
+
+    fn take_watch_batches(&self, owner: SessionId, now: Instant) -> Vec<(JobSnapshot, WatchBatch)> {
+        let parts: Vec<_> = self
+            .jobs
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|entry| entry.state.borrow().owner == owner)
+            .map(|entry| (entry.state.clone(), entry.watch.clone()))
+            .collect();
+        let mut batches: Vec<_> = parts
+            .into_iter()
+            .filter_map(|(state, slot)| {
+                let mut current = slot.lock().unwrap();
+                let batch = current.as_mut()?.drain(now)?;
+                state.send_modify(|snapshot| snapshot.watch = current.as_ref().map(Watch::info));
+                let snapshot = state.borrow().clone();
+                Some((snapshot, batch))
+            })
+            .collect();
+        batches.sort_by(|a, b| a.0.id.cmp(&b.0.id));
+        batches
+    }
 }
 
 #[cfg(test)]
@@ -345,6 +450,8 @@ mod tests {
             label: "test job".into(),
             owner,
             output_limit,
+
+            watch: None,
             run,
         }
     }

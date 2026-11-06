@@ -20,7 +20,9 @@ impl App {
             Notice::Compaction { covers, body } => {
                 format!("{}\n{body}", compaction_label(covers))
             }
-            Notice::Job { .. } | Notice::SubagentInput { .. } => text.to_string(),
+            Notice::Job { .. } | Notice::JobWatch | Notice::SubagentInput { .. } => {
+                text.to_string()
+            }
             Notice::Subagent { label } => {
                 format!("[Subagent {label} completed; open its chat to read the response]")
             }
@@ -87,10 +89,13 @@ impl App {
             .progress
             .as_ref()
             .map(|progress| (progress.fraction, progress.label.as_str()));
+        // La vigilancia es dato propio de Loomcoding: se rotula como tal, nunca como estado A2A.
+        let nota = job.watch.as_ref().map(crate::rail::format_watch);
         let view = loomcoding_cloth::state::ActivityView {
             kind: "job",
             label: &job.label,
             status,
+            note: nota.as_deref(),
             progress,
             body,
         };
@@ -367,6 +372,8 @@ impl App {
                 &compaction_label(covers),
                 &body,
             ),
+            // Un lote de vigilancia no es un elemento de actividad: se pinta como línea de sistema.
+            Notice::JobWatch => return false,
         }
         true
     }
@@ -385,6 +392,7 @@ impl App {
             kind,
             label,
             status,
+            note: None,
             progress: None,
             body: Some(body),
         };

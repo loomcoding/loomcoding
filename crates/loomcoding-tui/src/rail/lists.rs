@@ -75,7 +75,7 @@ pub(super) fn push_tools<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
 }
 
 /// Trabajos de la sesión que no son subagentes.
-pub(super) fn push_jobs<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
+pub(super) fn push_jobs<'a>(out: &mut Vec<Line<'a>>, app: &'a App, width: usize) {
     let session = app.session_id;
     let jobs = || {
         app.jobs
@@ -94,6 +94,16 @@ pub(super) fn push_jobs<'a>(out: &mut Vec<Line<'a>>, app: &'a App) {
                 JobStatus::Killed => app.theme.styles.tool_canceled,
             };
             out.push(glyph_line(job.label.as_str(), style));
+            // Nota de vigilancia bajo el job: dato propio de Loomcoding, no un estado A2A. Se parte
+            // por palabras en lugar de recortarse: el rail es estrecho y «limit reached» iría al final.
+            if let Some(watch) = &job.watch {
+                for linea in partir_por_palabras(&format_watch(watch), width.saturating_sub(2)) {
+                    out.push(Line::from(Span::styled(
+                        format!("  {linea}"),
+                        app.theme.styles.muted,
+                    )));
+                }
+            }
         }
         more(out, job_total, JOB_LIMIT, app);
     }

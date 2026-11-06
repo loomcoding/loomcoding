@@ -114,6 +114,7 @@ fn spin_job(jobs: &LocalJobRegistry, owner: SessionId) -> crate::job::JobId {
         label: "espera".into(),
         owner,
         output_limit: 1024,
+        watch: None,
         run: Box::new(|_, cancel| {
             Box::pin(async move {
                 cancel.cancelled().await;

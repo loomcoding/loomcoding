@@ -118,6 +118,7 @@ fn job_snapshot(
         output_end: 0,
         detail: None,
         result: None,
+        watch: None,
     }
 }
 

@@ -118,6 +118,20 @@ impl AgentLoop {
     /// entregaron en esta llamada; cada aviso sale una sola vez.
     pub(super) async fn flush_subagent_notices(&self, session: SessionId) -> Result<usize> {
         let mut delivered = 0usize;
+        // Los lotes de vigilancia van antes que el aviso de fin: el transcript sigue así el orden
+        // real, primero lo que el job escribió y después su final.
+        let ahora = std::time::Instant::now();
+        for (job, lote) in self.jobs.take_watch_batches(session, ahora) {
+            // El recuento de vigilancia cambia al entregar el lote. Un job que ya terminó no tiene
+            // bucle de seguimiento que lo publique, así que se republica aquí para que la TUI no lo
+            // muestre a cero.
+            self.bus.publish(LiveEvent::JobChanged(job.clone()));
+            let message = Message::user(aviso_de_vigilancia(&job, &lote));
+            self.store.append_message(session, &message).await?;
+            self.bus
+                .publish(LiveEvent::SessionMessageAdded { session, message });
+            delivered += 1;
+        }
         for job in self.jobs.pending_settled_notices(session) {
             let status = match job.status {
                 crate::job::JobStatus::Completed => "completed",
@@ -159,6 +173,27 @@ impl AgentLoop {
         }
         Ok(delivered)
     }
+}
+
+/// Texto del aviso de un lote de vigilancia: `[Job <id> watch] <línea1>\n<línea2>…`, con el recuento
+/// de líneas suprimidas y la marca de límite alcanzado cuando corresponden, y con tope de bytes.
+/// Lo calcula el registro de jobs; aquí solo se da forma y se acota.
+fn aviso_de_vigilancia(
+    job: &crate::job::JobSnapshot,
+    lote: &crate::job_watch::WatchBatch,
+) -> String {
+    let mut texto = format!("[Job {} watch]", job.id.0);
+    for (indice, linea) in lote.lines.iter().enumerate() {
+        texto.push_str(if indice == 0 { " " } else { "\n" });
+        texto.push_str(linea);
+    }
+    if lote.suppressed > 0 {
+        texto.push_str(&format!("\n+{} more suppressed", lote.suppressed));
+    }
+    if job.watch.as_ref().is_some_and(|info| info.limit_reached) {
+        texto.push_str("\nwatch limit reached");
+    }
+    limit_bytes(&texto, MAX_NOTICE_BYTES).into_owned()
 }
 
 /// El supervisor da por fallidos a los hijos perdidos a través de una referencia débil: así su

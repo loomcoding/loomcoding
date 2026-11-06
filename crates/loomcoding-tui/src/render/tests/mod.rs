@@ -25,3 +25,4 @@ mod sidebar_files;
 mod tarjeta_de_agentes;
 mod transcript_y_arbol;
 mod ui_panel_root;
+mod vigilancia_de_jobs;

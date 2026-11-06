@@ -209,6 +209,36 @@ Cabe señalar que el menú izquierdo solo se pinta con el layout `Workspace` (�
    (`crates/loomcoding-core/src/agent/mod.rs`; incluye `StopReason::OutputLimit`); `--print` lo devuelve como
    error mediante `print_text` en `daemon.rs`.
 
+## Quiero tocar los jobs y su vigilancia (`watch`)
+
+Cabe señalar que la vigilancia es información propia de Loomcoding: nunca se rotula como estado A2A.
+
+1. Troceo, emparejado de líneas y cola de avisos (`WatchSpec`, `Watch`, `EventQueue`, `WatchBatch`, `WatchInfo`):
+   `crates/loomcoding-core/src/job_watch.rs`. Ahí vive el decálogo de la vigilancia (patrón 256 B, línea 512 B,
+   10 líneas por aviso, un aviso cada 5 s, `max_events` ≤ 100); no meta esa lógica en `job.rs`.
+2. Ranura de vigilancia de cada job y registro: `crates/loomcoding-core/src/job.rs` (`WatchSlot`, `JobHandle::append`,
+   `set_watch`, `take_watch_batches`, `watch_ready`). `JobSnapshot.watch` lleva el `WatchInfo` que ven la TUI y `job_list`.
+3. Parámetro `watch` de `job_start`: `crates/loomcoding-core/src/tools/job_start.rs` (`watch_spec`, y `track_job`, que
+   sondea la vigilancia en cada tick y publica `JobWatchReady`). Herramienta `job_watch` para un job ya lanzado:
+   `crates/loomcoding-core/src/tools/job_watch.rs` (`JobWatchTool`), registrada en `tools/mod.rs`.
+4. Evento `LiveEvent::JobWatchReady { session }` (`crates/loomcoding-core/src/event/mod.rs`): despierta al padre ocioso.
+   Quien lo escucha en el núcleo es `agent/settle.rs`; en la TUI, `app/events.rs` (la causa «job watch» del turno
+   despertado, con su presupuesto `MAX_AUTO_TURNS`, en `app/turn.rs`).
+5. Aviso `[Job <id> watch] …` que llega a la conversación: `aviso_de_vigilancia` en
+   `crates/loomcoding-core/src/agent/subagents.rs`, dentro de `flush_subagent_notices`. Entrega cada lote una sola vez,
+   lo persiste y publica `SessionMessageAdded`; tras entregarlo republica `JobChanged` para que el recuento de un job
+   ya terminado no se quede a cero. Pruebas: `agent/tests/watch_notices.rs`.
+6. Clasificación de la herramienta: `job_watch` está en `WRITE_TOOLS` (`crates/loomcoding-core/src/agent/stop.rs`); una
+   ronda con ella no cuenta como lectura y repetirla idéntica corta el turno como cualquier escritura.
+7. Dónde se pinta el recuento (`watching: N alerts`, con `· +M suppressed` y `· limit reached`):
+   - Formato único: `format_watch` en `crates/loomcoding-tui/src/rail/format.rs`.
+   - Sección «Jobs» del rail: `push_jobs` en `crates/loomcoding-tui/src/rail/lists.rs`, que parte la nota por palabras.
+   - Actividad del job en el transcript: `sync_job_activity` en `crates/loomcoding-tui/src/app/activity.rs`, que pasa
+     la nota a `ActivityView.note`; el dibujo de esa línea está en `crates/loomcoding-cloth/src/state/activity_lines.rs`.
+   - La tarjeta de agentes (`render/agents_card.rs`) lista subagentes, no jobs: no pinta la vigilancia.
+8. Pruebas: `render/tests/vigilancia_de_jobs.rs` (rail y transcript) y el E2E PTY `crates/loomcoding-cli/tests/tui_pty_vigilancia.rs`
+   (guion `mock_provider_watch` en `crates/loomcoding-e2e/src/mock.rs`; volcado en `docs/mockups/vigilancia-jobs-e2e.md`).
+
 ## Quiero tocar el contexto estructural
 
 1. Índice de símbolos de Rust (definiciones y llamadas, con `tree-sitter` y `context/tags.scm`):
