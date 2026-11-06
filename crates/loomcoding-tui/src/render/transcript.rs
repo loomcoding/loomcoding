@@ -2,6 +2,7 @@
 //! del carril salen de `rail.rs`; aquí se pintan con el color del rol.
 
 use super::rail::{posicion, rail_cells, rail_width, RailStyle};
+use super::rail_box;
 use super::*;
 use std::time::Instant;
 
@@ -84,6 +85,21 @@ pub(super) fn draw_tree_gutter(frame: &mut Frame, texto: Rect, app: &App, carril
         } else {
             tree_style(kind, app)
         };
+        // Con la caja activa, el mensaje del usuario se pinta como caja y no como árbol.
+        if app.theme.rail_box && kind == loomcoding_cloth::state::LineKind::User {
+            let caja = rail_box::Caja {
+                x0,
+                texto,
+                inicio: start,
+                fin: end,
+                enfocado: grueso,
+                estilo: style,
+                glifo: glifo.unwrap_or('»'),
+                con_barra: app.layout.width() < texto.width,
+            };
+            rail_box::pinta_caja(buf, &caja, top, bottom);
+            continue;
+        }
         let tinte =
             app.rail_style == RailStyle::Tint && kind == loomcoding_cloth::state::LineKind::User;
         let fondo = app.theme.styles.selection.bg.unwrap_or_default();
@@ -250,9 +266,22 @@ pub(super) fn draw_transcript(
             rows[0],
         );
     }
-    // El carril ocupa el borde izquierdo; el texto (y su selección) va a su derecha.
+    // El carril ocupa el borde izquierdo; el texto (y su selección) va a su derecha. Con la caja del
+    // usuario, el texto deja además dos columnas libres a la derecha para su borde.
     let gutter = rail_width(app.rail_style, body.width);
-    let texto = Rect::new(body.x + gutter, body.y, body.width - gutter, body.height);
+    // La caja solo existe con carril `box` y espacio para el carril (misma condición que `rail_width`).
+    app.fija_caja(app.rail_style == RailStyle::Box && gutter > 0);
+    let reserva = if app.theme.rail_box {
+        rail_box::RESERVA_DERECHA
+    } else {
+        0
+    };
+    let texto = Rect::new(
+        body.x + gutter,
+        body.y,
+        body.width - gutter - reserva,
+        body.height,
+    );
     app.transcript_area = Some(texto);
     loomcoding_cloth::widgets::transcript::render(
         frame,

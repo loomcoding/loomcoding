@@ -94,7 +94,9 @@ fn none_and_tint_draw_only_the_glyph_when_the_block_opens() {
 }
 
 #[test]
-fn box_still_paints_like_tree_until_its_own_task_lands() {
+fn box_draws_no_guide_outside_the_user_box() {
+    // El trazo de `box` lo pinta `rail_box.rs` solo en el mensaje del usuario; aquí, cada bloque
+    // se mide y se pinta como en `none`.
     for pos in [
         Posicion::Primera,
         Posicion::Intermedia,
@@ -102,10 +104,10 @@ fn box_still_paints_like_tree_until_its_own_task_lands() {
         Posicion::Unica,
     ] {
         for enfocado in [false, true] {
-            for glifo in [Some('»'), None] {
+            for glifo in [Some('»'), Some('≋'), None] {
                 assert_eq!(
                     rail_cells(RailStyle::Box, pos, enfocado, glifo),
-                    rail_cells(RailStyle::Tree, pos, enfocado, glifo),
+                    rail_cells(RailStyle::None, pos, enfocado, glifo),
                     "{pos:?} foco={enfocado} glifo={glifo:?}"
                 );
             }
@@ -172,7 +174,7 @@ fn the_focused_block_stands_out_in_every_style() {
         let interiores = &filas[1..filas.len() - 1];
 
         match style {
-            RailStyle::Tree | RailStyle::Box => {
+            RailStyle::Tree => {
                 assert!(primera.starts_with('┏'), "{style:?}: {primera:?}");
                 assert!(interiores.iter().all(|f| f.starts_with('┃')), "{style:?}");
                 assert!(ultima.starts_with('┗'), "{style:?}: {ultima:?}");
@@ -188,8 +190,9 @@ fn the_focused_block_stands_out_in_every_style() {
                     "{style:?}: {filas:?}"
                 );
             }
-            RailStyle::None | RailStyle::Tint => {
-                // Sin trazo: ningún símbolo grueso ni de punteado en el bloque enfocado.
+            RailStyle::None | RailStyle::Tint | RailStyle::Box => {
+                // Sin trazo: ningún símbolo grueso ni de punteado en el bloque enfocado. En `box`
+                // el bloque enfocado es el asistente de `conversacion`, que nunca lleva caja.
                 assert!(
                     filas
                         .iter()
@@ -203,9 +206,15 @@ fn the_focused_block_stands_out_in_every_style() {
 
 #[test]
 fn changing_the_rail_only_moves_the_text_by_its_width() {
+    // `box` añade su borde y una fila extra al mensaje del usuario: sus pruebas están en
+    // `caja_usuario.rs`, donde se comprueba que el texto sigue en su columna.
+    let estilos: Vec<RailStyle> = RailStyle::ALL
+        .into_iter()
+        .filter(|style| *style != RailStyle::Box)
+        .collect();
     let mut textos: Vec<Vec<String>> = Vec::new();
-    for style in RailStyle::ALL {
-        let mut app = conversacion(style);
+    for style in &estilos {
+        let mut app = conversacion(*style);
         let term = terminal_of(&mut app, 100, 30);
         let area = app.transcript_area.expect("el transcript fija su área");
         textos.push(
@@ -214,7 +223,7 @@ fn changing_the_rail_only_moves_the_text_by_its_width() {
                 .collect(),
         );
     }
-    for (style, filas) in RailStyle::ALL.iter().zip(&textos).skip(1) {
+    for (style, filas) in estilos.iter().zip(&textos).skip(1) {
         assert_eq!(filas, &textos[0], "{style:?}");
     }
 }

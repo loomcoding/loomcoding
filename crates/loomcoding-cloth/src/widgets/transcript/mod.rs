@@ -68,7 +68,9 @@ pub fn render(
     };
     let overflow = text_w < area.width;
 
-    if prev_width != 0 && prev_width != text_w && !viewport.is_following() {
+    // Un ancho anterior de cero (tras `Layout::invalidate`) también cuenta como cambio: el ancla
+    // se conserva aunque la altura de las líneas haya cambiado sin cambiar el ancho.
+    if prev_width != text_w && !viewport.is_following() {
         if let Some((line, row)) = viewport.anchor() {
             let h = layout.height_of(line).max(1);
             viewport.restore_top(layout.row_of(line) + row.min(h - 1));
@@ -93,8 +95,8 @@ pub fn render(
         let mut i = first;
         while i < transcript.len() && filled < rows + skip {
             if let Some(line) = transcript.line(i) {
-                let entry_start = transcript.locate(i).is_some_and(|(_, line)| line == 0);
-                let mut out = render_line(line, theme, entry_start);
+                let (entry_start, entry_end) = posicion_en_entrada(transcript, i);
+                let mut out = render_line(line, theme, entry_start, entry_end);
                 if selection.is_some_and(|s| s.contains(i)) {
                     for tl in &mut out {
                         tl.style = tl.style.patch(sel_style);

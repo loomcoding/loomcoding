@@ -6,10 +6,11 @@ use crate::render::rail::RailStyle;
 
 impl App {
     /// Fija el carril (`/ui carril` o la fila «Carril» del panel), lo persiste si hay `prefs_path`
-    /// y avisa en `slash_feedback` si el guardado falla, sin impedir el cambio. No toca el tema ni
-    /// el texto del transcript: solo cambia el carril que lo acompaña.
+    /// y avisa en `slash_feedback` si el guardado falla, sin impedir el cambio. No toca el texto
+    /// del transcript: solo cambia el carril que lo acompaña y, con `box`, la caja del usuario.
     pub fn set_rail(&mut self, style: RailStyle) {
         self.rail_style = style;
+        self.fija_caja(style == RailStyle::Box);
         self.slash_feedback = None;
         if let Some(path) = &self.prefs_path {
             if let Err(err) = crate::prefs::save_rail(path, style) {
@@ -32,6 +33,18 @@ impl App {
                     opciones.join(", ")
                 ));
             }
+        }
+        self.fija_caja(self.rail_style == RailStyle::Box);
+    }
+
+    /// Pone la caja del mensaje del usuario en el tema (`theme.rail_box`). Si cambia, invalida la
+    /// caché de alturas: la caja añade una fila a cada mensaje del usuario sin cambiar su texto.
+    /// `draw_transcript` lo vuelve a fijar en cada fotograma, porque con menos de 40 columnas el
+    /// carril no existe y la caja tampoco.
+    pub(crate) fn fija_caja(&mut self, activa: bool) {
+        if self.theme.rail_box != activa {
+            self.theme.rail_box = activa;
+            self.layout.invalidate();
         }
     }
 }

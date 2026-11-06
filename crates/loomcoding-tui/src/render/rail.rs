@@ -17,8 +17,8 @@ pub enum RailStyle {
     Dots,
     /// Sin trazo; solo el bloque enfocado lleva un `▌` con el color de su rol.
     Bar,
-    /// Caja redonda del mensaje del usuario. Por ahora pinta y mide como `Tree`: la caja la
-    /// añade una tarea posterior.
+    /// Caja redonda fina solo del mensaje del usuario (`╭─╮ │ » │ ╰─╯`); el resto va sin trazo,
+    /// como en `None`. Mide 3 columnas, como `Tree`, para que el texto no salte entre roles.
     Box,
     /// Sin trazo; el mensaje del usuario lleva fondo tenue y el asistente un `• ` atenuado.
     Tint,
@@ -88,8 +88,9 @@ pub fn rail_width(style: RailStyle, width: u16) -> u16 {
 
 /// Símbolos de las dos primeras columnas del carril de una fila. Las columnas que sobran del
 /// ancho de `rail_width` se quedan en blanco. `glifo` es el del rol del bloque (`None` si no lo
-/// lleva, como las herramientas); solo se usa en la fila de cabecera, salvo en `Tree` y `Box`,
-/// donde ocupa la segunda columna de esa fila.
+/// lleva, como las herramientas); solo se usa en la fila de cabecera, salvo en `Tree`, donde
+/// ocupa la segunda columna de esa fila. En `Box` no hay trazo fuera del mensaje del usuario: esa
+/// caja la pinta `rail_box.rs` aparte, así que aquí todo bloque se trata como en `None`.
 pub fn rail_cells(
     style: RailStyle,
     pos: Posicion,
@@ -97,10 +98,10 @@ pub fn rail_cells(
     glifo: Option<char>,
 ) -> [char; 2] {
     match style {
-        RailStyle::Tree | RailStyle::Box => arbol(pos, enfocado, glifo),
+        RailStyle::Tree => arbol(pos, enfocado, glifo),
         RailStyle::Dots => punteado(pos, enfocado, glifo),
         RailStyle::Bar => barra(pos, enfocado, glifo),
-        RailStyle::None | RailStyle::Tint => solo_glifo(pos, glifo),
+        RailStyle::None | RailStyle::Tint | RailStyle::Box => solo_glifo(pos, glifo),
     }
 }
 

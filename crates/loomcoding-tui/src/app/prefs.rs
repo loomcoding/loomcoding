@@ -154,6 +154,10 @@ impl App {
         if let Some(layout) = self.layout_override {
             self.theme.look.layout = layout;
         }
+        // El tema nuevo nace sin la caja del usuario y la caché de alturas puede venir del anterior:
+        // se vuelve a medir y se fija la caja según el carril elegido.
+        self.layout.invalidate();
+        self.fija_caja(self.rail_style == crate::render::rail::RailStyle::Box);
         self.sync_all_tools();
     }
 

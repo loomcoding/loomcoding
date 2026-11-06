@@ -184,6 +184,7 @@ impl Theme {
             hyperlinks: true,
             look: Look::classic(),
             matrix: MatrixConfig::default(),
+            rail_box: false,
         }
     }
 

@@ -43,10 +43,13 @@ fn ui_carril_sets_and_saves_the_style() {
 }
 
 #[test]
-fn ui_carril_accepts_box_even_though_it_paints_like_tree() {
+fn ui_carril_accepts_box_and_puts_the_user_box_on_the_theme() {
     let mut app = App::new();
     app.ui_command("carril BOX").unwrap();
     assert_eq!(app.rail_style, RailStyle::Box);
+    assert!(app.theme.rail_box);
+    app.ui_command("carril tree").unwrap();
+    assert!(!app.theme.rail_box);
 }
 
 #[test]

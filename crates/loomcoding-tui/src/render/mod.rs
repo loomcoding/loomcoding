@@ -16,6 +16,7 @@ mod transcript;
 use transcript::*;
 
 pub(crate) mod rail;
+mod rail_box;
 
 mod mascot_strip;
 
