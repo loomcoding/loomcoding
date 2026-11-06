@@ -39,6 +39,15 @@ eventos del dueño), `registry/snapshot.rs` si serializa jobs.
 - [ ] Pruebas: patrón válido arranca y registra `WatchInfo`; patrón inválido no arranca el comando; sin `watch`
   todo igual que hoy; `kill` cancela la vigilancia; `job_list` muestra la vigilancia.
 
+## Tarea 2b — `job_watch` sobre un job en marcha
+
+**Ficheros:** nuevo `crates/loomcoding-core/src/tools/job_watch.rs` (`JobWatchTool`, nombre `job_watch`, esquema
+`{job_id, pattern?, max_events?}`, `ExecutionMode::Exclusive`), registro de la herramienta junto a `job_start`, y en
+`job.rs` el método para sustituir o quitar la vigilancia de un job vivo (la trait `JobRegistry` gana
+`set_watch(owner, id, Option<WatchSpec>) -> Result<()>`).
+- [ ] Pruebas: añadir vigilancia a un job en marcha; solo ve líneas posteriores; cambiar el patrón; quitarla con
+  patrón vacío; job terminado o de otra sesión → error; patrón inválido → error sin cambiar nada.
+
 ## Tarea 3 — Entrega como mensaje de la conversación
 
 **Ficheros:** `agent/subagents.rs` (`flush_subagent_notices` entrega los lotes pendientes como

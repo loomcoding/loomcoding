@@ -1,6 +1,6 @@
 # Vigilancia de jobs en segundo plano (`watch`) — spec
 
-Estado: **propuesta**. Nace de una pregunta del usuario sobre cómo manejar las tareas lanzadas y de que otros
+Estado: **aprobada**. Nace de una pregunta del usuario sobre cómo manejar las tareas lanzadas y de que otros
 agentes ofrecen una herramienta `Monitor` que convierte un proceso en segundo plano en un flujo de avisos.
 
 ## Problema
@@ -36,6 +36,20 @@ modelo de jobs, de la herramienta `Monitor` de otros agentes. **No se añade nin
   sigue corriendo y se anota un último aviso «watch limit reached».
 - Sin `watch`, el comportamiento es el de hoy.
 
+### Vigilar un job ya lanzado: `job_watch`
+
+Un comando puede tardar más de lo previsto. `job_watch` añade, cambia o quita la vigilancia de un job **en marcha**:
+
+```json
+{ "job_id": "job-3", "pattern": "panic|FAILED", "max_events": 20 }
+```
+
+- Mismas cotas y mismo patrón que en `job_start`. Sin `pattern` (o con cadena vacía) quita la vigilancia.
+- Solo vigila líneas **posteriores** a la llamada: no relee la salida ya retenida (para eso está `job_output`).
+- Solo sobre jobs de la propia sesión y que sigan en marcha; sobre uno terminado devuelve un error claro.
+- Es una herramienta de escritura de estado ajeno al repositorio, pero no toca ficheros: modo `Parallel` no, `Exclusive`
+  como `job_start`, para no competir con otra orden sobre el mismo job.
+
 ### Qué se considera una línea
 
 La salida se trocea en líneas completas (separador `\n`; un resto sin salto se guarda hasta 4 KiB y se corta).
@@ -69,10 +83,9 @@ propia de Loomcoding: **no son estados A2A** y se rotulan como tales.
 
 ## No objetivos
 
-Vigilar jobs de otro usuario o de otra sesión, scripts de vigilancia arbitrarios, patrones sobre varias líneas,
+Vigilar jobs de otra sesión, scripts de vigilancia arbitrarios, patrones sobre varias líneas,
 reaccionar a la salida con acciones automáticas (solo se avisa al modelo), y cualquier planificador de DAG.
 
 ## Preguntas abiertas
 
-1. ¿Un aviso de vigilancia debe despertar al modelo por defecto (propuesto) o solo anotarse hasta el siguiente turno?
-2. ¿Hace falta añadir `watch` a un job ya lanzado (`job_watch`)? Propuesta: no en esta primera versión.
+Ninguna. El usuario decidió el 6 de noviembre: el aviso despierta al modelo por defecto y `job_watch` entra en la primera versión.
