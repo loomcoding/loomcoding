@@ -6,13 +6,12 @@ Lo que no pertenece a un plan concreto. Se tacha al hacerse; las decisiones abie
 
 - Menú izquierdo (`2026-11-06-loomcoding-menu-izquierdo.md`): T4 diff desplegable, T5 efectos del logo,
   T6 enganche y `/logofx`, T7 docs.
-- Panel `/ui` (`2026-11-06-loomcoding-panel-ui.md`): T1–T6.
 
 ## Sueltas
 
 - [ ] **Dashboard T9**: docs (`INDEX`, `CODE-MAP`, `ARCHITECTURE`, CHANGELOG) y volcados e2e de las tres
   disposiciones, con capturas en `docs/mockups/`.
-- [ ] **Integrar `dashboard-limpio` en master** y recompilar los binarios.
+- [x] **Integrar `dashboard-limpio` en master** (hecho el 6 de noviembre, avance rápido). Falta recompilar los binarios.
 - [ ] **Cablear `ContextConfig::load` + `with_context_config`** en `loomcoding-cli`.
 - [ ] **Contexto estructural, Tarea 7**: docs.
 - [ ] **Modelo y esfuerzo reales por agente** en la tarjeta (enlazar el perfil al `SubagentDescriptor`; toca
