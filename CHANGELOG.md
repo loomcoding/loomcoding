@@ -15,6 +15,9 @@ release.
 
 ### Interfaz
 
+- Nuevo comando `/ui [fila] [valor]`: abre el panel «Interfaz» o fija un ajuste de aspecto directamente. Los antiguos
+  `/theme`, `/layout`, `/temas`, `/crush`, `/classic`, `/mascot`, `/sidebar` y `/mouse` siguen funcionando, pero dejan de
+  saturar el popup de `/`; la ayuda se condensa en 21 líneas.
 - Nuevos comandos `/model [id]` y `/effort [nivel|default]`: cambian el modelo del proveedor y el esfuerzo de
   razonamiento sin abrir `/settings`, por su mismo camino de guardado. Sin argumento abren un selector; el modelo
   acepta cualquier identificador y el esfuerzo se limita a los niveles del modelo (catálogo o `[provider] efforts`).

@@ -97,6 +97,15 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
 5. Si el comando lleva argumento, añádelo a la lista de `slash_query` (`app/prefs.rs`) para que el popup no se
    cierre al teclearlo, y resuelve los rechazos **antes** de borrar el compositor (así se conserva el texto).
 
+### `/ui` y los alias de aspecto
+
+El panel «Interfaz» (raíz de `/temas`) y su comando `/ui [fila] [valor]` viven en `crates/loomcoding-tui/src/app/ui_command.rs`
+(`App::ui_command`, `App::ui_row_set`, sobre `UiRow`). Los comandos de aspecto antiguos (`/theme`, `/layout`, `/temas`,
+`/crush`, `/classic`, `/mascot`, `/sidebar`, `/mouse`) siguen funcionando como alias ocultos: están listados en
+`crates/loomcoding-tui/src/commands_alias.rs` (`HIDDEN_ALIASES`), no salen en el popup de `/` (lo filtra
+`slash_matches` en `app/prefs.rs`) y se ejecutan al escribirlos enteros y pulsar Enter (`run/keys.rs`). Un comando de
+aspecto nuevo entra como fila de `UiRow`, no como comando suelto.
+
 ### `/model` y `/effort`
 
 Atajos al flujo de ajustes del proveedor, sin abrir `/settings`: ambos terminan en `settings_save_requested`, que
