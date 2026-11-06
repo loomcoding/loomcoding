@@ -22,6 +22,7 @@ pub mod key_help;
 #[cfg(feature = "links")]
 pub mod link;
 pub mod logo;
+pub mod logo_fx;
 pub mod loom_mark;
 pub mod mascot;
 pub mod matrix_rain;
