@@ -2,7 +2,15 @@
 
 use super::*;
 
+/// Variable que desactiva la lectura de imágenes del portapapeles real. Cabe señalar que la fijan
+/// el entorno aislado de las pruebas e2e y que, en las pruebas unitarias, la lectura está apagada
+/// siempre: un resultado no debe depender de lo que la persona tenga copiado en ese momento.
+pub const NO_CLIPBOARD_ENV: &str = "LOOMCODING_NO_CLIPBOARD";
+
 pub(super) fn read_clipboard_image() -> Result<Option<Vec<u8>>, String> {
+    if cfg!(test) || std::env::var_os(NO_CLIPBOARD_ENV).is_some() {
+        return Ok(None);
+    }
     let mut clipboard = arboard::Clipboard::new().map_err(|error| error.to_string())?;
     let Ok(image) = clipboard.get_image() else {
         return Ok(None);

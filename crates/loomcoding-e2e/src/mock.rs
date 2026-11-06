@@ -183,6 +183,9 @@ impl Workspace {
             ("HOME".into(), home.clone()),
             ("LOOMCODING_HOME".into(), home),
             (KEY_ENV.into(), "sk-test".into()),
+            // El pegado no debe leer el portapapeles real de quien ejecuta las pruebas: una imagen
+            // copiada convertiría cada pegado de texto en un adjunto.
+            ("LOOMCODING_NO_CLIPBOARD".into(), "1".into()),
         ]
     }
 }
