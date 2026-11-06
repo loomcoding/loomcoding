@@ -272,6 +272,64 @@ async fn wake_turns_are_capped() {
 }
 
 #[tokio::test]
+async fn a_job_watch_batch_wakes_the_parent_like_a_child() {
+    let rig = rig(
+        vec![text("lanzado"), text("resumen"), text("sobra")],
+        Some((true, false)),
+    )
+    .await;
+    let (bus, sid, ready) = (rig.bus.clone(), rig.sid, rig.ready.clone());
+    let provider = rig.provider.clone();
+    let total = left(&rig);
+    tokio::spawn(async move {
+        first_round_started(&provider, total).await;
+        // El lote tiene avisos que entregar: el despertar produce un turno real.
+        ready.store(true, Ordering::SeqCst);
+        bus.publish(LiveEvent::JobWatchReady { session: sid });
+    });
+    let outcome = tokio::time::timeout(
+        Duration::from_secs(10),
+        rig.agent
+            .run_until_settled(rig.sid, "hi".into(), CancellationToken::new()),
+    )
+    .await
+    .expect("un lote de vigilancia listo debía despertar al padre")
+    .unwrap();
+    assert_eq!(outcome.final_text, "resumen");
+    assert_eq!(
+        left(&rig),
+        1,
+        "el proveedor se consulta exactamente dos veces"
+    );
+}
+
+#[tokio::test]
+async fn job_watch_wake_turns_share_the_cap() {
+    let scripts: Vec<_> = (0..20).map(|n| text(&format!("t{n}"))).collect();
+    let rig = rig(scripts, Some((true, true))).await;
+    let (bus, sid) = (rig.bus.clone(), rig.sid);
+    // Igual que con los hijos: el aviso puede repetirse sin fin y el tope debe cortar el bucle.
+    let publisher = tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(15)).await;
+            bus.publish(LiveEvent::JobWatchReady { session: sid });
+        }
+    });
+    let result = tokio::time::timeout(
+        Duration::from_secs(20),
+        rig.agent
+            .run_until_settled(rig.sid, "hi".into(), CancellationToken::new()),
+    )
+    .await;
+    publisher.abort();
+    result
+        .expect("el tope de despertares debía cortar el bucle")
+        .unwrap();
+    let consulted = 20 - left(&rig);
+    assert_eq!(consulted, 1 + MAX_WAKE_TURNS as usize);
+}
+
+#[tokio::test]
 async fn cancellation_interrupts_the_wait() {
     let rig = rig(vec![text("lanzado"), text("sobra")], Some((true, false))).await;
     let cancel = CancellationToken::new();

@@ -527,6 +527,16 @@ impl App {
                     self.wake_causes.push((child.0, motivo));
                 }
             }
+            // Un lote de vigilancia listo despierta al padre ocioso, bajo el mismo presupuesto que los
+            // hijos. Los avisos repetidos no acumulan causas: basta con un centinela.
+            LiveEvent::JobWatchReady { session } => {
+                if Some(session) == self.session_id {
+                    self.wake_pending = true;
+                    if !self.wake_causes.contains(&super::turn::JOB_WATCH_CAUSE) {
+                        self.wake_causes.push(super::turn::JOB_WATCH_CAUSE);
+                    }
+                }
+            }
             // El registro de agentes cambió. La interfaz aún no lo muestra: mostrarlo no es
             // objetivo del registro (spec del registro de agentes, «Eventos y observabilidad»).
             LiveEvent::AgentRegistryChanged { .. } => {}

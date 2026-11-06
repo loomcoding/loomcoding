@@ -2,6 +2,10 @@
 
 use super::*;
 
+/// Causa de despertar de un lote de vigilancia. El hijo 0 nunca es un agente real: es el centinela
+/// que identifica a la vigilancia en `wake_causes` y en la línea de causa.
+pub const JOB_WATCH_CAUSE: (i64, &str) = (0, "new lines");
+
 impl App {
     /// Decide si debe pedirse un despertar del padre ahora. Solo lo pide con el
     /// padre ocioso: sin turno, sin diálogos, sin colas ni ajustes en curso y con
@@ -89,14 +93,17 @@ impl App {
 
     /// Línea de interfaz que explica el último despertar del padre. Con varias causas
     /// pendientes muestra la más reciente y cuántas más quedan. Un hijo que no se conoce
-    /// se nombra por su identificador de agente.
+    /// se nombra por su identificador de agente; el centinela de vigilancia se nombra como tal.
     pub(super) fn wake_cause_line(&self) -> Option<String> {
         let (child, motivo) = *self.wake_causes.last()?;
-        let etiqueta = self
-            .subagents
-            .get(&child)
-            .map(|subagent| subagent.label.clone())
-            .unwrap_or_else(|| format!("agent #{child}"));
+        let etiqueta = if (child, motivo) == JOB_WATCH_CAUSE {
+            "job watch".to_string()
+        } else {
+            self.subagents
+                .get(&child)
+                .map(|subagent| subagent.label.clone())
+                .unwrap_or_else(|| format!("agent #{child}"))
+        };
         let mas = self.wake_causes.len() - 1;
         let sufijo = if mas > 0 {
             format!(" (+{mas} more)")

@@ -156,6 +156,8 @@ pub trait JobRegistry: Send + Sync {
     fn set_watch(&self, owner: SessionId, id: &JobId, spec: Option<WatchSpec>) -> Result<()>;
     /// Drena un lote por cada job vigilado del dueño que tenga avisos listos en `now`.
     fn take_watch_batches(&self, owner: SessionId, now: Instant) -> Vec<(JobSnapshot, WatchBatch)>;
+    /// Dice si `take_watch_batches` entregaría algún lote del dueño en `now`, sin consumir nada.
+    fn watch_ready(&self, owner: SessionId, now: Instant) -> bool;
 }
 
 struct Entry {
@@ -393,6 +395,24 @@ impl JobRegistry for LocalJobRegistry {
         *current = spec.map(Watch::new);
         state.send_modify(|snapshot| snapshot.watch = current.as_ref().map(Watch::info));
         Ok(())
+    }
+
+    fn watch_ready(&self, owner: SessionId, now: Instant) -> bool {
+        // Las ranuras se copian antes de bloquearlas: el mapa de jobs no se mantiene abierto.
+        let slots: Vec<WatchSlot> = self
+            .jobs
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|entry| entry.state.borrow().owner == owner)
+            .map(|entry| entry.watch.clone())
+            .collect();
+        slots.iter().any(|slot| {
+            slot.lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|live| live.ready(now))
+        })
     }
 
     fn take_watch_batches(&self, owner: SessionId, now: Instant) -> Vec<(JobSnapshot, WatchBatch)> {

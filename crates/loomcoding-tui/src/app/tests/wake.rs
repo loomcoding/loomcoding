@@ -254,3 +254,65 @@ fn escape_clears_wake_causes() {
     app.request_cancel();
     assert!(app.wake_causes.is_empty());
 }
+
+/// Aviso de vigilancia de la sesión dada.
+fn job_watch_ready(session: i64) -> LiveEvent {
+    LiveEvent::JobWatchReady {
+        session: SessionId(session),
+    }
+}
+
+#[test]
+fn job_watch_batch_wakes_an_idle_parent_and_spends_the_same_budget() {
+    let mut app = idle_parent_app();
+    app.apply(job_watch_ready(1));
+    assert!(app.wake_pending, "un lote listo despierta al padre ocioso");
+    assert!(app.take_wake());
+    app.apply(LiveEvent::TurnStarted);
+    assert_eq!(app.auto_turns_left, MAX_AUTO_TURNS - 1);
+    assert_eq!(app.status, "auto-turn");
+}
+
+#[test]
+fn job_watch_batch_ignores_other_sessions() {
+    let mut app = idle_parent_app();
+    app.apply(job_watch_ready(2));
+    assert!(!app.wake_pending);
+    assert!(app.wake_causes.is_empty());
+}
+
+#[test]
+fn exhausted_budget_keeps_the_job_watch_from_waking_the_parent() {
+    let mut app = idle_parent_app();
+    app.auto_turns_left = 0;
+    app.apply(job_watch_ready(1));
+    assert!(!app.take_wake(), "sin presupuesto no hay despertar");
+    assert!(!app.wake_pending);
+    assert!(app.wake_causes.is_empty());
+    // Un turno del usuario no gasta presupuesto: el aviso se entrega en él por el núcleo.
+    app.apply(LiveEvent::TurnStarted);
+    assert_eq!(app.auto_turns_left, 0);
+    assert_eq!(app.status, "working");
+}
+
+#[test]
+fn repeated_job_watch_batches_record_a_single_cause() {
+    let mut app = idle_parent_app();
+    for _ in 0..5 {
+        app.apply(job_watch_ready(1));
+    }
+    assert_eq!(app.wake_causes, vec![crate::app::turn::JOB_WATCH_CAUSE]);
+}
+
+#[test]
+fn woken_turn_names_the_job_watch_in_its_cause_line() {
+    let mut app = idle_parent_app();
+    app.apply(job_watch_ready(1));
+    assert!(app.take_wake());
+    app.apply(LiveEvent::TurnStarted);
+    assert_eq!(
+        system_lines(&app),
+        vec!["⟳ auto-turn · woken by «job watch» (new lines)".to_string()]
+    );
+    assert!(app.wake_causes.is_empty());
+}

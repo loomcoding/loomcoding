@@ -3,6 +3,7 @@ use crate::error::{CoreError, Result};
 use crate::job::{JobResult, JobSpec};
 use crate::job_watch::{ChunkDecoder, WatchSpec};
 use async_trait::async_trait;
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -23,18 +24,45 @@ pub(crate) fn track_job(ctx: &ToolCtx, id: &crate::job::JobId) -> Result<()> {
     let bus = ctx.bus.clone();
     bus.publish(crate::event::LiveEvent::JobChanged(initial.clone()));
     if !settled(initial.status) {
+        let jobs = ctx.jobs.clone();
+        let session = ctx.session;
         tokio::spawn(async move {
-            while updates.changed().await.is_ok() {
-                let snapshot = updates.borrow_and_update().clone();
-                let is_settled = settled(snapshot.status);
-                bus.publish(crate::event::LiveEvent::JobChanged(snapshot));
-                if is_settled {
-                    break;
+            // Cabe señalar que el tick sondea la vigilancia aunque el job no emita nada: así un lote
+            // que ya estaba listo despierta al padre sin esperar a la siguiente línea del job.
+            let mut tick = tokio::time::interval(crate::job_watch::BATCH_INTERVAL);
+            loop {
+                tokio::select! {
+                    changed = updates.changed() => {
+                        if changed.is_err() {
+                            break;
+                        }
+                        let snapshot = updates.borrow_and_update().clone();
+                        let is_settled = settled(snapshot.status);
+                        bus.publish(crate::event::LiveEvent::JobChanged(snapshot));
+                        if is_settled {
+                            // La vigilancia ya se cerró: lo que quede por entregar se anuncia ya.
+                            announce_watch_if_ready(&jobs, &bus, session);
+                            break;
+                        }
+                    }
+                    _ = tick.tick() => announce_watch_if_ready(&jobs, &bus, session),
                 }
             }
         });
     }
     Ok(())
+}
+
+/// Publica `JobWatchReady` si el dueño tiene un lote de vigilancia listo en este instante. Usa el
+/// reloj de tokio, para que las pruebas con tiempo pausado vean avanzar los intervalos.
+fn announce_watch_if_ready(
+    jobs: &Arc<dyn crate::job::JobRegistry>,
+    bus: &crate::event::EventBus,
+    session: crate::session::SessionId,
+) {
+    if jobs.watch_ready(session, tokio::time::Instant::now().into_std()) {
+        bus.publish(crate::event::LiveEvent::JobWatchReady { session });
+    }
 }
 
 /// Construye la vigilancia desde `pattern` y `max_events` (de `job_start` o `job_watch`).
@@ -391,3 +419,6 @@ mod tests {
             .is_empty());
     }
 }
+
+#[cfg(test)]
+mod watch_ready_tests;

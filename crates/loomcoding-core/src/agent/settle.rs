@@ -2,8 +2,8 @@
 //!
 //! Cabe señalar que en la TUI quien despierta al padre es la propia TUI (`App::take_wake`); sin ella
 //! (`loomcoding --print`) nadie lo hacía y los hijos vivos quedaban abandonados. Las causas son las
-//! mismas que las de la TUI para no inventar semántica: hijo `Completed` o `Failed`, y hijo que pide
-//! entrada. `Canceled` y `Rejected` no despiertan.
+//! mismas que las de la TUI para no inventar semántica: hijo `Completed` o `Failed`, hijo que pide
+//! entrada y lote de vigilancia listo (`JobWatchReady`). `Canceled` y `Rejected` no despiertan.
 
 use super::*;
 use crate::task::TaskState;
@@ -24,6 +24,8 @@ fn is_wake_cause(event: &LiveEvent, session: SessionId) -> bool {
             *parent == session && matches!(status, TaskState::Completed | TaskState::Failed)
         }
         LiveEvent::SubagentInputRequested { parent, .. } => *parent == session,
+        // Un lote de vigilancia listo cuenta como un hijo: mismo presupuesto y mismo tope.
+        LiveEvent::JobWatchReady { session: s } => *s == session,
         _ => false,
     }
 }

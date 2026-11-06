@@ -312,3 +312,123 @@ async fn a_job_without_watch_adds_no_watch_message() {
     assert_eq!(agent.flush_subagent_notices(sid).await.unwrap(), 1);
     assert!(textos_de_vigilancia(&store, sid).await.is_empty());
 }
+
+/// Guion de un turno con una sola respuesta de texto.
+fn respuesta(texto: &str) -> Vec<StreamChunk> {
+    vec![
+        StreamChunk::TextDelta(texto.into()),
+        StreamChunk::Done(FinishReason::Stop),
+    ]
+}
+
+/// Agente con un proveedor de guion dado y el registro de jobs dado.
+fn agente_con_guion(
+    dir: &std::path::Path,
+    store: Arc<SqliteStore>,
+    jobs: Arc<LocalJobRegistry>,
+    guion: Vec<Vec<StreamChunk>>,
+) -> AgentLoop {
+    AgentLoop::new(
+        Arc::new(QueueProvider {
+            scripts: Mutex::new(guion.into()),
+        }),
+        store,
+        Arc::new(ToolRegistry::new()),
+        EventBus::new(64),
+        Arc::new(PermissionService::allow_all()),
+        LoomcodingConfig {
+            provider: crate::config::ProviderConfig {
+                kind: crate::config::ProviderKind::OpenAiCompat,
+                base_url: "http://x".into(),
+                api_key_env: "K".into(),
+            },
+            model: "m".into(),
+            max_steps: 5,
+            effort: None,
+        },
+        dir.to_path_buf(),
+    )
+    .with_jobs(jobs)
+}
+
+#[tokio::test]
+async fn a_woken_turn_delivers_the_watch_batch() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = almacen(dir.path(), "despertado.db").await;
+    let sid = store.create_session("/p").await.unwrap();
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let agent = agente_con_guion(
+        dir.path(),
+        store.clone(),
+        jobs.clone(),
+        vec![respuesta("visto")],
+    );
+    let job = jobs
+        .start(job_vigilado(
+            sid,
+            "FAIL",
+            20,
+            Box::new(|handle, _| {
+                Box::pin(async move {
+                    handle.append("FAIL uno\n");
+                    Ok(None)
+                })
+            }),
+        ))
+        .unwrap();
+    jobs.wait(sid, job.id()).await.unwrap();
+
+    // El despertar entrega el lote y el turno que se lanza ya lo ve.
+    let outcome = agent
+        .run_woken(sid, CancellationToken::new())
+        .await
+        .unwrap()
+        .expect("un lote pendiente debía producir un turno");
+    assert_eq!(outcome.final_text, "visto");
+    assert!(textos_de_vigilancia(&store, sid)
+        .await
+        .contains(&format!("[Job {} watch] FAIL uno", job.id().0)));
+    // Con todo entregado, un nuevo despertar no gasta turno.
+    assert!(agent
+        .run_woken(sid, CancellationToken::new())
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
+async fn a_batch_left_undelivered_reaches_the_next_user_turn() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = almacen(dir.path(), "siguiente_turno.db").await;
+    let sid = store.create_session("/p").await.unwrap();
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let agent = agente_con_guion(
+        dir.path(),
+        store.clone(),
+        jobs.clone(),
+        vec![respuesta("contestado")],
+    );
+    let job = jobs
+        .start(job_vigilado(
+            sid,
+            "FAIL",
+            20,
+            Box::new(|handle, _| {
+                Box::pin(async move {
+                    handle.append("FAIL uno\n");
+                    Ok(None)
+                })
+            }),
+        ))
+        .unwrap();
+    jobs.wait(sid, job.id()).await.unwrap();
+
+    // Sin despertar (presupuesto agotado), el lote espera: el turno del usuario lo entrega.
+    agent
+        .run(sid, "¿qué ha pasado?".into(), CancellationToken::new())
+        .await
+        .unwrap();
+    assert!(textos_de_vigilancia(&store, sid)
+        .await
+        .contains(&format!("[Job {} watch] FAIL uno", job.id().0)));
+}
