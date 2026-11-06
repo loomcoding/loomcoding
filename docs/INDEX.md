@@ -122,6 +122,7 @@ son fiables. Manda la línea `Estado:` de la cabecera.
 | aspecto-unificado (11-06) | propuesta (sin plan propio) | tres capas de aspecto —paleta, estilo y distribución— con un solo sitio de elección cada una; la regla de que un widget nuevo derive de la capa existente; preguntas resueltas en panel-ui |
 | panel-ui (11-06) | propuesta (plan de 6 tareas) | `/ui`: un único comando que amplía el árbol de `/temas` con tema, estilo, distribución, efectos, spinner, muñeco, menú lateral y ratón; los comandos visuales antiguos quedan como alias ocultos y los temas de usuario pueden declarar `style` y `layout` |
 | model-effort (11-06) | propuesta (plan de 3 tareas) | comandos `/model` y `/effort`: atajos directos al flujo de ajustes del proveedor para cambiar el modelo y el esfuerzo de razonamiento sin abrir `/settings`, con selector cuando se teclean sin argumento |
+| providers-locales (11-06) | propuesta (plan de 5 tareas) | registro global `providers.toml` con llama-server, Strata y PolyStrata como proveedores por defecto, sondeo `GET /models` para descubrir modelos y comando `/provider` |
 | contexto-estructural (11-05) | en curso (tareas 0, 1, 4 y 5 hechas: índice, paquete y herramienta `context`; faltan PageRank, caché en disco, orientación previa y medición) | herramienta `context` (símbolos, usos y pruebas en una llamada, índice sintáctico) y orientación previa en la oficina; línea 3 del método; sin plan ni código |
 
 ## Dependencia vigilada: crossterm
