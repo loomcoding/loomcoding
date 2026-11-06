@@ -35,6 +35,7 @@ mod prefs;
 mod prompts;
 mod provider_command;
 mod providers_refresh;
+mod rail_prefs;
 mod session;
 mod session_diff_state;
 mod settings;
@@ -111,6 +112,8 @@ pub struct App {
     /// Paquete de estilo elegido por el usuario (`/ui style` o `ui.toml`). Si es `Some`,
     /// manda sobre el estilo del preset, también tras `/theme`.
     pub style_override: Option<loomcoding_cloth::widgets::StyleBundle>,
+    /// Carril del transcript (`/ui carril` o `rail` en `ui.toml`). Por defecto, el árbol.
+    pub rail_style: crate::render::rail::RailStyle,
     /// Captura del ratón (`/mouse`). Apagada, la terminal conserva su selección nativa.
     pub mouse_capture: bool,
     /// Hay un cambio de `mouse_capture` pendiente de aplicar al terminal.
@@ -440,6 +443,7 @@ impl App {
             prefs_path: None,
             layout_override: None,
             style_override: None,
+            rail_style: crate::render::rail::RailStyle::default(),
             mouse_capture: true,
             mouse_capture_dirty: false,
             mascot: true,

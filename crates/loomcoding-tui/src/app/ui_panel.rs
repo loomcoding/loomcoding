@@ -5,6 +5,7 @@
 //! ninguna lógica de persistencia.
 
 use super::*;
+use crate::render::rail::RailStyle;
 use loomcoding_cloth::widgets::{LayoutStyle, StyleBundle, ThemePreset};
 
 /// Orden de rotación de la fila «Distribución». No es `LayoutStyle::next`, que no incluye
@@ -22,6 +23,7 @@ pub enum UiRow {
     Theme,
     Style,
     Layout,
+    Rail,
     Effects,
     Spinner,
     Mascot,
@@ -31,10 +33,11 @@ pub enum UiRow {
 
 impl UiRow {
     /// Todas las filas, en el orden del panel.
-    pub const ALL: [UiRow; 8] = [
+    pub const ALL: [UiRow; 9] = [
         UiRow::Theme,
         UiRow::Style,
         UiRow::Layout,
+        UiRow::Rail,
         UiRow::Effects,
         UiRow::Spinner,
         UiRow::Mascot,
@@ -48,6 +51,7 @@ impl UiRow {
             Self::Theme => "theme",
             Self::Style => "style",
             Self::Layout => "layout",
+            Self::Rail => "carril",
             Self::Effects => "effects",
             Self::Spinner => "spinner",
             Self::Mascot => "mascot",
@@ -67,6 +71,7 @@ impl UiRow {
             Self::Theme => "Tema",
             Self::Style => "Estilo",
             Self::Layout => "Distribución",
+            Self::Rail => "Carril",
             Self::Effects => "Efectos",
             Self::Spinner => "Spinner",
             Self::Mascot => "Muñeco",
@@ -118,6 +123,7 @@ impl App {
                 .map_or("custom", StyleBundle::name)
                 .to_string(),
             UiRow::Layout => self.theme.look.layout.name().to_string(),
+            UiRow::Rail => self.rail_style.name().to_string(),
             UiRow::Effects => format!(
                 "matrix {} · logo {}",
                 on_off(self.matrix_rain.is_emitting()),
@@ -150,6 +156,10 @@ impl App {
                     .iter()
                     .position(|l| *l == self.theme.look.layout);
                 self.set_layout(LAYOUT_ROW_ORDER[step(actual, LAYOUT_ROW_ORDER.len(), forward)]);
+            }
+            UiRow::Rail => {
+                let actual = RailStyle::ALL.iter().position(|s| *s == self.rail_style);
+                self.set_rail(RailStyle::ALL[step(actual, RailStyle::ALL.len(), forward)]);
             }
             UiRow::Effects => return None,
             UiRow::Spinner => {

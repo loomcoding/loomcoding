@@ -13,6 +13,7 @@ use ratatui::Terminal;
 mod support;
 use support::*;
 mod cabecera_y_pie;
+mod carril;
 mod disposicion_y_rail;
 mod franja_del_muneco;
 mod logo_fx;

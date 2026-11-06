@@ -14,13 +14,14 @@ fn app_con_prefs(dir: &tempfile::TempDir) -> (App, std::path::PathBuf) {
 }
 
 #[test]
-fn ui_row_all_lists_the_eight_rows_in_panel_order() {
+fn ui_row_all_lists_the_nine_rows_in_panel_order() {
     assert_eq!(
         UiRow::ALL,
         [
             UiRow::Theme,
             UiRow::Style,
             UiRow::Layout,
+            UiRow::Rail,
             UiRow::Effects,
             UiRow::Spinner,
             UiRow::Mascot,

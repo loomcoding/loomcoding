@@ -156,7 +156,7 @@ fn ui_errors_keep_the_typed_text_and_report_the_options() {
         ("/ui effects x", "Use the panel: /ui effects"),
         (
             "/ui x",
-            "Unknown row: x. Rows: theme, style, layout, effects, spinner, mascot, sidebar, mouse",
+            "Unknown row: x. Rows: theme, style, layout, carril, effects, spinner, mascot, sidebar, mouse",
         ),
     ];
     for (texto, esperado) in casos {

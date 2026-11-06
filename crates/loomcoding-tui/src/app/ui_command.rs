@@ -6,6 +6,7 @@
 
 use super::ui_panel::UiRow;
 use super::*;
+use crate::render::rail::RailStyle;
 use loomcoding_cloth::widgets::{LayoutStyle, StyleBundle, ThemePreset};
 
 /// Nombre con el que se pide un preset en `/ui theme`: el tramo anterior a «·» de `name()`,
@@ -116,6 +117,13 @@ impl App {
                     unknown_value(row, value, &opciones.join(", "))
                 })?;
                 self.set_layout(layout);
+            }
+            UiRow::Rail => {
+                let style = RailStyle::from_name(&lower).ok_or_else(|| {
+                    let opciones: Vec<&str> = RailStyle::ALL.iter().map(|s| s.name()).collect();
+                    unknown_value(row, value, &opciones.join(", "))
+                })?;
+                self.set_rail(style);
             }
             UiRow::Mascot => {
                 let on = parse_on_off(row, value)?;

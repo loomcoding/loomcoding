@@ -24,6 +24,7 @@ mod model_effort;
 mod notices_and_remote;
 mod provider_command;
 mod providers_refresh;
+mod rail_prefs;
 mod session;
 mod session_diff_state;
 mod style_prefs;

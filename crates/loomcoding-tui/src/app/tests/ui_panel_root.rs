@@ -1,4 +1,4 @@
-//! Pruebas de la raíz del panel `/ui` (la ventana `/temas` con sus ocho filas): niveles,
+//! Pruebas de la raíz del panel `/ui` (la ventana `/temas` con sus nueve filas): niveles,
 //! teclas y avisos. Viven aparte para que `theme_and_settings.rs` no siga creciendo.
 
 use super::*;
@@ -21,24 +21,24 @@ fn abierta_con_prefs(dir: &tempfile::TempDir) -> App {
 }
 
 #[test]
-fn open_temas_starts_on_root_with_eight_rows_and_interface_title() {
+fn open_temas_starts_on_root_with_nine_rows_and_interface_title() {
     let mut app = App::new();
     app.open_temas();
     assert_eq!(app.temas_level, TemasLevel::Root);
-    assert_eq!(TemasLevel::Root.rows(), 8);
+    assert_eq!(TemasLevel::Root.rows(), 9);
     assert_eq!(TemasLevel::Root.title(), "Interfaz");
 }
 
 #[test]
-fn root_selection_is_bounded_by_the_eight_rows() {
+fn root_selection_is_bounded_by_the_nine_rows() {
     let mut app = App::new();
     app.open_temas();
     app.temas_move(-1);
     assert_eq!(app.temas_selected, 0);
     app.temas_move(100);
-    assert_eq!(app.temas_selected, 7);
+    assert_eq!(app.temas_selected, 8);
     app.temas_move(1);
-    assert_eq!(app.temas_selected, 7);
+    assert_eq!(app.temas_selected, 8);
 }
 
 #[test]

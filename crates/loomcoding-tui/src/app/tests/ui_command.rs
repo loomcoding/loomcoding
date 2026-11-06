@@ -161,7 +161,7 @@ fn ui_with_an_unknown_row_lists_the_rows() {
     let mut app = App::new();
     assert_eq!(
         app.ui_command("x").unwrap_err(),
-        "Unknown row: x. Rows: theme, style, layout, effects, spinner, mascot, sidebar, mouse"
+        "Unknown row: x. Rows: theme, style, layout, carril, effects, spinner, mascot, sidebar, mouse"
     );
 }
 

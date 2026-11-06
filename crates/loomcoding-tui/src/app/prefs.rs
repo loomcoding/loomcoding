@@ -75,6 +75,8 @@ impl App {
             self.style_override = Some(bundle);
             self.theme.look = self.theme.look.with_bundle(bundle);
         }
+        // El carril del transcript (`rail`): ausente deja `tree`; un valor desconocido avisa.
+        self.load_rail_pref(&path);
         // Se aplica sin marcar `mouse_capture_dirty`: el arranque ya usa este valor.
         if let Some(on) = crate::prefs::load_mouse(&path) {
             self.mouse_capture = on;
