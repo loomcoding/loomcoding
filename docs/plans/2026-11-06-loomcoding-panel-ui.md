@@ -28,8 +28,8 @@ que fijan `composer`, `tool` y `chrome` a la vez; `Classic` = `Look::classic()` 
 
 ## Tarea 2 — Estado y preferencias del estilo
 
-**Ficheros:** `loomcoding-tui/src/prefs.rs` (`style`), `app/prefs.rs` (`set_style`, y `layout_override`
-deja de existir: el layout se guarda y se carga directamente en el `Look`).
+**Ficheros:** `loomcoding-tui/src/prefs.rs` (`style`), `app/prefs.rs` (`set_style` y `style_override`, gemelo
+de `layout_override`, que se conserva para que la elección sobreviva a un cambio de tema).
 `ThemeFile` (`loomcoding-cloth/src/widgets/theme/loading.rs`) admite `style` y `layout` opcionales como valores
 por defecto del tema; prioridad: tema < `ui.toml`.
 - [ ] Pruebas: un tema de usuario con `style = "flat"` y `layout = "minimal"` los aplica; `ui.toml` los

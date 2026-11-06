@@ -59,7 +59,9 @@ en vez de veintiséis, y el aspecto en una sola línea.
 - `/style` **no** es un comando aparte: es la fila «Estilo» del panel. Resuelve la primera pregunta abierta.
 - `composer`, `tool` y `chrome` forman **un solo** estilo (`classic`/`flat`); no se combinan a mano. Resuelve
   la segunda. Internamente el `Look` conserva sus ejes; el panel solo expone los dos paquetes.
-- `layout_override` desaparece: el layout vive en el `Look` y `ui.toml` lo sobrescribe al cargar.
+- `layout_override` **se conserva** y el estilo gana su gemelo `style_override`: son la elección de la
+  persona usuaria y sobreviven a un cambio de tema (`apply_theme` los reaplica sobre el `Look` del preset).
+  Corrige la primera redacción, que los daba por prescindibles.
 - `/verbose` y `/mouse` no son aspecto estrictamente; `/mouse` entra en el panel (es interfaz) y `/verbose`
   se queda fuera (es diagnóstico del proveedor).
 
