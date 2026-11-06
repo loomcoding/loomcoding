@@ -58,12 +58,16 @@ recortadas con `…`, como mucho 12 líneas y `… N líneas más`; un fichero d
 ## Tarea 5 — Planificador y catálogo de efectos del logo
 
 **Ficheros nuevos:** `loomcoding-cloth/src/widgets/logo_fx.rs`.
-`LogoEffect::{BinaryRain, Shimmer, Scramble, Glitch, Dissolve, Pulse}`; generador mínimo con semilla;
+`LogoEffect::{BinaryRain, Shimmer, Flashlight, Scramble, Glitch, Dissolve, Pulse}`; `Flashlight` es un foco
+elíptico (radio horizontal ≈ 5 columnas, vertical ≈ 2 filas, borde suave) que cruza el logo de izquierda a
+derecha o al revés (al azar) en 1,5 s con `Interpolation::SineInOut`, aclarando las celdas que cubre y
+atenuando el resto mientras dura; generador mínimo con semilla;
 `LogoFx { interval, burst, last, next_at, rng, active }` con `tick(now) -> LogoFxState`, `deadline()` y
 `needs_clock()`; nunca el mismo efecto dos veces seguidas; cada ráfaga dura 1,5–3 s; intervalo acotado a
 5–600 s. Los efectos con `tachyonfx` se construyen con colores del tema; la lluvia es un `MatrixRain`
 propio con `GlyphSet::binary()`.
-- [ ] Pruebas deterministas con semilla y reloj inyectados: sin repetición consecutiva; no hay reloj en
+- [ ] Pruebas deterministas con semilla y reloj inyectados: la linterna aclara las celdas bajo el foco y no
+  toca las de fuera de su rectángulo, y el foco termina a un lado distinto del que empezó; sin repetición consecutiva; no hay reloj en
   reposo; `deadline` coincide con el próximo disparo; cotas del intervalo; con efectos apagados no se dispara.
 
 ## Tarea 6 — Enganche en la TUI y preferencias

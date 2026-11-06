@@ -19,6 +19,10 @@ ruta y `+N −M`: no hay forma de ver **qué** ha cambiado el agente sin salir d
    ráfagas el logo está quieto y **no corre ningún reloj**. Catálogo (todo sale de librerías ya presentes):
    - *Lluvia binaria* de fondo: `MatrixRain` con `GlyphSet::binary()` en el rectángulo del logo.
    - *Reflejo*: una banda clara que barre el logo (`tachyonfx::fx::sweep_in` / `sweep_out` con `hsl_shift`).
+   - *Linterna*: un haz de luz recorre el logo de lado a lado, como si alguien lo iluminara con una
+     linterna: un foco elíptico con borde suave que aclara el color de las celdas que cubre (el resto
+     queda atenuado mientras dura) y se desplaza con aceleración suave (`tachyonfx::fx::effect_fn` con
+     `lighten_fg`/`darken_fg`, o un `Shader` propio si hace falta).
    - *Tipográfico*: las letras se desordenan y se recomponen (`coalesce`, `evolve`, `dissolve`).
    - *Glitch*: `tachyonfx::fx::Glitch` sobre las letras.
    - *Pulso*: cambio de tono ida y vuelta (`hsl_shift` + `ping_pong`).
