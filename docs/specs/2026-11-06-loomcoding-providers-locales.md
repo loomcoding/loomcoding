@@ -1,6 +1,6 @@
 # Proveedores locales globales y descubrimiento de modelos — spec
 
-Estado: **propuesta**. Nace de una petición del usuario: tener `llama-server`, Strata y PolyStrata como proveedores
+Estado: **aprobada**. Nace de una petición del usuario: tener `llama-server`, Strata y PolyStrata como proveedores
 por defecto **a nivel global**, para encenderlos o apagarlos a voluntad sin pelearse con scripts ni indicárselo a
 mano, y que Loomcoding **descubra los modelos** de los proveedores disponibles.
 
@@ -92,5 +92,4 @@ cabecera, y cualquier optimización del rendimiento de Strata (lo trata otro age
 
 ## Preguntas abiertas
 
-1. ¿`default` del registro debe ser `llama` (el 9B, rápido) o `strata`? Propuesta: `llama`.
-2. ¿Quieres `/provider` como comando (propuesto) o basta con el selector de `/settings`?
+Ninguna. El usuario decidió el 6 de noviembre: el `default` del registro es `llama` y `/provider` se incluye como comando.
