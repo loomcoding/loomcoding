@@ -51,7 +51,7 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
     (
         Command::Temas,
         "/temas",
-        "Temas: efectos (Matrix rain) y presets de tema",
+        "Panel de interfaz: tema, estilo, distribución, efectos, spinner, muñeco, menú y ratón",
     ),
     (Command::Crush, "/crush", "Switch to the Crush look"),
     (Command::Classic, "/classic", "Back to the Cloth look"),

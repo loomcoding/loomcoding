@@ -134,6 +134,12 @@ pub(super) fn draw_temas(frame: &mut Frame, area: Rect, app: &App) {
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
 
+    // La raíz es la lista de filas del panel `/ui`, a todo el ancho.
+    if app.temas_level == TemasLevel::Root {
+        super::ui_root::draw_ui_root(frame, inner, app);
+        return;
+    }
+
     // Columna izquierda: el árbol. Derecha: el detalle del nivel.
     let split = Layout::default()
         .direction(Direction::Horizontal)
@@ -143,32 +149,8 @@ pub(super) fn draw_temas(frame: &mut Frame, area: Rect, app: &App) {
     let mut lines: Vec<Line> = Vec::new();
     let marker = |selected: bool| if selected { "▸ " } else { "  " };
     match app.temas_level {
-        TemasLevel::Root => {
-            lines.push(Line::from(Span::styled(
-                format!("{}Efectos", marker(app.temas_selected == 0)),
-                if app.temas_selected == 0 {
-                    app.theme.styles.accent
-                } else {
-                    app.theme.styles.default
-                },
-            )));
-            lines.push(Line::from(Span::styled(
-                format!("{}Tema", marker(app.temas_selected == 1)),
-                if app.temas_selected == 1 {
-                    app.theme.styles.accent
-                } else {
-                    app.theme.styles.default
-                },
-            )));
-            lines.push(Line::from(Span::styled(
-                format!("{}Spinner", marker(app.temas_selected == 2)),
-                if app.temas_selected == 2 {
-                    app.theme.styles.accent
-                } else {
-                    app.theme.styles.default
-                },
-            )));
-        }
+        // La raíz se dibuja arriba, con `draw_ui_root`.
+        TemasLevel::Root => {}
         TemasLevel::Effects => {
             lines.push(Line::from(Span::styled(
                 format!("{}Matrix rain", marker(true)),

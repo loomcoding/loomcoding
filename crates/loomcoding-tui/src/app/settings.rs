@@ -30,14 +30,7 @@ impl App {
     /// `Enter`: entra en el elemento seleccionado o aplica la acción del nivel.
     pub fn temas_enter(&mut self) {
         match self.temas_level {
-            TemasLevel::Root => {
-                self.temas_level = match self.temas_selected {
-                    0 => TemasLevel::Effects,
-                    1 => TemasLevel::Theme,
-                    _ => TemasLevel::Spinner,
-                };
-                self.temas_selected = 0;
-            }
+            TemasLevel::Root => self.ui_root_enter(),
             TemasLevel::Effects => {
                 self.temas_level = TemasLevel::Matrix;
                 self.temas_selected = 0;
@@ -77,7 +70,7 @@ impl App {
             TemasLevel::Root => self.close_temas(),
             TemasLevel::Effects => {
                 self.temas_level = TemasLevel::Root;
-                self.temas_selected = 0;
+                self.temas_selected = UiRow::Effects.root_index();
             }
             TemasLevel::Matrix => {
                 self.temas_level = TemasLevel::Effects;
@@ -85,18 +78,22 @@ impl App {
             }
             TemasLevel::Theme => {
                 self.temas_level = TemasLevel::Root;
-                self.temas_selected = 1;
+                self.temas_selected = UiRow::Theme.root_index();
             }
             TemasLevel::Spinner => {
                 self.temas_level = TemasLevel::Root;
-                self.temas_selected = 2;
+                self.temas_selected = UiRow::Spinner.root_index();
             }
         }
     }
 
-    /// `←`/`→`: ajusta el campo seleccionado del formulario de Matrix rain,
-    /// o cambia el spinner elegido cuando el nivel es `Spinner`.
+    /// `←`/`→`: en la raíz cambia el valor de la fila sin entrar; en `Spinner` cambia el
+    /// indicador elegido; en `Matrix` ajusta el campo seleccionado del formulario de Matrix rain.
     pub fn temas_adjust(&mut self, forward: bool) {
+        if self.temas_level == TemasLevel::Root {
+            self.ui_root_cycle(forward);
+            return;
+        }
         if self.temas_level == TemasLevel::Spinner {
             let count = SPINNER_CHOICES.len();
             let next = if forward {

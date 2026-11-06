@@ -30,6 +30,8 @@ mod logo_fx;
 mod settings;
 use settings::*;
 
+mod ui_root;
+
 mod overlays;
 use overlays::*;
 

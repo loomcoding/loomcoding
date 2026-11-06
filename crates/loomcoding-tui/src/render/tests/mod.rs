@@ -22,3 +22,4 @@ mod pie_de_atajos;
 mod sidebar_files;
 mod tarjeta_de_agentes;
 mod transcript_y_arbol;
+mod ui_panel_root;

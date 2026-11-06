@@ -41,12 +41,14 @@ mod tool_sync;
 mod turn;
 mod types;
 mod ui_panel;
+mod ui_panel_keys;
 mod usage;
 
 pub use child_types::*;
 pub use session_diff_state::SessionDiffView;
 pub use settings_types::*;
 pub use types::*;
+pub use ui_panel::UiRow;
 use usage::*;
 
 /// Lo que el usuario tenía escrito en una sesión al apartarse de ella.

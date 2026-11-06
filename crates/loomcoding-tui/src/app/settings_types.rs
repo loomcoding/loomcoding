@@ -123,10 +123,10 @@ pub struct PickerItem {
     pub detail: String,
 }
 
-/// Nivel del árbol de la ventana `/temas`.
+/// Nivel del árbol de la ventana `/temas` (el panel `/ui`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TemasLevel {
-    /// Raíz: las secciones «Efectos», «Tema» y «Spinner».
+    /// Raíz: una fila por [`UiRow`], en el orden del panel.
     Root,
     /// Lista de efectos disponibles.
     Effects,
@@ -142,18 +142,18 @@ impl TemasLevel {
     /// Título que se muestra en el bloque de la ventana.
     pub fn title(self) -> &'static str {
         match self {
-            Self::Root => "Temas",
-            Self::Effects => "Temas › Efectos",
-            Self::Matrix => "Temas › Efectos › Matrix rain",
-            Self::Theme => "Temas › Tema",
-            Self::Spinner => "Temas › Spinner",
+            Self::Root => "Interfaz",
+            Self::Effects => "Interfaz › Efectos",
+            Self::Matrix => "Interfaz › Efectos › Matrix rain",
+            Self::Theme => "Interfaz › Tema",
+            Self::Spinner => "Interfaz › Spinner",
         }
     }
 
     /// Número de filas seleccionables del nivel.
     pub fn rows(self) -> usize {
         match self {
-            Self::Root => 3,
+            Self::Root => UiRow::ALL.len(),
             Self::Effects => 1,
             Self::Matrix => MATRIX_FIELDS.len(),
             Self::Theme => loomcoding_cloth::widgets::ThemePreset::ALL.len(),

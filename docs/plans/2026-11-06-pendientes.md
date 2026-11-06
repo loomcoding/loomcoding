@@ -24,6 +24,9 @@ Lo que no pertenece a un plan concreto. Se tacha al hacerse; las decisiones abie
   producción lee un `theme.toml` de usuario, así que `style` y `layout` de un tema de usuario (ya soportados en
   `ThemeFile`) no tienen efecto. Hay que decidir dónde vive el fichero y cargarlo en `App` antes de aplicar `ui.toml`.
 
+- [ ] **Test intermitente** `loomcoding-a2a` `sync::tests::the_periodic_loop_refreshes_again_and_again`: falló una vez en la suite
+  completa (sync.rs:439) y pasa 5 de 5 aislado; depende de la temporización del bucle periódico. Hay que hacerlo determinista.
+
 ## Decisiones abiertas
 
 - ¿`/mascot on` debe forzar el braille aunque haya `NO_COLOR`?

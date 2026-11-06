@@ -157,7 +157,8 @@ fn temas_opens_at_root() {
 fn temas_enter_walks_down_the_tree() {
     let mut app = App::new();
     app.open_temas();
-    // Raíz → Efectos
+    // Raíz → Efectos (cuarta fila de la raíz de ocho)
+    app.temas_move(3);
     app.temas_enter();
     assert_eq!(app.temas_level, TemasLevel::Effects);
     // Efectos → Matrix
@@ -170,6 +171,7 @@ fn temas_enter_walks_down_the_tree() {
 fn temas_esc_walks_up_and_closes_at_root() {
     let mut app = App::new();
     app.open_temas();
+    app.temas_move(3);
     app.temas_enter();
     app.temas_enter();
     assert_eq!(app.temas_level, TemasLevel::Matrix);
@@ -191,15 +193,18 @@ fn temas_selection_does_not_wrap() {
     assert_eq!(app.temas_selected, 1);
     app.temas_move(1);
     assert_eq!(app.temas_selected, 2);
+    // La raíz tiene ocho filas: el tope es la última (índice 7).
+    app.temas_move(100);
+    assert_eq!(app.temas_selected, 7);
     app.temas_move(1);
-    assert_eq!(app.temas_selected, 2);
+    assert_eq!(app.temas_selected, 7);
 }
 
 #[test]
 fn temas_theme_level_applies_preset() {
     let mut app = App::new();
     app.open_temas();
-    app.temas_move(1);
+    // «Tema» es la primera fila de la raíz: no hace falta moverse.
     app.temas_enter();
     assert_eq!(app.temas_level, TemasLevel::Theme);
     let before = app.theme_preset;
@@ -212,6 +217,7 @@ fn temas_theme_level_applies_preset() {
 fn temas_matrix_adjust_marks_dirty_and_previews() {
     let mut app = App::new();
     app.open_temas();
+    app.temas_move(3);
     app.temas_enter();
     app.temas_enter();
     let before = app.temas_matrix.speed;
@@ -227,6 +233,7 @@ fn temas_matrix_adjust_marks_dirty_and_previews() {
 fn temas_matrix_glyph_cycle_changes_preset() {
     let mut app = App::new();
     app.open_temas();
+    app.temas_move(3);
     app.temas_enter();
     app.temas_enter();
     let before = app.temas_matrix.glyphs.preset_name();
@@ -238,6 +245,7 @@ fn temas_matrix_glyph_cycle_changes_preset() {
 fn temas_matrix_values_are_clamped() {
     let mut app = App::new();
     app.open_temas();
+    app.temas_move(3);
     app.temas_enter();
     app.temas_enter();
     // Densidad: bajar 200 veces no debe pasar de 0.
@@ -261,6 +269,7 @@ fn temas_save_persists_and_clears_dirty() {
     let mut app = App::new();
     app.set_prefs_path(path.clone());
     app.open_temas();
+    app.temas_move(3);
     app.temas_enter();
     app.temas_enter();
     app.temas_move(1);
@@ -280,6 +289,7 @@ fn temas_save_persists_and_clears_dirty() {
 fn temas_close_discards_unsaved_changes() {
     let mut app = App::new();
     app.open_temas();
+    app.temas_move(3);
     app.temas_enter();
     app.temas_enter();
     app.temas_move(1);
