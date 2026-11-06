@@ -235,8 +235,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(block, popup);
     frame.render_widget(
         Paragraph::new(vec![
-            Line::from("Enter       Send prompt"),
-            Line::from("Ctrl+J      Insert newline"),
+            Line::from("Enter/Ctrl+J Send prompt · Ctrl+J inserts a newline"),
             Line::from("Tab/Shift+Tab Switch composer/transcript"),
             Line::from("↑/↓ + Enter Open subagent (rail focused)"),
             Line::from("Alt+←/parent Back to the parent session"),
@@ -252,6 +251,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
             Line::from("            spinner, mascot, side menu, mouse (alias /theme /layout)"),
             Line::from("/mascot /logofx  Status mascot · logo effects (on|off|seconds)"),
             Line::from("/model      Change model: /model <id>, or pick from the catalog"),
+            Line::from("/effort     Reasoning effort: /effort <level|default>, or pick"),
             Line::from("F2 / F3     Provider settings · switch or create session (idle)"),
             Line::from("?           Open this help (empty composer)"),
             Line::from("Esc         Cancel turn; press twice to quit"),

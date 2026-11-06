@@ -83,6 +83,17 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
    (ejemplo: `Command::Verbose`).
 3. Estado que necesite: `crates/loomcoding-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
 4. El composer no puede parpadear ni ir con retraso: comprueba con `tui_pty` si tocas teclas.
+5. Si el comando lleva argumento, añádelo a la lista de `slash_query` (`app/prefs.rs`) para que el popup no se
+   cierre al teclearlo, y resuelve los rechazos **antes** de borrar el compositor (así se conserva el texto).
+
+### `/model` y `/effort`
+
+Atajos al flujo de ajustes del proveedor, sin abrir `/settings`: ambos terminan en `settings_save_requested`, que
+recoge `run/mod.rs::send_provider_settings`. La lógica vive en `crates/loomcoding-tui/src/app/model_effort.rs`
+(`set_model_now`, `open_model_picker_now`, `set_effort_now`, `open_effort_picker_now`); los selectores rápidos se
+dibujan en `render/model_picker.rs` y `render/effort_picker.rs`, y sus teclas, en `run/model_picker_keys.rs` y
+`run/effort_picker_keys.rs`. Los niveles de esfuerzo salen de `App::effort_options()` (catálogo y, si no
+publica niveles, `[provider] efforts`). Un selector abierto debe excluirse del guard del pegado en `run/events.rs`.
 
 ## Quiero tocar el menú izquierdo del `Workspace`
 

@@ -29,6 +29,7 @@ const ESC_DOUBLE_PRESS: Duration = Duration::from_millis(350);
 
 mod clipboard;
 mod dialogs;
+mod effort_picker_keys;
 mod events;
 mod keys;
 mod model_picker_keys;
@@ -37,6 +38,7 @@ mod slash;
 
 use clipboard::*;
 use dialogs::*;
+use effort_picker_keys::*;
 pub use events::*;
 pub use keys::*;
 use model_picker_keys::*;

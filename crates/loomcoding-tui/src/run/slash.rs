@@ -36,6 +36,19 @@ pub(super) fn execute_slash_command(
             return None;
         }
     }
+    // `/effort` decide igual que `/model`: con un rechazo, el texto escrito se conserva.
+    if command == Command::Effort {
+        let arg = typed.strip_prefix("/effort").map(str::trim).unwrap_or("");
+        let outcome = if arg.is_empty() {
+            app.open_effort_picker_now()
+        } else {
+            app.set_effort_now(Some(arg))
+        };
+        if let Err(message) = outcome {
+            app.slash_feedback = Some(message);
+            return None;
+        }
+    }
     if command == Command::Cancel && !app.turn_in_flight {
         app.slash_feedback = Some("No active turn to cancel".into());
         return None;
@@ -163,7 +176,7 @@ pub(super) fn execute_slash_command(
         }
         // Ya pedida arriba: el bucle la entrega al trabajador con `dispatch_compact`.
         // Ya resuelto arriba, antes de borrar el compositor.
-        Command::Compact | Command::Model => None,
+        Command::Compact | Command::Model | Command::Effort => None,
         Command::Quit => handle_key(app, KeyCode::Char('q'), KeyModifiers::CONTROL),
         Command::Parent => {
             if !app.go_parent() {

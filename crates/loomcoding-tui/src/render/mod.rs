@@ -30,6 +30,8 @@ mod logo_fx;
 mod settings;
 use settings::*;
 
+mod effort_picker;
+use effort_picker::draw_effort_picker;
 mod model_picker;
 use model_picker::draw_model_picker;
 
@@ -177,6 +179,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.quick_model_picker {
         draw_model_picker(frame, area, app);
+    }
+    if app.quick_effort_picker.is_some() {
+        draw_effort_picker(frame, area, app);
     }
     if app.temas_open {
         draw_temas(frame, area, app);

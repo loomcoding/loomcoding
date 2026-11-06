@@ -366,6 +366,9 @@ pub struct App {
     /// Selector de modelos abierto con `/model` sin argumento: se dibuja aparte de `/settings`
     /// y al elegir aplica el modelo sin abrir el formulario.
     pub quick_model_picker: bool,
+    /// Selector de esfuerzo abierto con `/effort` sin argumento: índice de la fila resaltada
+    /// (0 es «default»; `i + 1` es `effort_options()[i]`). `None` si está cerrado.
+    pub quick_effort_picker: Option<usize>,
     pub help_open: bool,
     /// Popup de `/agents` abierto, con el informe que mostraba el registro al abrirlo.
     pub agents_open: bool,
@@ -558,6 +561,7 @@ impl App {
             picker_query: String::new(),
             picker_selected: 0,
             quick_model_picker: false,
+            quick_effort_picker: None,
             help_open: false,
             agents_open: false,
             agent_rows: Vec::new(),

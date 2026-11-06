@@ -1,5 +1,5 @@
-//! `/model` sin abrir `/settings`: fija el modelo del proveedor actual por el mismo camino de
-//! guardado (`settings_save_requested`) y, sin argumento, abre el selector de modelos en modo
+//! `/model` y `/effort` sin abrir `/settings`: fijan el modelo o el esfuerzo del proveedor actual
+//! por el mismo camino de guardado (`settings_save_requested`) y, sin argumento, abren su selector
 //! rápido. Cabe señalar que las reglas de turno en marcha y de ajustes ausentes son las de
 //! `/settings`, para que ambos caminos no puedan divergir.
 
@@ -80,4 +80,101 @@ impl App {
             self.slash_feedback = Some(message);
         }
     }
+
+    /// Fija el esfuerzo de razonamiento del modelo actual. `None` o «default» (sin distinguir
+    /// mayúsculas ni espacios) quita el nivel. Los niveles se comparan sin distinguir mayúsculas,
+    /// pero se guarda la forma exacta de `effort_options()`. Con el mismo nivel no reenvía nada.
+    pub fn set_effort_now(&mut self, level: Option<&str>) -> Result<(), String> {
+        let Some(current) = self.provider_settings.as_ref() else {
+            return Err("Provider settings are unavailable".into());
+        };
+        // Misma regla que `/settings`: con un turno en marcha no se aplica nada.
+        if self.turn_in_flight {
+            return Err("Wait for the active turn before applying settings".into());
+        }
+        if self.settings_saving {
+            return Err("Settings are still being saved".into());
+        }
+        let options = self.effort_options();
+        if options.is_empty() {
+            return Err(NO_EFFORT_LEVELS.into());
+        }
+        let wanted = level.map(str::trim).unwrap_or("default");
+        let next = if wanted.eq_ignore_ascii_case("default") {
+            None
+        } else {
+            match options
+                .iter()
+                .find(|option| option.eq_ignore_ascii_case(wanted))
+            {
+                Some(option) => Some(option.clone()),
+                None => return Err(format!("Usage: /effort [default|{}]", options.join("|"))),
+            }
+        };
+        let label = next.clone().unwrap_or_else(|| "default".into());
+        if current.effort == next {
+            self.slash_feedback = Some(format!("effort: {label} (unchanged)"));
+            return Ok(());
+        }
+        if let Some(settings) = self.provider_settings.as_mut() {
+            settings.effort = next;
+        }
+        self.settings_save_requested = true;
+        self.slash_feedback = Some(format!("effort: {label}"));
+        Ok(())
+    }
+
+    /// `/effort` sin argumento: abre el selector de esfuerzo con «default» y los niveles, con la
+    /// fila del vigente resaltada. Sin ajustes, o sin niveles para el modelo, no abre nada.
+    pub fn open_effort_picker_now(&mut self) -> Result<(), String> {
+        let Some(current) = self.provider_settings.as_ref() else {
+            return Err("Provider settings are unavailable".into());
+        };
+        let options = self.effort_options();
+        if options.is_empty() {
+            return Err(NO_EFFORT_LEVELS.into());
+        }
+        let selected = current
+            .effort
+            .as_ref()
+            .and_then(|level| options.iter().position(|option| option == level))
+            .map_or(0, |index| index + 1);
+        self.quick_effort_picker = Some(selected);
+        Ok(())
+    }
+
+    /// Cierra el selector de esfuerzo sin tocar el nivel ni los ajustes.
+    pub fn close_quick_effort_picker(&mut self) {
+        self.quick_effort_picker = None;
+    }
+
+    /// Mueve la fila resaltada del selector de esfuerzo, sin dar la vuelta al llegar a un extremo.
+    pub fn effort_picker_move(&mut self, down: bool) {
+        let Some(selected) = self.quick_effort_picker else {
+            return;
+        };
+        let last = self.effort_options().len();
+        self.quick_effort_picker = Some(if down {
+            (selected + 1).min(last)
+        } else {
+            selected.saturating_sub(1)
+        });
+    }
+
+    /// `Enter` en el selector de esfuerzo: aplica la fila resaltada con `set_effort_now`. Cierra
+    /// el selector en cualquier caso; un rechazo queda en `slash_feedback`.
+    pub fn choose_quick_effort(&mut self) {
+        let selected = self.quick_effort_picker.unwrap_or(0);
+        let level = selected
+            .checked_sub(1)
+            .and_then(|index| self.effort_options().get(index).cloned());
+        self.close_quick_effort_picker();
+        if let Err(message) = self.set_effort_now(level.as_deref()) {
+            self.slash_feedback = Some(message);
+        }
+    }
 }
+
+/// Aviso para un modelo sin niveles de razonamiento ni `[provider] efforts` declarados.
+const NO_EFFORT_LEVELS: &str =
+    "This model has no reasoning levels. Declare them in [provider] efforts of loomcoding.toml";

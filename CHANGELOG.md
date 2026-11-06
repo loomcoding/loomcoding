@@ -8,6 +8,13 @@ release.
 
 ### Interfaz
 
+- Nuevos comandos `/model [id]` y `/effort [nivel|default]`: cambian el modelo del proveedor y el esfuerzo de
+  razonamiento sin abrir `/settings`, por su mismo camino de guardado. Sin argumento abren un selector; el modelo
+  acepta cualquier identificador y el esfuerzo se limita a los niveles del modelo (catálogo o `[provider] efforts`).
+- `/temas` abre ahora el panel «Interfaz», con tema, estilo (`classic`/`flat`), distribución, efectos, spinner,
+  muñeco, menú lateral y ratón en una sola lista; `←`/`→` cambian el valor sin entrar. Nueva clave `style` en
+  `ui.toml`, que sobrevive al cambio de tema igual que `layout`.
+
 - Menú izquierdo del layout `Workspace`: logo «LOOM», bloques sin mayúsculas ni contadores a cero
   (`Actividad`, `Sesión`) y bloque `Ficheros` con el diff de `git` desplegable por fichero tocado en la
   sesión (`↑`/`↓` y `Enter` con el foco en el menú; `Shift+Tab` desde el compositor).
