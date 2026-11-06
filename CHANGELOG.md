@@ -6,6 +6,13 @@ release.
 
 ## Unreleased
 
+### Proveedores locales
+
+- Registro global `providers.toml` (llama-server en 8081 por defecto, Strata en 8080, PolyStrata en 8082): un proyecto
+  nuevo nace con el proveedor `default` en vez de OpenRouter, y un servidor local sin clave ya no queda «sin configurar».
+- Descubrimiento de modelos: un único `GET /models` por servidor en segundo plano; los modelos aparecen en `/model` y
+  `/settings` con el estado del servidor («up (N)», «down», «sin acceso»). Nuevo comando `/provider [id]`.
+
 ### Interfaz
 
 - Nuevos comandos `/model [id]` y `/effort [nivel|default]`: cambian el modelo del proveedor y el esfuerzo de

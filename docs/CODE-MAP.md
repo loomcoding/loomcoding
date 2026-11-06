@@ -30,6 +30,17 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
 3. Selección en `build_provider` (`crates/loomcoding-cli/src/main.rs`).
 4. Tests con `wiremock`; nada de red real. Los `tests/*_live.rs` son opt-in.
 
+### Proveedores locales globales (llama-server, Strata, PolyStrata)
+
+- Registro: `crates/loomcoding-core/src/providers_registry.rs` (`providers.toml` en `<perfil>/.loomcoding/`, sembrado
+  si falta, nunca pisado). El cli lo carga en `crates/loomcoding-cli/src/registro_local.rs`; un proyecto sin
+  `loomcoding.toml` nace con su `default` (`load_or_create_with`), y un servidor de bucle sin clave usa la ficticia `local`.
+- Sondeo: `providers_probe.rs` (un solo `GET <base_url>/models`, 1,5 s, 256 KiB, 200 modelos; jamás inferencia) y
+  `providers_catalog.rs` (lo traduce a `CatalogProvider`, con el estado en el nombre). `crates/loomcoding-cli/src/sondeo_local.rs`
+  lo lanza en segundo plano, fusiona con el catálogo (`Catalog::with_local_providers`) y enfría 5 s los refrescos.
+- TUI: `app/providers_refresh.rs` pide el refresco al abrir `/model`, `/settings` y el selector; `/provider` vive en
+  `app/provider_command.rs` con `render/provider_picker.rs` y `run/provider_picker_keys.rs`.
+
 ## Quiero añadir un evento al bus
 
 1. Variante en `LiveEvent` (`crates/loomcoding-core/src/event/mod.rs`).
