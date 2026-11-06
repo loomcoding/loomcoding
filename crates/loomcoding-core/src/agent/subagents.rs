@@ -122,6 +122,10 @@ impl AgentLoop {
         // real, primero lo que el job escribió y después su final.
         let ahora = std::time::Instant::now();
         for (job, lote) in self.jobs.take_watch_batches(session, ahora) {
+            // El recuento de vigilancia cambia al entregar el lote. Un job que ya terminó no tiene
+            // bucle de seguimiento que lo publique, así que se republica aquí para que la TUI no lo
+            // muestre a cero.
+            self.bus.publish(LiveEvent::JobChanged(job.clone()));
             let message = Message::user(aviso_de_vigilancia(&job, &lote));
             self.store.append_message(session, &message).await?;
             self.bus

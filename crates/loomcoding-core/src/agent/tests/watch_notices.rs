@@ -432,3 +432,54 @@ async fn a_batch_left_undelivered_reaches_the_next_user_turn() {
         .await
         .contains(&format!("[Job {} watch] FAIL uno", job.id().0)));
 }
+
+/// Último recuento de vigilancia publicado para el job en el bus.
+fn ultimo_recuento_publicado(
+    rx: &mut broadcast::Receiver<LiveEvent>,
+    id: &crate::job::JobId,
+) -> Option<crate::job_watch::WatchInfo> {
+    let mut ultimo = None;
+    while let Ok(event) = rx.try_recv() {
+        if let LiveEvent::JobChanged(snapshot) = event {
+            if &snapshot.id == id {
+                ultimo = snapshot.watch;
+            }
+        }
+    }
+    ultimo
+}
+
+#[tokio::test]
+async fn a_settled_job_publishes_the_count_of_the_batch_it_delivered() {
+    // Un job corto termina antes de que se entregue su lote: el bucle de seguimiento ya no escucha,
+    // así que el recuento entregado debe republicarse al entregar el lote. Si no, la TUI lo muestra a 0.
+    let dir = tempfile::tempdir().unwrap();
+    let store = almacen(dir.path(), "recuento.db").await;
+    let sid = store.create_session("/p").await.unwrap();
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let bus = EventBus::new(64);
+    let mut rx = bus.subscribe();
+    let agent = agente_con_jobs(dir.path(), store.clone(), bus, jobs.clone());
+    let job = jobs
+        .start(job_vigilado(
+            sid,
+            "FAIL",
+            20,
+            Box::new(|handle, _| {
+                Box::pin(async move {
+                    handle.append("FAIL uno\n");
+                    Ok(None)
+                })
+            }),
+        ))
+        .unwrap();
+    jobs.wait(sid, job.id()).await.unwrap();
+    agent.flush_subagent_notices(sid).await.unwrap();
+
+    let recuento = ultimo_recuento_publicado(&mut rx, job.id())
+        .expect("el job vigilado debe publicar su recuento");
+    assert_eq!(
+        recuento.delivered, 1,
+        "el recuento publicado debe incluir la línea entregada"
+    );
+}

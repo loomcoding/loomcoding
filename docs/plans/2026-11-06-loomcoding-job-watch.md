@@ -5,6 +5,9 @@
 
 **Spec:** `docs/specs/2026-11-06-loomcoding-job-watch.md`. Trabajo en una rama propia.
 
+> Estado: **hecho** (T1–T5). La observabilidad de la TUI, el ajuste de `WRITE_TOOLS`, la republicación del recuento
+> de un job ya terminado y el E2E PTY (`crates/loomcoding-cli/tests/tui_pty_vigilancia.rs`) cierran la tarea 5.
+
 ## Restricciones globales
 
 - Reutilizar `JobRegistry`, `JobHandle::append`, `track_job`, `flush_subagent_notices` y el bus (`LiveEvent`). No

@@ -89,10 +89,13 @@ impl App {
             .progress
             .as_ref()
             .map(|progress| (progress.fraction, progress.label.as_str()));
+        // La vigilancia es dato propio de Loomcoding: se rotula como tal, nunca como estado A2A.
+        let nota = job.watch.as_ref().map(crate::rail::format_watch);
         let view = loomcoding_cloth::state::ActivityView {
             kind: "job",
             label: &job.label,
             status,
+            note: nota.as_deref(),
             progress,
             body,
         };
@@ -389,6 +392,7 @@ impl App {
             kind,
             label,
             status,
+            note: None,
             progress: None,
             body: Some(body),
         };

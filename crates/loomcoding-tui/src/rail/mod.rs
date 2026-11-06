@@ -4,6 +4,7 @@
 use crate::app::{agent_tag, formato_recuento, AgentStats, App, Focus};
 use loomcoding_cloth::state::{AgentState, ToolStatus};
 use loomcoding_core::job::JobStatus;
+use loomcoding_core::job_watch::WatchInfo;
 use loomcoding_core::task::TaskState;
 use loomcoding_core::todo::TodoStatus;
 use ratatui::layout::Rect;
@@ -23,7 +24,7 @@ mod text;
 
 use capabilities::*;
 use format::*;
-pub use format::{format_cost, format_elapsed, format_prices, format_tokens};
+pub use format::{format_cost, format_elapsed, format_prices, format_tokens, format_watch};
 use identity::*;
 use lists::*;
 use metrics::*;
@@ -87,7 +88,7 @@ fn rail_lines(app: &App, width: usize) -> Vec<Line<'_>> {
     push_todos(&mut out, app);
     push_files(&mut out, app);
     push_tools(&mut out, app);
-    push_jobs(&mut out, app);
+    push_jobs(&mut out, app, width);
     push_subagents(&mut out, app, width);
     out
 }

@@ -6,6 +6,16 @@ release.
 
 ## Unreleased
 
+### Vigilancia de jobs (`watch`)
+
+- `job_start` admite `watch: {pattern, max_events?}`: las líneas de la salida que casan con el patrón (regex) llegan a la
+  conversación como avisos `[Job <id> watch] …`, acotados (hasta 100 avisos, 10 líneas por aviso y un aviso cada 5 s).
+- Nueva herramienta `job_watch` para añadir, cambiar o quitar la vigilancia de un job que ya está en marcha.
+- Un aviso despierta al modelo por defecto (turno «job watch»), dentro del mismo presupuesto de turnos automáticos que
+  los avisos de subagentes.
+- La TUI muestra «watching: N alerts», con «+M suppressed» y «limit reached» cuando procede, en la sección Jobs del rail
+  y en la actividad del job. Es información de Loomcoding, no un estado A2A.
+
 ### Proveedores locales
 
 - Registro global `providers.toml` (llama-server en 8081 por defecto, Strata en 8080, PolyStrata en 8082): un proyecto
