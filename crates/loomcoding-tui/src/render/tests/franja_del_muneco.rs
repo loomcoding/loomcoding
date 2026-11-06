@@ -96,6 +96,53 @@ fn no_color_draws_no_braille() {
     assert!(rows_of(&term)[0].contains("running"));
 }
 
+/// App esperando a la persona: una herramienta pendiente de permiso, con el reloj en `tick`.
+fn waiting_app(tick: u64) -> App {
+    let mut app = App::new();
+    let mut tool = running("bash");
+    tool.await_permission();
+    app.tools.push_back(tool);
+    app.animation.frame = tick;
+    app
+}
+
+/// Columna donde empieza la palabra `waiting` en la fila del texto de la franja.
+fn waiting_column(term: &Terminal<TestBackend>) -> Option<usize> {
+    rows_of(term)[1]
+        .find("waiting")
+        .map(|byte| rows_of(term)[1][..byte].chars().count())
+}
+
+#[test]
+fn waiting_pushes_the_letters_towards_the_middle_of_the_screen() {
+    // En reposo las letras están en la columna 9; al acabar el empuje, centradas: (100 − 16) / 2.
+    let at_home = strip_of(&waiting_app(0), 100, 3, true);
+    assert_eq!(waiting_column(&at_home), Some(9));
+    let pushed = strip_of(&waiting_app(105), 100, 3, true);
+    assert_eq!(waiting_column(&pushed), Some(42));
+    assert!(has_braille(&pushed), "el muñeco sigue ahí empujando");
+}
+
+#[test]
+fn waiting_in_a_narrow_strip_keeps_the_letters_at_home() {
+    for tick in [0, 105, 300] {
+        let term = strip_of(&waiting_app(tick), 30, 3, true);
+        assert_eq!(waiting_column(&term), Some(9), "tick {tick}");
+    }
+}
+
+#[test]
+fn the_pushed_letters_do_not_overlap_the_mascot() {
+    for tick in (0..600).step_by(3) {
+        let term = strip_of(&waiting_app(tick), 100, 3, true);
+        let row = &rows_of(&term)[1];
+        assert!(
+            row.contains("waiting  for you"),
+            "letras partidas o tapadas en el tick {tick}: {row:?}"
+        );
+    }
+}
+
 #[test]
 fn the_strip_sits_above_the_composer_when_it_fits() {
     let mut app = App::new();

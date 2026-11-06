@@ -211,6 +211,20 @@ fn braille<S: AsRef<str>>(bitmap: &[S; 8]) -> [String; 2] {
     rows
 }
 
+/// Fotograma del moonwalk sin deslizamiento propio: quien lo llama coloca el bloque donde quiera.
+/// Las piernas se alternan con `step` (cada cuatro pasos se repite) y `mirrored` voltea el dibujo
+/// para que los pies apunten al lado contrario de la marcha.
+pub fn moonwalk_legs(step: u64, mirrored: bool) -> [String; 2] {
+    let rows = MOONWALK[(step as usize) % MOONWALK.len()].map(|row| {
+        if mirrored {
+            row.chars().rev().collect::<String>()
+        } else {
+            row.to_string()
+        }
+    });
+    braille(&rows)
+}
+
 /// Fotograma del muñeco para una postura y un reloj de 50 ms.
 ///
 /// Cabe señalar que `Run` y `Hunt` comparten fotogramas; `Think`, `Wait` y `Done` avanzan más
@@ -313,6 +327,20 @@ mod tests {
         }
         // El espejo cambia el dibujo: la vuelta no repite el mismo fotograma de la ida.
         assert_ne!(mascot_frame(Pose::Wait, 21), mascot_frame(Pose::Wait, 27));
+    }
+
+    #[test]
+    fn moonwalk_legs_alternate_and_mirror_without_gliding() {
+        // Cabe señalar que cada cuatro pasos se repite y que el espejo cambia el dibujo.
+        assert_eq!(moonwalk_legs(0, false), moonwalk_legs(4, false));
+        assert_ne!(moonwalk_legs(0, false), moonwalk_legs(2, false));
+        assert_ne!(moonwalk_legs(0, false), moonwalk_legs(0, true));
+        // Sin deslizamiento propio: el primer paso nunca depende de cuánto lleve caminado.
+        assert_eq!(moonwalk_legs(0, true), moonwalk_legs(16, true));
+        for step in 0..8 {
+            let [a, b] = moonwalk_legs(step, step % 2 == 0);
+            assert_eq!((a.chars().count(), b.chars().count()), (6, 6));
+        }
     }
 
     #[test]

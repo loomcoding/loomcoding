@@ -17,6 +17,7 @@ mod transcript;
 use transcript::*;
 
 mod mascot_strip;
+mod wait_scene;
 
 mod agents_card;
 
