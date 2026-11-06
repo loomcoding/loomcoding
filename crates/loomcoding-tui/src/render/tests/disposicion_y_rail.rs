@@ -242,7 +242,7 @@ fn crush_footer_shows_short_key_hints() {
     let mut app = crush_ctx();
     let content = buffer_of(&mut app, 120, 30);
     assert!(content.contains("enter send"));
-    assert!(content.contains("ctrl+j newline"));
+    assert!(content.contains("ctrl+o fold"));
 }
 
 #[test]

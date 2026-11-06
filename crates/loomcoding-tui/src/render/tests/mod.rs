@@ -17,5 +17,6 @@ mod disposicion_y_rail;
 mod franja_del_muneco;
 mod metricas_y_mcp;
 mod paneles_y_overlays;
+mod pie_de_atajos;
 mod tarjeta_de_agentes;
 mod transcript_y_arbol;

@@ -126,6 +126,22 @@ pub(super) fn question_key_of(code: KeyCode) -> Option<loomcoding_cloth::state::
     })
 }
 
+/// Cabe señalar que `?` solo abre la ayuda si el compositor está vacío, no hay ningún panel,
+/// popup ni diálogo abierto, y no llega con Ctrl o Alt. En cualquier otro caso es un carácter más.
+fn help_key_is_free(app: &App, mods: KeyModifiers) -> bool {
+    !mods.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
+        && app.composer.is_empty()
+        && app.permission.is_none()
+        && app.question.is_none()
+        && !(app.settings_open
+            || app.temas_open
+            || app.a2a_open
+            || app.agents_open
+            || app.tools_open
+            || app.queue_open
+            || app.session_picker_open)
+}
+
 pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<String> {
     if app.slash_query().is_none() {
         app.slash_feedback = None;
@@ -167,7 +183,7 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         return None;
     }
     if app.help_open {
-        if matches!(code, KeyCode::F(1) | KeyCode::Esc) {
+        if matches!(code, KeyCode::F(1) | KeyCode::Esc | KeyCode::Char('?')) {
             app.help_open = false;
         }
         return None;
@@ -535,7 +551,9 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         }
         return None;
     }
-    if code == KeyCode::F(1) {
+    // `?` abre la ayuda solo con el compositor vacío y sin otro panel abierto; con texto es un
+    // carácter más. Los diálogos de permiso y de pregunta ya han consumido la tecla arriba.
+    if code == KeyCode::F(1) || (code == KeyCode::Char('?') && help_key_is_free(app, mods)) {
         app.help_open = true;
         return None;
     }

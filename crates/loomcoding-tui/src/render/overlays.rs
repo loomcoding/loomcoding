@@ -208,9 +208,9 @@ pub(super) fn draw_tool_inspector(frame: &mut Frame, area: Rect, app: &mut App) 
 
 pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width.min(78).saturating_sub(2);
-    // Veinte líneas de contenido más el marco; por eso el recuadro crece a 23 filas.
-    // La indicación de cierre va en el borde inferior: así cabe `/mascot` a 80×24 sin cortar nada.
-    let height = area.height.min(24).saturating_sub(2);
+    // Veintiuna líneas de contenido más el marco: el recuadro ocupa 23 de las 24 filas de 80×24,
+    // y así no se corta ninguna. La indicación de cierre va en el borde inferior.
+    let height = area.height.min(24).saturating_sub(1);
     if width < 54 || height < 20 {
         draw_resize_hint(frame, area, "Keyboard shortcuts", app);
         return;
@@ -253,6 +253,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
             Line::from("/mascot     Toggle the status mascot (off: one text line)"),
             Line::from("F3          Switch or create session (when idle)"),
             Line::from("F2          Provider settings"),
+            Line::from("?           Open this help (empty composer)"),
             Line::from("Esc         Cancel turn; press twice to quit"),
             Line::from("Ctrl+C/Q    Quit"),
         ])

@@ -19,6 +19,7 @@ mod mouse_and_selection;
 mod rail_and_focus;
 mod selection_and_quit;
 mod settings;
+mod signo_de_interrogacion;
 mod slash_commands;
 mod tool_inspector_and_queue;
 mod wake;

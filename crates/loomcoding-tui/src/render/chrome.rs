@@ -204,17 +204,22 @@ pub(super) fn draw_flat_header(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-/// Atajos del pie del chrome `Flat`, en el orden en que se muestran.
-pub(super) const FLAT_HINTS: [(&str, &str); 8] = [
-    ("enter", "send"),
-    ("ctrl+j", "newline"),
-    ("ctrl+k", "queue"),
-    ("ctrl+o", "fold"),
-    ("ctrl+t", "tools"),
-    ("ctrl+b", "sidebar"),
-    ("f2", "settings"),
-    ("esc", "cancel"),
-];
+/// Atajos del pie del chrome `Flat`, en el orden en que se muestran. Son cuatro; el resto vive
+/// en la ayuda `?`. Cabe señalar que el tercero nombra lo que `ctrl+b` pliega: la tarjeta de
+/// agentes en `Cards`, y el panel lateral en las demás disposiciones.
+pub(super) fn flat_hints(layout: LayoutStyle) -> [(&'static str, &'static str); 4] {
+    let plegable = if layout == LayoutStyle::Cards {
+        "card"
+    } else {
+        "panel"
+    };
+    [
+        ("enter", "send"),
+        ("ctrl+o", "fold"),
+        ("ctrl+b", plegable),
+        ("?", "shortcuts"),
+    ]
+}
 
 /// Ancho mínimo del pie para reservar a su derecha el medidor de contexto.
 pub(super) const METER_MIN_FOOTER_WIDTH: u16 = 80;
@@ -264,8 +269,9 @@ pub(super) fn draw_flat_footer(frame: &mut Frame, area: Rect, app: &App) {
     let line = if let Some(feedback) = app.slash_feedback.as_deref() {
         Line::from(Span::styled(feedback, app.theme.styles.muted))
     } else {
-        let mut spans = Vec::with_capacity(FLAT_HINTS.len() * 3);
-        for (index, (key, label)) in FLAT_HINTS.iter().enumerate() {
+        let hints = flat_hints(app.theme.look.layout);
+        let mut spans = Vec::with_capacity(hints.len() * 3);
+        for (index, (key, label)) in hints.iter().enumerate() {
             if index > 0 {
                 spans.push(Span::styled("  ", app.theme.styles.muted));
             }
