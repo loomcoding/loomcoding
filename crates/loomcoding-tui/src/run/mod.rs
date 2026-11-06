@@ -199,7 +199,10 @@ pub async fn run(
 
     while !app.should_quit {
         let animating = wants_clock(&app, fx.is_some(), Instant::now());
-        let deadline = frames.deadline();
+        // Sin reloj en reposo, el logo añade un único plazo: el de su próxima ráfaga (o el fin de
+        // la actual). Así el bucle despierta a su hora sin ticks periódicos; durante una ráfaga,
+        // el reloj de animación de abajo pinta los fotogramas.
+        let deadline = earliest(frames.deadline(), app.logo_fx_deadline());
         tokio::select! {
             biased;
             ev = input_rx.recv() => match ev {
@@ -354,6 +357,11 @@ pub async fn run(
                 execute!(std::io::stdout(), DisableMouseCapture)?;
             }
         }
+        // El planificador del logo avanza en cada pasada, también oculto (así su plazo no queda
+        // vencido). Si el fotograma cambió, se repinta.
+        if app.tick_logo_fx(Instant::now()) {
+            frames.request(Urgency::Background);
+        }
 
         let now = Instant::now();
         if frames.due(now) {
@@ -434,7 +442,8 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
 /// Indica si el reloj de 50 ms debe seguir avanzando. Además de los efectos, la lluvia, el
 /// pensamiento, el proveedor y las herramientas que giran, cuenta el muñeco: mientras tenga
 /// postura que mostrar (también `Done` y `Fail`), el reloj corre, y al vencer se para solo.
-/// Una petición de diff en vuelo también lo mantiene, para recogerla al llegar.
+/// Una petición de diff en vuelo también lo mantiene, para recogerla al llegar. El logo cuenta
+/// solo mientras tiene una ráfaga en pantalla.
 fn wants_clock(app: &App, fx_active: bool, now: Instant) -> bool {
     (fx_active && app.permission.is_some())
         || app.matrix_rain.animating()
@@ -443,6 +452,15 @@ fn wants_clock(app: &App, fx_active: bool, now: Instant) -> bool {
         || app.session_diff.pending.is_some()
         || app.tools.iter().any(|tool| tool.is_spinning())
         || crate::mascot::pose_of(app, now).is_some()
+        || app.logo_fx_frame.is_some()
+}
+
+/// El más próximo de dos plazos opcionales: el bucle despierta en cuanto venza el primero.
+fn earliest(a: Option<Instant>, b: Option<Instant>) -> Option<Instant> {
+    match (a, b) {
+        (Some(x), Some(y)) => Some(x.min(y)),
+        (x, None) | (None, x) => x,
+    }
 }
 
 #[cfg(test)]

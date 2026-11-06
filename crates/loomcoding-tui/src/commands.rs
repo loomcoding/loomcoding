@@ -20,6 +20,7 @@ pub enum Command {
     Sidebar,
     Mouse,
     Mascot,
+    LogoFx,
     Verbose,
     Agent,
     Focus,
@@ -72,6 +73,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         Command::Mascot,
         "/mascot",
         "Toggle the status mascot (off: one text line)",
+    ),
+    (
+        Command::LogoFx,
+        "/logofx",
+        "Logo effects: on|off, or seconds between bursts",
     ),
     (
         Command::Verbose,

@@ -64,6 +64,8 @@ impl App {
         if let Some(on) = crate::prefs::load_mascot(&path) {
             self.mascot = on;
         }
+        // Los efectos del logo (`/logofx`): encendidos por defecto, con su intervalo.
+        self.load_logo_fx_prefs(&path);
         // La lluvia parte de la config del tema y encima aplica el override
         // del usuario, si lo hay.
         let matrix = crate::prefs::load_matrix(&path, &self.theme.matrix);
@@ -151,8 +153,10 @@ impl App {
         let query = trimmed.strip_prefix('/')?;
         let command = query.split_whitespace().next().unwrap_or(query);
         let has_args = command.len() < query.len();
-        // `attach` y `verbose` aceptan argumentos y siguen mostrando el popup.
-        if command.contains('/') || (has_args && command != "attach" && command != "verbose") {
+        // `attach`, `verbose` y `logofx` aceptan argumentos y siguen mostrando el popup.
+        if command.contains('/')
+            || (has_args && !matches!(command, "attach" | "verbose" | "logofx"))
+        {
             return None;
         }
         Some(&trimmed[..command.len() + 1])

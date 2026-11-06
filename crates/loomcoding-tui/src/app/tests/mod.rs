@@ -17,6 +17,7 @@ mod agents_composer_budget;
 mod child_tree;
 mod composer_target;
 mod folded_blocks;
+mod logo_fx;
 mod menu_izquierdo;
 mod notices_and_remote;
 mod session;

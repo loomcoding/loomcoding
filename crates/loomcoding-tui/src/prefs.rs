@@ -24,6 +24,12 @@ const MATRIX_SPEED_KEY: &str = "matrix_speed";
 const MATRIX_DENSITY_KEY: &str = "matrix_density";
 const MATRIX_LENGTH_KEY: &str = "matrix_length";
 const MATRIX_COLOR_KEY: &str = "matrix_color";
+const LOGO_FX_KEY: &str = "logo_fx";
+const LOGO_FX_INTERVAL_KEY: &str = "logo_fx_interval";
+
+/// Límites del intervalo entre ráfagas del logo, en segundos.
+pub const LOGO_FX_MIN_SECS: u64 = 5;
+pub const LOGO_FX_MAX_SECS: u64 = 600;
 
 /// Identificador estable y en minúsculas de cada preset, tal como se escribe en el fichero.
 fn key(preset: ThemePreset) -> &'static str {
@@ -133,6 +139,38 @@ pub fn save_mascot(path: &Path, on: bool) -> io::Result<()> {
     save_value(path, MASCOT_KEY, if on { "true" } else { "false" })
 }
 
+/// Lee si los efectos del logo están encendidos (`logo_fx = true|false`). Cualquier otro
+/// valor, o la ausencia de la clave, produce `None` y se queda el de por defecto.
+pub fn load_logo_fx(path: &Path) -> Option<bool> {
+    load_value(path, LOGO_FX_KEY, |value| match value {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    })
+}
+
+/// Guarda si los efectos del logo están encendidos, conservando el resto de líneas.
+pub fn save_logo_fx(path: &Path, on: bool) -> io::Result<()> {
+    save_value(path, LOGO_FX_KEY, if on { "true" } else { "false" })
+}
+
+/// Lee el intervalo entre ráfagas del logo, en segundos (`logo_fx_interval = 20`). Un valor que
+/// no sea un entero produce `None`; uno fuera de `LOGO_FX_MIN_SECS..=LOGO_FX_MAX_SECS` se acota.
+pub fn load_logo_fx_interval(path: &Path) -> Option<u64> {
+    load_value(path, LOGO_FX_INTERVAL_KEY, |value| {
+        value
+            .parse::<u64>()
+            .ok()
+            .map(|secs| secs.clamp(LOGO_FX_MIN_SECS, LOGO_FX_MAX_SECS))
+    })
+}
+
+/// Guarda el intervalo del logo, acotado a `LOGO_FX_MIN_SECS..=LOGO_FX_MAX_SECS`.
+pub fn save_logo_fx_interval(path: &Path, secs: u64) -> io::Result<()> {
+    let secs = secs.clamp(LOGO_FX_MIN_SECS, LOGO_FX_MAX_SECS);
+    save_value(path, LOGO_FX_INTERVAL_KEY, &secs.to_string())
+}
+
 /// Lee el spinner guardado: un nombre de estilo, `"random"` o `"crush"`.
 ///
 /// Cualquier otro valor produce `None` y se queda el de por defecto.
@@ -220,6 +258,9 @@ fn glyphs_from_name(name: &str) -> Option<GlyphSet> {
         other => GlyphSet::custom(other).ok(),
     }
 }
+
+#[cfg(test)]
+mod logo_fx_tests;
 
 #[cfg(test)]
 mod tests {

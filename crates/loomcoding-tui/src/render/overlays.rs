@@ -250,7 +250,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
             Line::from("/           Commands at start of composer"),
             Line::from("/theme      Cycle terminal color theme"),
             Line::from("/layout     Cycle the screen layout (rail, minimal, cards)"),
-            Line::from("/mascot     Toggle the status mascot (off: one text line)"),
+            Line::from("/mascot /logofx  Status mascot · logo effects (on|off|seconds)"),
             Line::from("F3          Switch or create session (when idle)"),
             Line::from("F2          Provider settings"),
             Line::from("?           Open this help (empty composer)"),

@@ -84,6 +84,26 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
 3. Estado que necesite: `crates/loomcoding-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
 4. El composer no puede parpadear ni ir con retraso: comprueba con `tui_pty` si tocas teclas.
 
+## Quiero tocar el menú izquierdo del `Workspace`
+
+Cabe señalar que el menú izquierdo solo se pinta con el layout `Workspace` (≥105 columnas).
+
+- **Qué contiene** (logo, estado, `Actividad`, `Sesión`): `App::sidebar` en
+  `crates/loomcoding-tui/src/app/composer.rs`; el dibujo, en
+  `crates/loomcoding-cloth/src/widgets/sidebar.rs` y la marca en `widgets/loom_mark.rs`.
+- **Diff de la sesión** (bloque `Ficheros`): el analizador y la obtención acotada de `git`, en
+  `crates/loomcoding-tui/src/session_diff/` (`parse.rs`, `fetch.rs`); el estado y el hilo de `git`, en
+  `app/session_diff_state.rs`; el dibujo, en `render/sidebar_diff.rs`; las teclas (`↑`/`↓`/`Enter` con el foco
+  en el menú, `Shift+Tab` desde el compositor), en `run/sidebar_keys.rs`.
+- **Efectos del logo**: el planificador y el catálogo de siete efectos, en
+  `crates/loomcoding-cloth/src/widgets/logo_fx/` (`scheduler.rs`, `effects.rs`, `draw.rs`, `rng.rs`); el
+  estado y las condiciones (solo `Workspace`, menú pintado, sin overlays, con color), en
+  `crates/loomcoding-tui/src/app/logo_fx_state.rs`; el dibujo sobre el rectángulo del logo, en
+  `render/logo_fx.rs`; el reloj, en `run/mod.rs` (`wants_clock` y el plazo `logo_fx_deadline`).
+- **Preferencias**: `logo_fx` y `logo_fx_interval` (5 a 600 s, por defecto 20) en `ui.toml`, vía
+  `crates/loomcoding-tui/src/prefs.rs`; el comando `/logofx [on|off|segundos]`, en `commands.rs` y `run/slash.rs`.
+- Sin reloj en reposo: el bucle solo despierta en el próximo disparo; no añadas ticks periódicos.
+
 ## Quiero cambiar el flujo de permisos
 
 1. Política y servicio: `crates/loomcoding-core/src/permission/mod.rs` (`PermissionService`,

@@ -7,8 +7,8 @@ pub(super) fn execute_slash_command(
     command: crate::commands::Command,
 ) -> Option<String> {
     use crate::commands::Command;
-    // `/verbose` lee su argumento del texto escrito, que se borra justo abajo.
-    let verbose_arg = app.composer.text().trim().to_string();
+    // `/verbose` y `/logofx` leen su argumento del texto escrito, que se borra justo abajo.
+    let typed = app.composer.text().trim().to_string();
     if command == Command::Compact {
         // Con motivo de rechazo queda en `slash_feedback` y se conserva el texto escrito.
         if !app.request_compact() {
@@ -99,12 +99,15 @@ pub(super) fn execute_slash_command(
                 .get_or_insert_with(|| format!("mascot: {}", if on { "on" } else { "off" }));
             None
         }
+        Command::LogoFx => {
+            // El texto todavía contiene `/logofx ...`; nos quedamos con lo que sigue al nombre.
+            let arg = typed.strip_prefix("/logofx").map(str::trim).unwrap_or("");
+            app.logofx_command(arg);
+            None
+        }
         Command::Verbose => {
             // El texto todavía contiene `/verbose ...`; nos quedamos con lo que sigue al nombre.
-            let arg = verbose_arg
-                .strip_prefix("/verbose")
-                .map(str::trim)
-                .unwrap_or("");
+            let arg = typed.strip_prefix("/verbose").map(str::trim).unwrap_or("");
             match arg {
                 "" => {
                     let on = app.toggle_provider_notices();

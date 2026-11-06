@@ -28,6 +28,7 @@ mod child_types;
 mod children;
 mod composer;
 mod events;
+mod logo_fx_state;
 mod pointer;
 mod prefs;
 mod prompts;
@@ -106,6 +107,19 @@ pub struct App {
     pub mouse_capture_dirty: bool,
     /// Muñeco de estado en la franja sobre el composer (`/mascot`). Apagado, queda una línea de texto.
     pub mascot: bool,
+    /// Planificador de las ráfagas del logo de cabecera (`/logofx`).
+    pub(crate) logo_fx: loomcoding_cloth::widgets::logo_fx::LogoFx,
+    /// Efectos del logo encendidos (preferencia `logo_fx`, por defecto `true`).
+    pub logo_fx_on: bool,
+    /// Fotograma del logo para el próximo render: efecto, progreso en `0..=1` y semilla. `None`
+    /// si el logo está quieto. Lo fija `tick_logo_fx`; el render solo lo lee.
+    pub logo_fx_frame: Option<(loomcoding_cloth::widgets::logo_fx::LogoEffect, f32, u64)>,
+    /// Ráfagas vistas con el logo visible; alimenta la semilla de cada una.
+    logo_fx_bursts: u64,
+    /// Inicio de la última ráfaga contada en `logo_fx_bursts`.
+    logo_fx_last_started: Option<Instant>,
+    /// `NO_COLOR` en el entorno al arrancar: sin color, el logo no se mueve.
+    pub logo_fx_sin_color: bool,
     pub matrix_rain: loomcoding_cloth::widgets::matrix_rain::MatrixRain,
     pub animation: loomcoding_cloth::widgets::Anim,
     pub tools: VecDeque<loomcoding_cloth::state::ToolItem>,
@@ -406,6 +420,12 @@ impl App {
             mouse_capture: true,
             mouse_capture_dirty: false,
             mascot: true,
+            logo_fx: logo_fx_state::new_logo_fx(),
+            logo_fx_on: true,
+            logo_fx_frame: None,
+            logo_fx_bursts: 0,
+            logo_fx_last_started: None,
+            logo_fx_sin_color: logo_fx_state::no_color_from_env(),
             matrix_rain: loomcoding_cloth::widgets::matrix_rain::MatrixRain::default(),
             animation: loomcoding_cloth::widgets::Anim::new(),
             tools: VecDeque::new(),

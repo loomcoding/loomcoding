@@ -77,6 +77,29 @@ pub fn render(frame: &mut Frame, area: Rect, sidebar: &Sidebar, theme: &Theme) {
     frame.render_widget(Paragraph::new(lines), inner);
 }
 
+/// Rectángulo exacto que ocupa la marca «LOOM» cuando `render` la pinta en `area`, o `None` si el
+/// sidebar no lleva marca o no cabe (entonces `render` pinta el compacto, que no es marca).
+///
+/// Usa la misma geometría que `render`: la columna izquierda es el borde, y la marca, de 19×4
+/// celdas, empieza en el interior. Como `render` solo la pinta si cabe, el rectángulo nunca sale
+/// de `area`.
+pub fn logo_rect(area: Rect, sidebar: &Sidebar) -> Option<Rect> {
+    if !sidebar.logo.as_ref().is_some_and(|log| log.mark) {
+        return None;
+    }
+    let inner = Block::default().borders(Borders::LEFT).inner(area);
+    let cabe =
+        inner.width as usize >= LOOM_MARK_WIDTH && inner.height as usize >= LOOM_MARK_MIN_HEIGHT;
+    cabe.then(|| {
+        Rect::new(
+            inner.x,
+            inner.y,
+            LOOM_MARK_WIDTH as u16,
+            LOOM_MARK_ROWS as u16,
+        )
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,6 +252,56 @@ mod tests {
         let filas = interior(&sb, 20, 4);
         assert_eq!(filas[0], "x", "{filas:?}");
         assert_eq!(filas[1], "", "{filas:?}");
+    }
+
+    /// Pinta el sidebar en `area` de un terminal de 40×24 y devuelve el buffer completo.
+    fn pintado(sb: &Sidebar, area: Rect) -> ratatui::buffer::Buffer {
+        let mut term = Terminal::new(TestBackend::new(40, 24)).unwrap();
+        term.draw(|f| render(f, area, sb, &Theme::test())).unwrap();
+        term.backend().buffer().clone()
+    }
+
+    /// Cabe señalar que el rectángulo devuelto se comprueba contra lo que pinta `render`: el
+    /// primer glifo `█` de la marca cae dentro, en la esquina superior izquierda.
+    #[test]
+    fn logo_rect_marca_el_sitio_real_de_la_marca() {
+        let sb = Sidebar::with_loom_mark("Loomcoding");
+        let area = Rect::new(0, 0, 23, 20);
+        let rect = logo_rect(area, &sb).expect("con marca y sitio hay rectángulo");
+        assert_eq!(rect, Rect::new(1, 0, 19, 4));
+        let buf = pintado(&sb, area);
+        assert_eq!(buf[(rect.x, rect.y)].symbol(), "█");
+        assert!(rect.contains(ratatui::layout::Position::new(rect.x, rect.y)));
+        let fila: String = (rect.x..rect.x + rect.width)
+            .map(|x| buf[(x, rect.y)].symbol())
+            .collect();
+        assert!(fila.starts_with("█   ▄▀▀▄"), "fila 0 de la marca: {fila:?}");
+    }
+
+    #[test]
+    fn logo_rect_sigue_el_desplazamiento_del_area() {
+        let sb = Sidebar::with_loom_mark("Loomcoding");
+        let rect = logo_rect(Rect::new(10, 5, 23, 20), &sb).unwrap();
+        assert_eq!(rect, Rect::new(11, 5, 19, 4));
+        let buf = pintado(&sb, Rect::new(10, 5, 23, 20));
+        assert_eq!(buf[(rect.x, rect.y)].symbol(), "█");
+    }
+
+    #[test]
+    fn logo_rect_es_none_sin_marca() {
+        let area = Rect::new(0, 0, 23, 20);
+        assert_eq!(logo_rect(area, &Sidebar::new()), None);
+        assert_eq!(logo_rect(area, &Sidebar::with_logo("cloth")), None);
+    }
+
+    #[test]
+    fn logo_rect_es_none_si_no_cabe_y_cae_al_compacto() {
+        let sb = Sidebar::with_loom_mark("Loomcoding");
+        assert_eq!(logo_rect(Rect::new(0, 0, 16, 40), &sb), None);
+        assert_eq!(logo_rect(Rect::new(0, 0, 23, 4), &sb), None);
+        // Con el compacto no hay marca: no se devuelve rectángulo.
+        let out = interior(&sb, 16, 40).join("\n");
+        assert!(!out.contains("▄▀▀▄"));
     }
 
     #[test]

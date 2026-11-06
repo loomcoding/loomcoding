@@ -6,6 +6,18 @@ release.
 
 ## Unreleased
 
+### Interfaz
+
+- Menú izquierdo del layout `Workspace`: logo «LOOM», bloques sin mayúsculas ni contadores a cero
+  (`Actividad`, `Sesión`) y bloque `Ficheros` con el diff de `git` desplegable por fichero tocado en la
+  sesión (`↑`/`↓` y `Enter` con el foco en el menú; `Shift+Tab` desde el compositor).
+- Un efecto al azar sobre el logo cada cierto tiempo (lluvia binaria, reflejo, linterna, tipográfico,
+  glitch, disolución, pulso), sin reloj en reposo. Nuevas claves `logo_fx` y `logo_fx_interval` en
+  `ui.toml` y comando `/logofx [on|off|segundos]`.
+- Barra de desplazamiento propia: el pulgar llega siempre al final y su aspecto sigue al marco del tema
+  (flechas y pista punteada con paneles; línea fina sin cajas).
+- Muñeco de estado: moonwalk al esperar y brazos en alto al terminar.
+
 ### Servidores locales
 
 - Nuevas claves opcionales `[provider] context_window` y `request_timeout_secs` en `loomcoding.toml`

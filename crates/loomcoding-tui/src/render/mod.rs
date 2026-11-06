@@ -25,6 +25,8 @@ use sidebar::*;
 
 mod sidebar_diff;
 
+mod logo_fx;
+
 mod settings;
 use settings::*;
 

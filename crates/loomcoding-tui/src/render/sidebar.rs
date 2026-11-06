@@ -1,5 +1,6 @@
 //! Panel lateral del espacio: métricas, avisos de MCP, desglose de contexto y de caché.
 
+use super::logo_fx::draw_logo_fx;
 use super::sidebar_diff::{draw_files_block, files_block_height};
 use super::*;
 
@@ -499,6 +500,8 @@ pub(super) fn draw_workspace_sidebar(
     let [sidebar, files] =
         Layout::vertical([Constraint::Min(1), Constraint::Length(files_height)]).areas(area);
     loomcoding_cloth::widgets::sidebar::render(frame, sidebar, &app.sidebar(), &app.theme);
+    // El efecto del logo va encima de la marca ya pintada, y solo dentro de su rectángulo.
+    draw_logo_fx(frame, sidebar, app);
     if files_height > 0 {
         draw_files_block(frame, files, app);
     }

@@ -15,6 +15,7 @@ use support::*;
 mod cabecera_y_pie;
 mod disposicion_y_rail;
 mod franja_del_muneco;
+mod logo_fx;
 mod metricas_y_mcp;
 mod paneles_y_overlays;
 mod pie_de_atajos;

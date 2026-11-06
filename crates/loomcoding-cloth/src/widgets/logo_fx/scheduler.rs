@@ -56,12 +56,29 @@ impl LogoFx {
         }
     }
 
-    /// Enciende o apaga los efectos. Apagar corta la ráfaga en curso.
-    pub fn set_enabled(&mut self, on: bool) {
+    /// Enciende o apaga los efectos. Apagar corta la ráfaga en curso. Al pasar de apagado a
+    /// encendido, la primera ráfaga llega a `now + interval`: no dispara de golpe un plazo ya
+    /// vencido por el tiempo en que estuvo apagado.
+    pub fn set_enabled(&mut self, on: bool, now: Instant) {
+        if on && !self.enabled {
+            self.next_at = now + self.interval;
+        }
         self.enabled = on;
         if !on {
             self.active = None;
         }
+    }
+
+    /// Fija el intervalo entre ráfagas, acotado a `MIN_INTERVAL..=MAX_INTERVAL`. La siguiente
+    /// ráfaga, si no hay una en curso, llega a `now + interval`.
+    pub fn set_interval(&mut self, interval: Duration, now: Instant) {
+        self.interval = interval.clamp(MIN_INTERVAL, MAX_INTERVAL);
+        self.next_at = now + self.interval;
+    }
+
+    /// Intervalo vigente entre ráfagas, ya acotado.
+    pub fn interval(&self) -> Duration {
+        self.interval
     }
 
     /// Avanza al instante `now` y devuelve el estado del logo.
@@ -227,10 +244,47 @@ mod tests {
     }
 
     #[test]
+    fn encender_no_dispara_de_golpe() {
+        let t0 = Instant::now();
+        let mut f = fx(5, t0);
+        f.set_enabled(false, t0);
+        let t1 = t0 + Duration::from_secs(100);
+        f.set_enabled(true, t1);
+        assert_eq!(f.tick(t1), LogoFxState::Idle, "no dispara al encender");
+        assert!(!f.needs_clock());
+        assert_eq!(f.deadline(), Some(t1 + Duration::from_secs(20)));
+        assert!(matches!(
+            f.tick(t1 + Duration::from_secs(20)),
+            LogoFxState::Active { .. }
+        ));
+    }
+
+    #[test]
+    fn encender_ya_encendido_no_reinicia_el_plazo() {
+        let t0 = Instant::now();
+        let mut f = fx(5, t0);
+        f.set_enabled(true, t0 + Duration::from_secs(10));
+        assert_eq!(f.deadline(), Some(t0 + Duration::from_secs(20)));
+    }
+
+    #[test]
+    fn set_interval_acota_y_recalcula_el_plazo() {
+        let t0 = Instant::now();
+        let mut f = fx(5, t0);
+        let t1 = t0 + Duration::from_secs(3);
+        f.set_interval(Duration::from_secs(1), t1);
+        assert_eq!(f.interval(), Duration::from_secs(5));
+        assert_eq!(f.deadline(), Some(t1 + Duration::from_secs(5)));
+        f.set_interval(Duration::from_secs(9_999), t1);
+        assert_eq!(f.interval(), Duration::from_secs(600));
+        assert_eq!(f.deadline(), Some(t1 + Duration::from_secs(600)));
+    }
+
+    #[test]
     fn apagado_no_tiene_deadline_ni_dispara() {
         let t0 = Instant::now();
         let mut f = fx(9, t0);
-        f.set_enabled(false);
+        f.set_enabled(false, t0);
         assert_eq!(f.deadline(), None);
         assert_eq!(
             f.tick(t0 + Duration::from_secs(60 * 60 * 24)),
@@ -245,7 +299,7 @@ mod tests {
         let mut f = fx(9, t0);
         let at = t0 + Duration::from_secs(20);
         assert!(matches!(f.tick(at), LogoFxState::Active { .. }));
-        f.set_enabled(false);
+        f.set_enabled(false, at);
         assert!(!f.needs_clock());
         assert_eq!(f.deadline(), None);
     }
