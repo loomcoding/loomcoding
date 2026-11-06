@@ -27,4 +27,5 @@ mod sidebar_keys;
 mod signo_de_interrogacion;
 mod slash_commands;
 mod tool_inspector_and_queue;
+mod ui_command;
 mod wake;

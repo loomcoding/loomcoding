@@ -41,6 +41,7 @@ mod target;
 mod tool_sync;
 mod turn;
 mod types;
+mod ui_command;
 mod ui_panel;
 mod ui_panel_keys;
 mod usage;

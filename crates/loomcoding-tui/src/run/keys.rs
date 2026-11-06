@@ -414,6 +414,11 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
                 return None;
             }
             KeyCode::Enter => {
+                // Un alias oculto se ejecuta por su nombre completo, aunque el popup no lo liste.
+                if let Some(alias) = crate::commands_alias::exact_hidden_alias(app.composer.text())
+                {
+                    return execute_slash_command(app, alias);
+                }
                 let Some((command, _, _)) = matches.get(app.slash_selected) else {
                     app.slash_feedback =
                         Some("Unknown command · /help for commands · Esc to send as text".into());

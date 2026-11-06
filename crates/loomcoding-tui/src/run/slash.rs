@@ -49,6 +49,14 @@ pub(super) fn execute_slash_command(
             return None;
         }
     }
+    // `/ui` actúa antes de borrar el compositor: con un rechazo, el texto escrito se conserva.
+    if command == Command::Ui {
+        let arg = typed.strip_prefix("/ui").map(str::trim).unwrap_or("");
+        if let Err(message) = app.ui_command(arg) {
+            app.slash_feedback = Some(message);
+            return None;
+        }
+    }
     if command == Command::Cancel && !app.turn_in_flight {
         app.slash_feedback = Some("No active turn to cancel".into());
         return None;
@@ -176,7 +184,7 @@ pub(super) fn execute_slash_command(
         }
         // Ya pedida arriba: el bucle la entrega al trabajador con `dispatch_compact`.
         // Ya resuelto arriba, antes de borrar el compositor.
-        Command::Compact | Command::Model | Command::Effort => None,
+        Command::Compact | Command::Model | Command::Effort | Command::Ui => None,
         Command::Quit => handle_key(app, KeyCode::Char('q'), KeyModifiers::CONTROL),
         Command::Parent => {
             if !app.go_parent() {

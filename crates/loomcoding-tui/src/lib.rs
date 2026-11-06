@@ -2,6 +2,7 @@ pub mod agent_command;
 pub mod app;
 pub mod clipboard;
 pub mod commands;
+pub mod commands_alias;
 pub mod frame;
 pub mod mascot;
 pub mod permission_flow;

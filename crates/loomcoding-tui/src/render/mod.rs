@@ -202,7 +202,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         frame.render_widget(
             Paragraph::new(if let Some(feedback) = app.slash_feedback.as_deref() {
                 feedback
-            } else if app.slash_matches().is_empty() {
+            } else if app.slash_matches().is_empty()
+                && crate::commands_alias::exact_hidden_alias(app.composer.text()).is_none()
+            {
                 "Unknown command · Esc to send as text"
             } else {
                 "↑/↓ select · Tab complete · Enter run · Esc dismiss"

@@ -176,12 +176,12 @@ impl App {
         let query = trimmed.strip_prefix('/')?;
         let command = query.split_whitespace().next().unwrap_or(query);
         let has_args = command.len() < query.len();
-        // `attach`, `verbose`, `logofx`, `model` y `effort` aceptan argumentos y siguen mostrando el popup.
+        // `attach`, `verbose`, `logofx`, `model`, `effort` y `ui` aceptan argumentos y siguen mostrando el popup.
         if command.contains('/')
             || (has_args
                 && !matches!(
                     command,
-                    "attach" | "verbose" | "logofx" | "model" | "effort"
+                    "attach" | "verbose" | "logofx" | "model" | "effort" | "ui"
                 ))
         {
             return None;
@@ -196,7 +196,9 @@ impl App {
         crate::commands::COMMANDS
             .iter()
             .copied()
-            .filter(|(_, name, _)| name.starts_with(query))
+            .filter(|(command, name, _)| {
+                !crate::commands_alias::is_hidden_alias(*command) && name.starts_with(query)
+            })
             .collect()
     }
 }

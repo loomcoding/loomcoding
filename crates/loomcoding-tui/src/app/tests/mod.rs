@@ -30,6 +30,7 @@ mod theme_and_settings;
 mod todos_and_questions;
 mod tools_and_activity;
 mod turn_end;
+mod ui_command;
 mod ui_panel;
 mod ui_panel_root;
 mod usage_meter;

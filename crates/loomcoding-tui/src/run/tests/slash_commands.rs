@@ -82,7 +82,8 @@ fn turn_completion_discards_cancellation_that_arrived_after_the_worker_finished(
 fn slash_menu_filters_completes_and_executes_without_sending_a_prompt() {
     let mut app = App::new();
     handle_event(&mut app, Event::Paste("/s".into()));
-    assert_eq!(app.slash_matches().len(), 3);
+    // `/sidebar` empieza por «s» pero es un alias oculto: el popup muestra solo sessions y settings.
+    assert_eq!(app.slash_matches().len(), 2);
     handle_key(&mut app, KeyCode::Down, KeyModifiers::NONE);
     handle_key(&mut app, KeyCode::Tab, KeyModifiers::NONE);
     assert_eq!(app.composer.text(), "/settings");
@@ -282,7 +283,12 @@ fn slash_escape_preserves_literal_text_and_unknown_commands_do_not_dispatch() {
         Some("/unknown".into())
     );
     handle_key(&mut app, KeyCode::Char('/'), KeyModifiers::NONE);
-    assert_eq!(app.slash_matches().len(), crate::commands::COMMANDS.len());
+    // El popup lista todo salvo los alias ocultos, que siguen en `COMMANDS`.
+    let visibles = crate::commands::COMMANDS
+        .iter()
+        .filter(|(command, _, _)| !crate::commands_alias::is_hidden_alias(*command))
+        .count();
+    assert_eq!(app.slash_matches().len(), visibles);
 
     for text in [
         "explain /help",
