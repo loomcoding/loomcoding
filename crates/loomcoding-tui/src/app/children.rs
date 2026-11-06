@@ -22,17 +22,23 @@ impl App {
     /// Resumen de los subagentes en curso. Sin ninguno, `0 subagents running` sin paréntesis
     /// (no hay nada que ocultar); con alguno, el desglose por estado A2A entre paréntesis.
     pub fn running_summary(&self) -> String {
+        let total = self.active_agents();
+        if total == 0 {
+            "0 subagents running".to_owned()
+        } else {
+            format!("{total} subagents running ({})", self.running_breakdown())
+        }
+    }
+
+    /// Desglose por estado A2A de los subagentes en curso, p. ej. `working 2, input-required 1`.
+    /// Vacío si no hay ninguno en curso.
+    pub fn running_breakdown(&self) -> String {
         let activos: Vec<(TaskState, usize)> = self
             .subagent_state_counts()
             .into_iter()
             .filter(|(estado, _)| !estado.is_terminal())
             .collect();
-        let total = self.active_agents();
-        if total == 0 {
-            "0 subagents running".to_owned()
-        } else {
-            format!("{total} subagents running ({})", formato_recuento(&activos))
-        }
+        formato_recuento(&activos)
     }
 
     /// Sufijo de los subagentes terminados, ` (subagents: completed 2, failed 1)`; vacío si

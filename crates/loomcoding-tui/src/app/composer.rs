@@ -190,54 +190,112 @@ impl App {
         }
     }
 
-    /// Construye el sidebar de cloth con la marca y las secciones de sesión.
+    /// Construye el menú izquierdo del layout `Workspace`: el logo y, después, bloques sin
+    /// mayúsculas. Lo que vale cero no se pinta, y un bloque sin nada no existe.
     pub fn sidebar(&self) -> loomcoding_cloth::state::Sidebar {
         let mut sb = loomcoding_cloth::state::Sidebar::with_loom_mark("Loomcoding");
-        sb.push_section("AGENT", vec![self.status.clone(), self.model.clone()]);
-        sb.push_section(
-            "PROJECT",
-            vec![
-                self.cwd.clone(),
-                format!("{} changed files", self.changes.len()),
-            ],
-        );
-        let running = self
+
+        // Primer bloque, sin título: estado, modelo · esfuerzo y ruta corta. Un estado de error
+        // va con el estilo de error (línea 0).
+        let glifo = if self.status == "working" {
+            "◐"
+        } else {
+            "◌"
+        };
+        let errores: &[usize] = if self.status.starts_with("error:") {
+            &[0]
+        } else {
+            &[]
+        };
+        let mut estado = vec![format!("{glifo} {}", self.status)];
+        let esfuerzo = self
+            .provider_settings
+            .as_ref()
+            .and_then(|ajustes| ajustes.effort.as_deref())
+            .filter(|e| !e.is_empty());
+        let modelo: Vec<&str> = [Some(self.model.as_str()), esfuerzo]
+            .into_iter()
+            .flatten()
+            .filter(|parte| !parte.is_empty())
+            .collect();
+        if !modelo.is_empty() {
+            estado.push(modelo.join(" · "));
+        }
+        if let Some(ruta) = ruta_corta(&self.cwd) {
+            estado.push(ruta);
+        }
+        sb.push_section_with_errors("", estado, errores);
+
+        // Actividad: una línea por cosa en marcha; lo que vale cero no se pinta.
+        let mut actividad = Vec::new();
+        let herramientas = self
             .tools
             .iter()
             .filter(|tool| tool.status() == loomcoding_cloth::state::ToolStatus::Running)
             .count();
-        let mut flock = vec![
-            format!("{running} tools running"),
-            format!(
-                "{} jobs running",
-                self.jobs
-                    .values()
-                    .filter(|job| Some(job.owner) == self.session_id)
-                    .filter(|job| matches!(
-                        job.status,
-                        loomcoding_core::job::JobStatus::Running
-                            | loomcoding_core::job::JobStatus::Stopping
-                    ))
-                    .count()
-            ),
-            format!("{} prompts queued", self.queued),
-        ];
-        // Regla de trazabilidad: el resumen de subagentes lleva su desglose por estado A2A. La
-        // barra lateral es estrecha, así que el resumen se parte en líneas de como mucho 20 columnas.
-        flock.extend(crate::rail::partir_por_palabras(
-            &self.running_summary(),
-            20,
-        ));
-        sb.push_section("FLOCK", flock);
-        let mut session = Vec::new();
-        if let Some(id) = self.session_id {
-            session.push(format!("session #{}", id.0));
+        if herramientas > 0 {
+            let palabra = if herramientas == 1 {
+                "herramienta"
+            } else {
+                "herramientas"
+            };
+            actividad.push(format!("◌ {herramientas} {palabra}"));
         }
-        session.push(format!(
-            "↑ {} · ↓ {}",
-            self.input_tokens, self.output_tokens
-        ));
-        sb.push_section("SESSION", session);
+        let agentes = self.active_agents();
+        if agentes > 0 {
+            let palabra = if agentes == 1 { "agente" } else { "agentes" };
+            actividad.push(format!("◐ {agentes} {palabra}"));
+            // Trazabilidad A2A: el desglose por estado va entre paréntesis y, como la barra es
+            // estrecha, partido en líneas de como mucho 20 columnas.
+            actividad.extend(crate::rail::partir_por_palabras(
+                &format!("({})", self.running_breakdown()),
+                20,
+            ));
+        }
+        let jobs = self
+            .jobs
+            .values()
+            .filter(|job| Some(job.owner) == self.session_id)
+            .filter(|job| {
+                matches!(
+                    job.status,
+                    loomcoding_core::job::JobStatus::Running
+                        | loomcoding_core::job::JobStatus::Stopping
+                )
+            })
+            .count();
+        let mut cola = Vec::new();
+        if jobs > 0 {
+            cola.push(format!("{jobs} {}", if jobs == 1 { "job" } else { "jobs" }));
+        }
+        if self.queued > 0 {
+            cola.push(format!("{} en cola", self.queued));
+        }
+        if !cola.is_empty() {
+            actividad.push(cola.join(" · "));
+        }
+        if !actividad.is_empty() {
+            sb.push_section("Actividad", actividad);
+        }
+
+        // Sesión: los tokens abreviados; sin tokens no hay bloque.
+        let mut tokens = Vec::new();
+        if self.input_tokens > 0 {
+            tokens.push(format!("↑{}", format_tokens(self.input_tokens)));
+        }
+        if self.output_tokens > 0 {
+            tokens.push(format!("↓{}", format_tokens(self.output_tokens)));
+        }
+        if !tokens.is_empty() {
+            sb.push_section("Sesión", vec![tokens.join(" ")]);
+        }
         sb
     }
+}
+
+/// Ruta corta de `cwd`: «…/» y su último componente, con `\` o `/` como separador. Vacía si no
+/// hay componente.
+fn ruta_corta(cwd: &str) -> Option<String> {
+    let ultimo = cwd.rsplit(['/', '\\']).find(|parte| !parte.is_empty())?;
+    Some(format!("…/{ultimo}"))
 }

@@ -84,8 +84,8 @@ fn ctrl_b_sidebar_is_visible_at_medium_width() {
     let mut app = App::with_context("/proj", "m");
     app.sidebar_expanded = true;
     let content = buffer_of(&mut app, 90, 30);
-    assert!(content.contains("PROJECT"));
-    assert!(content.contains("0 subagents running"));
+    // El menú ya no lleva la cabecera `PROJECT`: la ruta corta del primer bloque sustituye.
+    assert!(content.contains("…/proj"));
     assert!(content.contains("Conversation"));
 }
 

@@ -6,6 +6,7 @@ use crate::widgets::loom_mark::{self, LOOM_MARK_ROWS, LOOM_MARK_WIDTH};
 use crate::widgets::text::truncate;
 use crate::widgets::Theme;
 use ratatui::layout::Rect;
+use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
@@ -45,14 +46,29 @@ pub fn render(frame: &mut Frame, area: Rect, sidebar: &Sidebar, theme: &Theme) {
     }
 
     for section in &sidebar.sections {
-        lines.push(Line::from(Span::styled(
-            section.title.clone(),
-            theme.style(StyleToken::Heading),
-        )));
-        for l in &section.lines {
+        // Cabe señalar que una sección sin líneas no se pinta: ni su título ni la fila en blanco.
+        if section.lines.is_empty() {
+            continue;
+        }
+        // Un título vacío es un bloque sin fila de título, como el primero del menú. Los títulos
+        // van en negrita por encima del tema, que puede no declararla.
+        if !section.title.is_empty() {
+            lines.push(Line::from(Span::styled(
+                section.title.clone(),
+                theme
+                    .style(StyleToken::Heading)
+                    .add_modifier(Modifier::BOLD),
+            )));
+        }
+        for (indice, l) in section.lines.iter().enumerate() {
+            let token = if section.error_lines.contains(&indice) {
+                StyleToken::Error
+            } else {
+                StyleToken::Default
+            };
             lines.push(Line::from(Span::styled(
                 truncate(l, width),
-                theme.style(StyleToken::Default),
+                theme.style(token),
             )));
         }
         lines.push(Line::from(""));
@@ -67,6 +83,7 @@ mod tests {
     use crate::state::Sidebar;
     use crate::widgets::Theme;
     use ratatui::backend::TestBackend;
+    use ratatui::style::{Color, Modifier, Style};
     use ratatui::Terminal;
 
     fn buffer(sb: &Sidebar, w: u16, h: u16) -> String {
@@ -168,6 +185,50 @@ mod tests {
         let out = buffer(&sb, 23, 4);
         assert!(!out.contains("▄▀▀▄"));
         assert!(out.contains("Loomcoding"));
+    }
+
+    /// Cabe señalar que el título va en negrita aunque el tema no la declare: un `[styles]`
+    /// de TOML sustituye el estilo `heading` entero y pierde el `BOLD` por defecto. Se mira la
+    /// celda de la primera letra del título.
+    #[test]
+    fn titles_are_bold() {
+        let mut sb = Sidebar::new();
+        sb.push_section("Actividad", vec!["x".into()]);
+        let mut tema = Theme::test();
+        tema.styles.heading = Style::default().fg(Color::Indexed(250));
+        let mut term = Terminal::new(TestBackend::new(20, 4)).unwrap();
+        term.draw(|f| render(f, f.area(), &sb, &tema)).unwrap();
+        let buf = term.backend().buffer();
+        // La columna 0 es el borde izquierdo; el título empieza en la 1.
+        assert_eq!(buf[(1, 0)].symbol(), "A");
+        assert!(
+            buf[(1, 0)].modifier.contains(Modifier::BOLD),
+            "el título debe ir en negrita: {:?}",
+            buf[(1, 0)]
+        );
+    }
+
+    /// Una sección sin líneas no pinta ni su título ni la fila en blanco que lo sigue.
+    #[test]
+    fn empty_sections_are_not_drawn() {
+        let mut sb = Sidebar::new();
+        sb.push_section("vacía", vec![]);
+        sb.push_section("modelo", vec!["mock".into()]);
+        let filas = interior(&sb, 20, 6);
+        assert_eq!(filas[0], "modelo", "{filas:?}");
+        assert_eq!(filas[1], "mock", "{filas:?}");
+        assert_eq!(filas[2], "", "{filas:?}");
+        assert!(!filas.iter().any(|f| f.contains("vacía")), "{filas:?}");
+    }
+
+    /// Un título vacío es el primer bloque del menú: sus líneas van sin fila de título.
+    #[test]
+    fn an_empty_title_draws_no_title_row() {
+        let mut sb = Sidebar::new();
+        sb.push_section("", vec!["x".into()]);
+        let filas = interior(&sb, 20, 4);
+        assert_eq!(filas[0], "x", "{filas:?}");
+        assert_eq!(filas[1], "", "{filas:?}");
     }
 
     #[test]

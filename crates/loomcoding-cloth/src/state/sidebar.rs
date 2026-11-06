@@ -13,6 +13,8 @@ pub struct Logo {
 pub struct Section {
     pub title: String,
     pub lines: Vec<String>,
+    /// Índices de las líneas que se pintan con el estilo de error.
+    pub error_lines: Vec<usize>,
 }
 
 /// Sidebar genérico: logo opcional + secciones en orden.
@@ -49,9 +51,21 @@ impl Sidebar {
     }
 
     pub fn push_section(&mut self, title: impl Into<String>, lines: Vec<String>) {
+        self.push_section_with_errors(title, lines, &[]);
+    }
+
+    /// Como `push_section`, pero las líneas de índice `error_lines` se pintan con el estilo de
+    /// error.
+    pub fn push_section_with_errors(
+        &mut self,
+        title: impl Into<String>,
+        lines: Vec<String>,
+        error_lines: &[usize],
+    ) {
         self.sections.push(Section {
             title: title.into(),
             lines,
+            error_lines: error_lines.to_vec(),
         });
     }
 }

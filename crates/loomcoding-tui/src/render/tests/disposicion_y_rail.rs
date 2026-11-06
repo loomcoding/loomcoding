@@ -5,8 +5,7 @@ fn shows_sidebar_when_wide() {
     let mut app = App::with_context("/proj", "mistral-nemo");
     let content = buffer_of(&mut app, 120, 40);
     assert!(content.contains("mistral-nemo"));
-    assert!(content.contains("0 subagents running"));
-    // Sin subagentes en curso el resumen es `0 subagents running`, sin paréntesis que ocultar.
+    // El menú ya no pinta los contadores a cero: sin subagentes en curso no hay línea de agentes.
     assert!(!content.contains("subagents running ("), "{content}");
     // La marca «LOOM» pinta el nombre en minúsculas (tarea 1 del menú izquierdo).
     assert!(content.contains("loomcoding"));

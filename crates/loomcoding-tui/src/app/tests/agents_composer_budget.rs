@@ -9,15 +9,15 @@ fn with_context_stores_cwd_and_model() {
 }
 
 #[test]
-fn sidebar_has_logo_and_session_sections() {
+fn sidebar_has_logo_and_status_block() {
     let mut app = App::with_context("/proj", "mistral-nemo");
     app.session_id = Some(SessionId(42));
     let sb = app.sidebar();
     assert_eq!(sb.logo.as_ref().unwrap().name, "Loomcoding");
-    let titles: Vec<&str> = sb.sections.iter().map(|s| s.title.as_str()).collect();
-    assert_eq!(titles, ["AGENT", "PROJECT", "FLOCK", "SESSION"]);
-    assert_eq!(sb.sections[1].lines[0], "/proj");
-    assert_eq!(sb.sections[3].lines[0], "session #42");
+    // En reposo solo queda el primer bloque, sin título: estado, modelo y ruta corta.
+    assert_eq!(sb.sections.len(), 1);
+    assert_eq!(sb.sections[0].title, "");
+    assert_eq!(sb.sections[0].lines, ["◌ ready", "mistral-nemo", "…/proj"]);
 }
 
 #[test]
