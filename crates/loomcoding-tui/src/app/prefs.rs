@@ -44,6 +44,20 @@ impl App {
         }
     }
 
+    /// Fija el paquete de estilo (`classic`/`flat`, desde `/ui`), lo persiste si hay `prefs_path`
+    /// y lo aplica al look actual sin tocar el layout. Un fallo al guardar no impide el cambio:
+    /// se avisa en `slash_feedback`.
+    pub fn set_style(&mut self, bundle: loomcoding_cloth::widgets::StyleBundle) {
+        self.style_override = Some(bundle);
+        self.theme.look = self.theme.look.with_bundle(bundle);
+        self.slash_feedback = None;
+        if let Some(path) = &self.prefs_path {
+            if let Err(err) = crate::prefs::save_style(path, bundle) {
+                self.slash_feedback = Some(format!("Style not saved: {err}"));
+            }
+        }
+    }
+
     /// Fija el fichero de preferencias y aplica el tema guardado en él, si lo hay.
     /// No vuelve a escribir el fichero al aplicarlo.
     pub fn set_prefs_path(&mut self, path: std::path::PathBuf) {
@@ -55,6 +69,11 @@ impl App {
         if let Some(layout) = crate::prefs::load_layout(&path) {
             self.layout_override = Some(layout);
             self.theme.look.layout = layout;
+        }
+        // El estilo guardado sustituye al del preset y no toca el layout.
+        if let Some(bundle) = crate::prefs::load_style(&path) {
+            self.style_override = Some(bundle);
+            self.theme.look = self.theme.look.with_bundle(bundle);
         }
         // Se aplica sin marcar `mouse_capture_dirty`: el arranque ya usa este valor.
         if let Some(on) = crate::prefs::load_mouse(&path) {
@@ -125,6 +144,10 @@ impl App {
     pub(super) fn apply_theme(&mut self, preset: loomcoding_cloth::widgets::ThemePreset) {
         self.theme_preset = preset;
         self.theme = loomcoding_cloth::widgets::Theme::preset(preset);
+        // El estilo elegido por el usuario sustituye al del preset, como el layout.
+        if let Some(bundle) = self.style_override {
+            self.theme.look = self.theme.look.with_bundle(bundle);
+        }
         // El preset trae su propio layout; el elegido por el usuario lo sustituye.
         if let Some(layout) = self.layout_override {
             self.theme.look.layout = layout;

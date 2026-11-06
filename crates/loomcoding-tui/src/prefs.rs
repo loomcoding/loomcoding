@@ -259,8 +259,14 @@ fn glyphs_from_name(name: &str) -> Option<GlyphSet> {
     }
 }
 
+mod style;
+pub use style::{load_style, save_style};
+
 #[cfg(test)]
 mod logo_fx_tests;
+
+#[cfg(test)]
+mod style_tests;
 
 #[cfg(test)]
 mod tests {

@@ -18,6 +18,13 @@ pub(super) struct ThemeFile {
     pub(super) styles: BTreeMap<String, String>,
     #[serde(default)]
     pub(super) effects: Option<EffectsFile>,
+    /// Paquete de estilo por defecto (`"classic"` o `"flat"`). `ui.toml` lo sobrescribe.
+    #[serde(default)]
+    pub(super) style: Option<String>,
+    /// Disposición por defecto (`"workspace"`, `"rail"`, `"minimal"` o `"cards"`).
+    /// `ui.toml` la sobrescribe.
+    #[serde(default)]
+    pub(super) layout: Option<String>,
 }
 
 /// Sección `[effects]` del tema.
@@ -151,6 +158,16 @@ impl Theme {
         }
         if let Some(matrix) = file.effects.and_then(|e| e.matrix) {
             theme.matrix = matrix_config_from_file(matrix)?;
+        }
+        // Cabe señalar que el estilo no toca el layout, y viceversa: son ejes independientes.
+        if let Some(name) = file.style {
+            let bundle = StyleBundle::from_name(&name)
+                .ok_or_else(|| ThemeError::Parse(format!("estilo desconocido: {name}")))?;
+            theme.look = theme.look.with_bundle(bundle);
+        }
+        if let Some(name) = file.layout {
+            theme.look.layout = LayoutStyle::from_name(&name)
+                .ok_or_else(|| ThemeError::Parse(format!("disposición desconocida: {name}")))?;
         }
         Ok(theme)
     }

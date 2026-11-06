@@ -101,6 +101,9 @@ pub struct App {
     /// Disposición elegida por el usuario (`/layout` o `ui.toml`). Si es `Some`,
     /// manda sobre el layout del preset, también tras `/theme`.
     pub layout_override: Option<loomcoding_cloth::widgets::LayoutStyle>,
+    /// Paquete de estilo elegido por el usuario (`/ui style` o `ui.toml`). Si es `Some`,
+    /// manda sobre el estilo del preset, también tras `/theme`.
+    pub style_override: Option<loomcoding_cloth::widgets::StyleBundle>,
     /// Captura del ratón (`/mouse`). Apagada, la terminal conserva su selección nativa.
     pub mouse_capture: bool,
     /// Hay un cambio de `mouse_capture` pendiente de aplicar al terminal.
@@ -417,6 +420,7 @@ impl App {
             theme_preset: loomcoding_cloth::widgets::ThemePreset::Cloth,
             prefs_path: None,
             layout_override: None,
+            style_override: None,
             mouse_capture: true,
             mouse_capture_dirty: false,
             mascot: true,
