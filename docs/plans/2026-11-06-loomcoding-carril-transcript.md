@@ -20,7 +20,7 @@
 
 ## Tarea 1 — El valor y su pintado
 
-**Ficheros:** nuevo `crates/loomcoding-tui/src/render/rail.rs` (`RailStyle::{Tree,Dots,Bar,None}`,
+**Ficheros:** nuevo `crates/loomcoding-tui/src/render/rail.rs` (`RailStyle::{Tree,Dots,Bar,Box,Tint,None}`,
 `rail_width(style, width) -> u16`, `rail_cells(style, first, last, focused) -> [char; 2]` pura y probable),
 `render/transcript.rs` (`draw_tree_gutter` y `tree_gutter` consultan el valor), `app/mod.rs` (campo
 `rail_style`).
@@ -31,11 +31,11 @@
 ## Tarea 2 — Preferencia, fila de `/ui` y `ui.toml`
 
 **Ficheros:** `app/prefs.rs` (carga y guardado de `rail`), `app/ui_command.rs` (`UiRow::Rail`, `/ui carril <valor>`
-con `tree|dots|bar|none`), `render/overlays.rs` (ayuda si hace falta).
+con `tree|dots|bar|box|tint|none`), `render/overlays.rs` (ayuda si hace falta).
 - [ ] Pruebas: la fila cicla con `←`/`→`; `/ui carril none` cambia y guarda; un valor desconocido avisa con la
   lista; `ui.toml` sobrevive al cambio de tema; el valor ausente da `tree`.
 
 ## Tarea 3 — Documentación y volcado
 
-`docs/INDEX.md`, `docs/CODE-MAP.md`, CHANGELOG; volcado e2e con perfil aislado de los cuatro valores
+`docs/INDEX.md`, `docs/CODE-MAP.md`, CHANGELOG; volcado e2e con perfil aislado de los seis valores
 (`docs/visual-e2e.md`), con capturas en `docs/mockups/`.

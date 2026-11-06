@@ -18,11 +18,12 @@ columnas de ancho.
 |---|---|
 | Codex | sin carril: el mensaje del usuario lleva un fondo tenue y el del asistente un prefijo `• ` atenuado |
 | Crush | sin carril: solo el mensaje **enfocado** lleva un `▌` de media celda en el margen izquierdo |
-| MastraCode, Pi | sin datos en las referencias locales: no se afirma nada de ellos |
+| MastraCode | solo el mensaje del **usuario** va en una caja redonda fina (`╭──╮ │ » texto │ ╰──╯`) del ancho de su contenido, en verde, con el prompt `»`; el del asistente va sin caja ni trazo |
+| Pi | sin trazo: el mensaje del usuario lleva un **fondo de color** (`userMessageBg`) y el del asistente va como texto plano con sangría |
 
 ## Intención
 
-Una fila nueva del panel `/ui`, «Carril», con cuatro valores. Es una preferencia de aspecto más, por tanto
+Una fila nueva del panel `/ui`, «Carril», con seis valores. Es una preferencia de aspecto más, por tanto
 también se fija con `/ui carril <valor>` y se guarda en `ui.toml` (clave `rail`).
 
 | Valor | Aspecto |
@@ -31,6 +32,8 @@ también se fija con `/ui carril <valor>` y se guarda en `ui.toml` (clave `rail`
 | `dots` | punteado: la cabecera lleva el glifo del rol y el cuerpo, `┆` en un gris tenue; sin esquinas |
 | `bar` | estilo Crush: sin trazo, salvo un `▌` en el bloque enfocado; la cabecera conserva el glifo del rol |
 | `none` | estilo Codex y Claude Code: sin trazo alguno; solo el glifo del rol al abrir el bloque, y el carril se reduce a 2 columnas |
+| `box` | estilo MastraCode: solo el mensaje del usuario va en caja redonda fina del ancho de su contenido; el resto, sin trazo |
+| `tint` | estilo Pi y Codex: sin trazo; el mensaje del usuario lleva un fondo tenue y el del asistente un `• ` atenuado |
 
 ## Reglas
 
