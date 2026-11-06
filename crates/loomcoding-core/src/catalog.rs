@@ -162,6 +162,20 @@ impl Catalog {
         }
     }
 
+    /// Añade al principio los proveedores locales. Cualquier proveedor del catálogo con el mismo
+    /// `id` queda sustituido: un servidor local descubierto gana a la entrada de models.dev.
+    /// La ventana declarada por la persona usuaria se conserva.
+    pub fn with_local_providers(mut self, locales: Vec<CatalogProvider>) -> Catalog {
+        let ids: std::collections::HashSet<String> =
+            locales.iter().map(|provider| provider.id.clone()).collect();
+        self.providers
+            .retain(|provider| !ids.contains(&provider.id));
+        let mut providers = locales;
+        providers.append(&mut self.providers);
+        self.providers = providers;
+        self
+    }
+
     /// Devuelve el catálogo con una ventana de contexto declarada para el par (URL base, modelo).
     ///
     /// Cabe señalar que lo declarado gana a lo publicado solo para ese par exacto; la URL se compara

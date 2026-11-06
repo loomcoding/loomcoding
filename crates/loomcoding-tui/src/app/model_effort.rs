@@ -49,6 +49,7 @@ impl App {
         if self.provider_settings.is_none() {
             return Err("Provider settings are unavailable".into());
         }
+        self.request_refresh_providers();
         let has_models = self
             .model_catalog_provider()
             .is_some_and(|provider| !provider.models.is_empty());

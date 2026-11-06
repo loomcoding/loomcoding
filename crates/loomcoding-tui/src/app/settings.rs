@@ -192,6 +192,7 @@ impl App {
             self.settings_warned = false;
             self.close_picker();
             self.settings_baseline = self.provider_settings.clone();
+            self.request_refresh_providers();
         }
     }
 
@@ -326,6 +327,9 @@ impl App {
     /// Abre el selector del campo indicado. Sin catálogo, o sin proveedor del catálogo
     /// que coincida con la URL actual, no lo abre y deja el aviso en `settings_feedback`.
     pub fn open_picker(&mut self, picker: SettingsPicker) {
+        if picker == SettingsPicker::Provider {
+            self.request_refresh_providers();
+        }
         if self.catalog.is_empty() && picker != SettingsPicker::Provider {
             self.settings_feedback = Some("Catalog not loaded yet; type it by hand".into());
             return;

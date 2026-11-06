@@ -33,6 +33,7 @@ mod model_effort;
 mod pointer;
 mod prefs;
 mod prompts;
+mod providers_refresh;
 mod session;
 mod session_diff_state;
 mod settings;
@@ -324,6 +325,9 @@ pub struct App {
     /// Pide al trabajador que vuelva a descargar las tarjetas de los remotos (`/refresh-agents`).
     /// `None` si el consumo de agentes remotos no está activo.
     refresh_agents_hook: Option<Arc<dyn Fn() + Send + Sync>>,
+    /// Pide un sondeo de los proveedores locales al abrir `/model`, `/settings` o el selector de
+    /// proveedor. `None` si el binario no lo cablea. El enfriamiento vive en quien sondea.
+    refresh_providers_hook: Option<Arc<dyn Fn() + Send + Sync>>,
     /// Apuntes de consumo de la sesión abierta: los persistidos al abrirla más los vivos.
     pub usage_records: Vec<UsageRecord>,
     /// Peticiones de provider activas por sesión y request id, con cifras provisionales y finales.
@@ -537,6 +541,7 @@ impl App {
             catalog: Arc::new(Catalog::default()),
             agent_registry: None,
             refresh_agents_hook: None,
+            refresh_providers_hook: None,
             usage_records: Vec::new(),
             active_usage: HashMap::new(),
             provider_in_flight: 0,

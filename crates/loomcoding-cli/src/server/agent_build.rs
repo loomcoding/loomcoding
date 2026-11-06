@@ -216,7 +216,10 @@ pub(super) async fn build_agent(
     ));
     let (catalog_tx, _catalog_rx) = mpsc::unbounded_channel();
     let declared = crate::declared_window(&limits, &cfg.provider.base_url, &cfg.model);
-    tokio::spawn(crate::load_catalog(catalog_tx, catalog.clone(), declared));
+    // El servidor no sondea proveedores locales: su catálogo sirve a los precios y ventanas del agente.
+    let publicador =
+        crate::sondeo_local::Publicador::new(catalog_tx, catalog.clone(), declared, Vec::new());
+    tokio::spawn(crate::load_catalog(publicador));
     let project_tool_env = crate::shell_env(&project_env);
     let tools = crate::build_project_tools(project_tool_env);
     let mcp_config_path = data_dir.join("mcp.toml");

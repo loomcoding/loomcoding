@@ -22,6 +22,7 @@ mod logo_fx;
 mod menu_izquierdo;
 mod model_effort;
 mod notices_and_remote;
+mod providers_refresh;
 mod session;
 mod session_diff_state;
 mod style_prefs;

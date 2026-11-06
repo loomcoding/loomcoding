@@ -26,6 +26,7 @@ mod home;
 mod ipc;
 mod registro_local;
 mod server;
+mod sondeo_local;
 
 #[derive(Parser)]
 #[command(name = env!("CARGO_BIN_NAME"), version)]
@@ -261,27 +262,16 @@ fn with_declared_window(catalog: Catalog, declared: &DeclaredWindow) -> Catalog 
 }
 
 /// Entrega a la interfaz el catálogo de models.dev: primero la caché (si existe) y, si falta
-/// o ha caducado, uno descargado. Cada catálogo que llega se copia también en `shared`, el que
-/// usa el agente para fijar los precios de los apuntes. Los fallos se ignoran en silencio: sin
-/// catálogo, `/settings` funciona como antes. Corre en su propia tarea, así que nunca retrasa
-/// el arranque.
+/// o ha caducado, uno descargado. Cada catálogo que llega pasa por el publicador, que añade los
+/// proveedores locales del último sondeo y lo copia en el compartido del agente. Los fallos se
+/// ignoran en silencio: sin catálogo, `/settings` funciona como antes. Corre en su propia tarea,
+/// así que nunca retrasa el arranque.
 ///
-/// `declared` es la ventana de contexto que la persona usuaria fija en `loomcoding.toml`: se
-/// publica antes que nada (así rige sin caché ni red) y se aplica a cada catálogo que llega.
-async fn load_catalog(
-    tx: tokio::sync::mpsc::UnboundedSender<Arc<Catalog>>,
-    shared: Arc<std::sync::RwLock<Catalog>>,
-    declared: DeclaredWindow,
-) {
-    let publish = |catalog: Catalog| {
-        let catalog = with_declared_window(catalog, &declared);
-        if let Ok(mut guard) = shared.write() {
-            *guard = catalog.clone();
-        }
-        let _ = tx.send(Arc::new(catalog));
-    };
-    if declared.is_some() {
-        publish(Catalog::default());
+/// La ventana declarada en `loomcoding.toml` se publica antes que nada (así rige sin caché ni red)
+/// y el publicador la aplica a cada catálogo que llega.
+async fn load_catalog(publicador: Arc<sondeo_local::Publicador>) {
+    if publicador.tiene_ventana_declarada() {
+        publicador.publicar_base(Catalog::default());
     }
     let Some(path) = cache_path() else {
         return;
@@ -300,11 +290,11 @@ async fn load_catalog(
         None => true,
     };
     if let Some((catalog, _)) = cached {
-        publish(catalog);
+        publicador.publicar_base(catalog);
     }
     if needs_refresh {
         if let Ok(catalog) = refresh(&path, || fetch_raw(CATALOG_URL)).await {
-            publish(catalog);
+            publicador.publicar_base(catalog);
         }
     }
 }

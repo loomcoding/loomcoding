@@ -433,7 +433,13 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let catalog = Arc::new(std::sync::RwLock::new(
         loomcoding_core::catalog::Catalog::default(),
     ));
-    tokio::spawn(crate::load_catalog(catalog_tx, catalog, declared));
+    // Los servidores locales del registro global se sondean en segundo plano (véase `sondeo_local`).
+    let locales = crate::registro_local::cargar_registro_global()
+        .map(|registro| registro.providers)
+        .unwrap_or_default();
+    let publicador = crate::sondeo_local::Publicador::new(catalog_tx, catalog, declared, locales);
+    tokio::spawn(crate::load_catalog(publicador.clone()));
+    let refresco_proveedores = crate::sondeo_local::arrancar_sondeo(publicador);
     let mut app = loomcoding_tui::app::App::with_context(cwd, model).with_ui_config(ui_config);
     app.use_product_default_view();
     app.set_provider_settings(settings);
@@ -457,6 +463,10 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
             }
         }));
     }
+    // Abrir `/model`, `/settings` o el selector de proveedor pide un sondeo; el envío no espera.
+    app.set_refresh_providers_hook(Arc::new(move || {
+        let _ = refresco_proveedores.send(());
+    }));
     loomcoding_tui::run::run(
         app,
         prompt_tx,

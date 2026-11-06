@@ -14,6 +14,7 @@ pub mod job;
 pub mod message;
 pub mod permission;
 pub mod provider;
+pub mod providers_catalog;
 pub mod providers_probe;
 pub mod providers_registry;
 pub mod question;
