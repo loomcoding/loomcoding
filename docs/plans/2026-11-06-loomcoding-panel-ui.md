@@ -30,7 +30,10 @@ que fijan `composer`, `tool` y `chrome` a la vez; `Classic` = `Look::classic()` 
 
 **Ficheros:** `loomcoding-tui/src/prefs.rs` (`style`), `app/prefs.rs` (`set_style`, y `layout_override`
 deja de existir: el layout se guarda y se carga directamente en el `Look`).
-- [ ] Pruebas: `set_style` aplica y persiste; cargar `ui.toml` antiguo sin `style` deja el del preset; un
+`ThemeFile` (`loomcoding-cloth/src/widgets/theme/loading.rs`) admite `style` y `layout` opcionales como valores
+por defecto del tema; prioridad: tema < `ui.toml`.
+- [ ] Pruebas: un tema de usuario con `style = "flat"` y `layout = "minimal"` los aplica; `ui.toml` los
+  sobrescribe; valores inválidos en el tema dan error de carga legible sin pánico; `set_style` aplica y persiste; cargar `ui.toml` antiguo sin `style` deja el del preset; un
   valor inválido se ignora; el layout guardado sigue mandando sobre el del preset.
 
 ## Tarea 3 — Filas y valores del panel

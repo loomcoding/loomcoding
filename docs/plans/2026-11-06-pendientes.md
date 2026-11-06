@@ -23,5 +23,4 @@ Lo que no pertenece a un plan concreto. Se tacha al hacerse; las decisiones abie
 ## Decisiones abiertas
 
 - ¿`/mascot on` debe forzar el braille aunque haya `NO_COLOR`?
-- Spec del aspecto unificado: ¿los temas de usuario declaran `style` y `layout`?
-- Spec del panel `/ui`: overlay central o lista lateral.
+- Ninguna más por ahora (las del panel `/ui` y el aspecto unificado las resolvió el usuario el 6 de noviembre).

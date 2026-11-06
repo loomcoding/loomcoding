@@ -68,9 +68,12 @@ en vez de veintiséis, y el aspecto en una sola línea.
 Temas nuevos, editor de colores, y cambiar la semántica de ninguna preferencia guardada: las claves de
 `ui.toml` actuales siguen leyéndose igual.
 
+## Decisiones del usuario (6 de noviembre de 2026)
+
+- Los temas de usuario (`ThemeFile`) **pueden declarar `style` y `layout`**, como valores por defecto que
+  `ui.toml` sobrescribe. Ese orden de prioridad (tema < `ui.toml`) es el que fija el plan.
+- El panel es un **overlay central**, igual que `/temas` hoy.
+
 ## Preguntas abiertas
 
-- ¿Los temas de usuario (`ThemeFile`) pueden declarar `style` y `layout`? (Propuesta: sí, como valores por
-  defecto que `ui.toml` sobrescribe.)
-- ¿Se muestra el panel como overlay central, como `/settings`, o como lista lateral? (Propuesta: overlay
-  central, igual que `/temas` hoy.)
+Ninguna.

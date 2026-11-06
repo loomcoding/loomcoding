@@ -42,13 +42,11 @@ Objetivos: una sola fuente de verdad por capa; `ui.toml` con tres claves de aspe
 No objetivos: nuevos temas, nuevos estilos de widget, un editor visual de ajustes. Los interruptores de
 funciones (muñeco, lluvia, ratón) se quedan como están: no son aspecto, son funciones.
 
-## Preguntas abiertas
+## Preguntas resueltas
 
-- ¿`/style` como mando nuevo, o el estilo solo se elige con el tema? (Propuesta: mando nuevo, porque hoy es
-  imposible tener los colores de `Crush` con el marco clásico.)
-- ¿Qué pasa con `Look::tool` y `Look::composer`: ejes independientes o parte de `style`? (Propuesta: parte de
-  `style`; nadie los combina hoy a mano.)
-- ¿Los temas de usuario (`ThemeFile`) pueden declarar `style` y `layout`?
+Resueltas en `2026-11-06-loomcoding-panel-ui.md`: `/style` es una fila del panel `/ui`; `composer`, `tool` y
+`chrome` forman un solo estilo; y los temas de usuario pueden declarar `style` y `layout` como valor por
+defecto.
 
 ## Fuera de esta spec
 
