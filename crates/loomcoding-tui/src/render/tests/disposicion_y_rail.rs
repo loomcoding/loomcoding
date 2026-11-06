@@ -8,7 +8,8 @@ fn shows_sidebar_when_wide() {
     assert!(content.contains("0 subagents running"));
     // Sin subagentes en curso el resumen es `0 subagents running`, sin paréntesis que ocultar.
     assert!(!content.contains("subagents running ("), "{content}");
-    assert!(content.contains("Loomcoding"));
+    // La marca «LOOM» pinta el nombre en minúsculas (tarea 1 del menú izquierdo).
+    assert!(content.contains("loomcoding"));
 }
 
 #[test]

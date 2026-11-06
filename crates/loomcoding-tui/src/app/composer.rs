@@ -192,7 +192,7 @@ impl App {
 
     /// Construye el sidebar de cloth con la marca y las secciones de sesión.
     pub fn sidebar(&self) -> loomcoding_cloth::state::Sidebar {
-        let mut sb = loomcoding_cloth::state::Sidebar::with_logo("Loomcoding");
+        let mut sb = loomcoding_cloth::state::Sidebar::with_loom_mark("Loomcoding");
         sb.push_section("AGENT", vec![self.status.clone(), self.model.clone()]);
         sb.push_section(
             "PROJECT",

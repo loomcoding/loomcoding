@@ -1,9 +1,11 @@
 //! Modelo puro del sidebar: logo + secciones. Sin ratatui.
 
-/// Marca del sidebar. Solo el nombre; el dibujo lo pone `widgets::logo`.
+/// Marca del sidebar. El nombre; el dibujo lo pone `widgets::logo`, o la marca
+/// «LOOM» de `widgets::loom_mark` cuando `mark` está activo.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Logo {
     pub name: String,
+    pub mark: bool,
 }
 
 /// Sección del sidebar: un título y sus líneas.
@@ -27,7 +29,21 @@ impl Sidebar {
 
     pub fn with_logo(name: impl Into<String>) -> Self {
         Self {
-            logo: Some(Logo { name: name.into() }),
+            logo: Some(Logo {
+                name: name.into(),
+                mark: false,
+            }),
+            sections: Vec::new(),
+        }
+    }
+
+    /// Como `with_logo`, pero pide la marca «LOOM» de cuatro filas en vez del wordmark.
+    pub fn with_loom_mark(name: impl Into<String>) -> Self {
+        Self {
+            logo: Some(Logo {
+                name: name.into(),
+                mark: true,
+            }),
             sections: Vec::new(),
         }
     }
