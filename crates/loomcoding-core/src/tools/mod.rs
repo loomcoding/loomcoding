@@ -19,6 +19,7 @@ pub mod job_kill;
 pub mod job_list;
 pub mod job_output;
 pub mod job_start;
+pub mod job_watch;
 pub mod ls;
 pub mod lsp;
 pub mod multiedit;
@@ -311,6 +312,7 @@ pub fn project_registry(project_env: std::collections::HashMap<String, String>) 
     tools.register(Arc::new(job_output::JobOutputTool));
     tools.register(Arc::new(job_kill::JobKillTool));
     tools.register(Arc::new(job_start::JobStartTool));
+    tools.register(Arc::new(job_watch::JobWatchTool));
     tools.register(Arc::new(subagent::SubagentTool));
     tools.register(Arc::new(subagent_control::SubagentControlTool));
     tools.register(Arc::new(subagent_list::SubagentListTool));
@@ -328,8 +330,9 @@ mod tests {
     fn project_registry_exposes_the_expected_tools() {
         let registro = super::project_registry(std::collections::HashMap::new());
         let nombres: Vec<String> = registro.specs().into_iter().map(|s| s.name).collect();
-        assert_eq!(nombres.len(), 23, "{nombres:?}");
+        assert_eq!(nombres.len(), 24, "{nombres:?}");
         for esperada in [
+            "job_watch",
             "bash",
             "edit",
             "subagent",

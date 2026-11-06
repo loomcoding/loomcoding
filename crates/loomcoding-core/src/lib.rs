@@ -11,6 +11,7 @@ pub mod context;
 pub mod error;
 pub mod event;
 pub mod job;
+pub mod job_watch;
 pub mod message;
 pub mod permission;
 pub mod provider;

@@ -328,6 +328,7 @@ fn header_job_counts_are_scoped_to_the_open_session() {
                 output_end: 0,
                 detail: None,
                 result: None,
+                watch: None,
             },
         );
     }

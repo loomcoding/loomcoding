@@ -1,6 +1,7 @@
 use super::{ExecutionMode, Tool, ToolCtx, ToolOutput};
 use crate::error::{CoreError, Result};
 use crate::job::{JobResult, JobSpec};
+use crate::job_watch::{ChunkDecoder, WatchSpec};
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::sync::mpsc;
@@ -36,6 +37,22 @@ pub(crate) fn track_job(ctx: &ToolCtx, id: &crate::job::JobId) -> Result<()> {
     Ok(())
 }
 
+/// Construye la vigilancia desde `pattern` y `max_events` (de `job_start` o `job_watch`).
+pub(crate) fn watch_spec(pattern: &str, max_events: &serde_json::Value) -> Result<WatchSpec> {
+    let max_events = match max_events {
+        serde_json::Value::Null => None,
+        value => Some(
+            value
+                .as_u64()
+                .and_then(|n| usize::try_from(n).ok())
+                .ok_or_else(|| {
+                    CoreError::Tool("watch max_events must be an integer from 1 to 100".into())
+                })?,
+        ),
+    };
+    WatchSpec::parse(pattern, max_events)
+}
+
 fn forward_output<R: AsyncRead + Unpin + Send + 'static>(mut stream: R, tx: mpsc::Sender<Vec<u8>>) {
     tokio::spawn(async move {
         let mut buf = [0; 4096];
@@ -56,7 +73,7 @@ impl Tool for JobStartTool {
     }
 
     fn description(&self) -> &str {
-        "Start a shell command as a background job. Params: command and optional label. Use job_list/job_output/job_kill to manage it."
+        "Start a shell command as a background job. Params: command and optional label. Optional watch: {pattern, max_events?}, a regex whose matching output lines are sent to you as notices while the job runs (max_events: 1 to 100, default 20). Use job_list/job_output/job_watch/job_kill to manage it."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -64,7 +81,15 @@ impl Tool for JobStartTool {
             "type": "object",
             "properties": {
                 "command": { "type": "string", "minLength": 1, "maxLength": 16384 },
-                "label": { "type": "string", "maxLength": 128 }
+                "label": { "type": "string", "maxLength": 128 },
+                "watch": {
+                    "type": "object",
+                    "properties": {
+                        "pattern": { "type": "string", "minLength": 1, "maxLength": 256 },
+                        "max_events": { "type": "integer", "minimum": 1, "maximum": 100 }
+                    },
+                    "required": ["pattern"]
+                }
             },
             "required": ["command"]
         })
@@ -91,6 +116,24 @@ impl Tool for JobStartTool {
             .filter(|s| !s.trim().is_empty())
             .unwrap_or("background command")
             .to_string();
+        // La validación de la vigilancia va antes de arrancar: un patrón malo no deja nada corriendo.
+        let watch = match &input["watch"] {
+            serde_json::Value::Null => None,
+            params => Some(watch_spec(
+                params["pattern"].as_str().unwrap_or(""),
+                &params["max_events"],
+            )?),
+        };
+        let watch_note = watch
+            .as_ref()
+            .map(|w| {
+                format!(
+                    " Watching output for /{}/ (up to {} notices).",
+                    w.pattern.as_str(),
+                    w.max_events
+                )
+            })
+            .unwrap_or_default();
         let cwd = ctx.cwd.clone();
         let owner = ctx.session;
         let job = ctx.jobs.start(JobSpec {
@@ -98,6 +141,7 @@ impl Tool for JobStartTool {
             label,
             owner,
             output_limit: 64 * 1024,
+            watch,
             run: Box::new(move |handle, cancel| {
                 Box::pin(async move {
                     let (program, flag) = if cfg!(windows) {
@@ -127,11 +171,12 @@ impl Tool for JobStartTool {
                         forward_output(stderr, tx.clone());
                     }
                     drop(tx);
+                    let mut decoder = ChunkDecoder::default();
                     let status = loop {
                         tokio::select! {
                             result = child.wait() => break result.map_err(|e| CoreError::Tool(e.to_string()))?,
                             chunk = rx.recv() => if let Some(chunk) = chunk {
-                                handle.append(&String::from_utf8_lossy(&chunk));
+                                handle.append(&decoder.decode(&chunk));
                             },
                             _ = cancel.cancelled() => {
                                 super::bash::kill_tree(child.id()).await;
@@ -141,7 +186,11 @@ impl Tool for JobStartTool {
                         }
                     };
                     while let Some(chunk) = rx.recv().await {
-                        handle.append(&String::from_utf8_lossy(&chunk));
+                        handle.append(&decoder.decode(&chunk));
+                    }
+                    let rest = decoder.finish();
+                    if !rest.is_empty() {
+                        handle.append(&rest);
                     }
                     if status.success() {
                         Ok(Some(JobResult { content: "exit 0".into() }))
@@ -153,7 +202,7 @@ impl Tool for JobStartTool {
         })?;
         track_job(&ctx, job.id())?;
         Ok(ToolOutput::ok(format!(
-            "Started background job {}.",
+            "Started background job {}.{watch_note}",
             job.id().0
         )))
     }
@@ -255,5 +304,90 @@ mod tests {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
         assert_eq!(survivors(), 0, "matar el job dejó procesos vivos");
+    }
+
+    fn ctx_for(jobs: Arc<LocalJobRegistry>, session: i64) -> ToolCtx {
+        ToolCtx {
+            cwd: std::env::current_dir().unwrap(),
+            store: None,
+            permission: Arc::new(PermissionService::allow_all()),
+            session: SessionId(session),
+            jobs,
+            bus: crate::event::EventBus::new(8),
+            subagents: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_watch_pattern_fails_before_starting_the_command() {
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let result = JobStartTool
+            .run(
+                ctx_for(jobs.clone(), 21),
+                serde_json::json!({ "command": "echo nunca", "watch": { "pattern": "error[" } }),
+                CancellationToken::new(),
+            )
+            .await;
+        assert!(result.is_err());
+        assert!(jobs.list(SessionId(21)).is_empty());
+    }
+
+    #[tokio::test]
+    async fn watch_is_registered_and_catches_the_output_of_the_job() {
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let started = JobStartTool
+            .run(
+                ctx_for(jobs.clone(), 22),
+                serde_json::json!({
+                    "command": "echo FAIL-printed",
+                    "watch": { "pattern": "FAIL", "max_events": 5 }
+                }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(started.content.contains("Watching output for /FAIL/"));
+        let id = crate::job::JobId(
+            started
+                .content
+                .split_whitespace()
+                .nth(3)
+                .unwrap()
+                .trim_end_matches('.')
+                .into(),
+        );
+        jobs.wait(SessionId(22), &id).await.unwrap();
+        let batches = jobs.take_watch_batches(SessionId(22), std::time::Instant::now());
+        assert_eq!(batches[0].1.lines, vec!["FAIL-printed".to_string()]);
+        let listed = jobs.list(SessionId(22));
+        assert_eq!(listed[0].watch.as_ref().unwrap().pattern, "FAIL");
+    }
+
+    #[tokio::test]
+    async fn job_without_watch_has_no_watch_state() {
+        let jobs = Arc::new(LocalJobRegistry::default());
+        let started = JobStartTool
+            .run(
+                ctx_for(jobs.clone(), 23),
+                serde_json::json!({ "command": "echo FAIL-but-unwatched" }),
+                CancellationToken::new(),
+            )
+            .await
+            .unwrap();
+        assert!(!started.content.contains("Watching"));
+        let id = crate::job::JobId(
+            started
+                .content
+                .split_whitespace()
+                .nth(3)
+                .unwrap()
+                .trim_end_matches('.')
+                .into(),
+        );
+        jobs.wait(SessionId(23), &id).await.unwrap();
+        assert!(jobs.list(SessionId(23))[0].watch.is_none());
+        assert!(jobs
+            .take_watch_batches(SessionId(23), std::time::Instant::now())
+            .is_empty());
     }
 }

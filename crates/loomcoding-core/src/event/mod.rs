@@ -368,6 +368,7 @@ mod tests {
             output_end: 0,
             detail: None,
             result: None,
+            watch: None,
         };
         let excluded = [
             LiveEvent::ReasoningDelta { text: "x".into() },
