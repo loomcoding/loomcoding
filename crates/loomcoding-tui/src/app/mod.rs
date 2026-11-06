@@ -29,6 +29,7 @@ mod children;
 mod composer;
 mod events;
 mod logo_fx_state;
+mod model_effort;
 mod pointer;
 mod prefs;
 mod prompts;
@@ -362,6 +363,9 @@ pub struct App {
     pub picker_query: String,
     /// Índice de la fila resaltada dentro de `picker_items()`.
     pub picker_selected: usize,
+    /// Selector de modelos abierto con `/model` sin argumento: se dibuja aparte de `/settings`
+    /// y al elegir aplica el modelo sin abrir el formulario.
+    pub quick_model_picker: bool,
     pub help_open: bool,
     /// Popup de `/agents` abierto, con el informe que mostraba el registro al abrirlo.
     pub agents_open: bool,
@@ -553,6 +557,7 @@ impl App {
             settings_picker: None,
             picker_query: String::new(),
             picker_selected: 0,
+            quick_model_picker: false,
             help_open: false,
             agents_open: false,
             agent_rows: Vec::new(),

@@ -30,6 +30,9 @@ mod logo_fx;
 mod settings;
 use settings::*;
 
+mod model_picker;
+use model_picker::draw_model_picker;
+
 mod ui_root;
 
 mod overlays;
@@ -171,6 +174,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
     }
     if app.settings_open {
         draw_provider_settings(frame, area, app);
+    }
+    if app.quick_model_picker {
+        draw_model_picker(frame, area, app);
     }
     if app.temas_open {
         draw_temas(frame, area, app);

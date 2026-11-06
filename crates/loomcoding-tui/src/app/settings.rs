@@ -605,5 +605,9 @@ impl App {
             }
             Err(error) => error,
         });
+        // Con la ventana cerrada (p. ej. `/model`), el resultado va al compositor.
+        if !self.settings_open {
+            self.slash_feedback = self.settings_feedback.clone();
+        }
     }
 }

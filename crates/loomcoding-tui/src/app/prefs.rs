@@ -176,9 +176,9 @@ impl App {
         let query = trimmed.strip_prefix('/')?;
         let command = query.split_whitespace().next().unwrap_or(query);
         let has_args = command.len() < query.len();
-        // `attach`, `verbose` y `logofx` aceptan argumentos y siguen mostrando el popup.
+        // `attach`, `verbose`, `logofx` y `model` aceptan argumentos y siguen mostrando el popup.
         if command.contains('/')
-            || (has_args && !matches!(command, "attach" | "verbose" | "logofx"))
+            || (has_args && !matches!(command, "attach" | "verbose" | "logofx" | "model"))
         {
             return None;
         }

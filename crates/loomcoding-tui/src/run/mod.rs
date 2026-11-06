@@ -31,6 +31,7 @@ mod clipboard;
 mod dialogs;
 mod events;
 mod keys;
+mod model_picker_keys;
 mod sidebar_keys;
 mod slash;
 
@@ -38,6 +39,7 @@ use clipboard::*;
 use dialogs::*;
 pub use events::*;
 pub use keys::*;
+use model_picker_keys::*;
 use slash::*;
 
 #[derive(serde::Serialize, serde::Deserialize)]

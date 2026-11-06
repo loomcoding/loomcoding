@@ -19,6 +19,7 @@ mod composer_target;
 mod folded_blocks;
 mod logo_fx;
 mod menu_izquierdo;
+mod model_effort;
 mod notices_and_remote;
 mod session;
 mod session_diff_state;

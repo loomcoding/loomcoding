@@ -175,6 +175,10 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         app.should_quit = true;
         return None;
     }
+    if app.quick_model_picker {
+        handle_model_picker_key(app, code, mods);
+        return None;
+    }
     if app.settings_open {
         handle_settings_key(app, code, mods);
         return None;

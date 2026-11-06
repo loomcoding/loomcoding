@@ -23,6 +23,19 @@ pub(super) fn execute_slash_command(
         app.slash_feedback = Some("Provider settings are unavailable".into());
         return None;
     }
+    // `/model` decide antes de borrar el compositor: con un rechazo, el texto escrito se conserva.
+    if command == Command::Model {
+        let arg = typed.strip_prefix("/model").map(str::trim).unwrap_or("");
+        let outcome = if arg.is_empty() {
+            app.open_model_picker_now()
+        } else {
+            app.set_model_now(arg)
+        };
+        if let Err(message) = outcome {
+            app.slash_feedback = Some(message);
+            return None;
+        }
+    }
     if command == Command::Cancel && !app.turn_in_flight {
         app.slash_feedback = Some("No active turn to cancel".into());
         return None;
@@ -149,7 +162,8 @@ pub(super) fn execute_slash_command(
             None
         }
         // Ya pedida arriba: el bucle la entrega al trabajador con `dispatch_compact`.
-        Command::Compact => None,
+        // Ya resuelto arriba, antes de borrar el compositor.
+        Command::Compact | Command::Model => None,
         Command::Quit => handle_key(app, KeyCode::Char('q'), KeyModifiers::CONTROL),
         Command::Parent => {
             if !app.go_parent() {
