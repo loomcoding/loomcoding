@@ -115,6 +115,13 @@ referencia tampoco lo introduce) y cualquier cambio en `development_workflow`.
 5. **Dos fuentes de verdad** (documento y lista de tareas): se resuelve haciendo de la lista una proyección.
 6. **Confundir fases con estados A2A**: se rotulan siempre como etiquetas propias.
 
+## Decisiones de la persona usuaria (2026-11-07)
+
+Activo **por defecto**, con interruptor (`[odd] enabled`); la medición pasa de condición previa a seguimiento posterior. Cuando
+se active un modo o flujo (ODD, `development_workflow`, `gauntlet`) debe **reflejarse en algún lugar visible** (se prevé
+la cabecera; tarea 5 del plan). El resto de decisiones provisionales de esta spec (evidencia, sección de prompt solo para
+el padre) siguen a la espera de su revisión. Plan: `docs/plans/2026-11-07-loomcoding-odd-desarrollo-organico.md`.
+
 ## Preguntas abiertas
 
 1. ¿Dónde vive el documento: `.loomcoding/odd/` del proyecto (provisional), `docs/` o solo en la sesión?
