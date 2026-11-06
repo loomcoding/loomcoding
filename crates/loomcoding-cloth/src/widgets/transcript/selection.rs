@@ -122,10 +122,10 @@ pub fn selected_text(
             continue;
         }
         let h16 = u16::try_from(h).unwrap_or(u16::MAX);
-        let entry_start = transcript.locate(i).is_some_and(|(_, l)| l == 0);
+        let (entry_start, entry_end) = posicion_en_entrada(transcript, i);
         let area = Rect::new(0, 0, text_w, h16);
         let mut buf = Buffer::empty(area);
-        Paragraph::new(render_line(line, theme, entry_start))
+        Paragraph::new(render_line(line, theme, entry_start, entry_end))
             .wrap(Wrap { trim: false })
             .render(area, &mut buf);
         let lo = start.row.max(line_row);

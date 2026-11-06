@@ -1,4 +1,4 @@
-//! Teclas de la raíz del panel `/ui` (la ventana `/temas` con sus ocho filas).
+//! Teclas de la raíz del panel `/ui` (la ventana `/temas` con sus nueve filas).
 //!
 //! `←`/`→` cambian el valor de la fila seleccionada sin entrar en ella. `Enter` abre el
 //! submenú de Tema, Efectos o Spinner y, en las demás filas, cicla el valor hacia delante.

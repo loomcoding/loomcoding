@@ -1,5 +1,4 @@
 use crate::app::{AgentsFocus, App, Focus, SettingsPicker, SpinnerChoice, SPINNER_CHOICES};
-use crate::rail;
 use loomcoding_cloth::widgets::context_meter::{self, MeterStyle};
 use loomcoding_cloth::widgets::{ChromeStyle, LayoutStyle};
 use loomcoding_core::event::{A2aDirection, A2aOperation};
@@ -15,6 +14,9 @@ use chrome::*;
 
 mod transcript;
 use transcript::*;
+
+pub(crate) mod rail;
+mod rail_box;
 
 mod mascot_strip;
 
@@ -84,7 +86,7 @@ pub fn render(frame: &mut Frame, app: &mut App) {
             let [chat, context] =
                 Layout::horizontal([Constraint::Min(1), Constraint::Length(32)]).areas(rows[1]);
             draw_transcript(frame, chat, app, &mut panes);
-            rail::draw_context_rail(frame, context, app);
+            crate::rail::draw_context_rail(frame, context, app);
             panes.push((Focus::Rail, context));
         } else {
             draw_transcript(frame, rows[1], app, &mut panes);

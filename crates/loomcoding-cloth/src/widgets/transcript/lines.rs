@@ -63,9 +63,38 @@ pub(super) fn status_token(status: ToolStatus) -> StyleToken {
     }
 }
 
+/// Si la línea `line` (índice global) abre y/o cierra su entrada. Lo usan el pintado y la medida
+/// para saber dónde van la etiqueta de rol y el borde inferior de la caja del usuario.
+pub(super) fn posicion_en_entrada(transcript: &Transcript, line: usize) -> (bool, bool) {
+    transcript
+        .locate(line)
+        .map_or((false, false), |(entry, dentro)| {
+            (
+                dentro == 0,
+                dentro + 1 == transcript.entry_lines(entry).len(),
+            )
+        })
+}
+
 /// Convierte una `Line` de estado en lineas ratatui, aplicando los `span` por
-/// offsets sobre el texto plano (los huecos usan el token del kind).
-pub(super) fn render_line(line: &Line, theme: &Theme, entry_start: bool) -> Vec<TLine<'static>> {
+/// offsets sobre el texto plano (los huecos usan el token del kind). Si la caja del usuario
+/// está activa (`theme.rail_box`) y la línea cierra su entrada, añade una fila vacía: es el
+/// borde inferior que pinta el carril.
+pub(super) fn render_line(
+    line: &Line,
+    theme: &Theme,
+    entry_start: bool,
+    entry_end: bool,
+) -> Vec<TLine<'static>> {
+    let mut rendered = render_contenido(line, theme, entry_start);
+    if theme.rail_box && entry_end && line.kind == LineKind::User {
+        rendered.push(TLine::default());
+    }
+    rendered
+}
+
+/// Filas de la línea sin el borde de la caja: la etiqueta de rol (si abre la entrada) y el texto.
+fn render_contenido(line: &Line, theme: &Theme, entry_start: bool) -> Vec<TLine<'static>> {
     let base = theme.style(kind_token(line.kind));
     let role = match (entry_start, line.kind) {
         (true, LineKind::User) => Some(("👤", theme.styles.user)),
@@ -113,9 +142,15 @@ pub(super) fn render_line(line: &Line, theme: &Theme, entry_start: bool) -> Vec<
     rendered
 }
 
-/// Altura en filas de una línea a `width` columnas (mínimo 1).
-pub(super) fn measure(line: &Line, width: u16, theme: &Theme, entry_start: bool) -> usize {
-    Paragraph::new(render_line(line, theme, entry_start))
+/// Altura en filas de una línea a `width` columnas (mínimo 1), con su borde si lo lleva.
+pub(super) fn measure(
+    line: &Line,
+    width: u16,
+    theme: &Theme,
+    entry_start: bool,
+    entry_end: bool,
+) -> usize {
+    Paragraph::new(render_line(line, theme, entry_start, entry_end))
         .wrap(Wrap { trim: false })
         .line_count(width)
         .max(1)

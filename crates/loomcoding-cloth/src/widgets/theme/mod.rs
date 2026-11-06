@@ -31,4 +31,8 @@ pub struct Theme {
     pub look: Look,
     /// Configuración de la lluvia Matrix, desde `[effects.matrix]`.
     pub matrix: MatrixConfig,
+    /// Caja redonda alrededor del mensaje del usuario (carril `box`). Cuando está activa, la
+    /// última fila de la entrada del usuario es su borde inferior y se mide como tal. Lo fija la
+    /// aplicación según el carril elegido; por defecto, apagada.
+    pub rail_box: bool,
 }

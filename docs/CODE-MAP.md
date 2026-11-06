@@ -106,6 +106,15 @@ El panel «Interfaz» (raíz de `/temas`) y su comando `/ui [fila] [valor]` vive
 `slash_matches` en `app/prefs.rs`) y se ejecutan al escribirlos enteros y pulsar Enter (`run/keys.rs`). Un comando de
 aspecto nuevo entra como fila de `UiRow`, no como comando suelto.
 
+### Carril del transcript (`/ui carril`)
+
+El trazo que acompaña a cada bloque de la conversación lo elige `RailStyle` (`crates/loomcoding-tui/src/render/rail.rs`:
+`tree`, `dots`, `bar`, `box`, `tint`, `none`; ancho y símbolos por estilo, funciones puras). Se pinta en
+`render/transcript.rs::draw_tree_gutter`; la caja de `box` vive en `render/rail_box.rs` y exige que el widget de
+`loomcoding-cloth` mida una fila extra por mensaje de usuario (`Theme::rail_box`, `Layout::invalidate`). La preferencia se
+guarda como `rail` en `ui.toml` (`prefs/rail.rs`, `app/rail_prefs.rs`) y es una fila de `/ui`. Un estilo nuevo se añade en
+`RailStyle` y en `rail_cells`/`rail_width`, no con un comando suelto.
+
 ### `/model` y `/effort`
 
 Atajos al flujo de ajustes del proveedor, sin abrir `/settings`: ambos terminan en `settings_save_requested`, que

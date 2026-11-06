@@ -97,7 +97,7 @@ pub(super) fn a2a_task_lines(app: &App) -> Vec<Line<'static>> {
         .values()
         .enumerate()
         .map(|(index, task)| {
-            let state = rail::agent_state(task.status.state);
+            let state = crate::rail::agent_state(task.status.state);
             let style = if index == app.a2a_task_selected {
                 app.theme.styles.heading
             } else {
@@ -333,7 +333,7 @@ pub(super) fn a2a_details(app: &App, agents: &[crate::app::A2aAgentView]) -> Vec
             let Some(task) = app.subagents.values().nth(app.a2a_task_selected) else {
                 return vec![Line::from("Sin tareas A2A en esta sesión.")];
             };
-            let state = rail::agent_state(task.status.state);
+            let state = crate::rail::agent_state(task.status.state);
             let mut lines = vec![
                 Line::from(format!(
                     "Loomcoding task {} · state {}",

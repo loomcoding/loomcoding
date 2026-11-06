@@ -75,6 +75,8 @@ impl App {
             self.style_override = Some(bundle);
             self.theme.look = self.theme.look.with_bundle(bundle);
         }
+        // El carril del transcript (`rail`): ausente deja `tree`; un valor desconocido avisa.
+        self.load_rail_pref(&path);
         // Se aplica sin marcar `mouse_capture_dirty`: el arranque ya usa este valor.
         if let Some(on) = crate::prefs::load_mouse(&path) {
             self.mouse_capture = on;
@@ -152,6 +154,10 @@ impl App {
         if let Some(layout) = self.layout_override {
             self.theme.look.layout = layout;
         }
+        // El tema nuevo nace sin la caja del usuario y la caché de alturas puede venir del anterior:
+        // se vuelve a medir y se fija la caja según el carril elegido.
+        self.layout.invalidate();
+        self.fija_caja(self.rail_style == crate::render::rail::RailStyle::Box);
         self.sync_all_tools();
     }
 

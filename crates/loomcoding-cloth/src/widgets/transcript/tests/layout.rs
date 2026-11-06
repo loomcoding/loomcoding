@@ -74,3 +74,68 @@ fn width_change_keeps_the_anchor_line_on_top() {
     draw(&t, &mut vp, &mut layout, 25, 10);
     assert_eq!(vp.anchor().unwrap().0, line);
 }
+
+#[test]
+fn rail_box_adds_one_row_to_the_last_line_of_a_user_entry() {
+    let mut t = Transcript::new();
+    t.push_entry(LineKind::User, crate::state::Format::Plain, "uno\ndos");
+    t.push_entry(
+        LineKind::Assistant,
+        crate::state::Format::Plain,
+        "respuesta",
+    );
+    assert_eq!(
+        t.entry_lines(0).len(),
+        2,
+        "la entrada de usuario tiene dos líneas"
+    );
+
+    let mut theme = Theme::test();
+    let mut sin = Layout::new();
+    sin.sync(&t, 40, &theme);
+    theme.rail_box = true;
+    let mut con = Layout::new();
+    con.sync(&t, 40, &theme);
+
+    // Solo la última línea de la entrada del usuario gana una fila: el borde inferior.
+    assert_eq!(con.height_of(0), sin.height_of(0));
+    assert_eq!(con.height_of(1), sin.height_of(1) + 1);
+    // El asistente no cambia, ni siquiera con la caja activa.
+    assert_eq!(con.height_of(2), sin.height_of(2));
+    assert_eq!(con.total_rows(), sin.total_rows() + 1);
+    // Los índices de línea no cambian: solo las alturas.
+    assert_eq!(con.row_of(2), sin.row_of(2) + 1);
+}
+
+#[test]
+fn rail_box_does_not_touch_assistant_entries() {
+    let mut t = Transcript::new();
+    t.push_entry(LineKind::Assistant, crate::state::Format::Plain, "a\nb");
+    let mut theme = Theme::test();
+    theme.rail_box = true;
+    let mut layout = Layout::new();
+    layout.sync(&t, 40, &theme);
+    let mut plano = Layout::new();
+    plano.sync(&t, 40, &Theme::test());
+    assert_eq!(layout.total_rows(), plano.total_rows());
+}
+
+#[test]
+fn invalidate_remeasures_after_the_box_changes_height() {
+    let mut t = Transcript::new();
+    t.push_entry(LineKind::User, crate::state::Format::Plain, "pregunta");
+    let mut theme = Theme::test();
+    let mut layout = Layout::new();
+    layout.sync(&t, 40, &theme);
+    let antes = layout.total_rows();
+
+    theme.rail_box = true;
+    // Sin invalidar, la caché de alturas manda y no cambia nada.
+    layout.sync(&t, 40, &theme);
+    assert_eq!(layout.total_rows(), antes);
+
+    layout.invalidate();
+    layout.sync(&t, 40, &theme);
+    assert_eq!(layout.total_rows(), antes + 1);
+    assert_eq!(layout.width(), 40);
+}

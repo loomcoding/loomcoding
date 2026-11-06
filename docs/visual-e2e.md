@@ -42,6 +42,9 @@ cargo test -p loomcoding-cli --test tui_pty
 - Comandos de ajustes: `crates/loomcoding-cli/tests/tui_pty_comandos.rs` cubre `/ui` (y que los alias ocultos no salgan
   en el popup), el selector de `/effort`, `/model <id>` y `/provider` contra servidores `wiremock` que simulan llama-server
   (`up`), una clave rechazada (`sin acceso`) y un puerto cerrado (`down`). Volcados en `docs/mockups/comandos-e2e.md`.
+- Carril del transcript: `crates/loomcoding-cli/tests/tui_pty_carril.rs` arranca la TUI con cada valor de `rail` en la
+  disposición `minimal` (sin paneles laterales, cuyos marcos falsearían las aserciones de glifos) y comprueba que `box` dibuja
+  `╭╮╰╯` y que el resto no. Volcados en `docs/mockups/carril-e2e.md`.
 - Para añadir un escenario: `Session::start(respuesta, filas, columnas)`, `s.expect(READY, BOOT)`,
   `s.term.send_text / press / paste`, y `s.expect(texto, TURN)` o `s.expect_line(...)`.
 

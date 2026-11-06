@@ -1,4 +1,8 @@
 use super::*;
+use crate::render::rail::{rail_width, RailStyle, MIN_WIDTH};
+
+/// Columnas del carril `tree` en un transcript de 100 columnas (`rail_width`).
+const CARRIL: u16 = 3;
 
 /// Estilo de la primera celda del texto `aguja` en la pantalla pintada.
 fn style_of_text(app: &mut App, w: u16, h: u16, aguja: &str) -> Style {
@@ -37,15 +41,16 @@ fn agents_overlay_marks_the_selected_row_like_the_other_pickers() {
 
 /// Guías del carril de árbol de la fila de pantalla `y`: las celdas a la izquierda del texto.
 fn gutter_at(term: &Terminal<TestBackend>, area: Rect, y: u16) -> String {
-    (area.x - TREE_GUTTER..area.x)
+    (area.x - CARRIL..area.x)
         .map(|x| term.backend().buffer()[(x, y)].symbol().to_string())
         .collect()
 }
 
 #[test]
 fn the_tree_gutter_is_dropped_when_there_is_no_room_for_it() {
-    assert_eq!(tree_gutter(TREE_MIN_WIDTH - 1), 0);
-    assert_eq!(tree_gutter(TREE_MIN_WIDTH), TREE_GUTTER);
+    assert_eq!(rail_width(RailStyle::Tree, MIN_WIDTH - 1), 0);
+    assert_eq!(rail_width(RailStyle::Tree, MIN_WIDTH), CARRIL);
+    assert_eq!(rail_width(RailStyle::Tree, 100), CARRIL);
 }
 
 /// Fila de pantalla de la fila `dentro` del bloque `entrada`, según el último fotograma.
@@ -168,7 +173,7 @@ tres",
         };
         assert_eq!(gutter_at(&term, area, y), esperado, "fila {row}");
         assert_eq!(
-            term.backend().buffer()[(area.x - TREE_GUTTER, y)].fg,
+            term.backend().buffer()[(area.x - CARRIL, y)].fg,
             success.unwrap()
         );
     }
@@ -209,7 +214,7 @@ fn a_user_block_is_marked_with_the_accent_and_nothing_is_thick_without_focus() {
     let con_foco = terminal_of(&mut app, 100, 30);
     assert_eq!(gutter_at(&con_foco, area, y), "┏» ");
     assert_eq!(
-        con_foco.backend().buffer()[(area.x - TREE_GUTTER, y)].fg,
+        con_foco.backend().buffer()[(area.x - CARRIL, y)].fg,
         app.theme.styles.accent.fg.unwrap()
     );
 }

@@ -1,22 +1,10 @@
-//! Transcript y su canal de árbol: glifos, estilo y pintado de la conversación.
+//! Transcript y su carril: glifos, estilo y pintado de la conversación. Los símbolos de cada fila
+//! del carril salen de `rail.rs`; aquí se pintan con el color del rol.
 
+use super::rail::{posicion, rail_cells, rail_width, RailStyle};
+use super::rail_box;
 use super::*;
 use std::time::Instant;
-
-/// Columnas del carril de árbol a la izquierda del texto: guía, filete y un hueco.
-pub(super) const TREE_GUTTER: u16 = 3;
-
-/// Ancho mínimo del transcript para reservar el carril; por debajo, el texto manda.
-pub(super) const TREE_MIN_WIDTH: u16 = 40;
-
-/// Columnas que se reservan al carril de árbol en un transcript de `width` columnas.
-pub(super) fn tree_gutter(width: u16) -> u16 {
-    if width >= TREE_MIN_WIDTH {
-        TREE_GUTTER
-    } else {
-        0
-    }
-}
 
 /// Glifo de la cabecera de un bloque según el rol de su primera línea. Las herramientas, los
 /// subagentes y la actividad no llevan: su texto ya abre con un icono propio del color de su estado.
@@ -44,14 +32,27 @@ pub(super) fn tree_style(kind: loomcoding_cloth::state::LineKind, app: &App) -> 
     }
 }
 
-/// Pinta cada bloque del transcript (mensaje, herramienta, subagente) como su propia raíz en el
-/// carril de las `TREE_GUTTER` columnas a la izquierda de `texto`: `╭─` en su primera fila, `│`
-/// mientras dura su cuerpo y `╰─` en la última, o `──` si ocupa una sola. Entre bloques no hay
-/// conexión. El bloque activo (transcript enfocado) usa el trazo grueso `┏━ ┃ ┗━` con su color
-/// de rol, de modo que se ve entero de un vistazo. Al vivir fuera del área de texto, el ajuste de
-/// línea no lo afecta. Recorre solo las entradas visibles y parchea celdas: no re-renderiza nada.
-pub(super) fn draw_tree_gutter(frame: &mut Frame, texto: Rect, app: &App) {
-    let Some(x0) = texto.x.checked_sub(TREE_GUTTER) else {
+/// Glifo de la cabecera según el estilo: en `tint` el asistente lleva un `•` atenuado en lugar del
+/// glifo de su rol; el resto de estilos y roles usan `tree_glyph`.
+fn glifo_del_carril(style: RailStyle, kind: loomcoding_cloth::state::LineKind) -> Option<char> {
+    match (style, kind) {
+        (RailStyle::Tint, loomcoding_cloth::state::LineKind::Assistant) => Some('•'),
+        _ => tree_glyph(kind),
+    }
+}
+
+/// Pinta cada bloque del transcript (mensaje, herramienta, subagente) en el carril de `carril`
+/// columnas a la izquierda de `texto`, con el estilo `app.rail_style`. Con `tree`, cada bloque es
+/// su propia raíz: `╭─` en su primera fila, `│` mientras dura su cuerpo y `╰─` en la última, o `──`
+/// si ocupa una sola. El bloque activo (transcript enfocado) usa el trazo grueso `┏━ ┃ ┗━` con su
+/// color de rol. Al vivir fuera del área de texto, el ajuste de línea no lo afecta. Con `tint`, el
+/// mensaje del usuario lleva un fondo tenue en toda su fila de texto. Recorre solo las entradas
+/// visibles y parchea celdas: no re-renderiza nada.
+pub(super) fn draw_tree_gutter(frame: &mut Frame, texto: Rect, app: &App, carril: u16) {
+    if carril == 0 {
+        return;
+    }
+    let Some(x0) = texto.x.checked_sub(carril) else {
         return;
     };
     let top = app.viewport.top();
@@ -78,33 +79,54 @@ pub(super) fn draw_tree_gutter(frame: &mut Frame, texto: Rect, app: &App) {
             continue;
         };
         let grueso = activo == Some(entry);
-        let glifo = tree_glyph(kind);
+        let glifo = glifo_del_carril(app.rail_style, kind);
         let style = if grueso {
             active_marker_style(kind, app)
         } else {
             tree_style(kind, app)
         };
+        // Con la caja activa, el mensaje del usuario se pinta como caja y no como árbol.
+        if app.theme.rail_box && kind == loomcoding_cloth::state::LineKind::User {
+            let caja = rail_box::Caja {
+                x0,
+                texto,
+                inicio: start,
+                fin: end,
+                enfocado: grueso,
+                estilo: style,
+                glifo: glifo.unwrap_or('»'),
+                con_barra: app.layout.width() < texto.width,
+            };
+            rail_box::pinta_caja(buf, &caja, top, bottom);
+            continue;
+        }
+        let tinte =
+            app.rail_style == RailStyle::Tint && kind == loomcoding_cloth::state::LineKind::User;
+        let fondo = app.theme.styles.selection.bg.unwrap_or_default();
         for row in start.max(top)..end.min(bottom) {
             let Ok(dy) = u16::try_from(row - top) else {
                 break;
             };
-            // La cabecera lleva el glifo del rol en la segunda columna, en lugar del trazo.
-            let cabecera = glifo.unwrap_or(if grueso { '━' } else { '─' });
-            let cabecera = |esquina: char| format!("{esquina}{cabecera}");
-            let guia = match (row == start, row + 1 == end, grueso) {
-                (true, true, false) => cabecera('─'),
-                (true, true, true) => cabecera('━'),
-                (true, false, false) => cabecera('╭'),
-                (true, false, true) => cabecera('┏'),
-                (false, true, false) => "╰─".to_string(),
-                (false, true, true) => "┗━".to_string(),
-                (false, false, false) => "│".to_string(),
-                (false, false, true) => "┃".to_string(),
-            };
-            for (i, simbolo) in guia.chars().enumerate() {
+            let simbolos = rail_cells(
+                app.rail_style,
+                posicion(row == start, row + 1 == end),
+                grueso,
+                glifo,
+            );
+            for (i, simbolo) in simbolos.iter().take(usize::from(carril)).enumerate() {
                 if let Some(cell) = buf.cell_mut((x0 + i as u16, texto.y + dy)) {
                     cell.set_symbol(simbolo.encode_utf8(&mut [0; 4]))
                         .set_style(style);
+                }
+            }
+            // El fondo tenue cubre la fila entera del texto, pero no pisa una selección.
+            if tinte {
+                for x in texto.x..texto.right() {
+                    if let Some(cell) = buf.cell_mut((x, texto.y + dy)) {
+                        if cell.bg == ratatui::style::Color::Reset {
+                            cell.set_bg(fondo);
+                        }
+                    }
                 }
             }
         }
@@ -244,9 +266,22 @@ pub(super) fn draw_transcript(
             rows[0],
         );
     }
-    // El carril de árbol ocupa el borde izquierdo; el texto (y su selección) va a su derecha.
-    let gutter = tree_gutter(body.width);
-    let texto = Rect::new(body.x + gutter, body.y, body.width - gutter, body.height);
+    // El carril ocupa el borde izquierdo; el texto (y su selección) va a su derecha. Con la caja del
+    // usuario, el texto deja además dos columnas libres a la derecha para su borde.
+    let gutter = rail_width(app.rail_style, body.width);
+    // La caja solo existe con carril `box` y espacio para el carril (misma condición que `rail_width`).
+    app.fija_caja(app.rail_style == RailStyle::Box && gutter > 0);
+    let reserva = if app.theme.rail_box {
+        rail_box::RESERVA_DERECHA
+    } else {
+        0
+    };
+    let texto = Rect::new(
+        body.x + gutter,
+        body.y,
+        body.width - gutter - reserva,
+        body.height,
+    );
     app.transcript_area = Some(texto);
     loomcoding_cloth::widgets::transcript::render(
         frame,
@@ -275,7 +310,7 @@ pub(super) fn draw_transcript(
             app.theme.styles.selection,
         );
     }
-    draw_tree_gutter(frame, texto, app);
+    draw_tree_gutter(frame, texto, app, gutter);
     if card > 0 {
         let tarjeta = Rect::new(rows[1].x, rows[1].y + body.height, rows[1].width, card);
         agents_card::draw_card(frame, tarjeta, app, rows[1].height);

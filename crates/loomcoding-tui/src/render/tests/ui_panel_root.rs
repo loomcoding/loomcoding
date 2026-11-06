@@ -14,7 +14,7 @@ fn lineas_de(app: &mut App, w: u16, h: u16) -> Vec<String> {
 }
 
 #[test]
-fn root_draws_the_eight_labels_and_the_current_values() {
+fn root_draws_the_nine_labels_and_the_current_values() {
     let mut app = App::new();
     app.open_temas();
     let texto = buffer_of(&mut app, 80, 24);
@@ -57,10 +57,10 @@ fn root_marks_cyclable_rows_with_both_arrows_and_effects_with_one() {
 }
 
 #[test]
-fn root_shows_all_eight_rows_in_a_twelve_line_terminal() {
+fn root_shows_all_nine_rows_in_a_thirteen_line_terminal() {
     let mut app = App::new();
     app.open_temas();
-    let lineas = lineas_de(&mut app, 80, 12);
+    let lineas = lineas_de(&mut app, 80, 13);
     for row in UiRow::ALL {
         assert!(
             lineas.iter().any(|l| l.contains(row.label())),

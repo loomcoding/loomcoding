@@ -39,11 +39,12 @@ impl Layout {
             if self.entries.get(i).is_some_and(|e| e.rev == rev) {
                 continue;
             }
-            let heights = transcript
-                .entry_lines(i)
+            let lineas = transcript.entry_lines(i);
+            let ultima = lineas.len().saturating_sub(1);
+            let heights = lineas
                 .iter()
                 .enumerate()
-                .map(|(line, l)| measure(l, width, theme, line == 0))
+                .map(|(line, l)| measure(l, width, theme, line == 0, line == ultima))
                 .collect();
             self.measured += 1;
             let layout = EntryLayout { rev, heights };
@@ -74,6 +75,15 @@ impl Layout {
             }
         }
         self.total_rows = acc;
+    }
+
+    /// Descarta las alturas medidas: la próxima `sync` vuelve a medir todas las entradas. Lo usa
+    /// quien cambia algo que altera la altura de las líneas sin tocar su contenido, como la caja
+    /// del mensaje del usuario. Deja `width` a cero: el widget lo ve como un cambio de ancho y
+    /// vuelve a colocar el ancla de la vista sobre la nueva disposición.
+    pub fn invalidate(&mut self) {
+        self.entries.clear();
+        self.width = 0;
     }
 
     pub fn total_rows(&self) -> usize {

@@ -65,6 +65,7 @@ impl Theme {
             hyperlinks: self.hyperlinks,
             look: self.look,
             matrix: self.matrix.clone(),
+            rail_box: self.rail_box,
         }
     }
 }
