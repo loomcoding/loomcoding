@@ -275,6 +275,11 @@ impl MatrixRain {
         self.emitting = false;
     }
 
+    /// Cabe señalar que es `true` solo entre `start` y `stop`; las gotas que aún caen no cuentan.
+    pub fn is_emitting(&self) -> bool {
+        self.emitting
+    }
+
     pub fn animating(&self) -> bool {
         self.emitting || self.columns.iter().any(Option::is_some)
     }

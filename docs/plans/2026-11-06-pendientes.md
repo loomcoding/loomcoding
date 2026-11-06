@@ -20,11 +20,11 @@ Lo que no pertenece a un plan concreto. Se tacha al hacerse; las decisiones abie
 - [ ] **Título de la ayuda**: dice «Press F1 or Esc» aunque `?` también cierra.
 - [ ] **F0/F1**: extraer los flujos del core con el 9B libre.
 
+- [ ] **Enlazar los temas de usuario a la TUI**: hoy `Theme::from_toml` solo lo llaman las pruebas y ningún código de
+  producción lee un `theme.toml` de usuario, así que `style` y `layout` de un tema de usuario (ya soportados en
+  `ThemeFile`) no tienen efecto. Hay que decidir dónde vive el fichero y cargarlo en `App` antes de aplicar `ui.toml`.
+
 ## Decisiones abiertas
 
 - ¿`/mascot on` debe forzar el braille aunque haya `NO_COLOR`?
 - Ninguna más por ahora (las del panel `/ui` y el aspecto unificado las resolvió el usuario el 6 de noviembre).
-
-- [ ] **Enlazar los temas de usuario a la TUI**: hoy `Theme::from_toml` solo lo llaman las pruebas y ningún código de
-  producción lee un `theme.toml` de usuario, así que `style` y `layout` de un tema de usuario (ya soportados en
-  `ThemeFile`) no tienen efecto. Hay que decidir dónde vive el fichero y cargarlo en `App` antes de aplicar `ui.toml`.

@@ -40,6 +40,7 @@ mod target;
 mod tool_sync;
 mod turn;
 mod types;
+mod ui_panel;
 mod usage;
 
 pub use child_types::*;

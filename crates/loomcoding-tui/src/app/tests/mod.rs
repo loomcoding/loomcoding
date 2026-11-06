@@ -28,6 +28,7 @@ mod theme_and_settings;
 mod todos_and_questions;
 mod tools_and_activity;
 mod turn_end;
+mod ui_panel;
 mod usage_meter;
 mod usage_records;
 mod wake;
