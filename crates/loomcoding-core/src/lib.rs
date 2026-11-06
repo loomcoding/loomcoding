@@ -14,6 +14,8 @@ pub mod job;
 pub mod message;
 pub mod permission;
 pub mod provider;
+pub mod providers_probe;
+pub mod providers_registry;
 pub mod question;
 pub mod registry;
 pub mod remote_task;
