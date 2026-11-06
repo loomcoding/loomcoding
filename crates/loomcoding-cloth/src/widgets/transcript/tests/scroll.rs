@@ -20,8 +20,9 @@ fn shows_a_scrollbar_when_content_overflows() {
     for i in 0..50 {
         t.push(Line::new(LineKind::Assistant, format!("line {i}")));
     }
-    let out = buffer(&t, 20, 5);
-    assert!(out.contains('│'), "falta la pista de la barra");
+    let out = buffer(&t, 20, 8);
+    assert!(out.contains('▲') && out.contains('▼'), "faltan las flechas");
+    assert!(out.contains('▒'), "falta la pista de la barra");
     assert!(out.contains('█'), "falta el thumb de la barra");
 }
 
