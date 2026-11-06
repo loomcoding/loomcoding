@@ -156,7 +156,14 @@ pub(super) async fn build_agent(
     }
     let config_path = cwd.join("loomcoding.toml");
     let project_env = crate::load_dotenv(&cwd);
-    let cfg = loomcoding_core::config::LoomcodingConfig::load_or_create(&config_path)?;
+    // Un proyecto sin loomcoding.toml nace con el `default` del registro global; si el registro no
+    // se puede usar, se avisa y se cae al valor por defecto de siempre.
+    let registro = crate::registro_local::cargar_registro_global();
+    let texto_inicial = crate::registro_local::texto_inicial(registro.as_ref());
+    let cfg = loomcoding_core::config::LoomcodingConfig::load_or_create_with(
+        &config_path,
+        texto_inicial.as_deref(),
+    )?;
     let agents_cfg = loomcoding_core::config::AgentsConfig::load(&config_path)?;
     let budget = loomcoding_core::budget::BudgetConfig::load(&config_path)?;
     let compaction = loomcoding_core::agent::compact::CompactionConfig::load(&config_path)?;

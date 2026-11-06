@@ -26,6 +26,8 @@ pub enum ProviderKind {
 pub struct ProviderConfig {
     pub kind: ProviderKind,
     pub base_url: String,
+    /// Variable de entorno con la clave; vacía o ausente si el servidor no la pide (bucle local).
+    #[serde(default)]
     pub api_key_env: String,
 }
 
@@ -354,12 +356,26 @@ impl UiConfig {
     }
 }
 
+/// Dice si el host de `url` es `localhost` o una IP de bucle (`127.0.0.1`, `::1`).
+fn host_de_bucle(url: &reqwest::Url) -> bool {
+    url.host_str().is_some_and(|host| {
+        // Los literales IPv6 llegan entre corchetes: `[::1]`.
+        let sin_corchetes = host.trim_start_matches('[').trim_end_matches(']');
+        host == "localhost"
+            || sin_corchetes
+                .parse::<IpAddr>()
+                .is_ok_and(|ip| ip.is_loopback())
+    })
+}
+
+/// Dice si `input` es una URL de bucle local (`localhost` o IP de loopback), sea cual sea su esquema.
+pub fn is_loopback_url(input: &str) -> bool {
+    reqwest::Url::parse(input).is_ok_and(|url| host_de_bucle(&url))
+}
+
 pub fn validate_base_url(input: &str) -> std::result::Result<(), String> {
     let url = reqwest::Url::parse(input).map_err(|_| "Base URL is invalid".to_string())?;
-    let local_http = url.scheme() == "http"
-        && url.host_str().is_some_and(|host| {
-            host == "localhost" || host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
-        });
+    let local_http = url.scheme() == "http" && host_de_bucle(&url);
     if url.scheme() != "https" && !local_http {
         return Err("Use HTTPS, or HTTP for a localhost endpoint".into());
     }
@@ -374,14 +390,21 @@ pub fn validate_base_url(input: &str) -> std::result::Result<(), String> {
 impl LoomcodingConfig {
     /// Creates a usable project configuration on first launch without credentials.
     pub fn load_or_create(path: &Path) -> Result<LoomcodingConfig> {
+        Self::load_or_create_with(path, None)
+    }
+
+    /// Como `load_or_create`, pero si el fichero no existe lo crea con `initial` en vez del
+    /// valor por defecto de OpenRouter. Un fichero existente nunca se toca.
+    pub fn load_or_create_with(path: &Path, initial: Option<&str>) -> Result<LoomcodingConfig> {
         const DEFAULT: &str = "# Loomcoding project settings. Add the API key in /settings.\nmodel = \"nvidia/nemotron-3.5-super-vl:free\"\nmax_steps = 8\n\n[provider]\nkind = \"openai_compat\"\nbase_url = \"https://openrouter.ai/api/v1\"\napi_key_env = \"OPENROUTER_API_KEY\"\n";
+        let contenido = initial.unwrap_or(DEFAULT);
         match std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(path)
         {
             Ok(mut file) => file
-                .write_all(DEFAULT.as_bytes())
+                .write_all(contenido.as_bytes())
                 .map_err(|e| CoreError::Config(format!("write {}: {e}", path.display())))?,
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -624,6 +647,15 @@ mod tests {
         assert!(validate_base_url("http://127.0.0.1:8000/v1").is_ok());
         assert!(validate_base_url("http://api.example.test/v1").is_err());
         assert!(validate_base_url("https://user:secret@example.test/v1").is_err());
+    }
+
+    #[test]
+    fn is_loopback_url_reconoce_el_bucle_local() {
+        assert!(is_loopback_url("http://127.0.0.1:8081/v1"));
+        assert!(is_loopback_url("http://localhost:8080/v1"));
+        assert!(is_loopback_url("http://[::1]:8082/v1"));
+        assert!(!is_loopback_url("https://api.example.test/v1"));
+        assert!(!is_loopback_url("no es una url"));
     }
 
     #[test]

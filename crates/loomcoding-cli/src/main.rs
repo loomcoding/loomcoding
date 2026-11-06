@@ -24,6 +24,7 @@ use std::time::SystemTime;
 mod credentials;
 mod home;
 mod ipc;
+mod registro_local;
 mod server;
 
 #[derive(Parser)]
@@ -84,13 +85,19 @@ fn build_provider_state(
     prompt_cache: Option<bool>,
     request_timeout: Option<std::time::Duration>,
 ) -> Result<(Arc<dyn Provider>, bool)> {
+    let nombre = cfg.provider.api_key_env.as_str();
     let key = api_key_override
         .map(str::to_string)
-        .or_else(|| std::env::var(&cfg.provider.api_key_env).ok())
-        .or_else(|| project_env.get(&cfg.provider.api_key_env).cloned())
+        .or_else(|| std::env::var(nombre).ok())
+        .or_else(|| project_env.get(nombre).cloned())
         .filter(|key| !key.trim().is_empty())
-        .or_else(|| credentials::get(&cfg.provider.api_key_env).ok().flatten());
-    let Some(key) = key else {
+        .or_else(|| {
+            (!nombre.is_empty())
+                .then(|| credentials::get(nombre).ok().flatten())
+                .flatten()
+        });
+    // Un servidor de bucle local (llama-server) no pide clave: sin ella, se usa la ficticia.
+    let Some(key) = key.or_else(|| registro_local::clave_de_bucle(&cfg.provider.base_url)) else {
         return Ok((Arc::new(UnconfiguredProvider), false));
     };
     Ok((

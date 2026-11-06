@@ -132,6 +132,47 @@ impl ProvidersRegistry {
     }
 }
 
+/// Pasos de agente de un proyecto creado desde el registro (igual que el valor por defecto de OpenRouter).
+const MAX_STEPS_INICIAL: usize = 8;
+
+#[derive(Serialize)]
+struct ProyectoInicial<'a> {
+    model: &'a str,
+    max_steps: usize,
+    provider: ProveedorInicial<'a>,
+}
+
+#[derive(Serialize)]
+struct ProveedorInicial<'a> {
+    kind: &'a str,
+    base_url: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    api_key_env: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_window: Option<u32>,
+}
+
+/// Genera el `loomcoding.toml` inicial de un proyecto nuevo a partir de un proveedor del registro.
+///
+/// Solo lleva la variable de la clave (`api_key_env`), nunca la clave en claro.
+pub fn initial_project_toml(provider: &LocalProvider) -> Result<String, toml::ser::Error> {
+    let inicial = ProyectoInicial {
+        model: &provider.model,
+        max_steps: MAX_STEPS_INICIAL,
+        provider: ProveedorInicial {
+            kind: &provider.kind,
+            base_url: &provider.base_url,
+            api_key_env: provider.api_key_env.as_deref(),
+            context_window: provider.context_window,
+        },
+    };
+    let cuerpo = toml::to_string(&inicial)?;
+    Ok(format!(
+        "# Proyecto creado desde el proveedor `{}` de providers.toml.\n{cuerpo}",
+        provider.id
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,5 +275,45 @@ mod tests {
             std::fs::read_to_string(&path).unwrap(),
             "esto no es toml [["
         );
+    }
+
+    #[test]
+    fn el_texto_inicial_recoge_el_default_del_registro() {
+        let registry = ProvidersRegistry::parse(SEED_PROVIDERS_TOML).unwrap();
+        let llama = registry.default_provider().expect("hay default");
+        let texto = initial_project_toml(llama).expect("serializa");
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("loomcoding.toml");
+        std::fs::write(&path, &texto).unwrap();
+
+        let cfg = crate::config::LoomcodingConfig::load(&path).expect("loomcoding.toml válido");
+        let limites = crate::config::ProviderLimitsConfig::load(&path).expect("limites válidos");
+
+        assert_eq!(cfg.model, "Ornith-1.5-9B");
+        assert_eq!(cfg.max_steps, 8);
+        assert_eq!(cfg.provider.kind, crate::config::ProviderKind::OpenAiCompat);
+        assert_eq!(cfg.provider.base_url, "http://127.0.0.1:8081/v1");
+        assert_eq!(cfg.provider.api_key_env, "");
+        assert_eq!(limites.context_window, Some(65_536));
+        assert!(!texto.contains("openrouter"));
+    }
+
+    #[test]
+    fn el_texto_inicial_de_strata_lleva_su_variable_de_clave() {
+        let registry = ProvidersRegistry::parse(SEED_PROVIDERS_TOML).unwrap();
+        let strata = registry
+            .providers
+            .iter()
+            .find(|provider| provider.id == "strata")
+            .expect("strata");
+        let texto = initial_project_toml(strata).expect("serializa");
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("loomcoding.toml");
+        std::fs::write(&path, &texto).unwrap();
+
+        let cfg = crate::config::LoomcodingConfig::load(&path).expect("loomcoding.toml válido");
+
+        assert_eq!(cfg.provider.api_key_env, "STRATA_API_KEY");
+        assert_eq!(cfg.model, "qwen3.8-flash-next-coder-iq1_m");
     }
 }
