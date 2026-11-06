@@ -15,6 +15,9 @@ release.
 
 ### Interfaz
 
+- Nueva fila «Carril» en `/ui` (`/ui carril <valor>`, clave `rail` de `ui.toml`) con seis estilos para el trazo del
+  transcript: `tree` (el de siempre, por defecto), `dots`, `bar` (como Crush), `box` (la caja de MastraCode, solo para los
+  mensajes del usuario), `tint` (fondo tenue, como Pi y Codex) y `none`. Por debajo de 40 columnas no se reserva carril.
 - Nuevo comando `/ui [fila] [valor]`: abre el panel «Interfaz» o fija un ajuste de aspecto directamente. Los antiguos
   `/theme`, `/layout`, `/temas`, `/crush`, `/classic`, `/mascot`, `/sidebar` y `/mouse` siguen funcionando, pero dejan de
   saturar el popup de `/`; la ayuda se condensa en 21 líneas.
