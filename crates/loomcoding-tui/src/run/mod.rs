@@ -31,6 +31,7 @@ mod clipboard;
 mod dialogs;
 mod events;
 mod keys;
+mod sidebar_keys;
 mod slash;
 
 use clipboard::*;
@@ -333,6 +334,9 @@ pub async fn run(
         }
 
         cancel_active_turn(&mut app, &active_turn);
+        // El diff de la sesión se pide y se recoge aquí, sin esperar: `git` corre en otro hilo.
+        app.refresh_session_diff();
+        app.poll_session_diff();
         if std::mem::take(&mut app.fx_pending) {
             fx = Some(loomcoding_cloth::widgets::fx::dialog_open(&app.theme));
             fx_clock = Instant::now();
@@ -430,11 +434,13 @@ fn send_session_commands(app: &mut App, tx: &UnboundedSender<SessionCommand>) {
 /// Indica si el reloj de 50 ms debe seguir avanzando. Además de los efectos, la lluvia, el
 /// pensamiento, el proveedor y las herramientas que giran, cuenta el muñeco: mientras tenga
 /// postura que mostrar (también `Done` y `Fail`), el reloj corre, y al vencer se para solo.
+/// Una petición de diff en vuelo también lo mantiene, para recogerla al llegar.
 fn wants_clock(app: &App, fx_active: bool, now: Instant) -> bool {
     (fx_active && app.permission.is_some())
         || app.matrix_rain.animating()
         || app.thinking
         || app.provider_in_flight > 0
+        || app.session_diff.pending.is_some()
         || app.tools.iter().any(|tool| tool.is_spinning())
         || crate::mascot::pose_of(app, now).is_some()
 }

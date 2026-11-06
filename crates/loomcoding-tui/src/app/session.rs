@@ -80,6 +80,7 @@ impl App {
         self.tool_selected = 0;
         self.tool_scroll = (0, 0);
         self.changes = loomcoding_cloth::state::FileChanges::new();
+        self.session_diff = super::SessionDiffView::default();
         self.input_tokens = 0;
         self.output_tokens = 0;
         self.turn_input_tokens = 0;

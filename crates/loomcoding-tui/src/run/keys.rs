@@ -1,5 +1,6 @@
 //! Teclado del composer, del transcript y del diálogo de preguntas.
 
+use super::sidebar_keys::sidebar_key;
 use super::*;
 
 /// Teclas con el foco en el transcript (como Crush).
@@ -630,6 +631,9 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         if app.turn_in_flight {
             app.request_cancel();
         }
+        return None;
+    }
+    if sidebar_key(app, code) {
         return None;
     }
     if code == KeyCode::Tab {

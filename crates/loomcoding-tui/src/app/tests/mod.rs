@@ -20,6 +20,7 @@ mod folded_blocks;
 mod menu_izquierdo;
 mod notices_and_remote;
 mod session;
+mod session_diff_state;
 mod subagent_nodes;
 mod theme_and_settings;
 mod todos_and_questions;

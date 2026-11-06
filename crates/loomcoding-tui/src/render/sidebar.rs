@@ -1,5 +1,6 @@
 //! Panel lateral del espacio: métricas, avisos de MCP, desglose de contexto y de caché.
 
+use super::sidebar_diff::{draw_files_block, files_block_height};
 use super::*;
 
 /// Umbrales de partida para avisar de un exceso de definiciones MCP (candidata A2): proceden de la
@@ -493,22 +494,13 @@ pub(super) fn draw_workspace_sidebar(
     panes: &mut Vec<(Focus, Rect)>,
 ) {
     panes.push((Focus::Sidebar, area));
-    let changes_height = if app.changes.is_empty() {
-        0
-    } else {
-        (app.changes.len() as u16 + 2).min(area.height.saturating_sub(1))
-    };
-    let [sidebar, changes] =
-        Layout::vertical([Constraint::Min(1), Constraint::Length(changes_height)]).areas(area);
+    // El bloque «Ficheros» pide lo que necesita, sin pasar de la mitad del menú.
+    let files_height = files_block_height(app).min(area.height / 2);
+    let [sidebar, files] =
+        Layout::vertical([Constraint::Min(1), Constraint::Length(files_height)]).areas(area);
     loomcoding_cloth::widgets::sidebar::render(frame, sidebar, &app.sidebar(), &app.theme);
-    if changes_height > 0 {
-        loomcoding_cloth::widgets::file_changes::render(
-            frame,
-            changes,
-            "ficheros modificados",
-            &app.changes,
-            &app.theme,
-        );
+    if files_height > 0 {
+        draw_files_block(frame, files, app);
     }
 }
 

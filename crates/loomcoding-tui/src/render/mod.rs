@@ -23,6 +23,8 @@ mod agents_card;
 mod sidebar;
 use sidebar::*;
 
+mod sidebar_diff;
+
 mod settings;
 use settings::*;
 

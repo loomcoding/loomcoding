@@ -20,8 +20,9 @@ fn shows_modified_files_when_wide() {
         removed: 1,
     });
     let content = buffer_of(&mut app, 120, 40);
-    assert!(content.contains("ficheros modificados"));
-    assert!(content.contains("src/main.rs"));
+    assert!(content.contains("Ficheros"), "{content}");
+    assert!(content.contains("main.rs +3 −1"), "{content}");
+    assert!(!content.contains("ficheros modificados"), "{content}");
 }
 
 #[test]

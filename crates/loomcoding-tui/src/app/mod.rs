@@ -32,6 +32,7 @@ mod pointer;
 mod prefs;
 mod prompts;
 mod session;
+mod session_diff_state;
 mod settings;
 mod settings_types;
 mod target;
@@ -41,6 +42,7 @@ mod types;
 mod usage;
 
 pub use child_types::*;
+pub use session_diff_state::SessionDiffView;
 pub use settings_types::*;
 pub use types::*;
 use usage::*;
@@ -188,6 +190,8 @@ pub struct App {
     pub current_step: usize,
     pub max_steps: usize,
     pub changes: loomcoding_cloth::state::FileChanges,
+    /// Diff desplegable de los ficheros de la sesión, en el menú izquierdo.
+    pub session_diff: SessionDiffView,
     /// Ficheros editados por sesión (padre e hijos): sesión → ruta → (añadidas, quitadas).
     /// La última edición de cada ruta gana. Alimenta el rail y el panel de cambios al
     /// cargar una sesión; se vacía cuando la carga no es una navegación padre↔hijo.
@@ -448,6 +452,7 @@ impl App {
             current_step: 0,
             max_steps: 0,
             changes: loomcoding_cloth::state::FileChanges::new(),
+            session_diff: SessionDiffView::default(),
             files_by_session: HashMap::new(),
             viewport: loomcoding_cloth::state::Viewport::new(),
             layout: loomcoding_cloth::widgets::transcript::Layout::new(),
