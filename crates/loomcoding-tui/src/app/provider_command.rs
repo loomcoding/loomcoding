@@ -29,7 +29,7 @@ impl App {
             return Err("Settings are still being saved".into());
         }
         if self.catalog.is_empty() {
-            return Err("No provider catalog yet: use /settings".into());
+            return Err("Providers are still loading: try again in a moment".into());
         }
         let catalog = Arc::clone(&self.catalog);
         let Some(provider) = catalog.provider(id) else {
@@ -102,7 +102,7 @@ impl App {
         }
         self.request_refresh_providers();
         if self.catalog.is_empty() {
-            return Err("No provider catalog yet: use /settings".into());
+            return Err("Providers are still loading: try again in a moment".into());
         }
         self.quick_provider_picker = true;
         self.picker_query.clear();

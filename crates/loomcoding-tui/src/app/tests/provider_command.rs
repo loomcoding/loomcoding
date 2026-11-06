@@ -208,11 +208,11 @@ fn sin_catalogo_el_comando_avisa() {
 
     assert_eq!(
         app.set_provider_now("llama"),
-        Err("No provider catalog yet: use /settings".into())
+        Err("Providers are still loading: try again in a moment".into())
     );
     assert_eq!(
         app.open_provider_picker_now(),
-        Err("No provider catalog yet: use /settings".into())
+        Err("Providers are still loading: try again in a moment".into())
     );
     assert!(!app.quick_provider_picker);
 }
