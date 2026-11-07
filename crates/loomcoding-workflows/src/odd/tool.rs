@@ -6,6 +6,7 @@
 
 use super::doc::FeatureDoc;
 use super::evidence;
+use super::medicion::Medida;
 use super::ops;
 use super::state::OddState;
 use super::store;
@@ -79,7 +80,12 @@ impl Tool for OddTrackTool {
     ) -> Result<ToolOutput> {
         let op = match Op::desde(&input) {
             Ok(op) => op,
-            Err(error) => return Ok(ToolOutput::err(error)),
+            Err(error) => {
+                if evidencia_mal_formada(&input) {
+                    self.estado.contar(Medida::RechazoEvidencia);
+                }
+                return Ok(ToolOutput::err(error));
+            }
         };
         let feature = op.feature().to_string();
         if let Err(error) = store::validar_feature(&feature) {
@@ -88,7 +94,10 @@ impl Tool for OddTrackTool {
         // La evidencia se comprueba antes de tocar el disco: un rechazo no deja rastro.
         let op = match op.con_evidencia_comprobada(&ctx).await {
             Ok(op) => op,
-            Err(error) => return Ok(ToolOutput::err(error)),
+            Err(error) => {
+                self.estado.contar(Medida::RechazoEvidencia);
+                return Ok(ToolOutput::err(error));
+            }
         };
 
         let ruta = store::ruta(&ctx.cwd, &feature);
@@ -108,6 +117,22 @@ impl Tool for OddTrackTool {
             }
             Err(error) => Ok(ToolOutput::err(error)),
         }
+    }
+}
+
+/// `true` si la entrada es un `done` cuya evidencia no tiene la forma `{text, call_id}`. Sirve para
+/// contar los rechazos de evidencia que se detectan al leer la operación.
+fn evidencia_mal_formada(input: &Value) -> bool {
+    if input.get("op").and_then(Value::as_str) != Some("done") {
+        return false;
+    }
+    match input.get("evidence") {
+        Some(evidencia) => {
+            !(evidencia.is_object()
+                && evidencia.get("text").is_some_and(Value::is_string)
+                && evidencia.get("call_id").is_some_and(Value::is_string))
+        }
+        None => true,
     }
 }
 
@@ -283,6 +308,7 @@ fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<Aplica
         }
         let doc = ops::crear(feature, objetivo, tareas)?;
         escribir(ruta, &doc)?;
+        estado.contar(Medida::DocumentoCreado);
         return Ok(Aplicada {
             texto: format!(
                 "Documento `{feature}` creado con {} tareas.",
@@ -297,6 +323,11 @@ fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<Aplica
     let mut doc = FeatureDoc::parse(&markdown)
         .map_err(|error| format!("el documento de `{feature}` está roto ({error}). No lo toco"))?;
 
+    let medida = match &op {
+        Op::Hecha { .. } => Some(Medida::TareaMarcada),
+        Op::Bloquear { .. } => Some(Medida::TareaBloqueada),
+        _ => None,
+    };
     let texto = match op {
         Op::Leer { .. } => {
             return Ok(Aplicada {
@@ -311,6 +342,9 @@ fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<Aplica
         Op::Crear { .. } => unreachable!("create se trata arriba"),
     };
     escribir(ruta, &doc)?;
+    if let Some(medida) = medida {
+        estado.contar(medida);
+    }
     Ok(Aplicada {
         texto,
         documento: releer(ruta),

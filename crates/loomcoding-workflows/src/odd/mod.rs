@@ -7,6 +7,7 @@
 pub mod doc;
 pub mod evidence;
 pub mod gate;
+pub mod medicion;
 pub mod observer;
 pub mod ops;
 pub mod phase;

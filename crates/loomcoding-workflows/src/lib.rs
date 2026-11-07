@@ -9,6 +9,7 @@ use std::sync::Arc;
 pub mod odd;
 
 pub use odd::gate::OddGate;
+pub use odd::medicion::OddStats;
 pub use odd::observer::OddObserver;
 pub use odd::prompt::OddPrompt;
 pub use odd::state::OddState;

@@ -8,8 +8,14 @@ use std::sync::Arc;
 /// Herramientas cuyas llamadas sirven de evidencia para marcar una tarea.
 pub const HERRAMIENTAS_EVIDENCIA: &[&str] = &["bash", "job_start", "job_output"];
 
-/// Comprueba que `call_id` es una llamada de herramienta de `sesion` y que su herramienta está en
-/// [`HERRAMIENTAS_EVIDENCIA`]. Devuelve el nombre de la herramienta.
+/// Mensajes recientes de la sesión en los que se busca la llamada que respalda una evidencia. Es una
+/// cota constante (decálogo de contexto y coste): una llamada más antigua se rechaza, con un motivo que
+/// dice que está fuera de la ventana.
+pub const VENTANA_EVIDENCIA: usize = 500;
+
+/// Comprueba que `call_id` es una llamada de herramienta de `sesion` dentro de la ventana reciente
+/// ([`VENTANA_EVIDENCIA`] mensajes) y que su herramienta está en [`HERRAMIENTAS_EVIDENCIA`]. Devuelve el
+/// nombre de la herramienta.
 ///
 /// NOTA: el runtime comprueba que la llamada existe y que su herramienta es de las permitidas. NO
 /// comprueba que el texto de la evidencia sea cierto: eso es responsabilidad del modelo.
@@ -27,9 +33,9 @@ pub async fn comprobar_llamada(
                 .to_string(),
         );
     };
-    // Se leen los mensajes de la sesión y no más: la llamada tiene que ser de esta sesión.
+    // Solo la ventana reciente: la llamada tiene que ser de esta sesión y estar a la vista.
     let mensajes = store
-        .messages(sesion)
+        .recent_messages(sesion, VENTANA_EVIDENCIA)
         .await
         .map_err(|e| format!("no pude leer el historial de la sesión: {e}"))?;
     let nombre = mensajes
@@ -41,8 +47,9 @@ pub async fn comprobar_llamada(
         });
     let Some(nombre) = nombre else {
         return Err(format!(
-            "la llamada `{call_id}` no existe en esta sesión; use el id de una llamada de \
-             herramienta real (bash, job_start o job_output)"
+            "la llamada `{call_id}` no existe en esta sesión (llamada fuera de la ventana reciente \
+             de {VENTANA_EVIDENCIA} mensajes, o identificador inexistente); use el id de una llamada \
+             de herramienta reciente (bash, job_start o job_output)"
         ));
     };
     if HERRAMIENTAS_EVIDENCIA.contains(&nombre.as_str()) {

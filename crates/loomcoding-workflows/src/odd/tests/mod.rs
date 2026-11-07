@@ -4,6 +4,7 @@ mod disco;
 mod evidencia;
 mod fase;
 mod gate;
+mod medicion;
 mod prompt;
 mod todos;
 

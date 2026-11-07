@@ -214,3 +214,44 @@ async fn done_de_tarea_inexistente_o_ya_hecha_se_rechaza() {
         otra_vez.content
     );
 }
+
+/// Añade `n` mensajes de relleno a la sesión, para empujar las llamadas antiguas fuera de la ventana.
+async fn relleno(e: &Entorno, n: usize) {
+    for _ in 0..n {
+        let mensaje = Message::user("relleno".to_string());
+        e.store.append_message(e.sesion, &mensaje).await.unwrap();
+    }
+}
+
+/// Historial: una llamada antigua, `505` mensajes de relleno y una llamada reciente. La ventana de
+/// `VENTANA_EVIDENCIA` (500) deja fuera la antigua y dentro la reciente.
+async fn historial_con_llamada_antigua_y_reciente(e: &Entorno) {
+    e.registrar_llamada(e.sesion, "call_vieja", "bash").await;
+    relleno(e, 505).await;
+    e.registrar_llamada(e.sesion, "call_reciente", "bash").await;
+}
+
+#[tokio::test]
+async fn una_llamada_dentro_de_la_ventana_reciente_es_valida() {
+    let e = entorno().await;
+    e.crear_basico("f", &["Tarea uno"]).await;
+    historial_con_llamada_antigua_y_reciente(&e).await;
+    let out = e.llamar(done("f", "T1", "ok", "call_reciente")).await;
+    assert!(!out.is_error, "{}", out.content);
+}
+
+#[tokio::test]
+async fn una_llamada_fuera_de_la_ventana_reciente_se_rechaza_con_motivo() {
+    let e = entorno().await;
+    e.crear_basico("f", &["Tarea uno"]).await;
+    historial_con_llamada_antigua_y_reciente(&e).await;
+    let antes = e.leer("f");
+    let out = e.llamar(done("f", "T1", "ok", "call_vieja")).await;
+    assert!(out.is_error);
+    assert!(
+        out.content.contains("llamada fuera de la ventana reciente"),
+        "{}",
+        out.content
+    );
+    assert_eq!(e.leer("f"), antes);
+}

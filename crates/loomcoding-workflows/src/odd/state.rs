@@ -1,6 +1,7 @@
 //! Estado compartido de ODD: la feature activa por sesión, las tareas pendientes vistas en la última
 //! reinyección del cierre, el interruptor y el cerrojo de E/S de los documentos.
 
+use super::medicion::{Contadores, Medida, OddStats};
 use loomcoding_core::session::SessionId;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,6 +31,7 @@ struct Interno {
     progresos: Mutex<BTreeMap<SessionId, (usize, usize)>>,
     habilitado: AtomicBool,
     io: Mutex<()>,
+    contadores: Contadores,
 }
 
 impl Default for Interno {
@@ -42,6 +44,7 @@ impl Default for Interno {
             // ODD viene activo; el interruptor solo lo apaga.
             habilitado: AtomicBool::new(true),
             io: Mutex::new(()),
+            contadores: Contadores::default(),
         }
     }
 }
@@ -66,6 +69,18 @@ impl OddState {
 
     pub fn is_enabled(&self) -> bool {
         self.interno.habilitado.load(Ordering::SeqCst)
+    }
+
+    /// Fotografía de los contadores de medición desde que arrancó el proceso.
+    pub fn estadisticas(&self) -> OddStats {
+        self.interno.contadores.fotografia()
+    }
+
+    /// Suma una medición y la emite al log (destino `odd`). Solo viajan el nombre fijo del evento y
+    /// el total: ni rutas, ni texto de tareas, ni identificadores de sesión.
+    pub(crate) fn contar(&self, medida: Medida) {
+        let total = self.interno.contadores.sumar(medida);
+        tracing::info!(target: "odd", evento = medida.nombre(), total = total, "medición de ODD");
     }
 
     /// Última feature tocada por la sesión en esta memoria, si la hay. No mira el historial: quien

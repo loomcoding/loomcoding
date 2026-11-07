@@ -6,6 +6,7 @@
 //! mecanismo no debe encerrar a la persona usuaria.
 
 use super::doc::{FeatureDoc, Task};
+use super::medicion::Medida;
 use super::state::OddState;
 use super::store;
 use async_trait::async_trait;
@@ -51,11 +52,11 @@ async fn decidir(estado: &OddState, ctx: &CloseGateCtx, intento: u32) -> CloseDe
         Ok(Some(texto)) => texto,
         // Sin documento no hay tareas que exigir: se cierra.
         Ok(None) => return cerrar(None),
-        Err(motivo) => return cerrar(Some(aviso_ilegible(&motivo))),
+        Err(motivo) => return ilegible(estado, &motivo),
     };
     let doc = match FeatureDoc::parse(&texto) {
         Ok(doc) => doc,
-        Err(error) => return cerrar(Some(aviso_ilegible(&error.to_string()))),
+        Err(error) => return ilegible(estado, &error.to_string()),
     };
 
     let pendientes = doc.pending();
@@ -63,6 +64,7 @@ async fn decidir(estado: &OddState, ctx: &CloseGateCtx, intento: u32) -> CloseDe
         estado.olvidar_pendientes(ctx.session);
         let bloqueadas = doc.blocked().len();
         if bloqueadas > 0 {
+            estado.contar(Medida::CierreDecision);
             return cerrar(Some(format!(
                 "Necesita tu decisión: {bloqueadas} bloqueadas"
             )));
@@ -72,6 +74,7 @@ async fn decidir(estado: &OddState, ctx: &CloseGateCtx, intento: u32) -> CloseDe
 
     let ids: Vec<String> = pendientes.iter().map(|tarea| tarea.id.clone()).collect();
     if estado.pendientes_de(ctx.session).as_deref() == Some(ids.as_slice()) {
+        estado.contar(Medida::CierreSinProgreso);
         return cerrar(Some(
             "sin progreso en las tareas: no se insiste".to_string(),
         ));
@@ -85,6 +88,7 @@ async fn decidir(estado: &OddState, ctx: &CloseGateCtx, intento: u32) -> CloseDe
     );
     let mensaje = mensaje_de_cierre(&feature, &pendientes);
     estado.recordar_pendientes(ctx.session, ids);
+    estado.contar(Medida::CierreBloqueado);
     CloseDecision::Reinject {
         message: mensaje,
         notice: Some(aviso),
@@ -93,6 +97,12 @@ async fn decidir(estado: &OddState, ctx: &CloseGateCtx, intento: u32) -> CloseDe
 
 fn cerrar(notice: Option<String>) -> CloseDecision {
     CloseDecision::Close { notice }
+}
+
+/// Documento ilegible: se cuenta, se avisa y se cierra sin bloquear.
+fn ilegible(estado: &OddState, motivo: &str) -> CloseDecision {
+    estado.contar(Medida::CierreIlegible);
+    cerrar(Some(aviso_ilegible(motivo)))
 }
 
 fn aviso_ilegible(motivo: &str) -> String {
