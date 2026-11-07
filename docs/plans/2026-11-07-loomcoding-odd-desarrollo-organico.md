@@ -169,4 +169,4 @@ genérico `FlowChanged` tal cual, sin conocer ODD (regla de la spec de extracci�
 - `docs/INDEX.md`, `docs/CODE-MAP.md` (sección ODD), `CHANGELOG.md`; guía breve de uso en `docs/`; volcado e2e con perfil
   aislado: una petición grande crea el documento, el cierre bloquea con una tarea pendiente, la fase y la etiqueta salen
   en pantalla.
-- [ ] Revisión final de las cinco preguntas abiertas de la spec y actualización de su estado.
+- [x] Revisión final de las cinco preguntas abiertas de la spec y actualización de su estado (hecho: véase «Estado tras la implementación» en la spec).

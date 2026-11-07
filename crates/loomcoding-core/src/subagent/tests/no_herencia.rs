@@ -366,7 +366,7 @@ async fn el_trabajo_del_hijo_no_publica_flow_changed_y_solo_recorre_estados_a2a(
         "solo debe haber un FlowChanged por cada resumen del padre"
     );
 
-    // ODD no añade estados: el enum de A2A sigue siendo el de siempre y el hijo solo usa esos.
+    // Ningún flujo añade estados: el enum de A2A sigue siendo el de siempre y el hijo solo usa esos.
     assert_eq!(
         TaskState::ALL.len(),
         8,

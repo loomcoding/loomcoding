@@ -239,6 +239,31 @@ Cabe señalar que la vigilancia es información propia de Loomcoding: nunca se r
 8. Pruebas: `render/tests/vigilancia_de_jobs.rs` (rail y transcript) y el E2E PTY `crates/loomcoding-cli/tests/tui_pty_vigilancia.rs`
    (guion `mock_provider_watch` en `crates/loomcoding-e2e/src/mock.rs`; volcado en `docs/mockups/vigilancia-jobs-e2e.md`).
 
+## Quiero tocar ODD (desarrollo orgánico)
+
+Guía de uso: `docs/odd.md`. La lógica vive en `crates/loomcoding-workflows/src/odd/`; el núcleo solo ofrece puntos de
+extensión genéricos y la TUI solo pinta.
+
+1. Documento de feature (formato, cotas): `odd/doc.rs`, `odd/render.rs`; operaciones puras: `odd/ops.rs`; disco: `odd/store.rs`
+   (`.loomcoding/odd/<feature>.md`). Herramienta `odd_track` (`odd/tool.rs`, `parent_only`); evidencia de una casilla:
+   `odd/evidence.rs` (`VENTANA_EVIDENCIA` = 500 mensajes). Estado compartido y contadores: `odd/state.rs`, `odd/medicion.rs`.
+2. Cierre bloqueante: punto de extensión `TurnCloseGate` en `crates/loomcoding-core/src/agent/close_gate.rs` (tope de 3
+   reinyecciones, plazo de 2 s, pánico aislado; se consulta en `agent/turn.rs`) y política en `odd/gate.rs`.
+3. Fase y avance: `ToolObserver` en `agent/tool_observer.rs` (publica `LiveEvent::FlowChanged`, tipo `FlowSummary` en
+   `crates/loomcoding-core/src/flow.rs`); política en `odd/phase.rs` (`phase_of`) y `odd/observer.rs`
+   (`resumen_de_flujo`: el formato de la etiqueta vive solo ahí).
+4. Lista de tareas de la TUI: proyección en `odd/todos.rs` (`TodosChanged` tras cada operación que modifica el documento).
+5. Sección de prompt: `PromptContributor` en `agent/prompt_contributor.rs` (2 000 B por sección) y texto estático en
+   `odd/prompt.rs` (estático a propósito: un texto cambiante rompería la caché del prompt).
+6. Solo el padre: `Tool::parent_only` y `ToolRegistry::without_parent_only` (`tools/mod.rs`, aplicado en
+   `subagent/launcher.rs`). El cableado del padre está en `crates/loomcoding-cli/src/server/agent_build.rs`
+   (`with_close_gate`, `with_tool_observer`, `with_prompt_contributor`); los hijos no los reciben.
+7. Interruptor: `[odd] enabled` (`crates/loomcoding-core/src/config/odd.rs`, `OddConfig`; se aplica al arrancar el daemon);
+   TUI: etiqueta en `app/flow_label.rs` y `render/chrome.rs`, comando `/odd` en `app/odd_command.rs`.
+8. Pruebas: `odd/tests/` (documento, disco, evidencia, cierre, fase, prompt, lista, medición); garantía A2A de no herencia
+   en `crates/loomcoding-core/src/subagent/tests/no_herencia.rs`; E2E PTY `crates/loomcoding-cli/tests/tui_pty_odd.rs`
+   (volcado en `docs/mockups/odd-e2e.md`).
+
 ## Quiero tocar el contexto estructural
 
 1. Índice de símbolos de Rust (definiciones y llamadas, con `tree-sitter` y `context/tags.scm`):

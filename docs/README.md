@@ -32,6 +32,7 @@ ejecutarlo).
 - [`specs/hechos/`](specs/hechos/) y [`plans/hechos/`](plans/hechos/): lo ya
   desarrollado y verificado. Es historial, no una cola de trabajo.
 - [`modelos-locales.md`](modelos-locales.md): cómo declarar llama-server, Strata y PolyStrata una vez por perfil, descubrir sus modelos y cambiar entre ellos con `/provider`, `/model` y `/effort`.
+- [`odd.md`](odd.md): el modo de desarrollo orgánico (ODD), activo por defecto: documento de feature, casillas con evidencia, cierre bloqueante, fase en la cabecera, `[odd] enabled` y `/odd`.
 - [`visual-e2e.md`](visual-e2e.md): cómo ver y probar la TUI con un PTY en `cargo test` o
   con `ttyd` y Chrome.
 - [`INDEX.md`](INDEX.md): estado cotejado con el código de todos los
