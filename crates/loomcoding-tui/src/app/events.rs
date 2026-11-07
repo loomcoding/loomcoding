@@ -531,7 +531,7 @@ impl App {
             if message.origin == MessageOrigin::Human {
                 self.push_user(&text);
             } else {
-                self.internal_user_message(&text);
+                self.internal_user_message(&text, &message.origin);
             }
         } else {
             for part in message.parts {

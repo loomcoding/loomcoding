@@ -34,6 +34,15 @@ release.
 - La TUI muestra «watching: N alerts», con «+M suppressed» y «limit reached» cuando procede, en la sección Jobs del rail
   y en la actividad del job. Es información de Loomcoding, no un estado A2A.
 
+### Actor «job» en el transcript
+
+- Los avisos del registro de jobs (vigilancia `[Job <id> watch]` y job terminado) ya no se pintan como `sys:`: llevan un
+  actor propio, `job: `, en vivo y al reabrir la sesión. El origen viaja en el propio mensaje (`MessageOrigin::Job(id)`),
+  no se detecta por el texto; el texto que ve el modelo no cambia. Los mensajes antiguos se siguen reconociendo por su texto.
+- Un job no es un agente A2A: el actor no introduce ningún estado A2A y el origen no sale hacia el proveedor del modelo.
+- **Compatibilidad:** una sesión escrita con este binario lleva la variante nueva `job` del origen; un binario anterior no
+  la abrirá. Hoy el cliente y el daemon usan el mismo binario, así que no afecta al uso normal.
+
 ### Proveedores locales
 
 - Registro global `providers.toml` (llama-server en 8081 por defecto, Strata en 8080, PolyStrata en 8082): un proyecto

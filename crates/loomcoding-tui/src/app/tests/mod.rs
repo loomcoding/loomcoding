@@ -20,6 +20,7 @@ mod effort_command;
 mod flow_command;
 mod flow_label;
 mod folded_blocks;
+mod job_actor;
 mod logo_fx;
 mod menu_izquierdo;
 mod model_effort;

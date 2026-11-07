@@ -227,7 +227,8 @@ Cabe señalar que la vigilancia es información propia de Loomcoding: nunca se r
 5. Aviso `[Job <id> watch] …` que llega a la conversación: `aviso_de_vigilancia` en
    `crates/loomcoding-core/src/agent/subagents.rs`, dentro de `flush_subagent_notices`. Entrega cada lote una sola vez,
    lo persiste y publica `SessionMessageAdded`; tras entregarlo republica `JobChanged` para que el recuento de un job
-   ya terminado no se quede a cero. Pruebas: `agent/tests/watch_notices.rs`.
+   ya terminado no se quede a cero. El mensaje nace con `origin = MessageOrigin::Job(id)`
+   (`crates/loomcoding-core/src/message/mod.rs`, `Message::from_job`). Pruebas: `agent/tests/watch_notices.rs`.
 6. Clasificación de la herramienta: `job_watch` está en `WRITE_TOOLS` (`crates/loomcoding-core/src/agent/stop.rs`); una
    ronda con ella no cuenta como lectura y repetirla idéntica corta el turno como cualquier escritura.
 7. Dónde se pinta el recuento (`watching: N alerts`, con `· +M suppressed` y `· limit reached`):
@@ -238,6 +239,13 @@ Cabe señalar que la vigilancia es información propia de Loomcoding: nunca se r
    - La tarjeta de agentes (`render/agents_card.rs`) lista subagentes, no jobs: no pinta la vigilancia.
 8. Pruebas: `render/tests/vigilancia_de_jobs.rs` (rail y transcript) y el E2E PTY `crates/loomcoding-cli/tests/tui_pty_vigilancia.rs`
    (guion `mock_provider_watch` en `crates/loomcoding-e2e/src/mock.rs`; volcado en `docs/mockups/vigilancia-jobs-e2e.md`).
+9. Actor «job» en el transcript: el origen `MessageOrigin::Job(id)` del mensaje decide el tipo de línea. Lo decide
+   `internal_user_message` en `crates/loomcoding-tui/src/app/activity.rs`, llamado desde `apply_message_added`
+   (`app/events.rs`, en vivo) y desde la reapertura (`app/session.rs`): pinta `LineKind::Job` si el origen es `Job`
+   o si `parse_notice` reconoce un aviso de job en un mensaje antiguo con origen `Internal`. Los avisos de subagente,
+   de compactación, de ODD y `[Mensaje interno]` siguen en `LineKind::System`. El tipo de línea, su prefijo `job: `
+   y su token están en `crates/loomcoding-cloth/src/widgets/transcript/lines.rs`. El texto que ve el modelo no cambia.
+   Pruebas: `app/tests/job_actor.rs`; el E2E `tui_pty_vigilancia.rs` exige la línea `job: [Job …`.
 
 ## Quiero tocar ODD (desarrollo orgánico)
 

@@ -113,7 +113,7 @@ impl App {
                         self.history.push(text.clone());
                         self.push_user(&text);
                     } else {
-                        self.internal_user_message(&text);
+                        self.internal_user_message(&text, &message.origin);
                     }
                 }
                 Role::Assistant => {

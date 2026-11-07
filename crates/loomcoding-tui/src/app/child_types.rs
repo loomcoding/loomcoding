@@ -38,8 +38,8 @@ pub(super) enum Notice<'a> {
         label: &'a str,
         body: &'a str,
     },
-    /// Lote de vigilancia de un job en marcha. Va como línea de sistema, con el actor «job» en
-    /// su cabecera; no abre ni cierra ningún elemento de actividad.
+    /// Lote de vigilancia de un job en marcha. Va como línea del actor «job»; no abre ni cierra
+    /// ningún elemento de actividad.
     JobWatch,
     Subagent {
         label: &'a str,

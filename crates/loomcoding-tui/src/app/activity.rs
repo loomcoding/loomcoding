@@ -3,8 +3,21 @@
 use super::*;
 
 impl App {
-    pub(super) fn internal_user_message(&mut self, text: &str) {
+    /// Pinta un mensaje que no es de la persona usuaria. Los avisos del registro de jobs van como
+    /// actor «job», por su origen (`MessageOrigin::Job`) o, en mensajes antiguos con origen
+    /// `Internal`, por reconocer su texto. El resto de avisos sigue como línea de sistema.
+    pub(super) fn internal_user_message(&mut self, text: &str, origin: &MessageOrigin) {
         if self.tool_inline() && self.apply_notice(text) {
+            return;
+        }
+        // El origen manda: un aviso de job lo es aunque su redacción cambie algún día.
+        if matches!(origin, MessageOrigin::Job(_)) {
+            self.transcript.push_entry(
+                loomcoding_cloth::state::LineKind::Job,
+                loomcoding_cloth::state::Format::Plain,
+                text.to_string(),
+            );
+            self.assistant = None;
             return;
         }
         let Some(notice) = parse_notice(text) else {
@@ -15,6 +28,12 @@ impl App {
             );
             self.assistant = None;
             return;
+        };
+        let actor_job = matches!(notice, Notice::Job { .. } | Notice::JobWatch);
+        let kind = if actor_job {
+            loomcoding_cloth::state::LineKind::Job
+        } else {
+            loomcoding_cloth::state::LineKind::System
         };
         let shown = match notice {
             Notice::Compaction { covers, body } => {
@@ -27,11 +46,8 @@ impl App {
                 format!("[Subagent {label} completed; open its chat to read the response]")
             }
         };
-        self.transcript.push_entry(
-            loomcoding_cloth::state::LineKind::System,
-            loomcoding_cloth::state::Format::Plain,
-            shown,
-        );
+        self.transcript
+            .push_entry(kind, loomcoding_cloth::state::Format::Plain, shown);
         self.assistant = None;
     }
 
@@ -372,7 +388,7 @@ impl App {
                 &compaction_label(covers),
                 &body,
             ),
-            // Un lote de vigilancia no es un elemento de actividad: se pinta como línea de sistema.
+            // Un lote de vigilancia no es un elemento de actividad: se pinta como línea del actor «job».
             Notice::JobWatch => return false,
         }
         true

@@ -111,12 +111,13 @@ async fn a_watched_job_notice_reaches_the_transcript_and_wakes_the_model() {
     };
     s.shot("job-watch-count");
 
-    // El aviso sale en el transcript como línea de sistema con su cabecera «[Job <id> watch]» y la
-    // línea que casa. No basta con «job» y «FAIL uno» sueltos: la llamada `job_start` también los tiene.
+    // El aviso sale en el transcript como línea del actor «job» (prefijo `job: `) con su cabecera
+    // «[Job <id> watch]» y la línea que casa. No basta con «job» y «FAIL uno» sueltos: la llamada
+    // `job_start` también los tiene, y el prefijo `sys: ` ya no debe aparecer en esta línea.
     assert!(
         snap.text
             .lines()
-            .any(|l| l.contains("[Job ") && l.contains("watch] FAIL uno")),
+            .any(|l| l.contains("job: [Job ") && l.contains("watch] FAIL uno")),
         "falta el aviso de vigilancia con su cabecera y su línea; pantalla:\n{}",
         snap.text
     );

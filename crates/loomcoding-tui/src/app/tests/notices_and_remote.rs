@@ -432,7 +432,7 @@ fn unparseable_notice_falls_back_to_a_plain_message() {
 }
 
 #[test]
-fn watch_batch_is_a_system_line_of_the_job_and_does_not_block_its_final_notice() {
+fn watch_batch_is_a_job_line_and_does_not_block_its_final_notice() {
     let mut app = crush_app();
     app.session_id = Some(SessionId(1));
     app.apply(notice_for(
