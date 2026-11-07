@@ -20,7 +20,17 @@ release.
 - **Cable:** nueva variante `LiveEvent::OutputFiltered { rule, original_bytes, sent_bytes }`, solo local (no se reenvía
   desde los subagentes). Un cliente antiguo conectado a un daemon nuevo no la entenderá (el binario es el mismo para
   ambos hoy). La TUI la ignora por ahora.
-- Medición por `tracing` con destino `output_filter`; el binario actual no instala suscriptor de `tracing`.
+- Medición por `tracing` con destino `output_filter`: con `RUST_LOG=output_filter=info` sale al registro del daemon
+  (véase la entrada de registro de `tracing` más abajo).
+
+### Registro de `tracing` a fichero
+
+- Si `RUST_LOG` está definida y no vacía, el cliente y el daemon instalan un suscriptor que escribe a
+  `<perfil>/.loomcoding/logs/loomcoding-<rol>.log` (`cliente` o `daemon`). Sin `RUST_LOG` no se instala nada ni se crea
+  fichero. Nunca se escribe en stdout ni en stderr.
+- Cota de 5 MiB por fichero, con una sola copia anterior (`.1`). Un fallo de E/S nunca impide arrancar.
+- Sin dependencias nuevas (`tracing-subscriber` con `env-filter`, ya en el espacio de trabajo). Spec:
+  `docs/specs/2026-11-07-loomcoding-registro-tracing.md`.
 
 ### Desarrollo orgánico (ODD)
 

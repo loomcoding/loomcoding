@@ -152,6 +152,13 @@ Cabe señalar que el menú izquierdo solo se pinta con el layout `Workspace` (�
 3. Diálogo: `crates/loomcoding-tui/src/permission_flow.rs`,
    `crates/loomcoding-tui/src/widgets/permission.rs` y `crates/loomcoding-cloth/src/widgets/permission.rs`.
 
+## Quiero depurar o medir con `RUST_LOG`
+
+1. Instalación del suscriptor (solo con `RUST_LOG` definida y no vacía): `crates/loomcoding-cli/src/registro_tracing.rs`
+   (`instala`, `instala_con`, escritor acotado a 5 MiB con copia `.1`). Lo llaman el cliente y el daemon en
+   `crates/loomcoding-cli/src/main.rs`, con un fichero por proceso: `<perfil>/.loomcoding/logs/loomcoding-<rol>.log`.
+2. Spec: `docs/specs/2026-11-07-loomcoding-registro-tracing.md`. Guía de uso: `docs/output-filter.md` y `docs/odd.md`.
+
 ## Quiero tocar A2A (cliente o servidor)
 
 1. Nombres del cable y tarjeta: `crates/loomcoding-a2a/src/card.rs`, `wire.rs`.

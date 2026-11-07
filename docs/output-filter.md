@@ -43,9 +43,17 @@ Hay tres señales, de menos a más directa:
    sent_bytes }`: regla aplicada, bytes que produjo la herramienta y bytes que recibe el modelo. La interfaz lo ignora
    por ahora.
 2. **Aviso.** Cuando una regla se desactiva sola se publica un `RuntimeNotice`, una sola vez por regla y proceso.
-3. **Trazas.** Cada uso emite una línea de `tracing` con destino `output_filter` (regla y bytes), pensada para
-   `RUST_LOG=output_filter=info`. Ojo: el binario actual no instala ningún suscriptor de `tracing` (comprobado en
-   `crates/`), así que hoy esta vía solo se ve en pruebas o con un suscriptor propio.
+3. **Trazas.** Cada uso emite una línea de `tracing` con destino `output_filter` (regla y bytes). Para verla, define
+   `RUST_LOG=output_filter=info` al arrancar: el cliente y el daemon escriben en
+   `<perfil>/.loomcoding/logs/loomcoding-cliente.log` y `loomcoding-daemon.log` (el de la sesión que filtra es el
+   daemon). Sin `RUST_LOG` no se instala nada ni se crea fichero. El fichero rota a `.1` al superar 5 MiB. Nunca se
+   escribe en stdout ni en stderr. Cómo medir de verdad, paso a paso:
+
+   ```
+   RUST_LOG=output_filter=info loomcoding
+   ```
+
+   Después busca `output_filter` en el registro del daemon y compara `original_bytes` con `sent_bytes`.
 
 Los contadores por regla (usos, re-peticiones, bytes originales y enviados) se obtienen con
 `FilterStats::resumen()` (`crates/loomcoding-core/src/output_filter/stats.rs`). Todavía no se muestran en la interfaz.

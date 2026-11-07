@@ -47,8 +47,10 @@ etiqueta base al acabar el turno. Los subagentes no ven `odd_track` ni heredan e
 
 Los contadores viven en memoria del daemon y no llevan rutas ni texto: documentos creados, tareas marcadas y
 bloqueadas, cierres bloqueados, cierres sin progreso, cierres por decisión, cierres por documento ilegible y rechazos
-de evidencia. Salen por `tracing` con el destino `odd` (por ejemplo, `RUST_LOG=odd=info`). Como ODD viene activo, la
-medición del final de la spec es un seguimiento: si los números salen mal, se desactiva.
+de evidencia. Salen por `tracing` con el destino `odd` (por ejemplo, `RUST_LOG=odd=info`). Con esa variable definida al
+arrancar, las líneas quedan en `<perfil>/.loomcoding/logs/loomcoding-daemon.log` (registro acotado a 5 MiB; sin
+`RUST_LOG` no se escribe nada). Como ODD viene activo, la medición del final de la spec es un seguimiento: si los
+números salen mal, se desactiva.
 
 ## Límites conocidos
 

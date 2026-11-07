@@ -25,6 +25,7 @@ mod credentials;
 mod home;
 mod ipc;
 mod registro_local;
+mod registro_tracing;
 mod server;
 mod sondeo_local;
 
@@ -246,6 +247,9 @@ fn build_project_tools(
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    // Sin `RUST_LOG` no se instala nada; el testigo vive hasta que termina el proceso.
+    let rol = if cli.server { "daemon" } else { "cliente" };
+    let _registro = registro_tracing::instala(rol, &registro_tracing::dir_datos());
     if cli.server {
         server::run_server().await
     } else {
