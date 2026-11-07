@@ -123,3 +123,21 @@ No se activa por defecto hasta tener números propios, no los de `rtk`:
 2. ¿Activado por defecto tras la medición, o siempre opt-in?
 3. ¿Se aplica también a la salida de los subagentes que vuelve al padre, o solo a la de herramientas?
 4. ¿El umbral de re-petición que desactiva una regla sola: cuál, y se avisa al usuario?
+
+## Decisiones de la persona usuaria (2026-11-07)
+
+Las cuatro preguntas quedan resueltas así:
+
+1. **Dónde se guarda el original.** Se reutiliza el volcado que ya existe, `ToolSpill`
+   (`crates/loomcoding-core/src/tools/spill.rs`: un fichero por llamada, 7 días de retención, 256 MB de tope por
+   directorio). Hoy solo vuelca cuando la salida pasa de `MAX_TOOL_OUTPUT_BYTES`; el filtro lo usa también cuando **omite
+   algo** aunque quepa. `bash` en primer plano no es un job, así que no se usa el almacén de jobs; los jobs conservan su
+   `job_output`.
+2. **Activado por defecto: no.** `[output_filter] enabled = false` hasta tener los números de «Medición antes de fiarse»;
+   entonces se activa por defecto solo lo que haya demostrado ahorro sin re-peticiones.
+3. **Salida de los subagentes: no.** Solo herramientas. La respuesta de una tarea A2A es su resultado y no se toca.
+4. **Umbral de re-petición.** Una regla se desactiva sola si, con al menos 10 usos, el modelo pide `raw: true` o repite el
+   comando en más del 20 % de ellos. Se avisa una sola vez con un `RuntimeNotice` y queda anotada en un contador.
+
+Punto de enganche: `agent/turn.rs`, justo antes de `contenido_de_herramienta`, con el nombre y los argumentos de la llamada
+a mano (necesarios para elegir regla y leer `raw`).
