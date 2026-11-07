@@ -160,6 +160,12 @@ genérico `FlowChanged` tal cual, sin conocer ODD (regla de la spec de extracci�
 
 - Contadores en el bus (sin datos personales): documentos creados, tareas marcadas, cierres bloqueados, cierres que
   terminaron por techo de turnos, rechazos de evidencia.
+- **Garantía A2A (requisito, pedido por la persona usuaria el 2026-11-07: «A2A se respeta al máximo»):** prueba
+  automática de que un subagente local y una tarea A2A servida NO heredan el gate de cierre, el observador, el
+  contribuidor de prompt ni `odd_track` (usa el lanzador real, no solo `AgentLoop::new`), y de que ODD no emite ni
+  simula ningún estado A2A. Sustituye a la deuda «sin prueba de subagente sin gate».
+- **Rotulado de la fase:** `/odd` y la guía dicen que la fase es propia de Loom, no un estado A2A (la spec lo exige y
+  hoy solo lo dice un comentario del código).
 - `docs/INDEX.md`, `docs/CODE-MAP.md` (sección ODD), `CHANGELOG.md`; guía breve de uso en `docs/`; volcado e2e con perfil
   aislado: una petición grande crea el documento, el cierre bloquea con una tarea pendiente, la fase y la etiqueta salen
   en pantalla.

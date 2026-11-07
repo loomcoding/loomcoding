@@ -110,6 +110,52 @@ impl EntornoRecursivo {
 
 /// Lanzador con las tres herramientas de subagentes y `development_workflow` registradas, los
 /// perfiles dados y el plan de delegaciones dado. `techo` es el techo de profundidad del árbol.
+/// Herramienta que solo ve el agente principal: ningún hijo debe recibirla.
+struct SoloPadre;
+
+#[async_trait]
+impl crate::tools::Tool for SoloPadre {
+    fn name(&self) -> &str {
+        "solo_padre"
+    }
+    fn description(&self) -> &str {
+        "solo el agente principal"
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({"type":"object"})
+    }
+    fn parent_only(&self) -> bool {
+        true
+    }
+    async fn run(
+        &self,
+        _c: crate::tools::ToolCtx,
+        _i: serde_json::Value,
+        _x: CancellationToken,
+    ) -> crate::error::Result<crate::tools::ToolOutput> {
+        Ok(crate::tools::ToolOutput::ok("ok"))
+    }
+}
+
+#[tokio::test]
+async fn a_child_never_sees_a_parent_only_tool() {
+    let e = entorno_recursivo(1, &[], &[], &[]).await;
+    let (_hijo, job) = e
+        .lanzador
+        .start(
+            e.parent,
+            "h".into(),
+            "hijo".into(),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    e.jobs.wait(e.parent, &job).await.unwrap();
+    let vistas = herramientas_de(&e, "hijo");
+    assert!(!vistas.iter().any(|n| n == "solo_padre"), "{vistas:?}");
+}
+
 async fn entorno_recursivo(
     techo: u32,
     perfiles: &[(&str, &str)],
@@ -167,6 +213,7 @@ async fn entorno_recursivo_con_tope(
     tools.register(Arc::new(
         crate::tools::development_workflow::DevelopmentWorkflowTool,
     ));
+    tools.register(Arc::new(SoloPadre));
     let jobs = Arc::new(LocalJobRegistry::default());
     let lanzador = InProcessSubagentLauncher::new(
         Arc::new(RwLock::new(proveedor)),

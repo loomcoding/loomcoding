@@ -18,8 +18,10 @@ impl App {
                         .unwrap_or(self.flows_odd_enabled),
                     None => self.flows_odd_enabled,
                 };
-                self.slash_feedback =
-                    Some(format!("ODD: {} (config [odd] enabled)", estado(activo)));
+                self.slash_feedback = Some(format!(
+                    "ODD: {} (config [odd] enabled) · fase propia de Loom, no estado A2A",
+                    estado(activo)
+                ));
                 Ok(())
             }
             valor @ ("on" | "off") => {

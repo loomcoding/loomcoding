@@ -10,6 +10,7 @@ pub mod gate;
 pub mod observer;
 pub mod ops;
 pub mod phase;
+pub mod prompt;
 pub mod render;
 pub mod state;
 pub mod store;

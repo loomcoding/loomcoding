@@ -66,6 +66,10 @@ impl Tool for OddTrackTool {
     fn execution_mode(&self, _input: &Value) -> ExecutionMode {
         ExecutionMode::Exclusive
     }
+    /// Solo el agente principal gestiona el documento: los subagentes no ven `odd_track`.
+    fn parent_only(&self) -> bool {
+        true
+    }
     async fn run(
         &self,
         ctx: ToolCtx,

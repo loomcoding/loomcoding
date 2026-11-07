@@ -101,7 +101,8 @@ impl InProcessSubagentLauncher {
                     .without("subagent_list")
                     .without("artifact_read")
                     .without("development_workflow")
-                    .without("gauntlet"),
+                    .without("gauntlet")
+                    .without_parent_only(),
             ),
             permission,
             config,
@@ -162,7 +163,8 @@ impl InProcessSubagentLauncher {
                     .without("subagent_list")
                     .without("artifact_read")
                     .without("development_workflow")
-                    .without("gauntlet"),
+                    .without("gauntlet")
+                    .without_parent_only(),
             ),
             permission,
             config: Arc::new(RwLock::new(config)),

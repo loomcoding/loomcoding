@@ -316,10 +316,11 @@ pub(super) async fn build_agent(
     ))
     .with_budget(budget)
     .with_compaction(compaction)
-    // Solo el padre: los subagentes locales se construyen sin política de cierre ni observador.
+    // Solo el padre: los subagentes locales se construyen sin política de cierre, observador ni prompt.
     .with_tool_observer(Arc::new(loomcoding_workflows::OddObserver::new(
         odd.clone(),
     )))
+    .with_prompt_contributor(Arc::new(loomcoding_workflows::OddPrompt::new(odd.clone())))
     .with_close_gate(Arc::new(loomcoding_workflows::OddGate::new(odd)));
     let agent = match remote_clients {
         Some(factory) => agent.with_remote_clients(factory),

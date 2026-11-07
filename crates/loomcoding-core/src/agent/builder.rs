@@ -47,6 +47,7 @@ impl AgentLoop {
             background: background::BackgroundSlots::default(),
             close_gate: None,
             tool_observer: None,
+            prompt_contributors: Vec::new(),
             cwd,
         };
         if has_subagents {

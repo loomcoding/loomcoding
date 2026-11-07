@@ -19,7 +19,7 @@ fn odd_sin_argumento_informa_activo_si_la_config_no_lo_apaga() {
     app.odd_command("").unwrap();
     assert_eq!(
         app.slash_feedback.as_deref(),
-        Some("ODD: activo (config [odd] enabled)")
+        Some("ODD: activo (config [odd] enabled) · fase propia de Loom, no estado A2A")
     );
 }
 
@@ -29,7 +29,7 @@ fn odd_sin_argumento_informa_apagado_si_la_config_lo_apaga() {
     app.odd_command("").unwrap();
     assert_eq!(
         app.slash_feedback.as_deref(),
-        Some("ODD: apagado (config [odd] enabled)")
+        Some("ODD: apagado (config [odd] enabled) · fase propia de Loom, no estado A2A")
     );
 }
 

@@ -30,6 +30,8 @@ pub use close_gate::{
 };
 mod compaction;
 mod entry;
+mod prompt_contributor;
+pub use prompt_contributor::{PromptContributor, MAX_CONTRIBUTED_SECTION_BYTES};
 mod handoff;
 mod kill;
 pub use kill::KillReport;
@@ -203,6 +205,9 @@ pub struct AgentLoop {
     /// Observador de herramientas (véase `tool_observer`). `None` no publica nada. Solo lo tiene el
     /// agente al que se le configura: los subagentes locales se construyen sin él.
     tool_observer: Option<Arc<dyn ToolObserver>>,
+    /// Contribuidores de la sección de prompt (véase `prompt_contributor`). Vacío no añade nada. Solo
+    /// los tiene el agente al que se le configura: los subagentes locales se construyen sin ellos.
+    prompt_contributors: Vec<Arc<dyn PromptContributor>>,
 }
 
 #[cfg(test)]
