@@ -2,6 +2,7 @@
 
 mod disco;
 mod evidencia;
+mod gate;
 
 use crate::odd::FeatureDoc;
 use loomcoding_core::event::EventBus;

@@ -74,6 +74,8 @@ impl AgentLoop {
         let mut provider_state_bytes_this_turn = 0usize;
         // Respuestas seguidas cortadas por el tope de salida.
         let mut length_cuts = 0usize;
+        // Reinyecciones de la política de cierre en este turno (véase `close_gate`).
+        let mut reinyecciones = 0u32;
 
         loop {
             if cancel.is_cancelled() {
@@ -680,6 +682,15 @@ impl AgentLoop {
             length_cuts = 0;
 
             if tool_calls.is_empty() {
+                // Política de cierre: puede devolver el control al modelo con un mensaje interno.
+                if let Some(mensaje) = self
+                    .consultar_cierre(session, reinyecciones, &cancel)
+                    .await?
+                {
+                    reinyecciones += 1;
+                    history.push(mensaje);
+                    continue;
+                }
                 break;
             }
             if let Some(state) = provider_state {

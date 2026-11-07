@@ -19,6 +19,7 @@ mod support;
 use support::*;
 mod background_summary;
 mod budget;
+mod close_gate;
 mod compaction;
 mod compaction_in_turn;
 mod delegation;

@@ -1,20 +1,38 @@
-//! Estado compartido de ODD: la feature activa por sesión y el cerrojo de E/S de los documentos.
+//! Estado compartido de ODD: la feature activa por sesión, las tareas pendientes vistas en la última
+//! reinyección del cierre, el interruptor y el cerrojo de E/S de los documentos.
 
 use loomcoding_core::session::SessionId;
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-/// Tope de sesiones recordadas en memoria. Cada entrada es una cadena corta; el tope evita que
-/// un proceso de muchas sesiones crezca sin límite (decálogo de contexto y coste).
+/// Tope de sesiones recordadas en memoria. Cada entrada es una cadena corta o una lista acotada de
+/// identificadores; el tope evita que un proceso de muchas sesiones crezca sin límite (decálogo de
+/// contexto y coste).
 pub const MAX_SESIONES_RECORDADAS: usize = 256;
 
-#[derive(Default)]
 struct Interno {
     activas: Mutex<BTreeMap<SessionId, String>>,
+    /// Identificadores pendientes vistos en la última reinyección de cada sesión. Si el cierre
+    /// vuelve a ver exactamente los mismos, el modelo no avanzó y no se insiste.
+    pendientes: Mutex<BTreeMap<SessionId, Vec<String>>>,
+    habilitado: AtomicBool,
     io: Mutex<()>,
 }
 
-/// Estado de ODD que comparten la herramienta y, en la tarea 3, el cierre del turno.
+impl Default for Interno {
+    fn default() -> Self {
+        Self {
+            activas: Mutex::new(BTreeMap::new()),
+            pendientes: Mutex::new(BTreeMap::new()),
+            // ODD viene activo; el interruptor solo lo apaga.
+            habilitado: AtomicBool::new(true),
+            io: Mutex::new(()),
+        }
+    }
+}
+
+/// Estado de ODD que comparten la herramienta y la política de cierre.
 ///
 /// Es un manejador barato de clonar: todos los clones ven el mismo estado.
 #[derive(Clone, Default)]
@@ -27,25 +45,40 @@ impl OddState {
         Self::default()
     }
 
-    /// Última feature tocada por la sesión, si la hay.
-    ///
-    // NOTA (tarea 3): este mapa vive solo en memoria. Si la feature activa debe sobrevivir a un
-    // reinicio, la persistencia la decide la tarea 3; aquí no se guarda nada en disco.
+    /// Enciende o apaga ODD. Apagado, la política de cierre nunca bloquea el turno.
+    pub fn set_enabled(&self, habilitado: bool) {
+        self.interno.habilitado.store(habilitado, Ordering::SeqCst);
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.interno.habilitado.load(Ordering::SeqCst)
+    }
+
+    /// Última feature tocada por la sesión en esta memoria, si la hay. No mira el historial: quien
+    /// necesite recuperarla tras un reinicio lo hace con el historial de la sesión (véase `gate`).
     pub fn active_feature(&self, sesion: SessionId) -> Option<String> {
         self.activas().get(&sesion).cloned()
     }
 
     /// Anota la feature tocada por la sesión, desalojando una entrada si se supera el tope.
     pub(crate) fn recordar(&self, sesion: SessionId, feature: &str) {
-        let mut activas = self.activas();
-        if !activas.contains_key(&sesion) && activas.len() >= MAX_SESIONES_RECORDADAS {
-            // Se desaloja la sesión con el identificador más bajo, que es la más antigua: los
-            // identificadores de sesión crecen con el tiempo.
-            if let Some(desalojada) = activas.keys().next().copied() {
-                activas.remove(&desalojada);
-            }
-        }
-        activas.insert(sesion, feature.to_string());
+        insertar_acotado(&mut self.activas(), sesion, feature.to_string());
+    }
+
+    /// Identificadores pendientes de la última reinyección de la sesión, si la hubo.
+    pub(crate) fn pendientes_de(&self, sesion: SessionId) -> Option<Vec<String>> {
+        self.pendientes().get(&sesion).cloned()
+    }
+
+    /// Anota los pendientes de una reinyección. Quien llama acota la lista: el documento tiene como
+    /// mucho `MAX_TASKS` tareas.
+    pub(crate) fn recordar_pendientes(&self, sesion: SessionId, ids: Vec<String>) {
+        insertar_acotado(&mut self.pendientes(), sesion, ids);
+    }
+
+    /// Olvida los pendientes: el siguiente cierre empieza de cero.
+    pub(crate) fn olvidar_pendientes(&self, sesion: SessionId) {
+        self.pendientes().remove(&sesion);
     }
 
     /// Cerrojo que serializa las lecturas y escrituras de documentos dentro del proceso.
@@ -59,4 +92,22 @@ impl OddState {
             .lock()
             .unwrap_or_else(|e| e.into_inner())
     }
+
+    fn pendientes(&self) -> MutexGuard<'_, BTreeMap<SessionId, Vec<String>>> {
+        self.interno
+            .pendientes
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// Inserta `valor` para `sesion`. Si la sesión es nueva y el mapa está lleno, desaloja la de
+/// identificador más bajo, que es la más antigua: los identificadores de sesión crecen con el tiempo.
+fn insertar_acotado<V>(mapa: &mut BTreeMap<SessionId, V>, sesion: SessionId, valor: V) {
+    if !mapa.contains_key(&sesion) && mapa.len() >= MAX_SESIONES_RECORDADAS {
+        if let Some(desalojada) = mapa.keys().next().copied() {
+            mapa.remove(&desalojada);
+        }
+    }
+    mapa.insert(sesion, valor);
 }

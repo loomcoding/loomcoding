@@ -234,11 +234,13 @@ fn apply_provider_settings(
     Ok((candidate, configured))
 }
 
-fn build_project_tools(project_env: HashMap<String, String>) -> ToolRegistry {
+/// Registro de herramientas del proyecto y el estado de ODD que comparte con su política de cierre.
+fn build_project_tools(
+    project_env: HashMap<String, String>,
+) -> (ToolRegistry, loomcoding_workflows::OddState) {
     let mut tools = loomcoding_core::tools::project_registry(project_env);
-    // El estado de ODD (feature activa por sesión) se guardará en la sesión en la tarea 3.
-    let _odd = loomcoding_workflows::register(&mut tools);
-    tools
+    let odd = loomcoding_workflows::register(&mut tools);
+    (tools, odd)
 }
 
 #[tokio::main]

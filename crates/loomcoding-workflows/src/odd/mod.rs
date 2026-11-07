@@ -6,6 +6,7 @@
 
 pub mod doc;
 pub mod evidence;
+pub mod gate;
 pub mod ops;
 pub mod render;
 pub mod state;

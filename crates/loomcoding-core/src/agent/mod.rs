@@ -23,6 +23,11 @@ use std::sync::{Arc, RwLock};
 use tokio_util::sync::CancellationToken;
 
 mod builder;
+mod close_gate;
+pub use close_gate::{
+    consult, CloseDecision, CloseGateCtx, TurnCloseGate, CLOSE_GATE_TIMEOUT,
+    MAX_CLOSE_MESSAGE_BYTES, MAX_CLOSE_REINJECTIONS,
+};
 mod compaction;
 mod entry;
 mod handoff;
@@ -190,6 +195,9 @@ pub struct AgentLoop {
     /// Estado por sesión de la compactación en segundo plano. Es privado: los subagentes no lo
     /// comparten.
     background: background::BackgroundSlots,
+    /// Política de cierre del turno (véase `close_gate`). `None` cierra como siempre. Solo la tiene
+    /// el agente al que se le configura: los subagentes locales se construyen sin ella.
+    close_gate: Option<Arc<dyn TurnCloseGate>>,
 }
 
 #[cfg(test)]

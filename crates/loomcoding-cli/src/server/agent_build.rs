@@ -221,7 +221,7 @@ pub(super) async fn build_agent(
         crate::sondeo_local::Publicador::new(catalog_tx, catalog.clone(), declared, Vec::new());
     tokio::spawn(crate::load_catalog(publicador));
     let project_tool_env = crate::shell_env(&project_env);
-    let tools = crate::build_project_tools(project_tool_env);
+    let (tools, odd) = crate::build_project_tools(project_tool_env);
     let mcp_config_path = data_dir.join("mcp.toml");
     let (mcp_config, mcp_servers, mcp_tools) =
         match loomcoding_mcp::McpConfig::load(&mcp_config_path) {
@@ -312,7 +312,9 @@ pub(super) async fn build_agent(
         data_dir.join("tool-output"),
     ))
     .with_budget(budget)
-    .with_compaction(compaction);
+    .with_compaction(compaction)
+    // Solo el padre: los subagentes locales se construyen sin política de cierre.
+    .with_close_gate(Arc::new(loomcoding_workflows::OddGate::new(odd)));
     let agent = match remote_clients {
         Some(factory) => agent.with_remote_clients(factory),
         None => agent,

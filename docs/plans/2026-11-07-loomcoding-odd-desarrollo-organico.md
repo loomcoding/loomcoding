@@ -78,14 +78,22 @@ si hace falta, un acceso genérico al historial de la sesión para comprobar la 
 al cerrar el turno del padre; devuelve cerrar o reinyectar un texto) cableado en `agent/settle.rs` y `agent/turn.rs`;
 en `loomcoding-workflows`, `src/odd/gate.rs` (`fn closing_gate(doc: Option<&FeatureDoc>, state: &GateState) ->
 GateDecision`) que lo implementa.
-- Si hay tareas pendientes, el cierre devuelve el control al modelo con la lista de pendientes. **Reutiliza** el
-  presupuesto de turnos automáticos (`MAX_AUTO_TURNS` en la TUI, `MAX_WAKE_TURNS` sin ella): al agotarse, avisa una vez y
-  cierra. Se levanta con la cancelación del usuario o con un resultado «Necesita tu decisión» (marca de bloqueo en el
-  documento).
-- Un documento ilegible o ausente **no bloquea** (se avisa y se cierra).
-- [ ] Pruebas: pendiente → no cierra y reinyecta la lista; sin pendientes → cierra; presupuesto agotado → avisa y cierra;
-  cancelación gana; documento roto → no bloquea; todo `Blocked` con motivo → cierra con «Necesita tu decisión»; `--print`
-  respeta `MAX_WAKE_TURNS`.
+- Si hay tareas pendientes, el cierre devuelve el control al modelo con la lista de pendientes. **Hecho (2026-11-07),
+  con una desviación del texto original:** no reutiliza el presupuesto de turnos automáticos; el tope es **3
+  reinyecciones por turno** (`MAX_CLOSE_REINJECTIONS`, local a `run_turn`, y cada una cuenta contra `max_steps`) y,
+  además, **no se insiste si el conjunto de tareas pendientes no ha cambiado** desde la reinyección anterior («sin
+  progreso»). Se levanta con la cancelación (que gana siempre), con un plazo de 2 s de la consulta, con un pánico de la
+  política, o con «Necesita tu decisión» (todas las no hechas bloqueadas con motivo). Sirve a la TUI y a `--print`
+  porque ambos construyen el padre en `agent_build::build_agent`.
+- Un documento ilegible o ausente **no bloquea** (se avisa y se cierra). La feature de una sesión retomada se recupera de
+  las últimas 200 mensajes (la última llamada `odd_track`); si no aparece, no bloquea.
+- Riesgo conocido: tras un reinicio, con tareas pendientes de una feature anterior, el primer turno del usuario recibe
+  una reinyección aunque la petición no tenga relación con ella. A medir en la T8.
+- Sin prueba automatizada de que un subagente no hereda la política (la garantía es estructural: `AgentLoop::new` deja
+  `close_gate` a `None`); se cubre en la integración de la T8.
+- [x] Pruebas: pendiente → reinyecta la lista; sin pendientes → cierra; tope de 3 aunque la política insista;
+  cancelación gana; documento roto → no bloquea; todo `Blocked` → «Necesita tu decisión»; sin progreso → cierra;
+  plazo y pánico → cierra.
 
 ## Tarea 4 — Fase inferida de las herramientas
 
