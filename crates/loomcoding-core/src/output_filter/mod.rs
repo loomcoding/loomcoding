@@ -8,8 +8,15 @@
 mod cargo;
 #[cfg(test)]
 mod cargo_tests;
+mod comando_simple;
 mod general;
+mod git;
+#[cfg(test)]
+mod git_tests;
 mod header;
+mod packages;
+#[cfg(test)]
+mod packages_tests;
 #[cfg(test)]
 mod tests;
 
@@ -25,7 +32,13 @@ use std::time::{Duration, Instant};
 pub const MAX_FILTER_INPUT_BYTES: usize = 2 * 1024 * 1024;
 
 /// Tiempo máximo de un filtro; si lo supera, la salida pasa sin filtrar (R8).
+#[cfg(not(test))]
 pub const MAX_FILTER_TIME: Duration = Duration::from_millis(50);
+
+/// En las pruebas el reloj no manda: una compilación de depuración con la máquina cargada superaría
+/// los 50 ms y volvería intermitentes las pruebas de las reglas. El límite por tamaño sí se prueba.
+#[cfg(test)]
+pub const MAX_FILTER_TIME: Duration = Duration::from_secs(30);
 
 /// Variable de entorno que apaga el filtro en todo el proceso (R10).
 pub const ENV_DESACTIVA: &str = "LOOMCODING_NO_FILTER";
@@ -175,7 +188,21 @@ pub fn apply(
     }
 }
 
-/// Aplica las reglas generales y, si el comando es de `cargo`, también su regla (R3). Devuelve el
+/// Regla por comando: nombre, decisión sobre el comando y compactación de la salida.
+type Regla = (
+    &'static str,
+    fn(&str) -> bool,
+    fn(&str) -> Option<general::Compactado>,
+);
+
+/// Reglas por comando, en orden de prioridad (R3, R6).
+const REGLAS: [Regla; 3] = [
+    ("cargo", cargo::aplica, cargo::compactar),
+    ("git", git::aplica, git::compactar),
+    ("packages", packages::aplica, packages::compactar),
+];
+
+/// Aplica las reglas generales y, si el comando tiene regla propia, también esa (R3). Devuelve el
 /// texto compactado con las líneas omitidas y el nombre de la regla que lo ha hecho.
 fn compactar_con_reglas(
     texto: &str,
@@ -190,13 +217,16 @@ fn compactar_con_reglas(
     } else {
         None
     };
-    if comando.is_some_and(cargo::aplica) {
-        if let Some(especifico) = cargo::compactar(sobre) {
+    // La primera regla que reconoce el ejecutable y el subcomando decide. Si no encuentra nada que
+    // compactar, pasan solo las generales (R6).
+    let regla = comando.and_then(|comando| REGLAS.iter().find(|regla| (regla.1)(comando)));
+    if let Some(&(nombre, _, compactar)) = regla {
+        if let Some(especifico) = compactar(sobre) {
             let compactado = general::Compactado {
                 texto: especifico.texto,
                 omitidas: omitidas_generales + especifico.omitidas,
             };
-            return Some((compactado, "cargo"));
+            return Some((compactado, nombre));
         }
     }
     generales.map(|g| (g, "general"))

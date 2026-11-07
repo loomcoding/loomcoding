@@ -4,6 +4,7 @@
 //! reconoce se queda. Si el formato no es el inglés de siempre, o el comando encadena o redirige,
 //! no hay regla y la salida pasa sin tocar.
 
+use super::comando_simple;
 use super::general::{es_senal, Compactado};
 
 /// Subcomandos de `cargo` a los que se aplica la regla.
@@ -24,19 +25,13 @@ const RECONOCIDAS: [&str; 8] = [
     "running ",
 ];
 
-/// Caracteres que encadenan, redirigen o sustituyen comandos. Ante cualquiera, no hay regla.
-const ENCADENAMIENTO: [char; 9] = ['|', '&', ';', '\n', '`', '$', '>', '<', '('];
-
 /// Decide si el comando es `cargo test|build|check|clippy` como primer ejecutable, sin tuberías, `&&`
 /// ni redirecciones. La redirección `2>&1` se tolera, porque no encadena nada.
 pub fn aplica(comando: &str) -> bool {
-    let limpio = comando.replace("2>&1", "");
-    if limpio.contains(|c| ENCADENAMIENTO.contains(&c)) {
-        return false;
-    }
-    let mut tokens = limpio.split_whitespace();
-    tokens.next() == Some("cargo")
-        && matches!(tokens.next(), Some(sub) if SUBCOMANDOS.contains(&sub))
+    matches!(
+        comando_simple::tokens(comando).as_deref(),
+        Some(["cargo", sub, ..]) if SUBCOMANDOS.contains(sub)
+    )
 }
 
 /// Compacta la salida de `cargo` aplicando la lista de ruido. Devuelve `None` si el formato no se

@@ -1,0 +1,382 @@
+commit 4978180d9c4006fad8c0b97b36ecb8f24e6a9e59
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 22:38:16 2026 +0100
+
+    feat(compresion): regla de cargo para test, build, check y clippy
+    
+    Cabe señalar que la lista blanca jamás descarta una línea con señal de fallo
+    y que las capturas reales de las pruebas van anonimizadas.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 8652d5581eaf67532e9d001969b38f19949695ce
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 18:46:09 2026 +0100
+
+    feat(compresion): capa base del filtro de salida (reglas generales, cabecera y original)
+    
+    Cabe señalar que el filtro nace apagado, solo afecta a bash y job_output,
+    y jamás omite nada si el original no puede conservarse.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit a04dc7ec231299124468bf9a9c770ed2898b68a8
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 18:03:39 2026 +0100
+
+    docs(compresion): decisiones de la persona usuaria en la spec
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit d6144af4ad1bdc82fcccae8e29678a50dfe7f6f7
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 18:03:28 2026 +0100
+
+    docs(compresion): preguntas resueltas y plan de cinco tareas
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 24c52136cf759ab0fd345aea9feae21d85dda469
+Merge: faf35a2 776f14e
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 15:01:59 2026 +0100
+
+    merge: desarrollo orgánico (ODD) como modo ligero activo por defecto
+
+commit 776f14ebc95f345c8b4931ebc6fecaff60baaab9
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 15:01:54 2026 +0100
+
+    refactor(odd): la interfaz y el núcleo dejan de nombrar ODD; modos de flujo genéricos
+    
+    FlowSummary gana persistent (un modo permanente vuelve a su etiqueta base al acabar el
+    turno), la configuración pasa de [odd] a [flows.<kind>] genérico y /odd se convierte en
+    /flow. El CLI compone la lista de modos desde loomcoding-workflows, de modo que el
+    grep de ODD en core y tui da cero. Docs y guía actualizadas.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 28114622f42bff0a0dc239b5d6bd86d5a5241e2d
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 14:34:57 2026 +0100
+
+    docs(odd): guía, mapa, invariantes y e2e con perfil aislado
+    
+    Guía docs/odd.md, sección de ODD en CODE-MAP, ARCHITECTURE e INVARIANTS (el núcleo no
+    nombra flujos salvo el interruptor [odd]; un hijo no hereda nada), CHANGELOG, estado de
+    las cinco preguntas abiertas de la spec y volcado real de la TUI (tui_pty_odd) con
+    LOOMCODING_HOME temporal.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit ec4c6c6ab687c6bd194600e420a63c0523aed0b1
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 14:20:27 2026 +0100
+
+    feat(odd): garantía A2A de no herencia, contadores de medición y evidencia con ventana acotada
+    
+    Un subagente lanzado por el lanzador real no hereda cierre, observador, sección de
+    prompt ni herramientas del padre, y solo recorre estados A2A existentes. Los
+    contadores de ODD no llevan datos personales y salen por tracing. La comprobación
+    de evidencia deja de leer el historial entero y mira los 500 mensajes recientes.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 95788d76c6cd8c51f594e893b7440d371d828618
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 13:59:58 2026 +0100
+
+    feat(odd): la lista de tareas de la TUI es proyección del documento y la cabecera muestra el avance
+    
+    odd_track republica TodosChanged tras cada operación que modifica el documento y
+    la etiqueta de fase pasa a llevar (hechas/total). Las tareas bloqueadas salen
+    pendientes con su motivo; no se inventa un estado en curso.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 157a1445c45696daa6d85c65d6a43532d8b9946d
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 13:35:51 2026 +0100
+
+    feat(odd): sección de prompt para el padre y herramientas solo del agente principal
+    
+    Puntos de extensión genéricos en el núcleo: PromptContributor (acotado, con pánico
+    aislado, texto estable para no romper la caché) y Tool::parent_only, que el
+    lanzador de subagentes aplica para no ofrecer odd_track a los hijos. El plan anota
+    la garantía A2A y el rotulado de la fase como requisitos de la tarea 8, y /odd
+    aclara que la fase es propia de Loom y no un estado A2A.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 3b1c2e9f74c85ef387dc5adec23d793f77782c40
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 13:15:00 2026 +0100
+
+    feat(odd): el modo y el flujo activo se ven en la cabecera, con [odd] enabled y /odd
+    
+    La interfaz pinta la etiqueta de FlowChanged sin conocer ODD; gauntlet y
+    development_workflow componen la suya desde sus eventos de siempre y mandan
+    sobre la de ODD. El interruptor [odd] enabled se lee al arrancar el daemon y
+    /odd lo informa o lo guarda en la configuración del proyecto.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit d2c8fad5ce3934e21169061d3dbb7934b3ee6de4
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 12:46:47 2026 +0100
+
+    feat(odd): la fase se infiere de las herramientas y se publica como FlowChanged
+    
+    Punto de extensión genérico ToolObserver en el núcleo (solo el padre, con plazo y
+    pánico aislado) y evento LiveEvent::FlowChanged con FlowSummary; el observador de
+    ODD vive en loomcoding-workflows y publica únicamente cuando la fase cambia.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit d3dbdb643d4e46d8567378da5df5a46bc7cb035c
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 12:27:29 2026 +0100
+
+    docs(odd): desviaciones detectadas al revisar la tarea 4 del plan
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 07ca4678323d91b7d916c695dc3adeb3597ce960
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 07:43:15 2026 +0100
+
+    feat(odd): el cierre del turno se bloquea mientras queden tareas pendientes
+    
+    Cabe señalar que el núcleo gana un punto de extensión genérico, la política
+    de cierre de turno, que no nombra ningún flujo: se consulta cuando el modelo
+    responde sin pedir herramientas, con tope de tres reinyecciones por turno,
+    plazo de dos segundos, aislamiento de pánicos y victoria de la cancelación.
+    El crate de flujos la implementa con el documento de feature: devuelve el
+    control con la lista de pendientes, no insiste si no hay progreso, cierra
+    con «Necesita tu decisión» si todo está bloqueado y, ante cualquier duda
+    (documento roto, ausente, interruptor apagado), cierra. Solo el padre la
+    lleva; los subagentes no la heredan.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 777ba86f17956b83a903927b309d6069a1faa6c7
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 01:11:20 2026 +0100
+
+    feat(workflows): la herramienta `odd_track` con evidencia comprobada
+    
+    Cabe señalar que la herramienta crea, lee y actualiza el documento de
+    feature dentro de `.loomcoding/odd/`, con nombres validados y escritura
+    atómica, y que marcar una casilla exige citar una llamada real de `bash`,
+    `job_start` o `job_output` de la propia sesión. El runtime comprueba que la
+    llamada existe, no que el texto sea cierto. Los textos que contengan los
+    separadores del formato se rechazan. El binario la registra al componer las
+    herramientas; el núcleo permanece intacto.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 32fad188665278a3010ce5643c948f5823840854
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 00:56:27 2026 +0100
+
+    feat(workflows): crate nuevo con el documento de feature de ODD
+    
+    Dícese del crate `loomcoding-workflows`, que alberga los flujos sin que el
+    núcleo los nombre, y de su primer inquilino: el documento de feature del
+    desarrollo orgánico. Cabe señalar que el formato Markdown admite ida y
+    vuelta, que toda entrada está acotada (32 KiB, 60 tareas, 300 bytes por
+    texto, 500 de evidencia, 100 líneas de registro) y que un documento roto
+    produce un error y jamás un pánico. Se ajusta el plan para ubicar ODD fuera
+    del núcleo, con tres puntos de extensión genéricos.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit faf35a2fe67846c559b5f7bbe20047f45e214a4b
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 00:40:55 2026 +0100
+
+    docs(odd): plan de ocho tareas y decisiones de la persona usuaria
+    
+    Cabe señalar que el desarrollo orgánico queda activo por defecto, con
+    interruptor, y que el modo o flujo en curso deberá reflejarse en la
+    cabecera, tarea propia que alcanza también al flujo pesado y al Gauntlet.
+    Se fija, con carácter provisional, la evidencia exigible a una casilla:
+    una cita breve y una llamada de herramienta que exista en el historial.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 896e83d342b3ad94037e2b889c56df83bd7b2586
+Merge: 75fb8c6 6a50e56
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 00:24:10 2026 +0100
+
+    merge: vigilancia de jobs en segundo plano (job-watch)
+    
+    # Conflicts:
+    #       docs/INDEX.md
+
+commit 6a50e56f17362d10c80955506318aa549e81d69e
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 00:20:06 2026 +0100
+
+    feat(watch): la vigilancia de jobs se ve en el rail y en el transcript
+    
+    Cabe señalar que la sección de jobs del rail y la actividad del job en el
+    transcript muestran ahora «watching: N alerts», con las suprimidas y el
+    límite alcanzado, como dato propio de Loomcoding y no como estado A2A.
+    `job_watch` pasa a contarse entre las herramientas de escritura del corte
+    por repetición. Un volcado e2e con perfil aislado destapó un defecto real:
+    un job ya asentado mostraba cero avisos tras entregar su lote; se corrige
+    republicando `JobChanged` al entregarlo. Se documentan el mapa del código,
+    el registro de cambios y el índice.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 75fb8c60846cb6d20140ab16e03d1b923857a2e3
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Sat Nov 7 00:14:28 2026 +0100
+
+    docs(odd): spec del desarrollo orgánico como modo ligero por defecto
+    
+    Dícese del flujo que, inspirado en el de `gentle-shell`, clasifica el
+    trabajo por la prueba del resumen, abre un documento de feature solo para
+    lo grande y exige evidencia en cada casilla. Cabe señalar que el cierre
+    bloqueante lo impone el runtime, con techo de turnos, y que las fases son
+    etiquetas propias y no estados A2A. El flujo pesado se conserva intacto.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 836c70122acbf9723ef68e155ea72a4e28371db7
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 23:55:51 2026 +0100
+
+    docs(modelo-local): spec del experimento de tarjetas y verificación objetiva
+    
+    Cabe señalar que se plantea, con la debida sobriedad, cómo repartir el
+    trabajo para un modelo local: un modelo fuerte descompone el plan en
+    tarjetas, el local las ejecuta y un `check` objetivo decide. Se fijan tres
+    hipótesis refutables, cuatro brazos, la exigencia de tareas fuera del techo
+    y un criterio de adopción declarado antes de correr nada.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 7f1ae1a12bbc6aeef633d8ca5eae34c2354fe80a
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 22:26:39 2026 +0100
+
+    docs(compresion): spec de la compresión de la salida de las herramientas
+    
+    Cabe señalar que se deja por escrito, con singular énfasis, el apartado
+    «Ojo con lo que perdemos»: ocho riesgos de que un filtro esconda la línea
+    decisiva y diez reglas ineludibles (cabecera obligatoria, original
+    recuperable, lista blanca de señal, menos filtro ante un fallo, prueba de
+    propiedad sobre las marcas de error y medición antes de activarla).
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 81ba5779a36606f3bd2a920ef8cc7cfa410b41db
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 22:08:52 2026 +0100
+
+    feat(watch): un lote de vigilancia listo despierta al padre ocioso
+    
+    Dícese del evento `JobWatchReady` que `track_job` publica, con un pulso de
+    cinco segundos y de nuevo al asentarse el job, cuando la vigilancia tiene un
+    lote entregable. La interfaz lo trata como una causa más de despertar bajo
+    el mismo presupuesto de turnos automáticos que los hijos, y el bucle sin
+    interfaz (`run_until_settled`) lo cuenta contra `MAX_WAKE_TURNS`. El método
+    `watch_ready` consulta sin consumir, con el mismo criterio que `drain`.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 0f6435cc8a0ddce7db7339e17c0fcf0a4e2732ef
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 21:51:43 2026 +0100
+
+    feat(core): los avisos de vigilancia llegan a la conversación
+    
+    Dícese del mensaje `[Job N watch] línea…` que `flush_subagent_notices`
+    persiste y publica por el mismo camino que los avisos de fin de job, con el
+    recuento de líneas suprimidas y la marca de límite alcanzado. Se corrige
+    además una pérdida: las líneas pendientes de un job ya asentado quedaban
+    retenidas por el intervalo de cinco segundos y no salían nunca. La TUI
+    reconoce el nuevo aviso y lo pinta como línea de sistema sin que eclipse
+    el aviso final del job.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 14212506ff0718bf085b4f12062966e3fdf802a4
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 21:35:43 2026 +0100
+
+    feat(core): vigilancia de jobs en segundo plano con `watch` y `job_watch`
+    
+    Cabe señalar que un job puede ahora declarar un patrón (`job_start` con
+    `watch`) o recibirlo después (`job_watch`), de modo que sus líneas de
+    salida que casen se acumulan en una cola acotada: línea de 512 bytes, resto
+    sin salto de 4 KiB, lotes de diez líneas cada cinco segundos, tope de
+    avisos por job. La entrega a la conversación y el despertar del padre
+    quedan para las tareas siguientes. De paso, la salida de `job_start` ya no
+    parte caracteres UTF-8 entre dos lecturas.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 898ac2edf9c6f661182105555ea1eee747fe330e
+Merge: 2887fd0 9c1fc11
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 21:02:33 2026 +0100
+
+    merge: carril del transcript configurable (seis estilos)
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+    
+    # Conflicts:
+    #       docs/INDEX.md
+
+commit 9c1fc11080808010ebbff3396b9ce56f7dbf033a
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 21:02:15 2026 +0100
+
+    docs(carril): escenario e2e de los seis estilos, volcados y mapa del código
+    
+    Cabe señalar que un escenario en terminal real arranca la TUI con cada
+    valor de `rail` y verifica que solo `box` dibuja la caja; los volcados
+    quedan en `docs/mockups/carril-e2e.md`. Se actualizan el mapa del código,
+    el registro de cambios, la guía del e2e visual y el estado del plan.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 35aebb06c253f34e08999b7e50902964857dc7c8
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 20:53:09 2026 +0100
+
+    feat(tui): el estilo de carril `box` encierra el mensaje del usuario en una caja
+    
+    Dícese de la caja redonda fina, a la manera de MastraCode, que envuelve
+    únicamente los mensajes del usuario: el borde superior reutiliza la fila
+    de la etiqueta, una fila adicional hace de borde inferior y se reservan dos
+    columnas a la derecha. El resto de bloques va sin trazo. El layout de
+    `loomcoding-cloth` aprende a medir esa fila y a invalidar su caché.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 2887fd03e2cb8bd55e0a643c61d7a4b15a187675
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 20:38:46 2026 +0100
+
+    docs(jobs): decisiones del usuario, despertar por defecto y job_watch en la primera versión
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+
+commit 57081f9d98bea0dae30dfd644e77588ec401d1e2
+Author: Autor Ejemplo <autor@example.invalid>
+Date:   Fri Nov 6 20:36:39 2026 +0100
+
+    docs(jobs): spec y plan de la vigilancia de jobs en segundo plano
+    
+    Cabe señalar que se propone el parámetro `watch` de `job_start`, que
+    avisa a la conversación, con cotas estrictas y despertar del padre, cuando
+    una línea de la salida de un job en marcha casa con un patrón. Se descarta
+    expresamente un planificador de grafos de tareas.
+    
+    Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>

@@ -1,0 +1,59 @@
+On branch compresion
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	modified:   docs/plans/2026-11-07-loomcoding-compresion-de-salida.md
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   docs/specs/2026-11-06-loomcoding-compresion-de-salida.md
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	crates/loomcoding-core/src/output_filter/fixtures/git_diff_color.txt
+	crates/loomcoding-core/src/output_filter/fixtures/git_log_30.txt
+	crates/loomcoding-core/src/output_filter/fixtures/git_status_muchos_ficheros.txt
+	crates/loomcoding-core/src/output_filter/fixtures/npm_install_deprecaciones.txt
+	crates/loomcoding-core/src/output_filter/fixtures/npm_install_repetido.txt
+	crates/loomcoding-core/src/output_filter/fixtures/pnpm_install_progreso.txt
+	zz-captura/grupo-01/fichero-01.txt
+	zz-captura/grupo-02/fichero-02.txt
+	zz-captura/grupo-03/fichero-03.txt
+	zz-captura/grupo-04/fichero-04.txt
+	zz-captura/grupo-05/fichero-05.txt
+	zz-captura/grupo-06/fichero-06.txt
+	zz-captura/grupo-07/fichero-07.txt
+	zz-captura/grupo-08/fichero-08.txt
+	zz-captura/grupo-09/fichero-09.txt
+	zz-captura/grupo-10/fichero-10.txt
+	zz-captura/grupo-11/fichero-11.txt
+	zz-captura/grupo-12/fichero-12.txt
+	zz-captura/grupo-13/fichero-13.txt
+	zz-captura/grupo-14/fichero-14.txt
+	zz-captura/grupo-15/fichero-15.txt
+	zz-captura/grupo-16/fichero-16.txt
+	zz-captura/grupo-17/fichero-17.txt
+	zz-captura/grupo-18/fichero-18.txt
+	zz-captura/grupo-19/fichero-19.txt
+	zz-captura/grupo-20/fichero-20.txt
+	zz-captura/grupo-21/fichero-21.txt
+	zz-captura/grupo-22/fichero-22.txt
+	zz-captura/grupo-23/fichero-23.txt
+	zz-captura/grupo-24/fichero-24.txt
+	zz-captura/grupo-25/fichero-25.txt
+	zz-captura/grupo-26/fichero-26.txt
+	zz-captura/grupo-27/fichero-27.txt
+	zz-captura/grupo-28/fichero-28.txt
+	zz-captura/grupo-29/fichero-29.txt
+	zz-captura/grupo-30/fichero-30.txt
+	zz-captura/grupo-31/fichero-31.txt
+	zz-captura/grupo-32/fichero-32.txt
+	zz-captura/grupo-33/fichero-33.txt
+	zz-captura/grupo-34/fichero-34.txt
+	zz-captura/grupo-35/fichero-35.txt
+	zz-captura/grupo-36/fichero-36.txt
+	zz-captura/grupo-37/fichero-37.txt
+	zz-captura/grupo-38/fichero-38.txt
+	zz-captura/grupo-39/fichero-39.txt
+	zz-captura/grupo-40/fichero-40.txt
+
