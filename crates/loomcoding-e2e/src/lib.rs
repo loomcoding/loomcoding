@@ -7,8 +7,10 @@ pub mod term;
 
 pub use daemon::kill_daemons_of;
 pub use mock::{
-    mock_provider, mock_provider_child_asks, mock_provider_empty_subagent, mock_provider_odd,
-    mock_provider_watch, Workspace, ODD_CIERRE_FINAL, ODD_ID_BASH, ODD_INTENTO_DE_CIERRE,
+    mock_provider, mock_provider_child_asks, mock_provider_compresion,
+    mock_provider_empty_subagent, mock_provider_odd, mock_provider_watch, Workspace,
+    COMPRESION_COMANDO, COMPRESION_FINAL, COMPRESION_ID_BASH, ODD_CIERRE_FINAL, ODD_ID_BASH,
+    ODD_INTENTO_DE_CIERRE,
 };
 pub use snapshot::{CellSnap, ColorSnap, Snapshot};
 pub use term::{cpr_reply, paste_bytes, Key, Term, TermConfig, WaitError};

@@ -45,6 +45,9 @@ cargo test -p loomcoding-cli --test tui_pty
 - Carril del transcript: `crates/loomcoding-cli/tests/tui_pty_carril.rs` arranca la TUI con cada valor de `rail` en la
   disposición `minimal` (sin paneles laterales, cuyos marcos falsearían las aserciones de glifos) y comprueba que `box` dibuja
   `╭╮╰╯` y que el resto no. Volcados en `docs/mockups/carril-e2e.md`.
+- Compresión y registro: `crates/loomcoding-cli/tests/tui_pty_compresion.rs` (`bash` ruidoso con `enabled = true` y
+  `RUST_LOG=output_filter=info`: cabecera en el modelo y en el transcript, original en disco y línea en el registro del
+  daemon; sin `enabled` no hay nada). Volcados en `docs/mockups/compresion-e2e.md`.
 - Para añadir un escenario: `Session::start(respuesta, filas, columnas)`, `s.expect(READY, BOOT)`,
   `s.term.send_text / press / paste`, y `s.expect(texto, TURN)` o `s.expect_line(...)`.
 

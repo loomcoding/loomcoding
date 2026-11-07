@@ -172,6 +172,8 @@ pub(super) async fn build_agent(
         loomcoding_core::config::ProviderCacheConfig::load(&config_path)?.prompt_cache;
     // `[flows.odd] enabled` se lee al arrancar; cambiarlo requiere reiniciar Loom.
     let flows_config = loomcoding_core::config::FlowsConfig::load(&config_path)?;
+    // `[output_filter] enabled` (apagado por defecto): se lee al arrancar, como `[flows]`.
+    let output_filter = loomcoding_core::output_filter::FilterConfig::load(&config_path)?;
     // Un valor inválido de `request_timeout_secs` se muestra como error de configuración al arrancar.
     let limits = loomcoding_core::config::ProviderLimitsConfig::load(&config_path)?;
     let request_timeout = crate::request_timeout_from_secs(limits.request_timeout_secs);
@@ -316,6 +318,7 @@ pub(super) async fn build_agent(
     ))
     .with_budget(budget)
     .with_compaction(compaction)
+    .with_output_filter(output_filter)
     // Solo el padre: los subagentes locales se construyen sin política de cierre, observador ni prompt.
     .with_tool_observer(Arc::new(loomcoding_workflows::OddObserver::new(
         odd.clone(),

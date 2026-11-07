@@ -1,6 +1,7 @@
 # Compresión de la salida de las herramientas — spec
 
-Estado: **propuesta** (sin plan ni código). Nace de una pregunta del usuario: si Loomcoding podría aplicar reglas de
+Estado: **implementada** salvo la tarea 4 (aplazada hasta medir) y **apagada por defecto**; véase «Estado tras la
+implementación». Nace de una pregunta del usuario: si Loomcoding podría aplicar reglas de
 compresión como las de `rtk` o `headroom`. Complementa el decálogo de contexto y coste
 (`2026-10-22-codeloom-decalogo-de-contexto-y-coste.md`, reglas 1 a 4) y la medición de
 `2026-10-14-loom-kpis-prompt-compression.md`.
@@ -123,3 +124,54 @@ No se activa por defecto hasta tener números propios, no los de `rtk`:
 2. ¿Activado por defecto tras la medición, o siempre opt-in?
 3. ¿Se aplica también a la salida de los subagentes que vuelve al padre, o solo a la de herramientas?
 4. ¿El umbral de re-petición que desactiva una regla sola: cuál, y se avisa al usuario?
+
+## Decisiones de la persona usuaria (2026-11-07)
+
+Las cuatro preguntas quedan resueltas así:
+
+1. **Dónde se guarda el original.** Se reutiliza el volcado que ya existe, `ToolSpill`
+   (`crates/loomcoding-core/src/tools/spill.rs`: un fichero por llamada, 7 días de retención, 256 MB de tope por
+   directorio). Hoy solo vuelca cuando la salida pasa de `MAX_TOOL_OUTPUT_BYTES`; el filtro lo usa también cuando **omite
+   algo** aunque quepa. `bash` en primer plano no es un job, así que no se usa el almacén de jobs; los jobs conservan su
+   `job_output`.
+2. **Activado por defecto: no.** `[output_filter] enabled = false` hasta tener los números de «Medición antes de fiarse»;
+   entonces se activa por defecto solo lo que haya demostrado ahorro sin re-peticiones.
+3. **Salida de los subagentes: no.** Solo herramientas. La respuesta de una tarea A2A es su resultado y no se toca.
+4. **Umbral de re-petición.** Una regla se desactiva sola si, con al menos 10 usos, el modelo pide `raw: true` o repite el
+   comando en más del 20 % de ellos. Se avisa una sola vez con un `RuntimeNotice` y queda anotada en un contador.
+
+Punto de enganche: `agent/turn.rs`, justo antes de `contenido_de_herramienta`, con el nombre y los argumentos de la llamada
+a mano (necesarios para elegir regla y leer `raw`).
+
+## Estado tras la implementación
+
+**Qué se hizo.** Tareas 1, 2, 3 y 5 del plan (las tres primeras en los commits `8652d55`, `4978180` y `849fb27`; la
+tarea 5 en el worktree `compresion`, pendiente de commit). Tarea 4 aplazada hasta medir.
+
+- Módulo `output_filter/`: reglas generales, cabecera R1, original en `ToolSpill` y `raw: true` en `bash` y
+  `job_output`; reglas por comando para `cargo test|build|check|clippy`, `git status` y `npm|pnpm install`.
+- Medición (`output_filter/stats.rs`): usos, re-peticiones y bytes originales y enviados por regla. Una regla con al
+  menos 10 usos y más del 20 % de re-peticiones se desactiva para el resto del proceso y avisa una sola vez con un
+  `RuntimeNotice`. Las re-peticiones son `raw: true` tras una salida filtrada de la regla, o repetir el mismo comando.
+  Los contadores no guardan el comando (solo una huella numérica en memoria) ni rutas.
+- Evento `LiveEvent::OutputFiltered { rule, original_bytes, sent_bytes }`, solo local; la TUI lo ignora.
+- Traza `tracing` con destino `output_filter` por cada uso.
+- Documentación: `docs/output-filter.md`, `docs/CODE-MAP.md` («Quiero tocar la compresión de salida»),
+  `docs/INVARIANTS.md`, `docs/INDEX.md` y `CHANGELOG.md`.
+
+**Desviaciones conocidas.**
+
+1. Con fallo (`is_error` de la herramienta) se aplica la misma lista blanca por comando, no solo las reglas generales. El
+   filtro no consulta el código de salida del proceso. Ninguna línea con señal se descarta, pero R4 se cumple por esta vía y no por la prevista.
+2. `git log` no tiene regla propia, y `git diff` solo recibe las reglas generales.
+3. Límite de tiempo en pruebas: `MAX_FILTER_TIME` vale 30 s en `cargo test` para que la carga de la máquina no vuelva
+   intermitentes las reglas; el límite de 50 ms rige en la compilación normal. La prueba del tamaño (2 MiB) es exacta.
+4. Tarea 4 (dedup de lecturas en el historial) aplazada hasta medir.
+5. La prueba e2e con PTY (`tui_pty_*`, cabecera de filtrado en pantalla) no está hecha: la TUI aún no pinta el evento.
+6. El estado de medición es global por proceso, como pide la spec; las pruebas de la capa de turno comparten ese estado
+   y por eso solo ejercen un uso cada una.
+7. La traza `tracing` no tiene suscriptor en el binario actual: en `crates/` no se instala ninguno.
+
+**Medición y decisión sobre activarlo por defecto.** Sin cifras aún: no hay datos de ahorro ni de re-peticiones sobre
+sesiones reales, y no se inventa ninguna. El filtro sigue **apagado por defecto**. Se activará por defecto solo para las
+reglas que demuestren ahorro sin re-peticiones en sesiones reales, una vez medidas.

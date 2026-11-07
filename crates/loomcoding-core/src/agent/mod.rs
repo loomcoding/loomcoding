@@ -208,6 +208,9 @@ pub struct AgentLoop {
     /// Contribuidores de la sección de prompt (véase `prompt_contributor`). Vacío no añade nada. Solo
     /// los tiene el agente al que se le configura: los subagentes locales se construyen sin ellos.
     prompt_contributors: Vec<Arc<dyn PromptContributor>>,
+    /// Filtro de salida de herramientas (`[output_filter]`). Por defecto, apagado. Solo lo tiene el
+    /// agente al que se le configura: los subagentes locales se construyen sin él.
+    output_filter: crate::output_filter::FilterConfig,
 }
 
 #[cfg(test)]

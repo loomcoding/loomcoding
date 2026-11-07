@@ -1,0 +1,124 @@
+[1mdiff --git a/crates/loomcoding-core/src/output_filter/cargo.rs b/crates/loomcoding-core/src/output_filter/cargo.rs[m
+[1mnew file mode 100644[m
+[1mindex 0000000..cd08900[m
+[1m--- /dev/null[m
+[1m+++ b/crates/loomcoding-core/src/output_filter/cargo.rs[m
+[36m@@ -0,0 +1,118 @@[m
+[32m+[m[32m//! Regla `cargo` para `cargo test`, `build`, `check` y `clippy` (R3, R6). Quita solo el ruido que se[m
+[32m+[m[32m//! conoce (compilación en curso, descargas, `test ... ok`, los `Finished` anteriores al último) y[m
+[32m+[m[32m//! conserva todo lo demás: errores, avisos, fallos, pánicos, contexto y resumen. Una línea que no[m
+[32m+[m[32m//! reconoce se queda. Si el formato no es el inglés de siempre, o el comando encadena o redirige,[m
+[32m+[m[32m//! no hay regla y la salida pasa sin tocar.[m
+[32m+[m
+[32m+[m[32muse super::general::{es_senal, Compactado};[m
+[32m+[m
+[32m+[m[32m/// Subcomandos de `cargo` a los que se aplica la regla.[m
+[32m+[m[32mconst SUBCOMANDOS: [&str; 4] = ["test", "build", "check", "clippy"];[m
+[32m+[m
+[32m+[m[32m/// Líneas de progreso que se omiten por completo. Ninguna lleva marca de fallo (R3).[m
+[32m+[m[32mconst PROGRESO: [&str; 4] = ["Compiling ", "Checking ", "Downloading ", "Downloaded "];[m
+[32m+[m
+[32m+[m[32m/// Prefijos de las líneas en inglés que confirman que el formato es el reconocido (R6).[m
+[32m+[m[32mconst RECONOCIDAS: [&str; 8] = [[m
+[32m+[m[32m    "Compiling ",[m
+[32m+[m[32m    "Checking ",[m
+[32m+[m[32m    "Finished ",[m
+[32m+[m[32m    "Running ",[m
+[32m+[m[32m    "Downloading ",[m
+[32m+[m[32m    "Downloaded ",[m
+[32m+[m[32m    "Doc-tests ",[m
+[32m+[m[32m    "running ",[m
+[32m+[m[32m];[m
+[32m+[m
+[32m+[m[32m/// Caracteres que encadenan, redirigen o sustituyen comandos. Ante cualquiera, no hay regla.[m
+[32m+[m[32mconst ENCADENAMIENTO: [char; 9] = ['|', '&', ';', '\n', '`', '$', '>', '<', '('];[m
+[32m+[m
+[32m+[m[32m/// Decide si el comando es `cargo test|build|check|clippy` como primer ejecutable, sin tuberías, `&&`[m
+[32m+[m[32m/// ni redirecciones. La redirección `2>&1` se tolera, porque no encadena nada.[m
+[32m+[m[32mpub fn aplica(comando: &str) -> bool {[m
+[32m+[m[32m    let limpio = comando.replace("2>&1", "");[m
+[32m+[m[32m    if limpio.contains(|c| ENCADENAMIENTO.contains(&c)) {[m
+[32m+[m[32m        return false;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    let mut tokens = limpio.split_whitespace();[m
+[32m+[m[32m    tokens.next() == Some("cargo")[m
+[32m+[m[32m        && matches!(tokens.next(), Some(sub) if SUBCOMANDOS.contains(&sub))[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/// Compacta la salida de `cargo` aplicando la lista de ruido. Devuelve `None` si el formato no se[m
+[32m+[m[32m/// reconoce o si no hay nada que omitir.[m
+[32m+[m[32mpub fn compactar(texto: &str) -> Option<Compactado> {[m
+[32m+[m[32m    if !reconocible(texto) {[m
+[32m+[m[32m        return None;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    let lineas: Vec<&str> = texto.lines().collect();[m
+[32m+[m[32m    // Solo se conserva el último `Finished`: los anteriores son repeticiones de otras compilaciones.[m
+[32m+[m[32m    let ultimo_fin = lineas[m
+[32m+[m[32m        .iter()[m
+[32m+[m[32m        .rposition(|linea| linea.trim_start().starts_with("Finished "));[m
+[32m+[m
+[32m+[m[32m    let mut omitidas = 0usize;[m
+[32m+[m[32m    let mut conservadas: Vec<&str> = Vec::with_capacity(lineas.len());[m
+[32m+[m[32m    for (indice, linea) in lineas.iter().enumerate() {[m
+[32m+[m[32m        if es_ruido(linea, Some(indice) == ultimo_fin) {[m
+[32m+[m[32m            omitidas += 1;[m
+[32m+[m[32m        } else {[m
+[32m+[m[32m            conservadas.push(linea);[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m[32m    if omitidas == 0 {[m
+[32m+[m[32m        return None;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    let mut texto_final = conservadas.join("\n");[m
+[32m+[m[32m    if texto.ends_with('\n') {[m
+[32m+[m[32m        texto_final.push('\n');[m
+[32m+[m[32m    }[m
+[32m+[m[32m    Some(Compactado {[m
+[32m+[m[32m        texto: texto_final,[m
+[32m+[m[32m        omitidas,[m
+[32m+[m[32m    })[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/// Una línea es ruido si está en la lista y no lleva ninguna marca de señal. Nunca se descarta una[m
+[32m+[m[32m/// línea con error, fallo, pánico o aviso (R3, propiedad central).[m
+[32m+[m[32mfn es_ruido(linea: &str, es_ultimo_fin: bool) -> bool {[m
+[32m+[m[32m    if es_senal(linea) {[m
+[32m+[m[32m        return false;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    // Cargo alinea a la derecha el verbo de estado: `   Compiling x` y `    Finished x`.[m
+[32m+[m[32m    let recortada = linea.trim_start();[m
+[32m+[m[32m    if recortada.starts_with("Finished ") {[m
+[32m+[m[32m        return !es_ultimo_fin;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    PROGRESO[m
+[32m+[m[32m        .iter()[m
+[32m+[m[32m        .any(|prefijo| recortada.starts_with(prefijo))[m
+[32m+[m[32m        || es_test_ok(linea)[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/// Resultado de un test que sale bien: `test nombre ... ok`.[m
+[32m+[m[32mfn es_test_ok(linea: &str) -> bool {[m
+[32m+[m[32m    linea.starts_with("test ") && linea.ends_with(" ... ok")[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/// El formato es reconocible si aparece alguna línea en inglés conocida y ninguna línea JSON de[m
+[32m+[m[32m/// `--message-format json` (R6).[m
+[32m+[m[32mfn reconocible(texto: &str) -> bool {[m
+[32m+[m[32m    let mut reconoce = false;[m
+[32m+[m[32m    for linea in texto.lines() {[m
+[32m+[m[32m        if linea.trim_start().starts_with("{\"reason\"") {[m
+[32m+[m[32m            return false;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        let recortada = linea.trim_start();[m
+[32m+[m[32m        let test_con_resultado = recortada.starts_with("test ") && recortada.contains(" ... ");[m
+[32m+[m[32m        if test_con_resultado[m
+[32m+[m[32m            || RECONOCIDAS[m
+[32m+[m[32m                .iter()[m
+[32m+[m[32m                .any(|prefijo| recortada.starts_with(prefijo))[m
+[32m+[m[32m        {[m
+[32m+[m[32m            reconoce = true;[m
+[32m+[m[32m        }[m
+[32m+[m[32m    }[m
+[32m+[m[32m    reconoce[m
+[32m+[m[32m}[m

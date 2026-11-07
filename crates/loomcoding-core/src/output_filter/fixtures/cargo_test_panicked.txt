@@ -1,0 +1,24 @@
+   Compiling toy v0.1.0 (C:\work\toy)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running tests\panico.rs (C:\work\target-fixtures\debug\deps\panico-be3d862ae61b4e7c.exe)
+
+running 3 tests
+test bien ... ok
+test tambien_bien ... ok
+test explota ... FAILED
+
+failures:
+
+---- explota stdout ----
+
+thread 'explota' (8092) panicked at tests\panico.rs:8:5:
+boom: el estado no es valido
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    explota
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `--test panico`

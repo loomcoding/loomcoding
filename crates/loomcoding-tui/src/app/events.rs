@@ -422,6 +422,8 @@ impl App {
                 }
             }
             LiveEvent::WakeIdle => self.wake_in_flight = false,
+            // El filtro de salida solo se mide por `tracing` y por este evento: la interfaz no lo pinta aún.
+            LiveEvent::OutputFiltered { .. } => {}
             // La compactación manual terminó, bien o mal: se libera la cola y se dice cómo acabó.
             // El resumen en sí ya se pintó con `ContextCompacted`.
             LiveEvent::ManualCompactionEnded { outcome } => {

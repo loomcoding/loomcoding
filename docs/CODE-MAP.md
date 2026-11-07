@@ -152,6 +152,13 @@ Cabe señalar que el menú izquierdo solo se pinta con el layout `Workspace` (�
 3. Diálogo: `crates/loomcoding-tui/src/permission_flow.rs`,
    `crates/loomcoding-tui/src/widgets/permission.rs` y `crates/loomcoding-cloth/src/widgets/permission.rs`.
 
+## Quiero depurar o medir con `RUST_LOG`
+
+1. Instalación del suscriptor (solo con `RUST_LOG` definida y no vacía): `crates/loomcoding-cli/src/registro_tracing.rs`
+   (`instala`, `instala_con`, escritor acotado a 5 MiB con copia `.1`). Lo llaman el cliente y el daemon en
+   `crates/loomcoding-cli/src/main.rs`, con un fichero por proceso: `<perfil>/.loomcoding/logs/loomcoding-<rol>.log`.
+2. Spec: `docs/specs/2026-11-07-loomcoding-registro-tracing.md`. Guía de uso: `docs/output-filter.md` y `docs/odd.md`.
+
 ## Quiero tocar A2A (cliente o servidor)
 
 1. Nombres del cable y tarjeta: `crates/loomcoding-a2a/src/card.rs`, `wire.rs`.
@@ -284,6 +291,27 @@ extensión genéricos y la TUI solo pinta.
 4. Herramienta del modelo: `ContextTool` en `crates/loomcoding-core/src/tools/context.rs`, registrada en
    `project_registry` (`tools/mod.rs`). Pendiente del plan `docs/plans/2026-11-05-loomcoding-contexto-estructural.md`:
    ordenación por PageRank (hoy: más usado primero), caché en disco y orientación previa en la oficina.
+
+## Quiero tocar la compresión de salida
+
+Guía de uso: `docs/output-filter.md`. Spec: `docs/specs/2026-11-06-loomcoding-compresion-de-salida.md`. Solo
+herramientas `bash` y `job_output`; nunca subagentes ni A2A.
+
+1. Enganche único en el bucle: `contenido_para_modelo` en `crates/loomcoding-core/src/output_filter/enviar.rs`,
+   llamado desde `agent/turn.rs`. Devuelve `Enviado` (contenido, ahorro y reglas desactivadas) y el turno publica
+   `LiveEvent::OutputFiltered` y, una sola vez por regla, un `RuntimeNotice`.
+2. Filtro puro: `apply` y `filtrar` en `output_filter/mod.rs` (`filtrar` admite el veto de reglas desactivadas); la lista
+   de reglas por comando es `REGLAS` en el mismo fichero. Reglas: `general.rs` (generales), `cargo.rs`, `git.rs`,
+   `packages.rs`. Cabecera R1: `header.rs`.
+3. Original y `raw`: `ToolSpill` (`tools/spill.rs`); `raw` lo leen `bash` y `job_output` antes de llegar al filtro.
+4. Medición y desactivación: `output_filter/stats.rs` (`USOS_MINIMOS`, `UMBRAL_REPETICION_PCT`, `evalua`,
+   `aviso_desactivacion` y `global()`, el estado del proceso). La huella del comando es un número, nunca el texto.
+5. Evento: `LiveEvent::OutputFiltered` en `event/mod.rs` (`is_child_relevant` falso). La TUI lo ignora en
+   `crates/loomcoding-tui/src/app/events.rs`.
+6. Configuración: `FilterConfig` en `output_filter/mod.rs` (`[output_filter] enabled`, apagado por defecto;
+   `LOOMCODING_NO_FILTER=1` lo apaga). Se carga en `crates/loomcoding-cli/src/server/agent_build.rs`.
+7. Pruebas: `output_filter/tests.rs`, `cargo_tests.rs`, `git_tests.rs`, `packages_tests.rs`, `stats_tests.rs`; enganche
+   y evento en `agent/tests/output_filter.rs`. Capturas reales en `output_filter/fixtures/`.
 
 ## Quiero añadir un umbral o ajuste en `[agents]`
 

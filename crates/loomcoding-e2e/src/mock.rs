@@ -307,6 +307,56 @@ pub async fn mock_provider_odd() -> MockServer {
     server
 }
 
+/// Texto final del guion de compresión, cuando el modelo ya ha recibido la salida de `bash`.
+pub const COMPRESION_FINAL: &str = "Hecho: la salida ruidosa llegó filtrada al modelo.";
+/// Id de la llamada `bash` del guion de compresión.
+pub const COMPRESION_ID_BASH: &str = "call-bash-ruido";
+/// Comando (`cmd`, que es el shell de `bash` en Windows) que imprime 40 líneas idénticas y una final: el filtro
+/// general colapsa las repetidas y deja la señal.
+pub const COMPRESION_COMANDO: &str = "(for /L %i in (1,1,40) do @echo ruido) & echo FIN";
+
+/// Guion de un padre que ejecuta un `bash` ruidoso y, con su resultado, contesta con texto final.
+///
+/// Las peticiones que no ofrecen `bash` (las internas del runtime) reciben un texto neutro.
+struct RuidoScript;
+
+impl Respond for RuidoScript {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let body: serde_json::Value = request.body_json().unwrap_or_default();
+        let offers_bash = body["tools"].as_array().is_some_and(|tools| {
+            tools
+                .iter()
+                .any(|entry| entry.pointer("/function/name") == Some(&"bash".into()))
+        });
+        if !offers_bash {
+            return say_text(ODD_NEUTRO);
+        }
+        let has_tool_result = body["messages"]
+            .as_array()
+            .is_some_and(|messages| messages.iter().any(|m| m["role"] == "tool"));
+        if has_tool_result {
+            say_text(COMPRESION_FINAL)
+        } else {
+            tool_call_with_id(
+                COMPRESION_ID_BASH,
+                "bash",
+                serde_json::json!({"command": COMPRESION_COMANDO}),
+            )
+        }
+    }
+}
+
+/// Servidor OpenAI-compatible con el guion de compresión: un `bash` ruidoso y, con su salida, el texto final.
+pub async fn mock_provider_compresion() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(RuidoScript)
+        .mount(&server)
+        .await;
+    server
+}
+
 /// Servidor OpenAI-compatible con el guion de un hijo que pregunta a la persona y espera su respuesta.
 pub async fn mock_provider_child_asks() -> MockServer {
     let server = MockServer::start().await;
