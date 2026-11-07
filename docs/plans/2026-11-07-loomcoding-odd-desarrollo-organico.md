@@ -102,6 +102,21 @@ Deciding, Planning, Idle }`, `fn phase_of(tool: &str, args: &Value) -> Option<Od
 genérico `LiveEvent::FlowChanged { summary: FlowSummary, actor, detail }` con la forma de la spec de extracción
 (`FlowSummary { kind, id, phase, round, max_rounds, terminal, label }`), no relevante para hijos. Si al llegar aquí la
 extracción ya lo hubiera introducido, se reutiliza tal cual.
+- **Desviaciones detectadas al revisar (2026-11-07), decididas por quien redacta:**
+  1. *Quién observa las herramientas.* El plan no lo decía y `loomcoding-workflows` no tiene ni el bus ni los argumentos
+     (`ToolStarted` solo lleva nombre). Se añade un punto de extensión genérico en el núcleo: `trait ToolObserver`
+     (`agent/tool_observer.rs`, `fn observe(&self, ctx: &ToolObserveCtx) -> Option<FlowSummary>` con sesión, nombre y
+     argumentos), consultado en `turn.rs` justo antes de `dispatch::execute_tools` y solo para el padre (`with_tool_observer`,
+     `None` por defecto, igual que `close_gate`). El núcleo publica `FlowChanged` si devuelve `Some`; la política decide
+     cuándo (solo al cambiar) y la protege con un tope de tiempo y aislamiento de pánico, como el cierre.
+  2. *`FlowSummary` mínimo.* La spec de extracción lo define con `id: FlowId`, `round` y `max_rounds`, pero `FlowId` y el
+     almacén (`flow.rs`) no existen aún. Se crea `FlowSummary` en el núcleo con la forma exacta de esa spec y `id: i64`
+     (ODD usa `0`: no tiene registro) y `round = max_rounds = 0`; cuando llegue la extracción solo cambia el tipo de `id`.
+  3. *Coexiste con `GauntletChanged`.* La extracción (su T5) sustituirá `GauntletChanged` por `FlowChanged`; aquí no se toca.
+  4. *No se reenvía a los hijos*: `is_child_relevant` lo da por `false`. Es un variante nuevo de `LiveEvent` (cable entre
+     daemon y cliente): se anota en el CHANGELOG.
+  5. *Durabilidad.* La fase vive en memoria (por sesión); no se persiste. Tras reiniciar, vuelve a `Idle` hasta la primera
+     herramienta.
 - Lectura = explorando; escritura = implementando; `bash` con test/build/lint conocido = comprobando; pregunta =
   decidiendo; `odd_track` = planificando. Función pura, sin llamar al modelo; el comando ambiguo deja la fase como está.
   Se publica solo al cambiar.
@@ -114,6 +129,9 @@ extracción ya lo hubiera introducido, se reutiliza tal cual.
 (`[odd] enabled`), comando `/odd` (ver el estado y apagar/encender para la sesión). La TUI pinta el `label` del evento
 genérico `FlowChanged` tal cual, sin conocer ODD (regla de la spec de extracción: la TUI no depende de
 `loomcoding-workflows`).
+- **Desviación anotada al revisar la T4:** `gauntlet` y `development_workflow` aún emiten `GauntletChanged` y
+  `DevelopmentWorkflowChanged` (no `FlowChanged`, que llega con la extracción). En esta tarea la TUI compone su etiqueta
+  desde esos dos eventos existentes; pasarán a `FlowSummary.label` cuando se haga la extracción.
 - La cabecera muestra una etiqueta del **modo/flujo activo** y, en ODD, la fase: `ODD · exploring`, `ODD · implementing
   (T2/5)`. Cuando corre `development_workflow` o `gauntlet`, la etiqueta pasa a ese flujo y su fase propia
   (`gauntlet · ronda 2/3`). Si no hay modo, no se pinta nada. Se rotula como «propio de Loom», no como estado A2A.
