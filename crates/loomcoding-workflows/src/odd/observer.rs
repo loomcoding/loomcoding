@@ -16,18 +16,20 @@ use loomcoding_core::flow::FlowSummary;
 pub fn resumen_de_flujo(fase: &str, avance: Option<(usize, usize)>) -> FlowSummary {
     let (hechas, total) = avance.unwrap_or((0, 0));
     let label = if total > 0 {
-        format!("ODD · {fase} ({hechas}/{total})")
+        format!("{} · {fase} ({hechas}/{total})", crate::ODD_LABEL)
     } else {
-        format!("ODD · {fase}")
+        format!("{} · {fase}", crate::ODD_LABEL)
     };
     FlowSummary {
-        kind: "odd".into(),
+        kind: crate::ODD_KIND.into(),
         id: 0,
         phase: fase.into(),
         round: u8::try_from(hechas).unwrap_or(u8::MAX),
         max_rounds: u8::try_from(total).unwrap_or(u8::MAX),
         terminal: false,
         label,
+        // ODD es el modo permanente: su etiqueta vuelve a la base al acabar el turno.
+        persistent: true,
     }
 }
 

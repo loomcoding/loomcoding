@@ -70,10 +70,10 @@ pub(super) fn execute_slash_command(
             return None;
         }
     }
-    // `/odd` igual: un argumento inválido o sin proyecto conserva el texto escrito.
-    if command == Command::Odd {
-        let arg = typed.strip_prefix("/odd").map(str::trim).unwrap_or("");
-        if let Err(message) = app.odd_command(arg) {
+    // `/flow` igual: un argumento inválido o sin proyecto conserva el texto escrito.
+    if command == Command::Flow {
+        let arg = typed.strip_prefix("/flow").map(str::trim).unwrap_or("");
+        if let Err(message) = app.flow_command(arg) {
             app.slash_feedback = Some(message);
             return None;
         }
@@ -210,7 +210,7 @@ pub(super) fn execute_slash_command(
         | Command::Effort
         | Command::Provider
         | Command::Ui
-        | Command::Odd => None,
+        | Command::Flow => None,
         Command::Quit => handle_key(app, KeyCode::Char('q'), KeyModifiers::CONTROL),
         Command::Parent => {
             if !app.go_parent() {

@@ -34,7 +34,7 @@ se compone en `loomcoding-cli` y no es dependencia de `core` ni de `loomcoding-t
 puntos de extensión genéricos, sin nombrar ningún flujo, y solo el agente principal los lleva (los subagentes
 locales y las tareas A2A servidas se construyen sin ellos): `TurnCloseGate` (cierre del turno),
 `ToolObserver` (publica `FlowChanged`), `PromptContributor` (sección de prompt) y `Tool::parent_only`.
-Única excepción en el núcleo: la sección de configuración `[odd]` (`config/odd.rs`), solo un interruptor.
+Los modos de flujo llegan a la interfaz por la configuración genérica `[flows.<kind>] enabled` (`config/flows.rs`), que ni el núcleo ni la TUI interpretan por nombre.
 
 ## Reglas de dependencia (duras)
 

@@ -342,7 +342,7 @@ impl App {
                     );
                 }
             }
-            // Un flujo genérico (ODD u otro) cambió de fase: su etiqueta va a la cabecera.
+            // Un flujo genérico cambió de fase: su etiqueta va a la cabecera.
             LiveEvent::FlowChanged { summary, .. } => self.aplica_flow_changed(&summary),
             LiveEvent::AgentRouted {
                 parent,

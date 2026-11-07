@@ -194,7 +194,7 @@ impl App {
                         | "effort"
                         | "provider"
                         | "ui"
-                        | "odd"
+                        | "flow"
                 ))
         {
             return None;

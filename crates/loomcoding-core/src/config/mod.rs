@@ -5,8 +5,8 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 pub mod context;
-mod odd;
-pub use odd::OddConfig;
+mod flows;
+pub use flows::FlowsConfig;
 mod limits;
 pub use limits::{ProviderLimitsConfig, MAX_REQUEST_TIMEOUT_SECS};
 mod agent_limits;

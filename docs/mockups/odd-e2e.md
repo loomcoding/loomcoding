@@ -10,7 +10,7 @@ Lo que muestra cada volcado:
 
 El cierre del turno (punto 4 de la prueba) no tiene volcado propio: la prueba comprueba que, tras la respuesta final y una pausa de 1,5 s, no aparece un segundo aviso ni una nueva reinyección.
 
-Con `[odd] enabled = false` la prueba `odd_disabled_shows_no_label_and_does_not_block_the_close` comprueba que no hay etiqueta `ODD · ` y que el mismo intento de cierre no genera aviso ni reinyección.
+Con `[flows.odd] enabled = false` la prueba `odd_disabled_shows_no_label_and_does_not_block_the_close` comprueba que no hay etiqueta `ODD · ` y que el mismo intento de cierre no genera aviso ni reinyección.
 
 ## Cómo reproducirlo con perfil aislado
 

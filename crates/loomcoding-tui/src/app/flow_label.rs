@@ -1,12 +1,13 @@
 //! Etiqueta del modo y flujo activo que muestra la cabecera.
 //!
-//! La interfaz pinta el texto que llega en `FlowChanged` tal cual: no conoce ODD ni depende de
-//! `loomcoding-workflows`. Un flujo pesado activo (`gauntlet`, `development_workflow`) manda sobre
-//! la etiqueta de ODD; cuando acaba, vuelve la de ODD. Es etiqueta propia de Loom, no un estado A2A.
+//! La interfaz pinta el texto que llega en `FlowChanged` tal cual y no conoce ningún modo concreto:
+//! los modos llegan de la configuración como `FlowMode`. Un flujo no persistente activo
+//! (`gauntlet`, `development_workflow` o uno genérico) manda sobre el persistente; cuando acaba,
+//! vuelve el persistente. Al acabar el turno, el persistente vuelve a la base de su modo. Es
+//! etiqueta propia de Loom, no un estado A2A.
 
 use super::App;
-use loomcoding_core::config::OddConfig;
-use loomcoding_core::flow::FlowSummary;
+use loomcoding_core::flow::{FlowMode, FlowSummary};
 use loomcoding_core::gauntlet::{GauntletPhase, GauntletSummary};
 use loomcoding_core::workflow::{WorkflowPhase, WorkflowSummary};
 
@@ -66,11 +67,11 @@ impl EtiquetaFlujo {
     }
 }
 
-/// Base de ODD cuando aún no hay fase: «ODD».
-fn base_odd() -> EtiquetaFlujo {
+/// Base de un modo cuando aún no hay fase: su etiqueta, tal cual la publica la configuración.
+fn base_de(modo: &FlowMode) -> EtiquetaFlujo {
     EtiquetaFlujo {
-        completa: "ODD".into(),
-        corta: "ODD".into(),
+        completa: modo.label.clone(),
+        corta: modo.label.clone(),
     }
 }
 
@@ -105,36 +106,45 @@ pub(crate) fn fase_de_flujo(fase: WorkflowPhase) -> &'static str {
 }
 
 impl App {
-    /// Etiqueta que pinta la cabecera, si la hay. Un flujo pesado activo manda sobre ODD.
+    /// Etiqueta que pinta la cabecera, si la hay: el flujo no persistente, si está activo; si no,
+    /// el persistente; si no, la base del primer modo encendido.
     pub fn flow_label(&self) -> Option<&EtiquetaFlujo> {
-        self.flow_heavy.as_ref().or(self.flow_odd.as_ref())
+        self.flow_heavy
+            .as_ref()
+            .or(self.flow_persistent.as_ref().map(|(_, etiqueta)| etiqueta))
+            .or(self.flow_base.as_ref())
     }
 
-    /// Aplica la sección `[odd]` de la configuración. Encendido, la base «ODD» aparece en la cabecera.
-    pub fn with_odd_config(mut self, odd: OddConfig) -> Self {
-        self.set_flows_odd_enabled(odd.enabled);
+    /// Fija los modos de flujo de la configuración. La base de la cabecera es la del primero encendido.
+    pub fn with_flow_modes(mut self, modos: Vec<FlowMode>) -> Self {
+        self.flow_base = modos.iter().find(|modo| modo.enabled).map(base_de);
+        self.flow_modes = modos;
         self
     }
 
-    fn set_flows_odd_enabled(&mut self, on: bool) {
-        self.flows_odd_enabled = on;
-        self.flow_odd = on.then(base_odd);
+    /// Modo encendido con ese `kind`, si lo hay.
+    fn modo_encendido(&self, kind: &str) -> Option<&FlowMode> {
+        self.flow_modes
+            .iter()
+            .find(|modo| modo.enabled && modo.kind == kind)
     }
 
-    /// `FlowChanged`: ODD fija su fase (o vuelve a su base si termina). Cualquier otro flujo
-    /// genérico pinta su etiqueta mientras no termine.
+    /// `FlowChanged`. Un flujo no persistente pinta su etiqueta mientras no termine. Un persistente
+    /// fija su fase, o vuelve a la base de su modo si termina; un modo apagado o desconocido se ignora.
     pub(crate) fn aplica_flow_changed(&mut self, resumen: &FlowSummary) {
-        if resumen.kind == "odd" {
-            if self.flows_odd_enabled {
-                self.flow_odd = Some(if resumen.terminal {
-                    base_odd()
-                } else {
-                    EtiquetaFlujo::de_resumen(resumen)
-                });
-            }
-        } else {
+        if !resumen.persistent {
             self.flow_heavy = (!resumen.terminal).then(|| EtiquetaFlujo::de_resumen(resumen));
+            return;
         }
+        let Some(modo) = self.modo_encendido(&resumen.kind) else {
+            return;
+        };
+        let etiqueta = if resumen.terminal {
+            base_de(modo)
+        } else {
+            EtiquetaFlujo::de_resumen(resumen)
+        };
+        self.flow_persistent = Some((resumen.kind.clone(), etiqueta));
     }
 
     /// Estado de un gauntlet de esta sesión: su etiqueta mientras no termine, ninguna después.
@@ -149,10 +159,12 @@ impl App {
             (!resumen.phase.is_terminal()).then(|| EtiquetaFlujo::de_workflow(resumen));
     }
 
-    /// Fin de turno: ODD vuelve a su base sin fase. Un flujo pesado activo no se toca.
+    /// Fin de turno: el flujo persistente vuelve a la base de su modo. Un flujo no persistente activo no se toca.
     pub(crate) fn fin_de_turno_flujo(&mut self) {
-        if self.flows_odd_enabled {
-            self.flow_odd = Some(base_odd());
+        if let Some((kind, _)) = self.flow_persistent.take() {
+            self.flow_persistent = self
+                .modo_encendido(&kind)
+                .map(|modo| (kind.clone(), base_de(modo)));
         }
     }
 }

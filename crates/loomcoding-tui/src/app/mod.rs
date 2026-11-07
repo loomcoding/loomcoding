@@ -8,6 +8,7 @@ use loomcoding_core::catalog::{Catalog, CatalogModel, CatalogProvider};
 use loomcoding_core::config::{LoomcodingConfig, ProviderKind, UiConfig};
 use loomcoding_core::event::LiveEvent;
 use loomcoding_core::event::{A2aDirection, A2aObservation, A2aOperation};
+use loomcoding_core::flow::FlowMode;
 use loomcoding_core::message::{ContentPart, Message, MessageOrigin, Role, Usage, UsageSource};
 use loomcoding_core::permission::{Decision, PermissionRequest};
 use loomcoding_core::question::{Answer, Question};
@@ -30,9 +31,9 @@ mod composer;
 mod events;
 mod flow_label;
 pub use flow_label::EtiquetaFlujo;
+mod flow_command;
 mod logo_fx_state;
 mod model_effort;
-mod odd_command;
 mod pointer;
 mod prefs;
 mod prompts;
@@ -109,13 +110,15 @@ pub struct App {
     pub theme_preset: loomcoding_cloth::widgets::ThemePreset,
     /// Fichero donde se guardan las preferencias de la interfaz. `None` = no persistir.
     pub prefs_path: Option<std::path::PathBuf>,
-    /// ODD encendido en la configuración con que arrancó Loom (`[odd] enabled`). Apagado, la
-    /// cabecera no muestra nada de ODD.
-    pub flows_odd_enabled: bool,
-    /// Etiqueta del flujo pesado activo (`gauntlet`, `development_workflow` o uno genérico).
+    /// Modos de flujo que la configuración deja disponibles, con su interruptor ya resuelto. Un
+    /// modo apagado no pinta nada en la cabecera ni publica sus `FlowChanged` persistentes.
+    pub(crate) flow_modes: Vec<FlowMode>,
+    /// Base de la cabecera: la etiqueta del primer modo encendido. `None` si ninguno lo está.
+    pub(crate) flow_base: Option<EtiquetaFlujo>,
+    /// Etiqueta del flujo no persistente activo (`gauntlet`, `development_workflow` o uno genérico).
     pub(crate) flow_heavy: Option<EtiquetaFlujo>,
-    /// Etiqueta de ODD: la base «ODD» o su fase. `None` si ODD está apagado.
-    pub(crate) flow_odd: Option<EtiquetaFlujo>,
+    /// Flujo persistente activo: su `kind` y su etiqueta. Al acabar el turno vuelve a la base de su modo.
+    pub(crate) flow_persistent: Option<(String, EtiquetaFlujo)>,
     /// Disposición elegida por el usuario (`/layout` o `ui.toml`). Si es `Some`,
     /// manda sobre el layout del preset, también tras `/theme`.
     pub layout_override: Option<loomcoding_cloth::widgets::LayoutStyle>,
@@ -451,9 +454,10 @@ impl App {
             theme: loomcoding_cloth::widgets::Theme::default_dark(),
             theme_preset: loomcoding_cloth::widgets::ThemePreset::Cloth,
             prefs_path: None,
-            flows_odd_enabled: false,
+            flow_modes: Vec::new(),
+            flow_base: None,
             flow_heavy: None,
-            flow_odd: None,
+            flow_persistent: None,
             layout_override: None,
             style_override: None,
             rail_style: crate::render::rail::RailStyle::default(),

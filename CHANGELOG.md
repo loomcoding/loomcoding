@@ -8,7 +8,7 @@ release.
 
 ### Desarrollo orgánico (ODD)
 
-- Nuevo crate `loomcoding-workflows` con ODD, un modo ligero **activo por defecto** (`[odd] enabled = true`, `/odd` para
+- Nuevo crate `loomcoding-workflows` con ODD, un modo ligero **activo por defecto** (`[flows.odd] enabled = true`, `/flow` para
   verlo o guardarlo; aplica al reiniciar). Es un flujo propio de Loomcoding: no cambia ningún estado ni tarea A2A.
 - Herramienta `odd_track` (solo el agente principal): documento de feature en `.loomcoding/odd/<feature>.md` solo para
   trabajo grande, con casillas que exigen evidencia (una llamada real de `bash`, `job_start` o `job_output` de los últimos
@@ -20,7 +20,7 @@ release.
 - Puntos de extensión genéricos en el núcleo, solo para el agente principal: `TurnCloseGate`, `ToolObserver`,
   `PromptContributor` y `Tool::parent_only`. Los subagentes locales y las tareas A2A servidas no los heredan (prueba
   automática).
-- **Cable:** nuevo variante `LiveEvent::FlowChanged`; un cliente antiguo conectado a un daemon nuevo no lo entenderá
+- **Cable:** nuevo variante `LiveEvent::FlowChanged` (con `FlowSummary.persistent`, `false` si falta); un cliente antiguo conectado a un daemon nuevo no lo entenderá
   (el binario es el mismo para ambos hoy).
 - Medición sin datos personales por `tracing` (destino `odd`).
 

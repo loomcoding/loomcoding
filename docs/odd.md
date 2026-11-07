@@ -34,12 +34,14 @@ Spec: `docs/specs/2026-11-07-loomcoding-odd-desarrollo-organico.md`. Plan: `docs
 
 ```toml
 # loomcoding.toml del proyecto
-[odd]
+[flows.odd]
 enabled = true   # por defecto; false lo apaga: sin fase, sin bloqueo del cierre, sin sección de prompt
 ```
 
-`/odd` informa del estado. `/odd on` y `/odd off` guardan el valor en `[odd] enabled`; **aplica al reiniciar Loom**
-(la TUI es un cliente separado del daemon). Los subagentes no ven `odd_track` ni heredan el cierre bloqueante.
+`/flow` lista los modos de flujo y su estado. `/flow odd on` y `/flow odd off` guardan el valor en
+`[flows.odd] enabled`; **aplica al reiniciar Loom** (la TUI es un cliente separado del daemon). La TUI no conoce
+ODD: recibe la lista de modos de `loomcoding-workflows` a través del CLI, y un modo «permanente» vuelve a su
+etiqueta base al acabar el turno. Los subagentes no ven `odd_track` ni heredan el cierre bloqueante.
 
 ## Medición
 
@@ -54,4 +56,4 @@ medición del final de la spec es un seguimiento: si los números salen mal, se 
 - Tras reiniciar, si quedan tareas pendientes de una feature anterior, el primer turno puede recibir una reinyección
   aunque la petición no tenga relación; después no insiste.
 - La fase vive en memoria: tras reiniciar vuelve a `idle` hasta la primera herramienta.
-- `/odd on|off` no actúa en caliente.
+- `/flow odd on|off` no actúa en caliente.

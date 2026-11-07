@@ -155,6 +155,7 @@ impl ToolObserver for ObservadorContador {
             max_rounds: 0,
             terminal: false,
             label: "prueba · explorando".into(),
+            persistent: false,
         })
     }
 }

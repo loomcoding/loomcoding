@@ -399,8 +399,15 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let a2a_config = loomcoding_a2a::config::A2aConfig::load(&config_path)?;
     // Preferencias de UI del proyecto (verbose_provider_notices, etc.).
     let ui_config = loomcoding_core::config::UiConfig::load(&config_path).unwrap_or_default();
-    // `[odd] enabled` para la cabecera: el mismo valor con que el daemon arranca ODD.
-    let odd_config = loomcoding_core::config::OddConfig::load(&config_path).unwrap_or_default();
+    // `[flows.<kind>] enabled` para la cabecera: el mismo valor con que el daemon arranca cada modo.
+    let flows_config = loomcoding_core::config::FlowsConfig::load(&config_path).unwrap_or_default();
+    let flow_modes: Vec<loomcoding_core::flow::FlowMode> = loomcoding_workflows::flow_modes()
+        .into_iter()
+        .map(|modo| loomcoding_core::flow::FlowMode {
+            enabled: flows_config.enabled(&modo.kind, modo.enabled),
+            ..modo
+        })
+        .collect();
     let data_dir = crate::home::user_home()
         .unwrap_or_else(std::env::temp_dir)
         .join(".loomcoding");
@@ -444,7 +451,7 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let refresco_proveedores = crate::sondeo_local::arrancar_sondeo(publicador);
     let mut app = loomcoding_tui::app::App::with_context(cwd, model)
         .with_ui_config(ui_config)
-        .with_odd_config(odd_config);
+        .with_flow_modes(flow_modes);
     app.use_product_default_view();
     app.set_provider_settings(settings);
     app.set_declared_efforts(limits.efforts.clone());

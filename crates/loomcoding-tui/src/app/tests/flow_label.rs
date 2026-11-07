@@ -1,38 +1,47 @@
-//! Etiqueta del modo y flujo activo en la cabecera: ODD (fase genérica de `FlowChanged`), los
-//! flujos pesados (`gauntlet`, `development_workflow`) y su precedencia.
+//! Etiqueta del modo y flujo activo en la cabecera: los modos llegan de la configuración, el flujo
+//! persistente y su vuelta a la base, el flujo no persistente y la precedencia entre ambos.
 
 use super::*;
-use loomcoding_core::config::OddConfig;
 use loomcoding_core::flow::FlowSummary;
 use loomcoding_core::gauntlet::{GauntletId, GauntletPhase, GauntletSummary};
 use loomcoding_core::session::SessionId;
 use loomcoding_core::workflow::{WorkflowId, WorkflowPhase, WorkflowSummary};
 
-/// Aplicación de una sesión con ODD encendido por configuración.
-fn app_con_odd() -> App {
-    let mut app = App::new().with_odd_config(OddConfig { enabled: true });
+/// Modo de prueba: `kind`, etiqueta base y su interruptor.
+fn modo(kind: &str, label: &str, enabled: bool) -> FlowMode {
+    FlowMode {
+        kind: kind.into(),
+        label: label.into(),
+        enabled,
+    }
+}
+
+/// Aplicación de una sesión con dos modos de prueba: `a` (encendido) y `b` (encendido).
+fn app_con_modos() -> App {
+    let mut app = App::new().with_flow_modes(vec![modo("a", "AAA", true), modo("b", "BBB", true)]);
     app.session_id = Some(SessionId(7));
     app
 }
 
-/// Evento de ODD, tal como lo publica su observador.
-fn odd(fase: &str, terminal: bool) -> LiveEvent {
+/// Evento persistente de un modo, tal como lo publica su observador.
+fn persistente(kind: &str, label: &str, terminal: bool) -> LiveEvent {
     LiveEvent::FlowChanged {
         summary: FlowSummary {
-            kind: "odd".into(),
+            kind: kind.into(),
             id: 0,
-            phase: fase.into(),
+            phase: label.into(),
             round: 0,
             max_rounds: 0,
             terminal,
-            label: format!("ODD · {fase}"),
+            label: label.into(),
+            persistent: true,
         },
         actor: String::new(),
         detail: String::new(),
     }
 }
 
-/// Evento de un flujo genérico que no es ODD.
+/// Evento de un flujo no persistente que no es de ningún modo.
 fn generico(terminal: bool) -> LiveEvent {
     LiveEvent::FlowChanged {
         summary: FlowSummary {
@@ -43,6 +52,7 @@ fn generico(terminal: bool) -> LiveEvent {
             max_rounds: 3,
             terminal,
             label: "prueba · checking".into(),
+            persistent: false,
         },
         actor: String::new(),
         detail: String::new(),
@@ -89,38 +99,68 @@ fn etiqueta(app: &App) -> Option<String> {
 }
 
 #[test]
-fn con_odd_encendido_la_etiqueta_base_es_odd_sin_fase() {
-    let app = app_con_odd();
-    assert_eq!(etiqueta(&app).as_deref(), Some("ODD"));
+fn con_un_modo_encendido_la_etiqueta_base_es_su_nombre_sin_fase() {
+    let app = app_con_modos();
+    assert_eq!(etiqueta(&app).as_deref(), Some("AAA"));
 }
 
 #[test]
-fn flow_changed_de_odd_fija_la_etiqueta_con_su_fase() {
-    let mut app = app_con_odd();
-    app.apply(odd("implementing", false));
+fn la_base_es_la_del_primer_modo_encendido() {
+    let app = App::new().with_flow_modes(vec![modo("a", "AAA", false), modo("b", "BBB", true)]);
+    assert_eq!(etiqueta(&app).as_deref(), Some("BBB"));
+}
+
+#[test]
+fn sin_modos_encendidos_no_hay_etiqueta() {
+    let app = App::new().with_flow_modes(vec![modo("a", "AAA", false)]);
+    assert_eq!(etiqueta(&app), None);
+    let sin_modos = App::new();
+    assert_eq!(etiqueta(&sin_modos), None);
+}
+
+#[test]
+fn flow_changed_persistente_fija_la_etiqueta_con_su_fase() {
+    let mut app = app_con_modos();
+    app.apply(persistente("a", "AAA · implementing", false));
     let fase = app.flow_label().expect("hay etiqueta");
-    assert_eq!(fase.completa, "ODD · implementing");
-    assert_eq!(fase.corta, "ODD");
+    assert_eq!(fase.completa, "AAA · implementing");
+    assert_eq!(fase.corta, "AAA");
 }
 
 #[test]
-fn flow_changed_de_odd_terminal_vuelve_a_la_base() {
-    let mut app = app_con_odd();
-    app.apply(odd("implementing", false));
-    app.apply(odd("completed", true));
-    assert_eq!(etiqueta(&app).as_deref(), Some("ODD"));
+fn flow_changed_persistente_terminal_vuelve_a_la_base() {
+    let mut app = app_con_modos();
+    app.apply(persistente("a", "AAA · implementing", false));
+    app.apply(persistente("a", "AAA · completed", true));
+    assert_eq!(etiqueta(&app).as_deref(), Some("AAA"));
 }
 
 #[test]
-fn turn_ended_devuelve_odd_a_la_base_sin_fase() {
-    let mut app = app_con_odd();
-    app.apply(odd("exploring", false));
+fn turn_ended_devuelve_el_persistente_a_la_base_de_su_modo() {
+    let mut app = app_con_modos();
+    app.apply(persistente("b", "BBB · exploring", false));
+    assert_eq!(etiqueta(&app).as_deref(), Some("BBB · exploring"));
     app.apply(LiveEvent::TurnEnded);
-    assert_eq!(etiqueta(&app).as_deref(), Some("ODD"));
+    // La base de `b`, no la del primer modo (`a`).
+    assert_eq!(etiqueta(&app).as_deref(), Some("BBB"));
 }
 
 #[test]
-fn flujo_generico_no_terminal_pinta_su_etiqueta_y_terminal_la_borra() {
+fn flujo_no_persistente_no_vuelve_a_la_base_de_otro() {
+    let mut app = app_con_modos();
+    app.apply(persistente("a", "AAA · fase", false));
+    app.apply(generico(false));
+    assert_eq!(etiqueta(&app).as_deref(), Some("prueba · checking"));
+    // El fin de turno no toca el flujo no persistente activo.
+    app.apply(LiveEvent::TurnEnded);
+    assert_eq!(etiqueta(&app).as_deref(), Some("prueba · checking"));
+    // Al acabar, vuelve el persistente que estaba debajo.
+    app.apply(generico(true));
+    assert_eq!(etiqueta(&app).as_deref(), Some("AAA"));
+}
+
+#[test]
+fn flujo_generico_no_persistente_pinta_su_etiqueta_y_terminal_la_borra() {
     let mut app = App::new();
     app.session_id = Some(SessionId(7));
     app.apply(generico(false));
@@ -131,7 +171,7 @@ fn flujo_generico_no_terminal_pinta_su_etiqueta_y_terminal_la_borra() {
 
 #[test]
 fn turn_ended_no_borra_un_flujo_pesado_activo() {
-    let mut app = app_con_odd();
+    let mut app = app_con_modos();
     app.apply(gauntlet(GauntletPhase::Building, 1));
     app.apply(LiveEvent::TurnEnded);
     assert_eq!(
@@ -141,22 +181,22 @@ fn turn_ended_no_borra_un_flujo_pesado_activo() {
 }
 
 #[test]
-fn gauntlet_activo_manda_sobre_odd_y_al_acabar_vuelve_a_odd() {
-    let mut app = app_con_odd();
-    app.apply(odd("implementing", false));
+fn gauntlet_activo_manda_sobre_el_persistente_y_al_acabar_vuelve_a_el() {
+    let mut app = app_con_modos();
+    app.apply(persistente("a", "AAA · implementing", false));
     app.apply(gauntlet(GauntletPhase::Judging, 1));
-    // ODD sigue cambiando de fase mientras el gauntlet corre: no se pinta.
-    app.apply(odd("reviewing", false));
+    // El persistente sigue cambiando de fase mientras el gauntlet corre: no se pinta.
+    app.apply(persistente("a", "AAA · reviewing", false));
     assert_eq!(
         etiqueta(&app).as_deref(),
         Some("gauntlet #3 · juzgando · ronda 1/2")
     );
     app.apply(gauntlet(GauntletPhase::Completed, 1));
-    assert_eq!(etiqueta(&app).as_deref(), Some("ODD · reviewing"));
+    assert_eq!(etiqueta(&app).as_deref(), Some("AAA · reviewing"));
 }
 
 #[test]
-fn gauntlet_terminal_con_odd_apagado_no_deja_etiqueta() {
+fn gauntlet_terminal_sin_modos_no_deja_etiqueta() {
     let mut app = App::new();
     app.session_id = Some(SessionId(7));
     app.apply(gauntlet(GauntletPhase::Building, 1));
@@ -166,38 +206,55 @@ fn gauntlet_terminal_con_odd_apagado_no_deja_etiqueta() {
 }
 
 #[test]
-fn workflow_activo_pinta_su_fase_y_acaba_a_odd() {
-    let mut app = app_con_odd();
+fn workflow_activo_pinta_su_fase_y_acaba_a_la_base() {
+    let mut app = app_con_modos();
     app.apply(workflow(WorkflowPhase::AwaitingPlanApproval));
     assert_eq!(
         etiqueta(&app).as_deref(),
         Some("flujo #3 · aprobar spec+plan · ronda 1")
     );
     app.apply(workflow(WorkflowPhase::Completed));
-    assert_eq!(etiqueta(&app).as_deref(), Some("ODD"));
+    assert_eq!(etiqueta(&app).as_deref(), Some("AAA"));
 }
 
 #[test]
 fn etiqueta_de_flujo_pesado_tiene_forma_corta_sin_fase() {
-    let mut app = app_con_odd();
+    let mut app = app_con_modos();
     app.apply(gauntlet(GauntletPhase::Building, 2));
     let e = app.flow_label().expect("hay etiqueta");
     assert_eq!(e.corta, "gauntlet #3 · ronda 2/2");
 }
 
 #[test]
-fn odd_apagado_no_pinta_nada_ni_con_eventos_de_odd() {
-    let mut app = App::new().with_odd_config(OddConfig { enabled: false });
+fn modo_apagado_ignora_sus_flow_changed_persistentes() {
+    let mut app = App::new().with_flow_modes(vec![modo("a", "AAA", false), modo("b", "BBB", true)]);
+    app.session_id = Some(SessionId(7));
+    app.apply(persistente("a", "AAA · implementing", false));
+    assert_eq!(etiqueta(&app).as_deref(), Some("BBB"));
+    app.apply(LiveEvent::TurnEnded);
+    assert_eq!(etiqueta(&app).as_deref(), Some("BBB"));
+}
+
+#[test]
+fn modo_desconocido_ignora_sus_flow_changed_persistentes() {
+    let mut app = app_con_modos();
+    app.apply(persistente("zeta", "ZZZ · fase", false));
+    assert_eq!(etiqueta(&app).as_deref(), Some("AAA"));
+}
+
+#[test]
+fn con_todos_los_modos_apagados_no_pinta_nada_ni_con_sus_eventos() {
+    let mut app = App::new().with_flow_modes(vec![modo("a", "AAA", false)]);
     app.session_id = Some(SessionId(7));
     assert_eq!(etiqueta(&app), None);
-    app.apply(odd("implementing", false));
+    app.apply(persistente("a", "AAA · implementing", false));
     assert_eq!(etiqueta(&app), None);
     app.apply(LiveEvent::TurnEnded);
     assert_eq!(etiqueta(&app), None);
 }
 
 #[test]
-fn sin_configuracion_la_aplicacion_nueva_no_muestra_odd() {
+fn sin_configuracion_la_aplicacion_nueva_no_muestra_etiqueta() {
     let app = App::new();
     assert_eq!(etiqueta(&app), None);
 }

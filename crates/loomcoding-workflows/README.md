@@ -5,8 +5,9 @@ feature, su formato Markdown, sus cotas y la herramienta `odd_track`, que lo cre
 en `.loomcoding/odd/<feature>.md` del proyecto. Guía de uso: `docs/odd.md`.
 
 **Regla de dependencia:** `loomcoding-workflows` puede depender de `loomcoding-core` (y de
-`thiserror`), pero `loomcoding-core` nunca depende de este crate ni nombra ningún flujo (salvo el
-interruptor `[odd]` de la configuración). Así el núcleo se mantiene sin flujos concretos, según
+`thiserror`), pero `loomcoding-core` nunca depende de este crate ni nombra ningún flujo. Los modos que este crate
+publica (`flow_modes()`) llegan a la interfaz por la configuración `[flows.<kind>]`, que el núcleo lee
+sin conocer sus nombres. Así el núcleo se mantiene sin flujos concretos, según
 `docs/specs/2026-11-05-loomcoding-extraer-flujos-del-core.md`.
 
 El formato del documento (`odd::doc`, `odd::render`) es puro. Las operaciones (`odd::ops`) también:

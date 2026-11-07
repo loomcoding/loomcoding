@@ -258,8 +258,8 @@ extensión genéricos y la TUI solo pinta.
 6. Solo el padre: `Tool::parent_only` y `ToolRegistry::without_parent_only` (`tools/mod.rs`, aplicado en
    `subagent/launcher.rs`). El cableado del padre está en `crates/loomcoding-cli/src/server/agent_build.rs`
    (`with_close_gate`, `with_tool_observer`, `with_prompt_contributor`); los hijos no los reciben.
-7. Interruptor: `[odd] enabled` (`crates/loomcoding-core/src/config/odd.rs`, `OddConfig`; se aplica al arrancar el daemon);
-   TUI: etiqueta en `app/flow_label.rs` y `render/chrome.rs`, comando `/odd` en `app/odd_command.rs`.
+7. Interruptor: `[flows.<kind>] enabled` (`crates/loomcoding-core/src/config/flows.rs`, `FlowsConfig`, genérico; el valor por defecto de cada modo lo publica `loomcoding_workflows::flow_modes()`; se aplica al arrancar el daemon);
+   TUI (genérica, sin nombrar ODD): lista de modos `FlowMode` y etiqueta en `app/flow_label.rs` y `render/chrome.rs`, comando `/flow` en `app/flow_command.rs`.
 8. Pruebas: `odd/tests/` (documento, disco, evidencia, cierre, fase, prompt, lista, medición); garantía A2A de no herencia
    en `crates/loomcoding-core/src/subagent/tests/no_herencia.rs`; E2E PTY `crates/loomcoding-cli/tests/tui_pty_odd.rs`
    (volcado en `docs/mockups/odd-e2e.md`).

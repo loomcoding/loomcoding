@@ -58,6 +58,7 @@ fn resumen(fase: &str) -> FlowSummary {
         max_rounds: 0,
         terminal: false,
         label: format!("prueba · {fase}"),
+        persistent: false,
     }
 }
 

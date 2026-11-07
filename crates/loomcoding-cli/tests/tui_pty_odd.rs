@@ -2,7 +2,7 @@
 //! E2E de ODD (desarrollo orgánico) en la TUI real: la petición llega a `odd_track`, la cabecera
 //! muestra la etiqueta ODD con su avance, el primer intento de cierre queda bloqueado por el gate y el
 //! turno solo cierra cuando las dos tareas tienen evidencia de un `bash` de esta sesión. Con
-//! `[odd] enabled = false` el mismo guion no muestra etiqueta y el cierre no se bloquea.
+//! `[flows.odd] enabled = false` el mismo guion no muestra etiqueta y el cierre no se bloquea.
 //!
 //! Como en `tui_pty_vigilancia.rs`, el perfil es temporal (`LOOMCODING_HOME`), el proyecto es temporal
 //! y el proveedor es un `wiremock` con el guion de `mock_provider_odd`: no hay red real.
@@ -34,14 +34,14 @@ struct Session {
 }
 
 impl Session {
-    /// Arranca la TUI con el guion de ODD. Con `odd_enabled` se escribe `[odd] enabled` en el proyecto.
+    /// Arranca la TUI con el guion de ODD. Con `odd_enabled` se escribe `[flows.odd] enabled` en el proyecto.
     async fn start(odd_enabled: Option<bool>) -> Session {
         let provider = mock_provider_odd().await;
         let ws = Workspace::new(&provider.uri()).unwrap();
         if let Some(enabled) = odd_enabled {
             let ruta = ws.project.path().join("loomcoding.toml");
             let mut texto = std::fs::read_to_string(&ruta).unwrap();
-            texto.push_str(&format!("\n[odd]\nenabled = {enabled}\n"));
+            texto.push_str(&format!("\n[flows.odd]\nenabled = {enabled}\n"));
             std::fs::write(&ruta, texto).unwrap();
         }
         let term = Term::spawn(TermConfig {
@@ -205,7 +205,7 @@ async fn odd_labels_the_header_and_blocks_the_close_until_both_tasks_have_eviden
     );
 }
 
-/// Con `[odd] enabled = false` el mismo guion no muestra la etiqueta ODD y el cierre no se bloquea.
+/// Con `[flows.odd] enabled = false` el mismo guion no muestra la etiqueta ODD y el cierre no se bloquea.
 #[tokio::test(flavor = "multi_thread")]
 async fn odd_disabled_shows_no_label_and_does_not_block_the_close() {
     std::env::remove_var("NO_COLOR");
