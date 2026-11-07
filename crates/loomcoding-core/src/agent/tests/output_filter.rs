@@ -32,7 +32,7 @@ impl Tool for BashRuidosa {
 
 /// Un turno en el que el modelo llama a `bash`. Devuelve el contenido del resultado tal como queda
 /// en el historial, con el filtro dado.
-async fn resultado_de_bash(cfg: FilterConfig, dir: &std::path::Path) -> String {
+async fn resultado_de_bash(cfg: FilterConfig, dir: &std::path::Path, bus: EventBus) -> String {
     let scripts = vec![
         vec![
             StreamChunk::ToolCallComplete {
@@ -72,7 +72,7 @@ async fn resultado_de_bash(cfg: FilterConfig, dir: &std::path::Path) -> String {
         provider,
         store.clone(),
         Arc::new(tools),
-        EventBus::new(64),
+        bus,
         Arc::new(PermissionService::allow_all()),
         cfg_loom,
         dir.to_path_buf(),
@@ -97,7 +97,7 @@ async fn resultado_de_bash(cfg: FilterConfig, dir: &std::path::Path) -> String {
 async fn con_el_filtro_encendido_el_modelo_recibe_la_salida_compactada() {
     let dir = tempfile::tempdir().unwrap();
     let cfg = FilterConfig::from_toml("[output_filter]\nenabled = true\n").unwrap();
-    let contenido = resultado_de_bash(cfg, dir.path()).await;
+    let contenido = resultado_de_bash(cfg, dir.path(), EventBus::new(64)).await;
 
     assert!(
         contenido.starts_with("[filtrado: 2 líneas omitidas de 5"),
@@ -109,7 +109,51 @@ async fn con_el_filtro_encendido_el_modelo_recibe_la_salida_compactada() {
 #[tokio::test]
 async fn con_el_filtro_apagado_el_modelo_recibe_la_salida_de_siempre() {
     let dir = tempfile::tempdir().unwrap();
-    let contenido = resultado_de_bash(FilterConfig::default(), dir.path()).await;
+    let contenido = resultado_de_bash(FilterConfig::default(), dir.path(), EventBus::new(64)).await;
 
     assert_eq!(contenido, "inicio\n\n\n\nfin");
+}
+
+/// Eventos `OutputFiltered` publicados durante el turno, leídos sin esperar al reloj.
+fn filtrados(rx: &mut tokio::sync::broadcast::Receiver<LiveEvent>) -> Vec<(String, usize, usize)> {
+    let mut eventos = Vec::new();
+    while let Ok(evento) = rx.try_recv() {
+        if let LiveEvent::OutputFiltered {
+            rule,
+            original_bytes,
+            sent_bytes,
+        } = evento
+        {
+            eventos.push((rule, original_bytes, sent_bytes));
+        }
+    }
+    eventos
+}
+
+#[tokio::test]
+async fn el_filtrado_publica_un_evento_con_los_bytes_del_original_y_del_enviado() {
+    let dir = tempfile::tempdir().unwrap();
+    let cfg = FilterConfig::from_toml("[output_filter]\nenabled = true\n").unwrap();
+    let bus = EventBus::new(64);
+    let mut rx = bus.subscribe();
+    let contenido = resultado_de_bash(cfg, dir.path(), bus).await;
+
+    assert_eq!(
+        filtrados(&mut rx),
+        vec![(
+            "general".to_owned(),
+            "inicio\n\n\n\nfin".len(),
+            contenido.len()
+        )]
+    );
+}
+
+#[tokio::test]
+async fn con_el_filtro_apagado_no_se_publica_evento_de_filtrado() {
+    let dir = tempfile::tempdir().unwrap();
+    let bus = EventBus::new(64);
+    let mut rx = bus.subscribe();
+    resultado_de_bash(FilterConfig::default(), dir.path(), bus).await;
+
+    assert!(filtrados(&mut rx).is_empty());
 }

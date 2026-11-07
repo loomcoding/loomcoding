@@ -288,7 +288,7 @@ fn herramientas_fuera_de_la_lista_pasan_intactas() {
 
 #[test]
 fn contenido_para_modelo_sin_filtro_usa_el_recurso_de_siempre() {
-    let contenido = contenido_para_modelo(
+    let enviado = contenido_para_modelo(
         &FilterConfig::default(),
         None,
         "c1",
@@ -296,7 +296,28 @@ fn contenido_para_modelo_sin_filtro_usa_el_recurso_de_siempre() {
         &ToolOutput::ok("a\n\n\nb"),
         || "RECURSO".to_owned(),
     );
-    assert_eq!(contenido, "RECURSO");
+    assert_eq!(enviado.contenido, "RECURSO");
+    assert_eq!(enviado.ahorro, None);
+}
+
+#[test]
+fn contenido_para_modelo_informa_del_ahorro_con_los_bytes_reales() {
+    let dir = tempfile::tempdir().unwrap();
+    let spill = ToolSpill::new(dir.path());
+    let original = ToolOutput::ok("a\n\n\n\nb");
+    let enviado = contenido_para_modelo(
+        &activo(),
+        Some(&spill),
+        "c1",
+        Some(("bash", &json!({"command": "x"}))),
+        &original,
+        || "RECURSO".to_owned(),
+    );
+
+    let ahorro = enviado.ahorro.expect("el filtro actuó");
+    assert_eq!(ahorro.regla, "general");
+    assert_eq!(ahorro.original_bytes, original.content.len());
+    assert_eq!(ahorro.sent_bytes, enviado.contenido.len());
 }
 
 #[test]
@@ -304,7 +325,7 @@ fn contenido_para_modelo_recorta_lo_filtrado_y_conserva_la_cabecera() {
     let dir = tempfile::tempdir().unwrap();
     let spill = ToolSpill::new(dir.path());
     let voluminosa = "linea\n\n\n".repeat(10_000);
-    let contenido = contenido_para_modelo(
+    let enviado = contenido_para_modelo(
         &activo(),
         Some(&spill),
         "c1",
@@ -312,6 +333,7 @@ fn contenido_para_modelo_recorta_lo_filtrado_y_conserva_la_cabecera() {
         &ToolOutput::ok(voluminosa),
         || "RECURSO".to_owned(),
     );
+    let contenido = enviado.contenido;
 
     assert!(
         contenido.len() <= MAX_TOOL_OUTPUT_BYTES,

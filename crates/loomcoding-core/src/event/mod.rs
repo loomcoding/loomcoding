@@ -157,6 +157,14 @@ pub enum LiveEvent {
         added: usize,
         removed: usize,
     },
+    /// El filtro de salida (`[output_filter]`) ha compactado una salida de herramienta. `original_bytes`
+    /// son los bytes que produjo la herramienta y `sent_bytes` los que recibe el modelo. Solo local: no
+    /// se reenvía desde los subagentes, cuya respuesta no se toca.
+    OutputFiltered {
+        rule: String,
+        original_bytes: usize,
+        sent_bytes: usize,
+    },
     JobChanged(crate::job::JobSnapshot),
     SubagentChanged(crate::session::SubagentDescriptor),
     /// Resultado de carga de las skills locales seleccionadas para un hijo.
@@ -311,6 +319,7 @@ impl LiveEvent {
             | LiveEvent::ManualCompactionEnded { .. }
             | LiveEvent::SubagentSettled { .. }
             | LiveEvent::SubagentPhaseChanged { .. }
+            | LiveEvent::OutputFiltered { .. }
             | LiveEvent::RuntimeNotice { .. }
             | LiveEvent::ChildEvent { .. } => false,
             LiveEvent::Delta { .. } => true,

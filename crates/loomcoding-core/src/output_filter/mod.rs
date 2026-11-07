@@ -1,14 +1,16 @@
 //! Compresión determinista de la salida de las herramientas `bash` y `job_output`.
 //!
-//! Sin modelo, sin red y sin estado compartido: cada llamada se filtra por separado. Lo que se
-//! omite queda anunciado con una cabecera (R1) y el original íntegro se conserva con `ToolSpill`
-//! (R2). Solo herramientas: nunca la respuesta de un subagente ni de una tarea A2A. Véase
+//! Sin modelo y sin red. Cada llamada se filtra por separado; el único estado compartido es la
+//! medición del proceso (`stats`), que solo guarda cifras y nombres de regla. Lo que se omite queda
+//! anunciado con una cabecera (R1) y el original íntegro se conserva con `ToolSpill` (R2). Solo
+//! herramientas: nunca la respuesta de un subagente ni de una tarea A2A. Véase
 //! `docs/specs/2026-11-06-loomcoding-compresion-de-salida.md`.
 
 mod cargo;
 #[cfg(test)]
 mod cargo_tests;
 mod comando_simple;
+mod enviar;
 mod general;
 mod git;
 #[cfg(test)]
@@ -17,12 +19,17 @@ mod header;
 mod packages;
 #[cfg(test)]
 mod packages_tests;
+pub mod stats;
+#[cfg(test)]
+mod stats_tests;
 #[cfg(test)]
 mod tests;
 
+pub use enviar::{contenido_para_modelo, Ahorro, Enviado};
+
 use crate::error::{CoreError, Result};
 use crate::tools::spill::ToolSpill;
-use crate::tools::{limit_bytes_with_header, ToolOutput, MAX_TOOL_OUTPUT_BYTES};
+use crate::tools::ToolOutput;
 use serde::Deserialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -45,9 +52,6 @@ pub const ENV_DESACTIVA: &str = "LOOMCODING_NO_FILTER";
 
 /// Herramientas cuya salida pasa por el filtro. Nunca lectura, búsqueda ni subagentes.
 const HERRAMIENTAS: [&str; 2] = ["bash", "job_output"];
-
-/// Bytes que se reservan a la cabecera y al marcador de recorte al acotar (R1).
-const RESERVA_CABECERA: usize = 512;
 
 /// Sección `[output_filter]` de `loomcoding.toml`. Por defecto, apagada.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -128,6 +132,19 @@ pub fn apply(
     cfg: &FilterConfig,
     spill: Option<&ToolSpill>,
 ) -> Filtered {
+    filtrar(call_id, tool, input, out, cfg, spill, &|_| false)
+}
+
+/// Como `apply`, pero con un veto por regla: si `desactivada(regla)` es cierto, la salida pasa intacta.
+pub fn filtrar(
+    call_id: &str,
+    tool: &str,
+    input: &Value,
+    out: &ToolOutput,
+    cfg: &FilterConfig,
+    spill: Option<&ToolSpill>,
+    desactivada: &dyn Fn(&str) -> bool,
+) -> Filtered {
     if !cfg.enabled
         || !HERRAMIENTAS.contains(&tool)
         || input["raw"].as_bool() == Some(true)
@@ -155,6 +172,10 @@ pub fn apply(
     let Some((compactado, regla)) = compactar_con_reglas(texto, tool, input) else {
         return Filtered::intacto(&out.content);
     };
+    // Medición (Tarea 5): una regla desactivada sola pasa intacta, sin volcado ni cabecera.
+    if desactivada(regla) {
+        return Filtered::intacto(&out.content);
+    }
     if inicio.elapsed() > MAX_FILTER_TIME {
         return Filtered::intacto(&out.content);
     }
@@ -230,33 +251,4 @@ fn compactar_con_reglas(
         }
     }
     generales.map(|g| (g, "general"))
-}
-
-/// Contenido que recibe el modelo para una salida de herramienta. Si el filtro no toca la salida,
-/// devuelve `recurso` (el tratamiento de siempre). Si la filtra, la acota al tope de herramientas
-/// conservando la cabecera, que ya lleva la ruta del original.
-pub fn contenido_para_modelo(
-    cfg: &FilterConfig,
-    spill: Option<&ToolSpill>,
-    call_id: &str,
-    herramienta: Option<(&str, &Value)>,
-    out: &ToolOutput,
-    recurso: impl FnOnce() -> String,
-) -> String {
-    let Some((tool, input)) = herramienta else {
-        return recurso();
-    };
-    let filtrada = apply(call_id, tool, input, out, cfg, spill);
-    if filtrada.rule.is_none() {
-        return recurso();
-    }
-    acotar(filtrada.content)
-}
-
-/// Recorta lo filtrado al tope de herramientas, si lo supera, por cabeza y cola.
-fn acotar(contenido: String) -> String {
-    if contenido.len() <= MAX_TOOL_OUTPUT_BYTES {
-        return contenido;
-    }
-    limit_bytes_with_header(&contenido, MAX_TOOL_OUTPUT_BYTES - RESERVA_CABECERA).into_owned()
 }

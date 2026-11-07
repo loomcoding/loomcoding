@@ -767,7 +767,7 @@ impl AgentLoop {
                     }
                 }
                 // Único enganche del filtro de salida (solo herramientas): lo que se guarda es lo que ve el modelo.
-                let contenido = crate::output_filter::contenido_para_modelo(
+                let enviado = crate::output_filter::contenido_para_modelo(
                     &self.output_filter,
                     self.spill.as_ref(),
                     &id,
@@ -777,11 +777,23 @@ impl AgentLoop {
                     &out,
                     || contenido_de_herramienta(self.spill.as_ref(), &id, &out.content),
                 );
+                if let Some(ahorro) = &enviado.ahorro {
+                    self.bus.publish(LiveEvent::OutputFiltered {
+                        rule: ahorro.regla.to_owned(),
+                        original_bytes: ahorro.original_bytes,
+                        sent_bytes: ahorro.sent_bytes,
+                    });
+                }
+                for regla in enviado.desactivadas {
+                    self.bus.publish(LiveEvent::RuntimeNotice {
+                        message: crate::output_filter::stats::aviso_desactivacion(regla),
+                    });
+                }
                 let tr = Message::new(
                     Role::Tool,
                     vec![ContentPart::ToolResult {
                         call_id: id,
-                        content: contenido,
+                        content: enviado.contenido,
                         is_error: out.is_error,
                     }],
                 );

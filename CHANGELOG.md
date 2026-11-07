@@ -6,6 +6,22 @@ release.
 
 ## Unreleased
 
+### Compresión de salida de herramientas (`output_filter`)
+
+- Capa determinista que reduce la salida de `bash` y `job_output` antes de que llegue al modelo: reglas generales (ANSI,
+  barras de progreso, líneas repetidas, líneas en blanco) y, para `cargo test|build|check|clippy`, `git status` y
+  `npm|pnpm install`, una lista blanca de señal. Cada salida filtrada lleva una cabecera con la ruta del original;
+  `raw: true` devuelve la salida sin filtrar.
+- **Apagado por defecto.** `[output_filter] enabled = true` lo enciende; `LOOMCODING_NO_FILTER=1` lo apaga siempre. Guía
+  de uso y de medición: `docs/output-filter.md`.
+- Medición: contadores por regla (usos, re-peticiones, bytes), y desactivación automática de una regla con al menos 10
+  usos y más del 20 % de re-peticiones, con un único aviso (`RuntimeNotice`). Sin datos personales.
+- La dedup de lecturas en el historial queda aplazada hasta medir.
+- **Cable:** nueva variante `LiveEvent::OutputFiltered { rule, original_bytes, sent_bytes }`, solo local (no se reenvía
+  desde los subagentes). Un cliente antiguo conectado a un daemon nuevo no la entenderá (el binario es el mismo para
+  ambos hoy). La TUI la ignora por ahora.
+- Medición por `tracing` con destino `output_filter`; el binario actual no instala suscriptor de `tracing`.
+
 ### Desarrollo orgánico (ODD)
 
 - Nuevo crate `loomcoding-workflows` con ODD, un modo ligero **activo por defecto** (`[flows.odd] enabled = true`, `/flow` para

@@ -368,7 +368,7 @@ fn salida_desmesurada_se_acota_y_conserva_el_fallo() {
         }
     }
     let salida = bash_cargo("cargo test", &texto);
-    let para_modelo = contenido_para_modelo(
+    let enviado = contenido_para_modelo(
         &activo(),
         Some(&volcado()),
         "c1",
@@ -376,6 +376,7 @@ fn salida_desmesurada_se_acota_y_conserva_el_fallo() {
         &ToolOutput::ok(texto),
         || "RECURSO".to_owned(),
     );
+    let para_modelo = enviado.contenido;
 
     assert_eq!(salida.rule, Some("cargo"));
     assert!(salida.content.contains("test caso_roto ... FAILED"));
