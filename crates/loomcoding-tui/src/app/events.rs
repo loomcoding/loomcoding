@@ -54,6 +54,7 @@ impl App {
                 self.matrix_rain.stop();
                 self.assistant = None;
                 self.thinking = false;
+                self.fin_de_turno_flujo();
             }
             LiveEvent::Delta { text } => {
                 self.set_phase("responding");
@@ -271,21 +272,7 @@ impl App {
             }
             LiveEvent::DevelopmentWorkflowChanged(summary) => {
                 if Some(summary.parent) == self.session_id {
-                    let phase = match summary.phase {
-                        loomcoding_core::workflow::WorkflowPhase::Specifying => "crear spec+plan",
-                        loomcoding_core::workflow::WorkflowPhase::AwaitingPlanApproval => {
-                            "aprobar spec+plan"
-                        }
-                        loomcoding_core::workflow::WorkflowPhase::Implementing => "implementando",
-                        loomcoding_core::workflow::WorkflowPhase::Reviewing => "revisando",
-                        loomcoding_core::workflow::WorkflowPhase::ChangesRequested => "corregir",
-                        loomcoding_core::workflow::WorkflowPhase::AwaitingFinalAcceptance => {
-                            "aceptar resultado"
-                        }
-                        loomcoding_core::workflow::WorkflowPhase::Completed => "completado",
-                        loomcoding_core::workflow::WorkflowPhase::Cancelled => "cancelado",
-                        loomcoding_core::workflow::WorkflowPhase::Failed => "fallido",
-                    };
+                    let phase = super::flow_label::fase_de_flujo(summary.phase);
                     let agent = if summary.active_child.is_none() {
                         "coordinador"
                     } else {
@@ -303,6 +290,7 @@ impl App {
                             _ => "coordinador",
                         }
                     };
+                    self.fija_flujo_workflow(&summary);
                     self.transcript.push_entry(
                         loomcoding_cloth::state::LineKind::System,
                         loomcoding_cloth::state::Format::Plain,
@@ -320,17 +308,8 @@ impl App {
             } => {
                 if Some(summary.parent) == self.session_id {
                     use loomcoding_core::gauntlet::GauntletPhase as P;
-                    let phase = match summary.phase {
-                        P::Building => "construyendo",
-                        P::Judging => "juzgando",
-                        P::Rebuilding => "rehaciendo",
-                        P::AwaitingFinalAcceptance => "aceptar resultado",
-                        P::Completed => "completado",
-                        P::Stopped => "detenido (rondas agotadas)",
-                        P::Inconclusive => "sin veredicto fiable",
-                        P::Cancelled => "cancelado",
-                        P::Failed => "fallido",
-                    };
+                    let phase = super::flow_label::fase_de_gauntlet(summary.phase);
+                    self.fija_flujo_gauntlet(&summary);
                     // El agente en marcha lleva entre paréntesis su estado A2A real.
                     let agent = match (summary.active_child, summary.phase) {
                         (Some(child), phase) => {
@@ -363,8 +342,8 @@ impl App {
                     );
                 }
             }
-            // Un flujo genérico (ODD) cambió de fase. La interfaz aún no lo pinta: lo hace la tarea 5.
-            LiveEvent::FlowChanged { .. } => {}
+            // Un flujo genérico (ODD u otro) cambió de fase: su etiqueta va a la cabecera.
+            LiveEvent::FlowChanged { summary, .. } => self.aplica_flow_changed(&summary),
             LiveEvent::AgentRouted {
                 parent,
                 agent,

@@ -399,6 +399,8 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let a2a_config = loomcoding_a2a::config::A2aConfig::load(&config_path)?;
     // Preferencias de UI del proyecto (verbose_provider_notices, etc.).
     let ui_config = loomcoding_core::config::UiConfig::load(&config_path).unwrap_or_default();
+    // `[odd] enabled` para la cabecera: el mismo valor con que el daemon arranca ODD.
+    let odd_config = loomcoding_core::config::OddConfig::load(&config_path).unwrap_or_default();
     let data_dir = crate::home::user_home()
         .unwrap_or_else(std::env::temp_dir)
         .join(".loomcoding");
@@ -440,7 +442,9 @@ pub(super) async fn run_client_tui(stream: ipc::Stream) -> anyhow::Result<()> {
     let publicador = crate::sondeo_local::Publicador::new(catalog_tx, catalog, declared, locales);
     tokio::spawn(crate::load_catalog(publicador.clone()));
     let refresco_proveedores = crate::sondeo_local::arrancar_sondeo(publicador);
-    let mut app = loomcoding_tui::app::App::with_context(cwd, model).with_ui_config(ui_config);
+    let mut app = loomcoding_tui::app::App::with_context(cwd, model)
+        .with_ui_config(ui_config)
+        .with_odd_config(odd_config);
     app.use_product_default_view();
     app.set_provider_settings(settings);
     app.set_declared_efforts(limits.efforts.clone());

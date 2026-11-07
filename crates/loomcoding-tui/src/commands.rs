@@ -26,6 +26,7 @@ pub enum Command {
     Mascot,
     LogoFx,
     Verbose,
+    Odd,
     Agent,
     Focus,
     Agents,
@@ -107,6 +108,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         Command::Verbose,
         "/verbose",
         "Toggle provider request notices in the transcript",
+    ),
+    (
+        Command::Odd,
+        "/odd",
+        "ODD switch: /odd [on|off] (no argument: show; on|off saves [odd] enabled, applies on restart)",
     ),
     (
         Command::Agent,

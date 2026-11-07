@@ -28,8 +28,11 @@ mod child_types;
 mod children;
 mod composer;
 mod events;
+mod flow_label;
+pub use flow_label::EtiquetaFlujo;
 mod logo_fx_state;
 mod model_effort;
+mod odd_command;
 mod pointer;
 mod prefs;
 mod prompts;
@@ -106,6 +109,13 @@ pub struct App {
     pub theme_preset: loomcoding_cloth::widgets::ThemePreset,
     /// Fichero donde se guardan las preferencias de la interfaz. `None` = no persistir.
     pub prefs_path: Option<std::path::PathBuf>,
+    /// ODD encendido en la configuración con que arrancó Loom (`[odd] enabled`). Apagado, la
+    /// cabecera no muestra nada de ODD.
+    pub flows_odd_enabled: bool,
+    /// Etiqueta del flujo pesado activo (`gauntlet`, `development_workflow` o uno genérico).
+    pub(crate) flow_heavy: Option<EtiquetaFlujo>,
+    /// Etiqueta de ODD: la base «ODD» o su fase. `None` si ODD está apagado.
+    pub(crate) flow_odd: Option<EtiquetaFlujo>,
     /// Disposición elegida por el usuario (`/layout` o `ui.toml`). Si es `Some`,
     /// manda sobre el layout del preset, también tras `/theme`.
     pub layout_override: Option<loomcoding_cloth::widgets::LayoutStyle>,
@@ -441,6 +451,9 @@ impl App {
             theme: loomcoding_cloth::widgets::Theme::default_dark(),
             theme_preset: loomcoding_cloth::widgets::ThemePreset::Cloth,
             prefs_path: None,
+            flows_odd_enabled: false,
+            flow_heavy: None,
+            flow_odd: None,
             layout_override: None,
             style_override: None,
             rail_style: crate::render::rail::RailStyle::default(),

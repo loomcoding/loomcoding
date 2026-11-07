@@ -170,6 +170,8 @@ pub(super) async fn build_agent(
     let a2a = loomcoding_a2a::config::A2aConfig::load(&config_path)?;
     let prompt_cache =
         loomcoding_core::config::ProviderCacheConfig::load(&config_path)?.prompt_cache;
+    // `[odd] enabled` se lee al arrancar; cambiarlo requiere reiniciar Loom.
+    let odd_config = loomcoding_core::config::OddConfig::load(&config_path)?;
     // Un valor inválido de `request_timeout_secs` se muestra como error de configuración al arrancar.
     let limits = loomcoding_core::config::ProviderLimitsConfig::load(&config_path)?;
     let request_timeout = crate::request_timeout_from_secs(limits.request_timeout_secs);
@@ -222,6 +224,7 @@ pub(super) async fn build_agent(
     tokio::spawn(crate::load_catalog(publicador));
     let project_tool_env = crate::shell_env(&project_env);
     let (tools, odd) = crate::build_project_tools(project_tool_env);
+    odd.set_enabled(odd_config.enabled);
     let mcp_config_path = data_dir.join("mcp.toml");
     let (mcp_config, mcp_servers, mcp_tools) =
         match loomcoding_mcp::McpConfig::load(&mcp_config_path) {
