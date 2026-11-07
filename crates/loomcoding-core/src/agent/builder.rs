@@ -48,6 +48,7 @@ impl AgentLoop {
             close_gate: None,
             tool_observer: None,
             prompt_contributors: Vec::new(),
+            output_filter: crate::output_filter::FilterConfig::default(),
             cwd,
         };
         if has_subagents {
@@ -239,6 +240,13 @@ impl AgentLoop {
     /// hereda: los subagentes locales se construyen sin él.
     pub fn with_tool_observer(mut self, observer: Arc<dyn ToolObserver>) -> Self {
         self.tool_observer = Some(observer);
+        self
+    }
+
+    /// Fija el filtro de salida de herramientas (`[output_filter]`). Por defecto, apagado. No se
+    /// hereda: los subagentes locales se construyen sin él.
+    pub fn with_output_filter(mut self, cfg: crate::output_filter::FilterConfig) -> Self {
+        self.output_filter = cfg;
         self
     }
 

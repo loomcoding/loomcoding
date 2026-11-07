@@ -21,7 +21,8 @@ impl Tool for JobOutputTool {
             "type": "object",
             "properties": {
                 "id": { "type": "string" },
-                "from": { "type": "integer", "minimum": 0 }
+                "from": { "type": "integer", "minimum": 0 },
+                "raw": { "type": "boolean", "description": "true devuelve el texto sin compactar" }
             },
             "required": ["id"]
         })

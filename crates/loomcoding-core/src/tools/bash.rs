@@ -131,7 +131,7 @@ impl Tool for BashTool {
         shell_description()
     }
     fn schema(&self) -> serde_json::Value {
-        serde_json::json!({"type":"object","properties":{"command":{"type":"string"}},"required":["command"]})
+        serde_json::json!({"type":"object","properties":{"command":{"type":"string"},"raw":{"type":"boolean","description":"true devuelve la salida sin compactar"}},"required":["command"]})
     }
     fn execution_mode(&self, _i: &serde_json::Value) -> ExecutionMode {
         ExecutionMode::Exclusive

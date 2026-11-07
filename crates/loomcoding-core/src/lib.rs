@@ -14,6 +14,7 @@ pub mod flow;
 pub mod job;
 pub mod job_watch;
 pub mod message;
+pub mod output_filter;
 pub mod permission;
 pub mod provider;
 pub mod providers_catalog;

@@ -766,7 +766,17 @@ impl AgentLoop {
                         }
                     }
                 }
-                let contenido = contenido_de_herramienta(self.spill.as_ref(), &id, &out.content);
+                // Único enganche del filtro de salida (solo herramientas): lo que se guarda es lo que ve el modelo.
+                let contenido = crate::output_filter::contenido_para_modelo(
+                    &self.output_filter,
+                    self.spill.as_ref(),
+                    &id,
+                    by_id
+                        .get(&id)
+                        .map(|(nombre, entrada)| (nombre.as_str(), entrada)),
+                    &out,
+                    || contenido_de_herramienta(self.spill.as_ref(), &id, &out.content),
+                );
                 let tr = Message::new(
                     Role::Tool,
                     vec![ContentPart::ToolResult {
