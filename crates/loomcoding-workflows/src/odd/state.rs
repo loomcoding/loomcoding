@@ -11,13 +11,23 @@ use std::sync::{Arc, Mutex, MutexGuard};
 /// contexto y coste).
 pub const MAX_SESIONES_RECORDADAS: usize = 256;
 
+/// Última publicación de ODD para una sesión: la fase y la etiqueta completa que vio la interfaz.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Publicado {
+    pub fase: &'static str,
+    pub etiqueta: String,
+}
+
 struct Interno {
     activas: Mutex<BTreeMap<SessionId, String>>,
     /// Identificadores pendientes vistos en la última reinyección de cada sesión. Si el cierre
     /// vuelve a ver exactamente los mismos, el modelo no avanzó y no se insiste.
     pendientes: Mutex<BTreeMap<SessionId, Vec<String>>>,
-    /// Última fase de ODD publicada por sesión (véase `observer`).
-    fases: Mutex<BTreeMap<SessionId, &'static str>>,
+    /// Última publicación de ODD por sesión (véase `observer`). La clave para no republicar es la
+    /// etiqueta completa, que lleva el avance.
+    publicados: Mutex<BTreeMap<SessionId, Publicado>>,
+    /// Avance del documento activo por sesión: (tareas hechas, total).
+    progresos: Mutex<BTreeMap<SessionId, (usize, usize)>>,
     habilitado: AtomicBool,
     io: Mutex<()>,
 }
@@ -27,7 +37,8 @@ impl Default for Interno {
         Self {
             activas: Mutex::new(BTreeMap::new()),
             pendientes: Mutex::new(BTreeMap::new()),
-            fases: Mutex::new(BTreeMap::new()),
+            publicados: Mutex::new(BTreeMap::new()),
+            progresos: Mutex::new(BTreeMap::new()),
             // ODD viene activo; el interruptor solo lo apaga.
             habilitado: AtomicBool::new(true),
             io: Mutex::new(()),
@@ -84,14 +95,28 @@ impl OddState {
         self.pendientes().remove(&sesion);
     }
 
-    /// Última fase publicada para la sesión, si la hubo.
-    pub(crate) fn fase_publicada(&self, sesion: SessionId) -> Option<&'static str> {
-        self.fases().get(&sesion).copied()
+    /// Última publicación de ODD para la sesión, si la hubo.
+    pub(crate) fn publicado(&self, sesion: SessionId) -> Option<Publicado> {
+        self.publicados().get(&sesion).cloned()
     }
 
-    /// Anota la fase publicada para la sesión, desalojando una entrada si se supera el tope.
-    pub(crate) fn recordar_fase(&self, sesion: SessionId, fase: &'static str) {
-        insertar_acotado(&mut self.fases(), sesion, fase);
+    /// Anota lo publicado para la sesión, desalojando una entrada si se supera el tope.
+    pub(crate) fn recordar_publicado(&self, sesion: SessionId, fase: &'static str, etiqueta: &str) {
+        let publicado = Publicado {
+            fase,
+            etiqueta: etiqueta.to_string(),
+        };
+        insertar_acotado(&mut self.publicados(), sesion, publicado);
+    }
+
+    /// Avance del documento activo de la sesión (hechas, total), si hay documento.
+    pub(crate) fn progreso_de(&self, sesion: SessionId) -> Option<(usize, usize)> {
+        self.progresos().get(&sesion).copied()
+    }
+
+    /// Anota el avance tras una operación sobre el documento.
+    pub(crate) fn recordar_progreso(&self, sesion: SessionId, avance: (usize, usize)) {
+        insertar_acotado(&mut self.progresos(), sesion, avance);
     }
 
     /// Cerrojo que serializa las lecturas y escrituras de documentos dentro del proceso.
@@ -113,8 +138,18 @@ impl OddState {
             .unwrap_or_else(|e| e.into_inner())
     }
 
-    fn fases(&self) -> MutexGuard<'_, BTreeMap<SessionId, &'static str>> {
-        self.interno.fases.lock().unwrap_or_else(|e| e.into_inner())
+    fn publicados(&self) -> MutexGuard<'_, BTreeMap<SessionId, Publicado>> {
+        self.interno
+            .publicados
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn progresos(&self) -> MutexGuard<'_, BTreeMap<SessionId, (usize, usize)>> {
+        self.interno
+            .progresos
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
     }
 }
 

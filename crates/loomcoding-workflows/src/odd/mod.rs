@@ -14,6 +14,7 @@ pub mod prompt;
 pub mod render;
 pub mod state;
 pub mod store;
+pub mod todos;
 pub mod tool;
 
 #[cfg(test)]

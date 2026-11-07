@@ -5,6 +5,7 @@ mod evidencia;
 mod fase;
 mod gate;
 mod prompt;
+mod todos;
 
 use crate::odd::FeatureDoc;
 use loomcoding_core::event::EventBus;

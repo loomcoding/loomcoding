@@ -9,6 +9,7 @@ use super::evidence;
 use super::ops;
 use super::state::OddState;
 use super::store;
+use super::todos;
 use async_trait::async_trait;
 use loomcoding_core::error::Result;
 use loomcoding_core::tools::{limit_output, ExecutionMode, Tool, ToolCtx, ToolOutput};
@@ -98,9 +99,12 @@ impl Tool for OddTrackTool {
             Err(error) => Err(format!("la operación de ODD no terminó: {error}")),
         };
         match resultado {
-            Ok(texto) => {
+            Ok(aplicada) => {
                 self.estado.recordar(ctx.session, &feature);
-                Ok(ToolOutput::ok(texto))
+                if let Some(doc) = &aplicada.documento {
+                    todos::publicar(&self.estado, &ctx, doc);
+                }
+                Ok(ToolOutput::ok(aplicada.texto))
             }
             Err(error) => Ok(ToolOutput::err(error)),
         }
@@ -252,8 +256,15 @@ fn campo_tareas(objeto: &Value) -> std::result::Result<Vec<String>, String> {
         .collect()
 }
 
-/// Lee, aplica y escribe bajo el cerrojo de E/S. Devuelve el texto para el modelo.
-fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<String, String> {
+/// Resultado de una operación: el texto para el modelo y el documento releído tras guardarlo. Solo
+/// las operaciones que modifican el documento lo traen, y solo si se puede releer.
+struct Aplicada {
+    texto: String,
+    documento: Option<FeatureDoc>,
+}
+
+/// Lee, aplica y escribe bajo el cerrojo de E/S. Devuelve el texto para el modelo y el documento.
+fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<Aplicada, String> {
     let _cerrojo = estado.bloqueo_io();
     let feature = op.feature().to_string();
     let existente = store::leer(ruta)?;
@@ -272,10 +283,13 @@ fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<String
         }
         let doc = ops::crear(feature, objetivo, tareas)?;
         escribir(ruta, &doc)?;
-        return Ok(format!(
-            "Documento `{feature}` creado con {} tareas.",
-            doc.tasks.len()
-        ));
+        return Ok(Aplicada {
+            texto: format!(
+                "Documento `{feature}` creado con {} tareas.",
+                doc.tasks.len()
+            ),
+            documento: releer(ruta),
+        });
     }
 
     let markdown = existente
@@ -284,7 +298,12 @@ fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<String
         .map_err(|error| format!("el documento de `{feature}` está roto ({error}). No lo toco"))?;
 
     let texto = match op {
-        Op::Leer { .. } => return Ok(limit_output(&markdown).into_owned()),
+        Op::Leer { .. } => {
+            return Ok(Aplicada {
+                texto: limit_output(&markdown).into_owned(),
+                documento: None,
+            })
+        }
         Op::Hecha { id, texto, .. } => ops::marcar_hecha(&mut doc, &id, &texto)?,
         Op::Reabrir { id, motivo, .. } => ops::reabrir(&mut doc, &id, &motivo)?,
         Op::Bloquear { id, motivo, .. } => ops::bloquear(&mut doc, &id, &motivo)?,
@@ -292,11 +311,21 @@ fn aplicar(estado: &OddState, ruta: &Path, op: Op) -> std::result::Result<String
         Op::Crear { .. } => unreachable!("create se trata arriba"),
     };
     escribir(ruta, &doc)?;
-    Ok(texto)
+    Ok(Aplicada {
+        texto,
+        documento: releer(ruta),
+    })
 }
 
 /// Escribe el documento solo si se puede releer tal cual, y de forma atómica.
 fn escribir(ruta: &Path, doc: &FeatureDoc) -> std::result::Result<(), String> {
     ops::comprobar_ida_y_vuelta(doc)?;
     store::escribir_atomico(ruta, &doc.to_markdown())
+}
+
+/// Relee el documento ya guardado. `None` si no existe o no se puede parsear: entonces no se publica
+/// nada y la operación sigue siendo válida.
+pub(crate) fn releer(ruta: &Path) -> Option<FeatureDoc> {
+    let markdown = store::leer(ruta).ok()??;
+    FeatureDoc::parse(&markdown).ok()
 }
