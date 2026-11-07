@@ -1790,6 +1790,7 @@ dependencies = [
  "loomcoding-herdr",
  "loomcoding-mcp",
  "loomcoding-tui",
+ "loomcoding-workflows",
  "serde",
  "serde_json",
  "tempfile",
@@ -1918,7 +1919,13 @@ dependencies = [
 name = "loomcoding-workflows"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "loomcoding-core",
+ "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

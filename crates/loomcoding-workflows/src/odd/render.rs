@@ -10,8 +10,10 @@ use super::doc::{
 };
 use super::OddError;
 
-const EVIDENCE_MARK: &str = " — evidencia:";
-const BLOCK_MARK: &str = " — bloqueada:";
+/// Separadores del formato. Son `pub(crate)` para que `odd_track` rechace los textos del modelo que
+/// los contengan: si los contuvieran, el documento no haría ida y vuelta exacta.
+pub(crate) const EVIDENCE_MARK: &str = " — evidencia:";
+pub(crate) const BLOCK_MARK: &str = " — bloqueada:";
 
 impl FeatureDoc {
     /// Serializa el documento. Los valores se recortan y los saltos de línea de las

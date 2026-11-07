@@ -1,11 +1,19 @@
-//! Desarrollo orgánico (ODD): documento de feature y su formato Markdown.
+//! Desarrollo orgánico (ODD): documento de feature, su formato Markdown y la herramienta `odd_track`.
 //!
-//! Todo el módulo es puro: ni E/S de ficheros, ni eventos, ni herramientas. Lo que aquí vive
-//! es la estructura del documento, sus cotas y su ida y vuelta con Markdown. Ver la spec
+//! El formato (`doc`, `render`) es puro. Las operaciones (`ops`), el disco (`store`), la evidencia
+//! (`evidence`) y la herramienta (`tool`) llegan después. Ver la spec
 //! `docs/specs/2026-11-07-loomcoding-odd-desarrollo-organico.md`.
 
 pub mod doc;
+pub mod evidence;
+pub mod ops;
 pub mod render;
+pub mod state;
+pub mod store;
+pub mod tool;
+
+#[cfg(test)]
+mod tests;
 
 pub use doc::{FeatureDoc, Task, TaskStatus};
 
