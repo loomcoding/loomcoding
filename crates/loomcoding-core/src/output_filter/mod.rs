@@ -5,6 +5,9 @@
 //! (R2). Solo herramientas: nunca la respuesta de un subagente ni de una tarea A2A. Véase
 //! `docs/specs/2026-11-06-loomcoding-compresion-de-salida.md`.
 
+mod cargo;
+#[cfg(test)]
+mod cargo_tests;
 mod general;
 mod header;
 #[cfg(test)]
@@ -102,8 +105,8 @@ impl FilterConfig {
 
 /// Filtra la salida de una llamada. Devuelve el original sin tocar si el filtro está apagado, si la
 /// herramienta no es de las filtradas, si la entrada es desmesurada, si pide `raw: true` o si no hay
-/// nada que compactar. Con fallo (`is_error`) solo se aplican las reglas generales (R4), que son las
-/// únicas que existen hoy.
+/// nada que compactar. Con fallo (`is_error`) se aplica la misma lista blanca (R4): la regla por
+/// comando no descarta ninguna línea de error ni el contexto que la rodea.
 pub fn apply(
     call_id: &str,
     tool: &str,
@@ -136,7 +139,7 @@ pub fn apply(
         },
         None => &out.content,
     };
-    let Some(compactado) = general::compactar(texto) else {
+    let Some((compactado, regla)) = compactar_con_reglas(texto, tool, input) else {
         return Filtered::intacto(&out.content);
     };
     if inicio.elapsed() > MAX_FILTER_TIME {
@@ -151,7 +154,7 @@ pub fn apply(
     let total = texto.lines().count();
     let cuerpo = format!(
         "{}\n{}",
-        header::cabecera(compactado.omitidas, total, "general", original.as_deref()),
+        header::cabecera(compactado.omitidas, total, regla, original.as_deref()),
         compactado.texto
     );
     let content = match valor {
@@ -167,9 +170,36 @@ pub fn apply(
     Filtered {
         content,
         omitted_lines: compactado.omitidas,
-        rule: Some("general"),
+        rule: Some(regla),
         original,
     }
+}
+
+/// Aplica las reglas generales y, si el comando es de `cargo`, también su regla (R3). Devuelve el
+/// texto compactado con las líneas omitidas y el nombre de la regla que lo ha hecho.
+fn compactar_con_reglas(
+    texto: &str,
+    tool: &str,
+    input: &Value,
+) -> Option<(general::Compactado, &'static str)> {
+    let generales = general::compactar(texto);
+    let omitidas_generales = generales.as_ref().map_or(0, |g| g.omitidas);
+    let sobre = generales.as_ref().map_or(texto, |g| g.texto.as_str());
+    let comando = if tool == "bash" {
+        input["command"].as_str()
+    } else {
+        None
+    };
+    if comando.is_some_and(cargo::aplica) {
+        if let Some(especifico) = cargo::compactar(sobre) {
+            let compactado = general::Compactado {
+                texto: especifico.texto,
+                omitidas: omitidas_generales + especifico.omitidas,
+            };
+            return Some((compactado, "cargo"));
+        }
+    }
+    generales.map(|g| (g, "general"))
 }
 
 /// Contenido que recibe el modelo para una salida de herramienta. Si el filtro no toca la salida,

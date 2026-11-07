@@ -1,0 +1,11 @@
+   Compiling toy v0.1.0 (C:\work\toy)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+     Running tests\ok.rs (C:\work\target-fixtures\debug\deps\ok-b75b19005df60fe3.exe)
+
+running 3 tests
+test dos ... ok
+test tres ... ok
+test uno ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

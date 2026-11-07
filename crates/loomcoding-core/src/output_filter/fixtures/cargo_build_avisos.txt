@@ -1,0 +1,11 @@
+   Compiling toy v0.1.0 (C:\work\toy)
+warning: unused variable: `sin_usar`
+ --> src\aviso.rs:2:9
+  |
+2 |     let sin_usar = 5;
+  |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_sin_usar`
+  |
+  = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `toy` (lib) generated 1 warning (run `cargo fix --lib -p toy` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.32s
