@@ -32,6 +32,20 @@ fn selected_lines_are_highlighted() {
 }
 
 #[test]
+fn copied_job_lines_keep_their_prefix() {
+    let mut t = Transcript::new();
+    t.push(Line::new(LineKind::Job, "[Job 3 completed] hecho"));
+    let (mut vp, mut layout) = (Viewport::new(), Layout::new());
+    draw(&t, &mut vp, &mut layout, 40, 3);
+    let sel = select(CellPos { row: 0, col: 0 }, CellPos { row: 0, col: 39 });
+    let texto = selected_text(&t, &layout, &Theme::test(), &sel);
+    assert!(
+        texto.starts_with("job: [Job 3 completed]"),
+        "la copia pierde el actor: {texto:?}"
+    );
+}
+
+#[test]
 fn hit_cell_maps_screen_to_document_with_scroll() {
     let mut t = Transcript::new();
     for i in 0..50 {

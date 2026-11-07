@@ -30,6 +30,9 @@ pub enum LineKind {
     NodeHead(ToolStatus),
     /// Hijo de un nodo de subagente desplegado. El guion de árbol va en el texto.
     NodeBody,
+    /// Aviso que emite un job del registro (vigilancia o término). Es un actor propio de Loom: no
+    /// es un agente ni una tarea A2A, y el prefijo `job: ` lo distingue del cajón `sys:`.
+    Job,
     /// Aviso de que un bloque largo tiene líneas plegadas.
     Fold,
 }

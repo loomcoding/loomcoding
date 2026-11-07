@@ -114,6 +114,54 @@ fn todo_entries_paint_a_prefix_that_is_not_part_of_the_text() {
 }
 
 #[test]
+fn job_lines_paint_their_prefix_that_is_not_part_of_the_text() {
+    assert_eq!(prefix(LineKind::Job), "job: ");
+    let mut t = Transcript::new();
+    t.push(Line::new(LineKind::Job, "[Job 3 watch] listo"));
+    let out = buffer(&t, 40, 3);
+    assert!(
+        out.contains("job: [Job 3 watch] listo"),
+        "falta el actor job"
+    );
+    assert!(!t.line(0).unwrap().plain().contains("job:"));
+}
+
+#[test]
+fn job_lines_keep_their_prefix_under_every_preset_and_without_color() {
+    use crate::state::Format;
+    use crate::widgets::{ColorDepth, ThemePreset};
+    let mut t = Transcript::new();
+    t.push_entry(LineKind::Job, Format::Plain, "[Job 3 completed] hecho");
+    let mut temas: Vec<Theme> = ThemePreset::ALL.into_iter().map(Theme::preset).collect();
+    let mut sin_color = Theme::test();
+    sin_color.depth = ColorDepth::NoColor;
+    temas.push(sin_color);
+    for (i, theme) in temas.iter().enumerate() {
+        let mut term = Terminal::new(TestBackend::new(40, 3)).unwrap();
+        term.draw(|f| {
+            render(
+                f,
+                f.area(),
+                &t,
+                &mut Viewport::new(),
+                &mut Layout::new(),
+                None,
+                theme,
+            )
+        })
+        .unwrap();
+        let texto: String = term
+            .backend()
+            .buffer()
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect();
+        assert!(texto.contains("job: [Job 3 completed]"), "tema {i} roto");
+    }
+}
+
+#[test]
 fn empty_transcript_does_not_panic() {
     let _ = buffer(&Transcript::new(), 40, 10);
 }
