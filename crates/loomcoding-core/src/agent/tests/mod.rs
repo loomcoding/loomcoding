@@ -36,6 +36,7 @@ mod steps;
 mod stopped;
 mod system_prompt;
 mod temperature;
+mod tool_observer;
 mod turn;
 mod usage_records;
 mod watch_notices;

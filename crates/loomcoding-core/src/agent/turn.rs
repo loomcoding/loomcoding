@@ -731,6 +731,7 @@ impl AgentLoop {
                 by_id.insert(id.clone(), (name.clone(), input.clone()));
             }
 
+            self.observar_herramientas(&allowed, session, &cancel).await;
             let results = dispatch::execute_tools(
                 &self.tools,
                 ctx.clone(),

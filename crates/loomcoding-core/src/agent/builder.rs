@@ -46,6 +46,7 @@ impl AgentLoop {
             compaction: compact::CompactionConfig::default(),
             background: background::BackgroundSlots::default(),
             close_gate: None,
+            tool_observer: None,
             cwd,
         };
         if has_subagents {
@@ -230,6 +231,13 @@ impl AgentLoop {
     /// hereda: los subagentes locales se construyen sin ella.
     pub fn with_close_gate(mut self, gate: Arc<dyn TurnCloseGate>) -> Self {
         self.close_gate = Some(gate);
+        self
+    }
+
+    /// Configura el observador de herramientas (punto de extensión, véase `tool_observer`). No se
+    /// hereda: los subagentes locales se construyen sin él.
+    pub fn with_tool_observer(mut self, observer: Arc<dyn ToolObserver>) -> Self {
+        self.tool_observer = Some(observer);
         self
     }
 

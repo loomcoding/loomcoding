@@ -7,7 +7,9 @@
 pub mod doc;
 pub mod evidence;
 pub mod gate;
+pub mod observer;
 pub mod ops;
+pub mod phase;
 pub mod render;
 pub mod state;
 pub mod store;

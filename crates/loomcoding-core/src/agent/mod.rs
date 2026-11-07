@@ -38,6 +38,8 @@ pub use settle::{MAX_SETTLE_WAIT, MAX_WAKE_TURNS};
 mod step_limit;
 pub use handoff::HANDOFF_MAX_BYTES;
 mod subagents;
+mod tool_observer;
+pub use tool_observer::{consult_observer, ToolObserveCtx, ToolObserver, TOOL_OBSERVER_TIMEOUT};
 mod turn;
 mod usage;
 
@@ -198,6 +200,9 @@ pub struct AgentLoop {
     /// Política de cierre del turno (véase `close_gate`). `None` cierra como siempre. Solo la tiene
     /// el agente al que se le configura: los subagentes locales se construyen sin ella.
     close_gate: Option<Arc<dyn TurnCloseGate>>,
+    /// Observador de herramientas (véase `tool_observer`). `None` no publica nada. Solo lo tiene el
+    /// agente al que se le configura: los subagentes locales se construyen sin él.
+    tool_observer: Option<Arc<dyn ToolObserver>>,
 }
 
 #[cfg(test)]

@@ -171,6 +171,13 @@ pub enum LiveEvent {
         actor: String,
         detail: String,
     },
+    /// Un flujo de trabajo cambió de fase, en la forma genérica de `flow::FlowSummary`. `actor` y
+    /// `detail` son de su bitácora, vacíos cuando no la hay. No se reenvía a los hijos.
+    FlowChanged {
+        summary: crate::flow::FlowSummary,
+        actor: String,
+        detail: String,
+    },
     /// El enrutador (A12b) eligió el agente de una delegación que no nombraba ninguno. Queda a la
     /// vista de la persona usuaria: qué agente, por qué y quién decidió (`rule` o `classifier`).
     AgentRouted {
@@ -290,6 +297,7 @@ impl LiveEvent {
             | LiveEvent::SubagentChanged(_)
             | LiveEvent::DevelopmentWorkflowChanged(_)
             | LiveEvent::GauntletChanged { .. }
+            | LiveEvent::FlowChanged { .. }
             | LiveEvent::A2aServed { .. }
             | LiveEvent::AgentRouted { .. }
             | LiveEvent::AgentCardsRefreshed { .. }

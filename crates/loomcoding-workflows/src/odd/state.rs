@@ -16,6 +16,8 @@ struct Interno {
     /// Identificadores pendientes vistos en la última reinyección de cada sesión. Si el cierre
     /// vuelve a ver exactamente los mismos, el modelo no avanzó y no se insiste.
     pendientes: Mutex<BTreeMap<SessionId, Vec<String>>>,
+    /// Última fase de ODD publicada por sesión (véase `observer`).
+    fases: Mutex<BTreeMap<SessionId, &'static str>>,
     habilitado: AtomicBool,
     io: Mutex<()>,
 }
@@ -25,6 +27,7 @@ impl Default for Interno {
         Self {
             activas: Mutex::new(BTreeMap::new()),
             pendientes: Mutex::new(BTreeMap::new()),
+            fases: Mutex::new(BTreeMap::new()),
             // ODD viene activo; el interruptor solo lo apaga.
             habilitado: AtomicBool::new(true),
             io: Mutex::new(()),
@@ -81,6 +84,16 @@ impl OddState {
         self.pendientes().remove(&sesion);
     }
 
+    /// Última fase publicada para la sesión, si la hubo.
+    pub(crate) fn fase_publicada(&self, sesion: SessionId) -> Option<&'static str> {
+        self.fases().get(&sesion).copied()
+    }
+
+    /// Anota la fase publicada para la sesión, desalojando una entrada si se supera el tope.
+    pub(crate) fn recordar_fase(&self, sesion: SessionId, fase: &'static str) {
+        insertar_acotado(&mut self.fases(), sesion, fase);
+    }
+
     /// Cerrojo que serializa las lecturas y escrituras de documentos dentro del proceso.
     pub(crate) fn bloqueo_io(&self) -> MutexGuard<'_, ()> {
         self.interno.io.lock().unwrap_or_else(|e| e.into_inner())
@@ -98,6 +111,10 @@ impl OddState {
             .pendientes
             .lock()
             .unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn fases(&self) -> MutexGuard<'_, BTreeMap<SessionId, &'static str>> {
+        self.interno.fases.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 

@@ -363,6 +363,8 @@ impl App {
                     );
                 }
             }
+            // Un flujo genérico (ODD) cambió de fase. La interfaz aún no lo pinta: lo hace la tarea 5.
+            LiveEvent::FlowChanged { .. } => {}
             LiveEvent::AgentRouted {
                 parent,
                 agent,

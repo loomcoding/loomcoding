@@ -9,6 +9,7 @@ use std::sync::Arc;
 pub mod odd;
 
 pub use odd::gate::OddGate;
+pub use odd::observer::OddObserver;
 pub use odd::state::OddState;
 
 /// Registra las herramientas de los flujos en `registry` y devuelve el estado compartido de ODD.
