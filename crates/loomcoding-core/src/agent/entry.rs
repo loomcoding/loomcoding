@@ -32,6 +32,13 @@ impl AgentLoop {
             }
             system.push_str(regla);
         }
+        // Las contribuciones de prompt (véase `prompt_contributor`) van tras la guía y antes del prompt propio.
+        if let Some(secciones) = self.contributed_sections() {
+            if !system.is_empty() {
+                system.push_str("\n\n");
+            }
+            system.push_str(&secciones);
+        }
         // El prompt propio del agente va detrás del contexto del proyecto, sin sustituirlo.
         if let Some(extra) = self
             .system_extra

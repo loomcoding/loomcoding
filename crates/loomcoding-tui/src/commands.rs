@@ -26,6 +26,7 @@ pub enum Command {
     Mascot,
     LogoFx,
     Verbose,
+    Flow,
     Agent,
     Focus,
     Agents,
@@ -107,6 +108,11 @@ pub const COMMANDS: &[(Command, &str, &str)] = &[
         Command::Verbose,
         "/verbose",
         "Toggle provider request notices in the transcript",
+    ),
+    (
+        Command::Flow,
+        "/flow",
+        "Flow modes: /flow [<kind> on|off] (no argument: list; on|off saves [flows.<kind>] enabled, applies on restart)",
     ),
     (
         Command::Agent,

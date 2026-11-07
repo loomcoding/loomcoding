@@ -1,6 +1,7 @@
 //! Provider simulado y espacio de trabajo temporal para lanzar Loomcoding aislado.
 
 use std::io;
+use std::time::Duration;
 use tempfile::TempDir;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
@@ -165,6 +166,142 @@ pub async fn mock_provider_watch() -> MockServer {
     Mock::given(method("POST"))
         .and(path("/chat/completions"))
         .respond_with(WatchScript)
+        .mount(&server)
+        .await;
+    server
+}
+
+/// Texto del primer intento de cierre del guion de ODD (sin herramientas).
+pub const ODD_INTENTO_DE_CIERRE: &str = "Documento listo; doy el trabajo por cerrado.";
+/// Texto final del guion de ODD, cuando las dos tareas ya están probadas.
+pub const ODD_CIERRE_FINAL: &str = "Hecho: las dos tareas están probadas; cierro el turno.";
+/// Id de la llamada `bash` del guion de ODD. Las dos marcas de tarea lo reutilizan como evidencia.
+pub const ODD_ID_BASH: &str = "call-bash-odd";
+/// Respuesta de relleno para las peticiones internas que no ofrecen `odd_track`.
+const ODD_NEUTRO: &str = "ok";
+/// Pausa del texto final: da margen a la TUI para pintar `(2/2)` antes de que el turno cierre.
+const ODD_PAUSA_FINAL: Duration = Duration::from_millis(1500);
+
+/// Llamada de herramienta con un identificador elegido, para que el guion lo pueda leer después.
+fn tool_call_with_id(id: &str, name: &str, arguments: serde_json::Value) -> ResponseTemplate {
+    sse(&[
+        serde_json::json!({"choices":[{"delta":{"tool_calls":[
+            {"index":0,"id":id,"function":{"name":name,"arguments":arguments.to_string()}}]}}]}),
+        serde_json::json!({"choices":[{"finish_reason":"tool_calls"}]}),
+    ])
+}
+
+/// Respuesta de texto final en SSE, sin herramientas.
+fn say_text(text: &str) -> ResponseTemplate {
+    sse(&[
+        serde_json::json!({"choices":[{"delta":{"content":text}}]}),
+        serde_json::json!({"choices":[{"finish_reason":"stop"}]}),
+    ])
+}
+
+/// Guion de un padre que planifica con ODD y trata de cerrar el turno con tareas pendientes.
+///
+/// Decide por el historial que el runtime ya envió, sin contadores, así que no depende de cuántas
+/// peticiones haga por dentro:
+/// 1. Sin llamadas previas: `odd_track` `create` (feature `demo`, tareas `T1` y `T2`).
+/// 2. Tras crear: texto final sin herramientas (intento de cierre). Con ODD encendido, el gate reinyecta.
+/// 3. Tras la reinyección: `bash` con `echo ok`, id `ODD_ID_BASH`.
+/// 4. Tras ese `bash`: `done` de `T1`, con el `call_id` leído del historial como evidencia.
+/// 5. Tras `T1`: `done` de `T2`, con la misma evidencia.
+/// 6. Tras `T2`: texto final, con una pausa de `ODD_PAUSA_FINAL`.
+///
+/// Las peticiones que no ofrecen `odd_track` (las internas del runtime) reciben un texto neutro.
+struct OddScript;
+
+impl Respond for OddScript {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let body: serde_json::Value = request.body_json().unwrap_or_default();
+        let offers_odd = body["tools"].as_array().is_some_and(|tools| {
+            tools
+                .iter()
+                .any(|entry| entry.pointer("/function/name") == Some(&"odd_track".into()))
+        });
+        if !offers_odd {
+            return say_text(ODD_NEUTRO);
+        }
+        let messages = body["messages"].as_array().cloned().unwrap_or_default();
+        // Llamadas del asistente en orden: (id, nombre, argumentos ya decodificados).
+        let llamadas: Vec<(String, String, serde_json::Value)> = messages
+            .iter()
+            .filter(|m| m["role"] == "assistant")
+            .flat_map(|m| m["tool_calls"].as_array().cloned().unwrap_or_default())
+            .map(|llamada| {
+                let nombre = llamada["function"]["name"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string();
+                let argumentos = llamada["function"]["arguments"].as_str().unwrap_or("{}");
+                (
+                    llamada["id"].as_str().unwrap_or_default().to_string(),
+                    nombre,
+                    serde_json::from_str(argumentos).unwrap_or_default(),
+                )
+            })
+            .collect();
+        let ultimo_rol = messages
+            .last()
+            .and_then(|m| m["role"].as_str())
+            .unwrap_or_default();
+        let ultima = llamadas.last();
+        // El id de la llamada `bash` sale del historial: es el que el runtime guardó, no uno fijo.
+        let id_bash = llamadas
+            .iter()
+            .find(|llamada| llamada.1 == "bash")
+            .map(|llamada| llamada.0.clone())
+            .unwrap_or_default();
+        let hechas = llamadas
+            .iter()
+            .filter(|llamada| llamada.1 == "odd_track" && llamada.2["op"] == "done")
+            .count();
+        match (ultimo_rol, ultima) {
+            ("user", None) => tool_call_with_id(
+                "call-odd-create",
+                "odd_track",
+                serde_json::json!({"op":"create","feature":"demo",
+                    "objective":"Demostrar ODD en la TUI",
+                    "tasks":["primera tarea de prueba","segunda tarea de prueba"]}),
+            ),
+            ("user", Some(_)) if id_bash.is_empty() => tool_call_with_id(
+                ODD_ID_BASH,
+                "bash",
+                serde_json::json!({"command":"echo ok"}),
+            ),
+            ("tool", Some(ultima)) => match (ultima.1.as_str(), ultima.2["op"].as_str()) {
+                ("odd_track", Some("create")) => say_text(ODD_INTENTO_DE_CIERRE),
+                ("bash", _) => tool_call_with_id(
+                    "call-odd-done-1",
+                    "odd_track",
+                    serde_json::json!({"op":"done","feature":"demo","id":"T1",
+                        "evidence":{"text":"echo ok en bash","call_id":id_bash}}),
+                ),
+                ("odd_track", Some("done")) if hechas == 1 => tool_call_with_id(
+                    "call-odd-done-2",
+                    "odd_track",
+                    serde_json::json!({"op":"done","feature":"demo","id":"T2",
+                        "evidence":{"text":"echo ok en bash","call_id":id_bash}}),
+                ),
+                ("odd_track", Some("done")) => {
+                    say_text(ODD_CIERRE_FINAL).set_delay(ODD_PAUSA_FINAL)
+                }
+                _ => say_text(ODD_NEUTRO),
+            },
+            _ => say_text(ODD_NEUTRO),
+        }
+    }
+}
+
+/// Servidor OpenAI-compatible con el guion de ODD: crea una feature de dos tareas, intenta cerrar el
+/// turno sin probarlas y después marca cada una con la evidencia de un `bash`.
+pub async fn mock_provider_odd() -> MockServer {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/chat/completions"))
+        .respond_with(OddScript)
         .mount(&server)
         .await;
     server

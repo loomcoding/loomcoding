@@ -151,6 +151,10 @@ pub trait Tool: Send + Sync {
     fn mcp_server_id(&self) -> Option<&str> {
         None
     }
+    /// Herramienta que solo ve el agente principal; el lanzador de subagentes no la ofrece.
+    fn parent_only(&self) -> bool {
+        false
+    }
     fn execution_mode(&self, _input: &serde_json::Value) -> ExecutionMode {
         ExecutionMode::Parallel
     }
@@ -180,6 +184,12 @@ impl ToolRegistry {
     pub fn without(&self, name: &str) -> Self {
         let mut registry = self.clone();
         registry.tools.remove(name);
+        registry
+    }
+    /// Quita las herramientas que solo ve el agente principal (`parent_only`), para el registro de un hijo.
+    pub fn without_parent_only(&self) -> Self {
+        let mut registry = self.clone();
+        registry.tools.retain(|_, tool| !tool.parent_only());
         registry
     }
     pub fn only(&self, names: &[&str]) -> Self {
@@ -443,6 +453,43 @@ mod tests {
         );
         assert!(small > 0);
         assert!(large > small + 99);
+    }
+
+    struct SoloPadre;
+    #[async_trait]
+    impl Tool for SoloPadre {
+        fn name(&self) -> &str {
+            "solo_padre"
+        }
+        fn description(&self) -> &str {
+            "solo el agente principal"
+        }
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({"type":"object"})
+        }
+        fn parent_only(&self) -> bool {
+            true
+        }
+        async fn run(
+            &self,
+            _c: ToolCtx,
+            _i: serde_json::Value,
+            _x: CancellationToken,
+        ) -> Result<ToolOutput> {
+            Ok(ToolOutput::ok("ok"))
+        }
+    }
+
+    #[test]
+    fn without_parent_only_drops_only_the_parent_tools() {
+        let mut r = ToolRegistry::new();
+        r.register(std::sync::Arc::new(Dummy));
+        r.register(std::sync::Arc::new(SoloPadre));
+        let hijo = r.without_parent_only();
+        assert!(hijo.get("dummy").is_some());
+        assert!(hijo.get("solo_padre").is_none());
+        // El registro original no cambia: el padre sigue viéndola.
+        assert!(r.get("solo_padre").is_some());
     }
 
     #[test]

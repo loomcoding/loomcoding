@@ -23,8 +23,15 @@ use std::sync::{Arc, RwLock};
 use tokio_util::sync::CancellationToken;
 
 mod builder;
+mod close_gate;
+pub use close_gate::{
+    consult, CloseDecision, CloseGateCtx, TurnCloseGate, CLOSE_GATE_TIMEOUT,
+    MAX_CLOSE_MESSAGE_BYTES, MAX_CLOSE_REINJECTIONS,
+};
 mod compaction;
 mod entry;
+mod prompt_contributor;
+pub use prompt_contributor::{PromptContributor, MAX_CONTRIBUTED_SECTION_BYTES};
 mod handoff;
 mod kill;
 pub use kill::KillReport;
@@ -33,6 +40,8 @@ pub use settle::{MAX_SETTLE_WAIT, MAX_WAKE_TURNS};
 mod step_limit;
 pub use handoff::HANDOFF_MAX_BYTES;
 mod subagents;
+mod tool_observer;
+pub use tool_observer::{consult_observer, ToolObserveCtx, ToolObserver, TOOL_OBSERVER_TIMEOUT};
 mod turn;
 mod usage;
 
@@ -190,6 +199,15 @@ pub struct AgentLoop {
     /// Estado por sesión de la compactación en segundo plano. Es privado: los subagentes no lo
     /// comparten.
     background: background::BackgroundSlots,
+    /// Política de cierre del turno (véase `close_gate`). `None` cierra como siempre. Solo la tiene
+    /// el agente al que se le configura: los subagentes locales se construyen sin ella.
+    close_gate: Option<Arc<dyn TurnCloseGate>>,
+    /// Observador de herramientas (véase `tool_observer`). `None` no publica nada. Solo lo tiene el
+    /// agente al que se le configura: los subagentes locales se construyen sin él.
+    tool_observer: Option<Arc<dyn ToolObserver>>,
+    /// Contribuidores de la sección de prompt (véase `prompt_contributor`). Vacío no añade nada. Solo
+    /// los tiene el agente al que se le configura: los subagentes locales se construyen sin ellos.
+    prompt_contributors: Vec<Arc<dyn PromptContributor>>,
 }
 
 #[cfg(test)]

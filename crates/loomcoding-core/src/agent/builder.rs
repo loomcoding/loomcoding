@@ -45,6 +45,9 @@ impl AgentLoop {
             budget_family: None,
             compaction: compact::CompactionConfig::default(),
             background: background::BackgroundSlots::default(),
+            close_gate: None,
+            tool_observer: None,
+            prompt_contributors: Vec::new(),
             cwd,
         };
         if has_subagents {
@@ -222,6 +225,20 @@ impl AgentLoop {
     /// lanzador de subagentes no lo hereda, así que un hijo usa siempre la vía síncrona.
     pub fn with_compaction(mut self, compaction: compact::CompactionConfig) -> Self {
         self.compaction = compaction;
+        self
+    }
+
+    /// Configura la política de cierre del turno (punto de extensión, véase `close_gate`). No se
+    /// hereda: los subagentes locales se construyen sin ella.
+    pub fn with_close_gate(mut self, gate: Arc<dyn TurnCloseGate>) -> Self {
+        self.close_gate = Some(gate);
+        self
+    }
+
+    /// Configura el observador de herramientas (punto de extensión, véase `tool_observer`). No se
+    /// hereda: los subagentes locales se construyen sin él.
+    pub fn with_tool_observer(mut self, observer: Arc<dyn ToolObserver>) -> Self {
+        self.tool_observer = Some(observer);
         self
     }
 

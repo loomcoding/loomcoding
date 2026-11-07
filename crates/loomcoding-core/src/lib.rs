@@ -10,6 +10,7 @@ pub mod config;
 pub mod context;
 pub mod error;
 pub mod event;
+pub mod flow;
 pub mod job;
 pub mod job_watch;
 pub mod message;

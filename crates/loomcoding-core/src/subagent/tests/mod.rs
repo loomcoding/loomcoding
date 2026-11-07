@@ -30,6 +30,7 @@ mod enrutado_y_cancelacion;
 mod entrada_y_reenvio;
 mod gauntlet_e2e;
 mod limites_heredados;
+mod no_herencia;
 mod perfiles_y_registro;
 mod recursion_y_skills;
 mod remoto_espejo;

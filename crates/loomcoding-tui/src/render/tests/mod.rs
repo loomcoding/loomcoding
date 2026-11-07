@@ -16,6 +16,7 @@ mod cabecera_y_pie;
 mod caja_usuario;
 mod carril;
 mod disposicion_y_rail;
+mod etiqueta_de_flujo;
 mod franja_del_muneco;
 mod logo_fx;
 mod metricas_y_mcp;

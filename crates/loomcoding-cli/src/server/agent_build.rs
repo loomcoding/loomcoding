@@ -170,6 +170,8 @@ pub(super) async fn build_agent(
     let a2a = loomcoding_a2a::config::A2aConfig::load(&config_path)?;
     let prompt_cache =
         loomcoding_core::config::ProviderCacheConfig::load(&config_path)?.prompt_cache;
+    // `[flows.odd] enabled` se lee al arrancar; cambiarlo requiere reiniciar Loom.
+    let flows_config = loomcoding_core::config::FlowsConfig::load(&config_path)?;
     // Un valor inválido de `request_timeout_secs` se muestra como error de configuración al arrancar.
     let limits = loomcoding_core::config::ProviderLimitsConfig::load(&config_path)?;
     let request_timeout = crate::request_timeout_from_secs(limits.request_timeout_secs);
@@ -221,7 +223,8 @@ pub(super) async fn build_agent(
         crate::sondeo_local::Publicador::new(catalog_tx, catalog.clone(), declared, Vec::new());
     tokio::spawn(crate::load_catalog(publicador));
     let project_tool_env = crate::shell_env(&project_env);
-    let tools = crate::build_project_tools(project_tool_env);
+    let (tools, odd) = crate::build_project_tools(project_tool_env);
+    odd.set_enabled(flows_config.enabled(loomcoding_workflows::ODD_KIND, true));
     let mcp_config_path = data_dir.join("mcp.toml");
     let (mcp_config, mcp_servers, mcp_tools) =
         match loomcoding_mcp::McpConfig::load(&mcp_config_path) {
@@ -312,7 +315,13 @@ pub(super) async fn build_agent(
         data_dir.join("tool-output"),
     ))
     .with_budget(budget)
-    .with_compaction(compaction);
+    .with_compaction(compaction)
+    // Solo el padre: los subagentes locales se construyen sin política de cierre, observador ni prompt.
+    .with_tool_observer(Arc::new(loomcoding_workflows::OddObserver::new(
+        odd.clone(),
+    )))
+    .with_prompt_contributor(Arc::new(loomcoding_workflows::OddPrompt::new(odd.clone())))
+    .with_close_gate(Arc::new(loomcoding_workflows::OddGate::new(odd)));
     let agent = match remote_clients {
         Some(factory) => agent.with_remote_clients(factory),
         None => agent,

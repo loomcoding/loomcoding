@@ -29,7 +29,12 @@ Las flechas van de quien depende hacia lo que usa (verificado en los `Cargo.toml
 ```
 
 `cloth` no depende de nadie del workspace; `loomcoding-core` tampoco. `loomcoding-a2a` y
-`loomcoding-mcp` dependen de `core`, **nunca al revés**.
+`loomcoding-mcp` dependen de `core`, **nunca al revés**. Lo mismo vale para `loomcoding-workflows`, que
+se compone en `loomcoding-cli` y no es dependencia de `core` ni de `loomcoding-tui`. El núcleo ofrece cuatro
+puntos de extensión genéricos, sin nombrar ningún flujo, y solo el agente principal los lleva (los subagentes
+locales y las tareas A2A servidas se construyen sin ellos): `TurnCloseGate` (cierre del turno),
+`ToolObserver` (publica `FlowChanged`), `PromptContributor` (sección de prompt) y `Tool::parent_only`.
+Los modos de flujo llegan a la interfaz por la configuración genérica `[flows.<kind>] enabled` (`config/flows.rs`), que ni el núcleo ni la TUI interpretan por nombre.
 
 ## Reglas de dependencia (duras)
 
@@ -54,6 +59,7 @@ Cómo se comprueba cada una: `docs/INVARIANTS.md`.
 | `loomcoding-cli` | Binarios `loom`/`loomcoding`; daemon, IPC y arranque | `main.rs`, `server/mod.rs` | widgets, lógica del agente | no |
 | `loomcoding-tui` | Interfaz de terminal sobre `ratatui` | `run/mod.rs`, `app/mod.rs`, `render/mod.rs` | acceso directo al motor sin pasar por el cliente | sí |
 | `cloth` | Widgets y estado reutilizables de chat de agentes | `state/`, `widgets/` | nada de `loomcoding-core` | sí |
+| `loomcoding-workflows` | Flujos de trabajo sobre los puntos de extensión del núcleo; hoy, ODD (`odd/`) | `lib.rs` (`register`), `odd/mod.rs` | TUI; cualquier cosa que el núcleo deba conocer | no |
 | `loomcoding-herdr` | Integración con el runtime `herdr` como plugin | `lib.rs` | TUI propia | sí |
 | `loomcoding-mcp` | Integración MCP (herramientas externas) | `lib.rs` | — | sí |
 | `loomcoding-e2e` | Apoyo a pruebas E2E visuales | `daemon.rs`, `term.rs` | código de producción | solo test |

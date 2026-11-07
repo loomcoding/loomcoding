@@ -187,7 +187,14 @@ impl App {
             || (has_args
                 && !matches!(
                     command,
-                    "attach" | "verbose" | "logofx" | "model" | "effort" | "provider" | "ui"
+                    "attach"
+                        | "verbose"
+                        | "logofx"
+                        | "model"
+                        | "effort"
+                        | "provider"
+                        | "ui"
+                        | "flow"
                 ))
         {
             return None;

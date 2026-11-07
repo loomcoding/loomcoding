@@ -105,6 +105,7 @@ pub(super) fn draw_workspace_header(frame: &mut Frame, area: Rect, app: &App) {
         loomcoding_cloth::widgets::chip(state, tone, &app.theme),
         Span::styled(format!("  {}", app.model), app.theme.styles.muted),
     ];
+    push_etiqueta_flujo(&mut text, app, area.width, "  · ");
     if app.queued > 0 {
         text.push(Span::styled(
             format!("  ·  {} queued", app.queued),
@@ -157,6 +158,31 @@ pub(super) fn background_suffix(app: &App) -> String {
         .map_or_else(String::new, |label| format!("  · {label}"))
 }
 
+/// Añade al final de lo ya pintado la etiqueta del modo o flujo activo, si cabe en `ancho`
+/// columnas. Va con un separador discreto. Si la completa no cabe, se pinta la corta (sin fase);
+/// si ni esa cabe, no se pinta nada. Nunca desplaza lo anterior: solo se añade al final.
+pub(super) fn push_etiqueta_flujo(
+    spans: &mut Vec<Span<'static>>,
+    app: &App,
+    ancho: u16,
+    separador: &str,
+) {
+    let Some(etiqueta) = app.flow_label() else {
+        return;
+    };
+    let usado: usize = spans.iter().map(Span::width).sum();
+    let libre = usize::from(ancho).saturating_sub(usado + Span::raw(separador).width());
+    let texto = [&etiqueta.completa, &etiqueta.corta]
+        .into_iter()
+        .find(|texto| Span::raw(texto.as_str()).width() <= libre);
+    if let Some(texto) = texto {
+        spans.push(Span::styled(
+            format!("{separador}{texto}"),
+            app.theme.styles.muted,
+        ));
+    }
+}
+
 /// Cabecera de una línea del chrome `Flat`: marca, modelo, esfuerzo (si lo hay), estado y, solo
 /// cuando hay dato, la cola y los recuentos. Cabe señalar que el directorio y las capacidades no
 /// van aquí: el rail ya las muestra, y la cabecera se queda en una fila.
@@ -185,6 +211,7 @@ pub(super) fn draw_flat_header(frame: &mut Frame, area: Rect, app: &App) {
         format!(" · {}{}", app.status, background_suffix(app)),
         status_style,
     ));
+    push_etiqueta_flujo(&mut spans, app, area.width, " · ");
     if app.queued > 0 {
         spans.push(Span::styled(
             format!(" · {} queued", app.queued),

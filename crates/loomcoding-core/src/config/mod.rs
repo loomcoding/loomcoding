@@ -5,6 +5,8 @@ use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 
 pub mod context;
+mod flows;
+pub use flows::FlowsConfig;
 mod limits;
 pub use limits::{ProviderLimitsConfig, MAX_REQUEST_TIMEOUT_SECS};
 mod agent_limits;
@@ -447,42 +449,47 @@ impl LoomcodingConfig {
                 document.remove("effort");
             }
         }
-        let text = document.to_string();
-        let parent = path.parent().unwrap_or_else(|| Path::new("."));
-        let name = path.file_name().unwrap_or_default().to_string_lossy();
-        let mut temp_file = None;
-        for attempt in 0..100 {
-            let candidate = parent.join(format!(".{name}.{}.{}.tmp", std::process::id(), attempt));
-            match std::fs::OpenOptions::new()
-                .write(true)
-                .create_new(true)
-                .open(&candidate)
-            {
-                Ok(file) => {
-                    temp_file = Some((candidate, file));
-                    break;
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(error) => {
-                    return Err(CoreError::Config(format!(
-                        "create config temp file: {error}"
-                    )))
-                }
+        escribir_config(path, &document.to_string())
+    }
+}
+
+/// Escribe `text` en `path` de forma atómica: primero en un temporal junto al fichero y luego
+/// renombrado, para que un corte no deje la configuración a medias.
+fn escribir_config(path: &Path, text: &str) -> Result<()> {
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let mut temp_file = None;
+    for attempt in 0..100 {
+        let candidate = parent.join(format!(".{name}.{}.{}.tmp", std::process::id(), attempt));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(file) => {
+                temp_file = Some((candidate, file));
+                break;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(CoreError::Config(format!(
+                    "create config temp file: {error}"
+                )))
             }
         }
-        let (temp_path, mut temp) = temp_file
-            .ok_or_else(|| CoreError::Config("cannot create temporary config file".into()))?;
-        let result = (|| {
-            temp.write_all(text.as_bytes())?;
-            temp.sync_all()?;
-            std::fs::rename(&temp_path, path)?;
-            Ok::<_, std::io::Error>(())
-        })();
-        if result.is_err() {
-            let _ = std::fs::remove_file(&temp_path);
-        }
-        result.map_err(|e| CoreError::Config(format!("write {}: {e}", path.display())))
     }
+    let (temp_path, mut temp) =
+        temp_file.ok_or_else(|| CoreError::Config("cannot create temporary config file".into()))?;
+    let result = (|| {
+        temp.write_all(text.as_bytes())?;
+        temp.sync_all()?;
+        std::fs::rename(&temp_path, path)?;
+        Ok::<_, std::io::Error>(())
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+    result.map_err(|e| CoreError::Config(format!("write {}: {e}", path.display())))
 }
 
 #[cfg(test)]

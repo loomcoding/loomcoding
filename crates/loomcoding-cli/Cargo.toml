@@ -18,6 +18,7 @@ loomcoding-tui = { path = "../loomcoding-tui" }
 loomcoding-herdr = { path = "../loomcoding-herdr" }
 loomcoding-a2a = { path = "../loomcoding-a2a" }
 loomcoding-mcp = { path = "../loomcoding-mcp" }
+loomcoding-workflows = { path = "../loomcoding-workflows" }
 base64 = "0.22"
 tokio.workspace = true
 tokio-util.workspace = true

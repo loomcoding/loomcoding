@@ -117,7 +117,7 @@ referencia tampoco lo introduce) y cualquier cambio en `development_workflow`.
 
 ## Decisiones de la persona usuaria (2026-11-07)
 
-Activo **por defecto**, con interruptor (`[odd] enabled`); la medición pasa de condición previa a seguimiento posterior. Cuando
+Activo **por defecto**, con interruptor (`[flows.odd] enabled`); la medición pasa de condición previa a seguimiento posterior. Cuando
 se active un modo o flujo (ODD, `development_workflow`, `gauntlet`) debe **reflejarse en algún lugar visible** (se prevé
 la cabecera; tarea 5 del plan). El resto de decisiones provisionales de esta spec (evidencia, sección de prompt solo para
 el padre) siguen a la espera de su revisión. Plan: `docs/plans/2026-11-07-loomcoding-odd-desarrollo-organico.md`.
@@ -130,3 +130,21 @@ el padre) siguen a la espera de su revisión. Plan: `docs/plans/2026-11-07-loomc
    citado exista en el historial)?
 4. ¿La sección de prompt se activa para todos los agentes o solo para el padre?
 5. ¿Se reaprovecha la lista `TodosChanged` tal cual o hace falta un evento propio del documento?
+
+## Estado tras la implementación (2026-11-07)
+
+Implementado en las tareas T1–T8 del plan. Cómo quedaron las preguntas abiertas:
+
+1. **Dónde vive el documento:** `.loomcoding/odd/<feature>.md` del proyecto, un fichero por feature (resuelta).
+2. **Cierre bloqueante por defecto:** sí, activo por defecto con interruptor `[flows.odd] enabled`; es duro pero acotado: 3
+   reinyecciones por turno, ninguna si no hay progreso, plazo de 2 s, cancelación primero. **Desviación** de la
+   redacción original: no reutiliza el presupuesto de turnos automáticos (resuelta).
+3. **Evidencia válida:** el runtime comprueba que `call_id` es una llamada de `bash`, `job_start` o `job_output` de los
+   últimos 500 mensajes de la sesión; **no** comprueba que el texto sea cierto (**provisional**: una evidencia más fuerte
+   queda para después).
+4. **Sección de prompt:** solo para el padre (resuelta); los subagentes no ven `odd_track` ni heredan el cierre.
+5. **Lista de tareas:** se reaprovecha `TodosChanged` como proyección del documento; si el modelo usa `todo_write` a la
+   vez, gana el último en escribir en pantalla (resuelta, con esa limitación documentada).
+
+Además: la TUI es un cliente separado del daemon, así que `/flow odd on|off` guarda `[flows.odd] enabled` y aplica al reiniciar. La
+medición de la spec es un seguimiento posterior a la activación, con contadores por `tracing` (destino `odd`).

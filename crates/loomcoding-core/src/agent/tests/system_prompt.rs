@@ -363,6 +363,34 @@ async fn request_clears_old_tool_results_but_store_keeps_them() {
 
 /// Prompt de sistema de la primera petición de un agente con registro (puede delegar) y el modo dado.
 async fn system_with_delegation(mode: Option<crate::config::DelegationMode>) -> String {
+    system_con(mode, Vec::new(), None).await
+}
+
+/// Contribuidor de prueba: devuelve la sección dada, o ninguna.
+struct Contribuidor(Option<String>);
+
+impl PromptContributor for Contribuidor {
+    fn section(&self) -> Option<String> {
+        self.0.clone()
+    }
+}
+
+/// Contribuidor que entra en pánico al consultarlo.
+struct Panicon;
+
+impl PromptContributor for Panicon {
+    fn section(&self) -> Option<String> {
+        panic!("prueba: el contribuidor falla")
+    }
+}
+
+/// Prompt de sistema de la primera petición de un agente que puede delegar, con el modo, los
+/// contribuidores y el prompt propio dados.
+async fn system_con(
+    mode: Option<crate::config::DelegationMode>,
+    contribuidores: Vec<Arc<dyn PromptContributor>>,
+    propio: Option<&str>,
+) -> String {
     let dir = tempfile::tempdir().unwrap();
     let registro = Arc::new(crate::registry::AgentRegistry::new(vec![Box::new(
         crate::registry::BuiltInSource,
@@ -388,7 +416,7 @@ async fn system_with_delegation(mode: Option<crate::config::DelegationMode>) -> 
     };
     let mut tools = ToolRegistry::new();
     tools.register(Arc::new(crate::tools::subagent::SubagentTool));
-    let agent = AgentLoop::new(
+    let mut agent = AgentLoop::new(
         provider.clone(),
         store,
         Arc::new(tools),
@@ -398,13 +426,75 @@ async fn system_with_delegation(mode: Option<crate::config::DelegationMode>) -> 
         dir.path().to_path_buf(),
     )
     .with_agent_registry(registro)
-    .with_delegation_mode(mode);
+    .with_delegation_mode(mode)
+    .with_system_extra(propio.map(str::to_string));
+    for contribuidor in contribuidores {
+        agent = agent.with_prompt_contributor(contribuidor);
+    }
     agent
         .run(sid, "hi".into(), CancellationToken::new())
         .await
         .unwrap();
     let vistos = provider.seen.lock().unwrap();
     vistos[0].clone()
+}
+
+#[tokio::test]
+async fn contributed_section_sits_after_the_guidance_and_before_the_own_prompt() {
+    let contribuidor: Arc<dyn PromptContributor> =
+        Arc::new(Contribuidor(Some("SECCION_DE_PRUEBA".into())));
+    let system = system_con(None, vec![contribuidor], Some("PROPIO_DEL_AGENTE")).await;
+    let guia = system
+        .find(crate::agent::PARALLEL_GUIDANCE)
+        .expect("falta la guía de paralelismo");
+    let seccion = system.find("SECCION_DE_PRUEBA").expect("falta la sección");
+    let propio = system
+        .find("PROPIO_DEL_AGENTE")
+        .expect("falta el prompt propio");
+    assert!(guia < seccion && seccion < propio, "{system}");
+}
+
+#[tokio::test]
+async fn without_contributions_the_prompt_is_exactly_the_same() {
+    let sin = system_con(None, Vec::new(), None).await;
+    let sin_seccion = system_con(None, vec![Arc::new(Contribuidor(None))], None).await;
+    assert_eq!(sin_seccion, sin);
+    let solo_blancos = system_con(
+        None,
+        vec![Arc::new(Contribuidor(Some("  \n ".into())))],
+        None,
+    )
+    .await;
+    assert_eq!(solo_blancos, sin);
+}
+
+#[tokio::test]
+async fn a_huge_contributed_section_is_capped() {
+    let enorme = "§".repeat(10_000);
+    let system = system_con(None, vec![Arc::new(Contribuidor(Some(enorme)))], None).await;
+    let conservados = system.matches('§').count();
+    assert!(
+        conservados > 0 && conservados * 2 <= MAX_CONTRIBUTED_SECTION_BYTES,
+        "se conservaron {conservados} caracteres"
+    );
+    assert!(system.contains("bytes omitted"));
+}
+
+#[tokio::test]
+async fn a_panicking_contributor_is_skipped_and_the_others_still_count() {
+    let sin = system_con(None, Vec::new(), None).await;
+    let solo_panico = system_con(None, vec![Arc::new(Panicon)], None).await;
+    assert_eq!(solo_panico, sin);
+    let con_otro = system_con(
+        None,
+        vec![
+            Arc::new(Panicon),
+            Arc::new(Contribuidor(Some("TRAS_EL_PANICO".into()))),
+        ],
+        None,
+    )
+    .await;
+    assert_eq!(con_otro, format!("{sin}\n\nTRAS_EL_PANICO"));
 }
 
 #[tokio::test]

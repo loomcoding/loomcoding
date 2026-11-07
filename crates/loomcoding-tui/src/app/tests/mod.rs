@@ -17,6 +17,8 @@ mod agents_composer_budget;
 mod child_tree;
 mod composer_target;
 mod effort_command;
+mod flow_command;
+mod flow_label;
 mod folded_blocks;
 mod logo_fx;
 mod menu_izquierdo;

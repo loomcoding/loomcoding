@@ -14,6 +14,7 @@ mod block_navigation;
 mod commands_ui;
 mod dialogs;
 mod effort_command;
+mod flow_command;
 mod keys_basic;
 mod logo_fx_clock;
 mod logo_fx_command;
