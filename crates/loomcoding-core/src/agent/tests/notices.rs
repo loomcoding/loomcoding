@@ -228,6 +228,31 @@ async fn flush_subagent_notices_injects_input_notices() {
 }
 
 #[tokio::test]
+async fn subagent_input_notices_keep_the_internal_origin() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(
+        SqliteStore::open(dir.path().join("origen_sub.db").to_str().unwrap())
+            .await
+            .unwrap(),
+    );
+    let sid = store.create_session("/p").await.unwrap();
+    let mut agent = woken_agent(dir.path(), store.clone(), Vec::new(), EventBus::new(64));
+    let notice = Message::user("[Subagent obrero needs input]\n1. ¿Cuál?");
+    agent.subagents = Some(Arc::new(InputNoticeLauncher {
+        notices: std::sync::Mutex::new(vec![notice.clone()]),
+    }));
+
+    agent.flush_subagent_notices(sid).await.unwrap();
+
+    let stored = store.messages(sid).await.unwrap();
+    let aviso = stored
+        .iter()
+        .find(|m| m.text() == notice.text())
+        .expect("el aviso del hijo debe persistirse");
+    assert_eq!(aviso.origin, MessageOrigin::Internal);
+}
+
+#[tokio::test]
 async fn job_notice_detail_is_capped() {
     use crate::job::{JobRegistry, JobSpec, LocalJobRegistry};
     let dir = tempfile::tempdir().unwrap();

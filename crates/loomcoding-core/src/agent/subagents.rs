@@ -126,7 +126,7 @@ impl AgentLoop {
             // bucle de seguimiento que lo publique, así que se republica aquí para que la TUI no lo
             // muestre a cero.
             self.bus.publish(LiveEvent::JobChanged(job.clone()));
-            let message = Message::user(aviso_de_vigilancia(&job, &lote));
+            let message = Message::from_job(job.id.0.clone(), aviso_de_vigilancia(&job, &lote));
             self.store.append_message(session, &message).await?;
             self.bus
                 .publish(LiveEvent::SessionMessageAdded { session, message });
@@ -142,14 +142,17 @@ impl AgentLoop {
             let detail = job
                 .detail
                 .or_else(|| job.result.map(|result| result.content));
-            let message = Message::user(format!(
-                "[Job {} {status}] {}{}",
-                job.id.0,
-                job.label,
-                detail
-                    .map(|text| format!("\n{}", limit_bytes(&text, MAX_NOTICE_BYTES)))
-                    .unwrap_or_default()
-            ));
+            let message = Message::from_job(
+                job.id.0.clone(),
+                format!(
+                    "[Job {} {status}] {}{}",
+                    job.id.0,
+                    job.label,
+                    detail
+                        .map(|text| format!("\n{}", limit_bytes(&text, MAX_NOTICE_BYTES)))
+                        .unwrap_or_default()
+                ),
+            );
             self.store.append_message(session, &message).await?;
             self.jobs.mark_notice_delivered(session, &job.id)?;
             self.bus

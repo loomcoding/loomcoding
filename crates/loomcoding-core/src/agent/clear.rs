@@ -88,7 +88,7 @@ pub fn clear_old_tool_results(history: &[Message], keep: usize) -> Vec<Message> 
         out.push(Message {
             id: message.id,
             role: message.role,
-            origin: message.origin,
+            origin: message.origin.clone(),
             parts,
             usage: message.usage.clone(),
             provider_state: message.provider_state.clone(),

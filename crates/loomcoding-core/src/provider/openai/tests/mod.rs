@@ -13,6 +13,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 mod effort;
 mod http;
 mod mapping;
+mod origin;
 mod responses;
 mod support;
 mod wire;

@@ -73,3 +73,20 @@ async fn empty_sessions_have_project_ownership_without_appearing_in_listing() {
         .unwrap());
     assert!(store.list_sessions("/proj").await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn job_origin_survives_the_store() {
+    use crate::message::MessageOrigin;
+    let dir = tempfile::tempdir().unwrap();
+    let store = SqliteStore::open(dir.path().join("origen.db").to_str().unwrap())
+        .await
+        .unwrap();
+    let sid = store.create_session("/p").await.unwrap();
+    store
+        .append_message(sid, &Message::from_job("7", "[Job 7 watch] FAIL uno"))
+        .await
+        .unwrap();
+    let leidos = store.messages(sid).await.unwrap();
+    assert_eq!(leidos[0].origin, MessageOrigin::Job("7".into()));
+    assert_eq!(leidos[0].text(), "[Job 7 watch] FAIL uno");
+}

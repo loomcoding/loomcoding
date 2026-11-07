@@ -133,6 +133,47 @@ async fn a_watch_batch_is_delivered_once_persisted_and_published() {
 }
 
 #[tokio::test]
+async fn watch_and_final_job_notices_carry_the_job_origin() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = almacen(dir.path(), "origen_job.db").await;
+    let sid = store.create_session("/p").await.unwrap();
+    let jobs = Arc::new(LocalJobRegistry::default());
+    let agent = agente_con_jobs(dir.path(), store.clone(), EventBus::new(64), jobs.clone());
+    let job = jobs
+        .start(job_vigilado(
+            sid,
+            "FAIL",
+            20,
+            Box::new(|handle, _| {
+                Box::pin(async move {
+                    handle.append("FAIL uno\n");
+                    Ok(Some(JobResult {
+                        content: "listo".into(),
+                    }))
+                })
+            }),
+        ))
+        .unwrap();
+    jobs.wait(sid, job.id()).await.unwrap();
+    agent.flush_subagent_notices(sid).await.unwrap();
+
+    let prefijo = format!("[Job {} ", job.id().0);
+    let avisos: Vec<Message> = store
+        .messages(sid)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|m| m.text().starts_with(&prefijo))
+        .collect();
+    assert_eq!(avisos.len(), 2, "un aviso de vigilancia y otro de fin");
+    let esperado = MessageOrigin::Job(job.id().0.clone());
+    for aviso in &avisos {
+        assert_eq!(aviso.origin, esperado, "origen de «{}»", aviso.text());
+        assert_eq!(aviso.role, Role::User);
+    }
+}
+
+#[tokio::test]
 async fn the_final_job_notice_still_arrives_after_the_watch_lines() {
     let dir = tempfile::tempdir().unwrap();
     let store = almacen(dir.path(), "final.db").await;

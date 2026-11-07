@@ -12,13 +12,15 @@ pub enum Role {
 }
 
 /// Who authored a user-role message. Model role and author are separate because internal
-/// prompts still need the provider-facing `user` role.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// prompts still need the provider-facing `user` role. `Job` lleva el id del job que emite el
+/// aviso; solo lo ven la persistencia y la TUI, nunca el proveedor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageOrigin {
     Human,
     #[default]
     Internal,
+    Job(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,6 +124,12 @@ impl Message {
         message.origin = MessageOrigin::Human;
         message
     }
+    /// Aviso de un job (vigilancia o final), con el id del job como origen.
+    pub fn from_job(job_id: impl Into<String>, text: impl Into<String>) -> Self {
+        let mut message = Self::user(text);
+        message.origin = MessageOrigin::Job(job_id.into());
+        message
+    }
     pub fn assistant(parts: Vec<ContentPart>) -> Self {
         Self::new(Role::Assistant, parts)
     }
@@ -217,5 +225,28 @@ mod tests {
         legacy.as_object_mut().unwrap().remove("origin");
         let restored: Message = serde_json::from_value(legacy).unwrap();
         assert_eq!(restored.origin, MessageOrigin::Internal);
+    }
+
+    #[test]
+    fn job_origin_round_trips_with_its_job_id() {
+        let aviso = Message::from_job("3", "[Job 3 watch] FAIL uno");
+        let encoded = serde_json::to_string(&aviso).unwrap();
+        let restored: Message = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(restored.origin, MessageOrigin::Job("3".into()));
+        assert_eq!(restored.role, Role::User);
+        assert_eq!(restored.text(), "[Job 3 watch] FAIL uno");
+    }
+
+    #[test]
+    fn stored_origins_read_back_as_before() {
+        for (etiqueta, esperado) in [
+            ("internal", MessageOrigin::Internal),
+            ("human", MessageOrigin::Human),
+        ] {
+            let mut valor = serde_json::to_value(Message::user("histórico")).unwrap();
+            valor["origin"] = json!(etiqueta);
+            let restored: Message = serde_json::from_value(valor).unwrap();
+            assert_eq!(restored.origin, esperado, "origen {etiqueta}");
+        }
     }
 }
