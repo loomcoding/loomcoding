@@ -2,7 +2,7 @@
 #
 # Cabe señalar que la animación tiene un modo de captura determinista (?capture&t=<ms>): semilla fija
 # y tiempo explícito, de modo que dos ejecuciones producen los mismos fotogramas. El GIF final son
-# 48 fotogramas de un ciclo de 1600 ms, a 200 ms cada uno, como el original.
+# 64 fotogramas de un ciclo completo de 9600 ms (12 pasadas de la lanzadera: una vuelta entera de la palabra tejida), a 150 ms cada uno; el bucle es continuo.
 #
 # Requisitos: Google Chrome o Microsoft Edge, y ffmpeg en el PATH. Uso:
 #   pwsh -File scripts/capturas/tejedora.ps1
@@ -11,9 +11,9 @@ $ErrorActionPreference = 'Stop'
 $raiz = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $html = Join-Path $raiz 'docs\assets\loomcoding-self-weaving.html'
 $destino = Join-Path $raiz 'docs\assets\loomcoding-weave.gif'
-$fotogramas = 48
-$cicloMs = 1600
-$retardoMs = 200
+$fotogramas = 64
+$cicloMs = 9600
+$retardoMs = 150
 
 $navegador = @(
     'C:\Program Files\Google\Chrome\Application\chrome.exe',
@@ -35,7 +35,7 @@ try {
     }
     $fps = 1000 / $retardoMs
     ffmpeg -v error -y -framerate $fps -i "$tmp\f%02d.png" `
-        -vf 'scale=520:406:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse=dither=bayer:bayer_scale=3' `
+        -vf 'scale=520:406:flags=lanczos,split[a][b];[a]palettegen=max_colors=48:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=5:diff_mode=rectangle' `
         -loop 0 $destino
     if ($LASTEXITCODE -ne 0) { throw 'ffmpeg falló al componer el GIF.' }
     "GIF regenerado: $destino ($([Math]::Round((Get-Item $destino).Length / 1KB)) KB)"
