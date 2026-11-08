@@ -7,8 +7,8 @@ import ordenarBarra from './sidebar-orden';
 
 // Este fichero se ejecuta en Node.js: nada de código de navegador aquí.
 
-// El remoto actual aún dice codeloom; cuando se renombre, cambiar esta constante.
-const REPO_URL = 'https://github.com/valdepeace/codeloom';
+// Repositorio de la organización. Mientras sea reservado, estos enlaces solo los abre quien tenga acceso.
+const REPO_URL = 'https://github.com/loomcoding/loomcoding';
 
 // El sitio vive en site/ y el contenido en docs/user/ del repositorio, sin copias.
 const RAIZ_REPO = path.resolve(__dirname, '..');
