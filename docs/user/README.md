@@ -4,11 +4,33 @@ This is the user guide. The reference version is in English under [`en/`](en/sta
 
 ## Index
 
+### Start
+
 | Page | English | Español |
 |---|---|---|
-| Start here | [en/start/index.md](en/start/index.md) | [es/start/index.md](es/start/index.md) |
+| Start here | [en](en/start/index.md) | [es](es/start/index.md) |
+| Install from source | [en](en/start/install.md) | [es](es/start/install.md) |
+| What happens on the first run | [en](en/start/first-run.md) | [es](es/start/first-run.md) |
+| Connect a cloud provider | [en](en/start/cloud-provider.md) | [es](es/start/cloud-provider.md) |
+| Run a local model server | [en](en/start/local-provider.md) | [es](es/start/local-provider.md) |
+| Send your first prompt | [en](en/start/first-prompt.md) | [es](es/start/first-prompt.md) |
 
-Planned folders, in both languages: `start/` (install, first run, providers, first prompt), `concepts/` (agent, subagents and jobs, sessions, context, permissions, flows, A2A), `guides/` (one task per page), `reference/` (commands, shortcuts, `loomcoding.toml`, environment variables, profile folders) and `problems/` (symptom, cause, fix).
+### Concepts
+
+| Page | English | Español |
+|---|---|---|
+| Agent, subagents and jobs | [en](en/concepts/agent-subagents-jobs.md) | [es](es/concepts/agent-subagents-jobs.md) |
+| Sessions | [en](en/concepts/sessions.md) | [es](es/concepts/sessions.md) |
+| Context and compaction | [en](en/concepts/context-and-compaction.md) | [es](es/concepts/context-and-compaction.md) |
+| Permissions | [en](en/concepts/permissions.md) | [es](es/concepts/permissions.md) |
+| ODD and flows (`/flow`) | [en](en/concepts/flows-odd.md) | [es](es/concepts/flows-odd.md) |
+| A2A | [en](en/concepts/a2a.md) | [es](es/concepts/a2a.md) |
+
+### Coming next
+
+- `guides/`: one task per page.
+- `reference/`: commands, shortcuts, `loomcoding.toml`, environment variables, profile folders.
+- `problems/`: symptom, cause, fix.
 
 ## Style guide
 
