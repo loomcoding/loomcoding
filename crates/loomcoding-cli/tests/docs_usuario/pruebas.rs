@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Páginas `.md` de un idioma (ruta relativa y texto), sin los ficheros que empiezan por `_`.
-fn paginas(dir: &Path) -> Vec<(String, String)> {
+pub(crate) fn paginas(dir: &Path) -> Vec<(String, String)> {
     let mut salida = Vec::new();
     recoge(dir, dir, &mut salida);
     salida.sort();
@@ -38,7 +38,7 @@ fn recoge(base: &Path, dir: &Path, salida: &mut Vec<(String, String)>) {
 }
 
 /// Raíz del repositorio, subiendo desde `crates/loomcoding-cli`.
-fn raiz_repo() -> PathBuf {
+pub(crate) fn raiz_repo() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)

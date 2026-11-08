@@ -84,7 +84,7 @@ pub(crate) fn revisa(ruta: &str, texto: &str, idioma: Idioma) -> Vec<Fallo> {
 }
 
 /// Líneas de prosa con su número (desde 1), sin el contenido ni las vallas de los bloques de código.
-fn lineas_prosa(texto: &str) -> Vec<(usize, &str)> {
+pub(crate) fn lineas_prosa(texto: &str) -> Vec<(usize, &str)> {
     let mut en_codigo = false;
     let mut salida = Vec::new();
     for (indice, linea) in texto.lines().enumerate() {
@@ -273,7 +273,7 @@ pub(crate) fn enlaces_rotos(raiz: &Path, ruta: &str, texto: &str) -> Vec<Fallo> 
 }
 
 /// Destinos relativos de los enlaces e imágenes de una línea, sin URLs, correos, anclas puras ni rutas absolutas.
-fn destinos(linea: &str) -> Vec<String> {
+pub(crate) fn destinos(linea: &str) -> Vec<String> {
     let mut salida = Vec::new();
     let mut resto = linea;
     while let Some(i) = resto.find("](") {
@@ -308,7 +308,7 @@ fn existe_destino(raiz: &Path, carpeta: &Path, destino: &str) -> bool {
 }
 
 /// Resuelve `.` y `..` sin tocar el disco; devuelve `None` si la ruta escapa de la raíz.
-fn normaliza(relativa: &Path) -> Option<PathBuf> {
+pub(crate) fn normaliza(relativa: &Path) -> Option<PathBuf> {
     let mut salida = PathBuf::new();
     for componente in relativa.components() {
         match componente {

@@ -13,3 +13,7 @@ mod pruebas;
 #[cfg(test)]
 #[path = "docs_usuario/sincronia.rs"]
 mod sincronia;
+
+#[cfg(test)]
+#[path = "docs_usuario/imagenes.rs"]
+mod imagenes;

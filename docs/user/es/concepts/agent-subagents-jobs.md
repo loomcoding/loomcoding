@@ -31,6 +31,8 @@ Loomcoding tiene tres tipos de unidad de trabajo. El agente es el asistente prin
 | Subagente | Un agente hijo con su propio trabajo. Se ejecuta como tarea A2A. | La bandada en la cabecera. | `subagent`, `subagent_list`, `subagent_control`; `/agents`, `/agent`, `/focus`, `/parent`. |
 | Job | Un comando de terminal que se ejecuta en segundo plano. | Avisos `job:` en la transcripción. | `job_start`, `job_list`, `job_output`, `job_watch`, `job_kill`. |
 
+![Parte superior de la pantalla de Loomcoding: la línea de estado muestra ready, la etiqueta del flujo ODD y los contadores del flock, 0 subagentes en marcha y 0 jobs, encima de los primeros mensajes de la sesión.](../../img/cabecera-odd-flock.svg)
+
 ## Cómo funciona
 
 ```mermaid

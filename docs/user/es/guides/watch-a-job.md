@@ -37,6 +37,8 @@ Cada aviso tiene esta forma en el transcript:
 job: [Job 2 watch] <línea de salida que casa>
 ```
 
+![Fragmento del transcript: un job en segundo plano imprime una línea que casa con el patrón de vigilancia, y el transcript la muestra como aviso de job con la línea FAIL uno, seguido de la línea del sistema que despierta al agente.](../../img/aviso-job.svg)
+
 ## Herramientas
 
 | Herramienta | Parámetros | Qué hace |

@@ -24,6 +24,8 @@ Estos comandos cambian el aspecto de la pantalla: el tema de color, el estilo de
 > /theme
 ```
 
+![Panel de interfaz abierto con /ui sobre la pantalla principal: cada fila muestra su valor actual, por ejemplo el tema, la distribución y el ratón.](../../img/ajustes-ui.svg)
+
 ## Filas del panel
 
 | Fila | Valores | Valor por defecto | Requiere reiniciar |

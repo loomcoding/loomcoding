@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="158" viewBox="0 0 1040 158" role="img" aria-labelledby="titulo">
+<title id="titulo">Aviso job: en el transcript</title>
+<rect width="1040" height="158" rx="8" fill="#0d1117"/>
+<g font-family="'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Liberation Mono', monospace" font-size="14" fill="#d0d7de" style="white-space:pre">
+<text x="16" y="30" xml:space="preserve"> ╭─ ◆ job  vigilado   ﾉﾐ                     ﾙ ﾛ         ﾂ                ﾕ      ﾎ      ｹ1Tokens                  ｵ&lt;</text>
+<text x="16" y="48" xml:space="preserve"> │  │ watching: 1 alert                      ﾚ ﾜ         ﾃ                       ﾏ ﾜ    ｺ2↑10657 ↓37              ｶ&gt;</text>
+<text x="16" y="66" xml:space="preserve"> ╰─ │ exit 0  1       ﾋ                     ｾﾛ ﾝ         ﾄ                       ﾐ ﾝ    ｻ3     2                  ｷｱ</text>
+<text x="16" y="84" xml:space="preserve"> ╭≋ 🤖         2       ﾌ                     ｿﾜ 0         ﾅ                       ﾑ 0    ｼ4MCP not configured · LSPｸｲ</text>
+<text x="16" y="102" xml:space="preserve"> ╰─ job lanzado, vigilo la salida           ﾀ  1         ﾆ                   9   ﾒ 1     5rust-analyzer found · skills ﾎ</text>
+<text x="16" y="120" xml:space="preserve"> ── job: [Job shell-1 watch] FAIL uno       ﾁ  2                             :   ﾓ 2     60/0 cards, 0 scopes     ｺｴ   ﾏ</text>
+<text x="16" y="138" xml:space="preserve"> ─◌ sys: ⟳ auto-turn · woken by «job watch» (new lines)                      .   ﾔ 3     7     6                  ｻｵ   ﾐ</text>
+</g>
+</svg>

@@ -37,6 +37,8 @@ Each notice has this shape in the transcript:
 job: [Job 2 watch] <matching output line>
 ```
 
+![Transcript excerpt: a background job prints a line that matches the watch pattern, and the transcript shows it as a job notice with the line FAIL uno, followed by the system line that wakes the agent.](../../img/aviso-job.svg)
+
 ## Tools
 
 | Tool | Parameters | What it does |

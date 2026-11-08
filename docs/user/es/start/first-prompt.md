@@ -21,6 +21,8 @@ Un prompt es un mensaje que escribes en el compositor. Esta página envía uno e
 > ¿Qué contiene esta carpeta? Enumera los ficheros principales.
 ```
 
+![Pantalla principal de Loomcoding en una terminal: una conversación con una llamada a bash y su salida filtrada, el compositor abajo con su indicación y la barra de estado con los atajos.](../../img/pantalla-principal.svg)
+
 ## Teclas y comandos
 
 | Tecla o comando | Valor por defecto | Requiere reiniciar | Qué hace |

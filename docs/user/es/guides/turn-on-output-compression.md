@@ -28,6 +28,8 @@ La cabecera tiene este aspecto. Su texto está en español, y el marcador es la 
 [filtrado: 2 líneas omitidas de 5 — regla general; el original sigue en <ruta del volcado>]
 ```
 
+![Transcript de una llamada a bash con la compresión de salida activa: la cabecera que empieza por filtrado, con 39 líneas omitidas de 41, indica la regla y la ruta del original completo, y la línea repetida aparece como ruido ×40.](../../img/filtrado-compresion.svg)
+
 ## Reglas
 
 | Regla | Qué quita | Qué conserva |

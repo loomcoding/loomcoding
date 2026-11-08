@@ -28,6 +28,8 @@ The header looks like this. Its text is in Spanish, and the placeholder is the p
 [filtrado: 2 líneas omitidas de 5 — regla general; el original sigue en <ruta del volcado>]
 ```
 
+![Transcript of a bash call with output compression on: the header that starts with filtrado, 39 lines omitted of 41, gives the rule and the path of the full original, and the repeated line appears as ruido ×40.](../../img/filtrado-compresion.svg)
+
 ## Rules
 
 | Rule | What it removes | What it keeps |

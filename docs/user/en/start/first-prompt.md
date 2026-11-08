@@ -21,6 +21,8 @@ A prompt is a message you type in the composer. This page sends one in a project
 > What does this folder contain? List the main files.
 ```
 
+![Loomcoding main screen in a terminal: a conversation with a bash call and its filtered output, the composer at the bottom with its hint, and the status bar with the keyboard shortcuts.](../../img/pantalla-principal.svg)
+
 ## Keys and commands
 
 | Key or command | Default | Requires restart | What it does |

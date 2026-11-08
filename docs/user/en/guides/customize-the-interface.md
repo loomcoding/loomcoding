@@ -24,6 +24,8 @@ These commands change how the screen looks: the colour theme, the transcript sty
 > /theme
 ```
 
+![The interface panel opened with /ui over the main screen: each row shows its current value, for example the theme, the layout and the mouse switch.](../../img/ajustes-ui.svg)
+
 ## Panel rows
 
 | Row | Values | Default | Requires restart |

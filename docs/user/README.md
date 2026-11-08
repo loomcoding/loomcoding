@@ -50,10 +50,23 @@ Checked against the code by `cargo test`: a command or a setting that is missing
 | Environment variables | [en](en/reference/environment.md) | [es](es/reference/environment.md) |
 | Profile folders | [en](en/reference/profile-folders.md) | [es](es/reference/profile-folders.md) |
 
-### Coming next
+### Problems
 
-- `problems/`: symptom, cause, fix.
-- Screenshots and diagrams for the main screens.
+Symptom, cause, fix. Start from the [index](en/problems/index.md) ([es](es/problems/index.md)).
+
+| Page | English | Español |
+|---|---|---|
+| The model does not answer | [en](en/problems/no-response-from-the-model.md) | [es](es/problems/no-response-from-the-model.md) |
+| The local server is down | [en](en/problems/local-server-down.md) | [es](es/problems/local-server-down.md) |
+| A change did not apply | [en](en/problems/change-did-not-apply.md) | [es](es/problems/change-did-not-apply.md) |
+| The session does not open | [en](en/problems/cannot-open-the-session.md) | [es](es/problems/cannot-open-the-session.md) |
+| The output looks filtered | [en](en/problems/output-looks-filtered.md) | [es](es/problems/output-looks-filtered.md) |
+| The turn does not finish | [en](en/problems/turn-wont-finish.md) | [es](es/problems/turn-wont-finish.md) |
+| A tool was denied | [en](en/problems/tool-was-denied.md) | [es](es/problems/tool-was-denied.md) |
+
+### Images
+
+Screenshots in [`img/`](img/ORIGEN.md) are SVG files generated from real terminal dumps by `scripts/capturas/generar.ps1`. Run it with `-Check` to verify that none is stale.
 
 ## Style guide
 

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1108" height="464" viewBox="0 0 1108 464" role="img" aria-labelledby="titulo">
+<title id="titulo">Panel de ajustes de la interfaz (/ui)</title>
+<rect width="1108" height="464" rx="8" fill="#0d1117"/>
+<g font-family="'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Liberation Mono', monospace" font-size="14" fill="#d0d7de" style="white-space:pre">
+<text x="16" y="30" xml:space="preserve"> loom · mock-model · ready</text>
+<text x="16" y="48" xml:space="preserve">                                                                                                    Session</text>
+<text x="16" y="66" xml:space="preserve">                                                                                                    ready · 0.0s</text>
+<text x="16" y="84" xml:space="preserve">                                                                                                    MCP not configured · LSP</text>
+<text x="16" y="102" xml:space="preserve">                                                                                                    rust-analyzer found · skills</text>
+<text x="16" y="120" xml:space="preserve">                                                                                                    0/0 cards, 0 scopes</text>
+<text x="16" y="138" xml:space="preserve">                            ╭ Interfaz ─────────────────────────────�</text>
+<text x="16" y="156" xml:space="preserve">                            │▸ Tema          ‹ Crush · Charmtone ›                                   │</text>
+<text x="16" y="174" xml:space="preserve">                            │  Estilo        ‹ flat ›                                                │</text>
+<text x="16" y="192" xml:space="preserve">                            │  Distribución  ‹ rail ›                                                │</text>
+<text x="16" y="210" xml:space="preserve">                            │  Efectos       matrix off · logo on ›                                  │</text>
+<text x="16" y="228" xml:space="preserve">                            │  Spinner       ‹ Aleatorio (uno distinto por petición) ›               │</text>
+<text x="16" y="246" xml:space="preserve">                            │  Muñeco        ‹ on ›                                                  │</text>
+<text x="16" y="264" xml:space="preserve">                            │  Menú lateral  ‹ on ›                                                  │</text>
+<text x="16" y="282" xml:space="preserve">                            │  Ratón         ‹ on ›                                                  │</text>
+<text x="16" y="300" xml:space="preserve">                            │                                                                        │</text>
+<text x="16" y="318" xml:space="preserve">                            │                                                                        │</text>
+<text x="16" y="336" xml:space="preserve">                            │                                                                        │</text>
+<text x="16" y="354" xml:space="preserve">                            │                                                                        │</text>
+<text x="16" y="372" xml:space="preserve">                            │                                                                        │</text>
+<text x="16" y="390" xml:space="preserve">                            │                                                                        │</text>
+<text x="16" y="408" xml:space="preserve">                            ╰─────────────────────────────────</text>
+<text x="16" y="426" xml:space="preserve"> &gt; Describe what you want to build…</text>
+<text x="16" y="444" xml:space="preserve">enter send  ctrl+o fold  ctrl+b panel  ? shortcuts</text>
+</g>
+</svg>

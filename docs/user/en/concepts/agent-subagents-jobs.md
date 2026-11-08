@@ -31,6 +31,8 @@ Loomcoding has three kinds of work unit. The agent is the main assistant of your
 | Subagent | A child agent with its own work. It runs as an A2A task. | The flock in the header. | `subagent`, `subagent_list`, `subagent_control`; `/agents`, `/agent`, `/focus`, `/parent`. |
 | Job | A shell command that runs in the background. | `job:` notices in the transcript. | `job_start`, `job_list`, `job_output`, `job_watch`, `job_kill`. |
 
+![Top of the Loomcoding screen: the status line shows ready, the ODD flow label and the flock counters, 0 subagents running and 0 jobs, above the first messages of the session.](../../img/cabecera-odd-flock.svg)
+
 ## How it works
 
 ```mermaid
