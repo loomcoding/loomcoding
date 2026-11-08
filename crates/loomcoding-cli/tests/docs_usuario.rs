@@ -9,3 +9,7 @@ mod guardia;
 #[cfg(test)]
 #[path = "docs_usuario/pruebas.rs"]
 mod pruebas;
+
+#[cfg(test)]
+#[path = "docs_usuario/sincronia.rs"]
+mod sincronia;

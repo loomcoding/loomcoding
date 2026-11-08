@@ -34,7 +34,7 @@ obligatorias y las comprueba la tarea 1.
 - [ ] La prueba de la tarea 1 pasa sobre todo lo nuevo.
 
 ### Tarea 3 — Guías por tarea
-**Ficheros:** `docs/user/guias/*.md` (modelos locales, agente de perfil `.md`, agentes remotos A2A, vigilar un job,
+**Ficheros:** `docs/user/{en,es}/guides/*.md` (modelos locales, agente de perfil `.md`, agentes remotos A2A, vigilar un job,
 compresión de salida, medir con `RUST_LOG`, atajos y paneles). Cada guía: objetivo en una línea, pasos numerados,
 resultado esperado, qué hacer si no sale.
 - Reutiliza los hechos de `docs/modelos-locales.md`, `docs/odd.md`, `docs/output-filter.md` y `docs/logging.md`

@@ -26,11 +26,34 @@ This is the user guide. The reference version is in English under [`en/`](en/sta
 | ODD and flows (`/flow`) | [en](en/concepts/flows-odd.md) | [es](es/concepts/flows-odd.md) |
 | A2A | [en](en/concepts/a2a.md) | [es](es/concepts/a2a.md) |
 
+### Guides
+
+| Page | English | Español |
+|---|---|---|
+| Use local models | [en](en/guides/use-local-models.md) | [es](es/guides/use-local-models.md) |
+| Create a profile agent | [en](en/guides/create-a-profile-agent.md) | [es](es/guides/create-a-profile-agent.md) |
+| Use remote A2A agents | [en](en/guides/use-remote-a2a-agents.md) | [es](es/guides/use-remote-a2a-agents.md) |
+| Watch a job | [en](en/guides/watch-a-job.md) | [es](es/guides/watch-a-job.md) |
+| Turn on output compression | [en](en/guides/turn-on-output-compression.md) | [es](es/guides/turn-on-output-compression.md) |
+| Measure with `RUST_LOG` | [en](en/guides/measure-with-rust-log.md) | [es](es/guides/measure-with-rust-log.md) |
+| Customize the interface | [en](en/guides/customize-the-interface.md) | [es](es/guides/customize-the-interface.md) |
+
+### Reference
+
+Checked against the code by `cargo test`: a command or a setting that is missing here fails the build.
+
+| Page | English | Español |
+|---|---|---|
+| Commands (`/…`) | [en](en/reference/commands.md) | [es](es/reference/commands.md) |
+| Keyboard shortcuts | [en](en/reference/shortcuts.md) | [es](es/reference/shortcuts.md) |
+| Configuration (`loomcoding.toml`) | [en](en/reference/configuration.md) | [es](es/reference/configuration.md) |
+| Environment variables | [en](en/reference/environment.md) | [es](es/reference/environment.md) |
+| Profile folders | [en](en/reference/profile-folders.md) | [es](es/reference/profile-folders.md) |
+
 ### Coming next
 
-- `guides/`: one task per page.
-- `reference/`: commands, shortcuts, `loomcoding.toml`, environment variables, profile folders.
 - `problems/`: symptom, cause, fix.
+- Screenshots and diagrams for the main screens.
 
 ## Style guide
 
