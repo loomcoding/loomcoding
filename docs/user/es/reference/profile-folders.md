@@ -32,7 +32,7 @@ Las carpetas y los ficheros que Loomcoding guarda en el perfil y en el proyecto.
 
 | Nombre | Lo crea | Cuándo | Qué guarda |
 |---|---|---|---|
-| `providers.toml` | Loom | Cuando se lee el perfil por primera vez, si el fichero falta | Servidores de modelos locales y la entrada por defecto para los proyectos nuevos. Consulta [configuración](configuration.md#providers-toml). |
+| `providers.toml` | Loom | Cuando se lee el perfil por primera vez, si el fichero falta | Servidores de modelos locales y la entrada por defecto para los proyectos nuevos. Consulta [configuración](configuration.md#providerstoml). |
 | `sessions.db` | El servidor local | Al arrancar el servidor local | La base de datos (SQLite) de las sesiones y sus mensajes. |
 | `logs/loomcoding-daemon.log` | Loom | Solo si `RUST_LOG` está definida | Registro del servidor local. |
 | `logs/loomcoding-cliente.log` | Loom | Solo si `RUST_LOG` está definida | Registro del cliente. |
@@ -41,7 +41,7 @@ Las carpetas y los ficheros que Loomcoding guarda en el perfil y en el proyecto.
 | `runtime/agents/` | Loom | Cuando `[a2a] role` es `consume` o `both` | Carpetas de los pares de agentes remotos, una por arranque del servidor y por proyecto. |
 | `agent-trust.json` | Loom | Cuando apruebas un agente | Tus aprobaciones de agentes de proyecto y de catálogo. |
 | `mcp.toml` | Tú | Opcional | Servidores MCP. Loom solo lo lee. |
-| `runtime.toml` | Tú | Opcional | Ajustes que lee el servidor local. Consulta [configuración](configuration.md#runtime-toml). |
+| `runtime.toml` | Tú | Opcional | Ajustes que lee el servidor local. Consulta [configuración](configuration.md#runtimetoml). |
 | `models-dev.json` | Loom | Cuando guarda en caché el catálogo de modelos | La caché del catálogo de modelos. Su ubicación no está dentro del perfil; consulta la nota de abajo. |
 
 La caché `models-dev.json` se escribe en `.loomcoding/` dentro de la carpeta que indica `USERPROFILE`, o `HOME` si `USERPROFILE` no está definida. `LOOMCODING_HOME` no la mueve. Por eso, un perfil de prueba no aísla este fichero.

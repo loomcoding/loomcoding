@@ -1,0 +1,21 @@
+/* Colores sobrios: un único tono de acento para claro y oscuro. */
+:root {
+  --ifm-color-primary: #2f5d7c;
+  --ifm-color-primary-dark: #295571;
+  --ifm-color-primary-darker: #265069;
+  --ifm-color-primary-darkest: #1e4156;
+  --ifm-color-primary-light: #3a6e91;
+  --ifm-color-primary-lighter: #3f7697;
+  --ifm-color-primary-lightest: #4d84a8;
+  --ifm-code-font-size: 95%;
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #7fb3d1;
+  --ifm-color-primary-dark: #6aa6c8;
+  --ifm-color-primary-darker: #5fa0c4;
+  --ifm-color-primary-darkest: #3f88b0;
+  --ifm-color-primary-light: #94bfd9;
+  --ifm-color-primary-lighter: #9ac4dc;
+  --ifm-color-primary-lightest: #b3d4e6;
+}

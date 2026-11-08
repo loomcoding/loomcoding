@@ -32,7 +32,7 @@ The folders and files that Loomcoding keeps in the profile and in the project. T
 
 | Name | Created by | When | What it holds |
 |---|---|---|---|
-| `providers.toml` | Loom | When the profile is first read, if the file is missing | Local model servers and the default entry for new projects. See [configuration](configuration.md#providers-toml). |
+| `providers.toml` | Loom | When the profile is first read, if the file is missing | Local model servers and the default entry for new projects. See [configuration](configuration.md#providerstoml). |
 | `sessions.db` | The local server | When the local server starts | The database (SQLite) of sessions and their messages. |
 | `logs/loomcoding-daemon.log` | Loom | Only when `RUST_LOG` is set | Log of the local server. |
 | `logs/loomcoding-cliente.log` | Loom | Only when `RUST_LOG` is set | Log of the client. |
@@ -41,7 +41,7 @@ The folders and files that Loomcoding keeps in the profile and in the project. T
 | `runtime/agents/` | Loom | When `[a2a] role` is `consume` or `both` | Folders for remote agent peers, one per server start and project. |
 | `agent-trust.json` | Loom | When you approve an agent | Your approvals of project and catalog agents. |
 | `mcp.toml` | You | Optional | MCP servers. Loom only reads it. |
-| `runtime.toml` | You | Optional | Settings read by the local server. See [configuration](configuration.md#runtime-toml). |
+| `runtime.toml` | You | Optional | Settings read by the local server. See [configuration](configuration.md#runtimetoml). |
 | `models-dev.json` | Loom | When it caches the model catalog | The model catalog cache. Its location is not inside the profile; see the note below. |
 
 The cache `models-dev.json` is written to `.loomcoding/` in the folder given by `USERPROFILE`, or by `HOME` when `USERPROFILE` is not set. `LOOMCODING_HOME` does not move it. A test profile therefore does not isolate this file.

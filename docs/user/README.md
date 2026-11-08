@@ -100,4 +100,18 @@ The test `docs_usuario_cumple_la_guardia` in `crates/loomcoding-cli/tests/docs_u
 
 ## Build and publish
 
-The website (Docusaurus, `site/`) is not built yet. This section will describe how to build and publish it when that step lands.
+The website is a Docusaurus 3.9.2 site in [`site/`](../../site/). It reads the pages in `en/` and `es/` directly, so there are no copies to keep in sync. The sidebars come from the folder structure, and the search covers both languages.
+
+Build it locally with Node 20 or newer, using the lockfile in `site/`:
+
+```bash
+cd site
+npm ci
+npm run start    # development server with live reload
+npm run build    # production build in site/build; fails on a broken link
+npm run check    # after the build: every page has HTML and appears in the sidebar
+```
+
+A push to `master` that changes `docs/user/`, `site/` or the workflow publishes the site to GitHub Pages ([`.github/workflows/docs.yml`](../../.github/workflows/docs.yml)). You can also run it by hand from the Actions tab.
+
+The owner of the domain must do this once. In the repository settings, open Pages and choose "GitHub Actions" as the source. At the DNS provider of `loomcoding.com`, create a `CNAME` record for `www` or the four `A` records of GitHub Pages for the apex; GitHub's documentation lists the current addresses. Then check that Pages shows `loomcoding.com` as the custom domain (it comes from `site/static/CNAME`) and enable HTTPS when it is offered.
