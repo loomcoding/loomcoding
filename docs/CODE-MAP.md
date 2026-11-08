@@ -90,10 +90,12 @@ Ojo: `crates/loomcoding-core/src/registry/` NO es el registro de herramientas, e
 ## Quiero añadir un comando de composer (`/algo`)
 
 1. Variante en `Command` y fila en la tabla de `crates/loomcoding-tui/src/commands.rs`.
-2. Su ejecución, en el `match` de comandos de `crates/loomcoding-tui/src/run/slash.rs`
+2. Su ayuda, en el `match` exhaustivo de `command_help` en `crates/loomcoding-tui/src/help_topics.rs`: sin ella no compila.
+   Su ejemplo debe aparecer textual en `docs/user/{en,es}/reference/commands.md` (lo exige una prueba).
+3. Su ejecución, en el `match` de comandos de `crates/loomcoding-tui/src/run/slash.rs`
    (ejemplo: `Command::Verbose`).
-3. Estado que necesite: `crates/loomcoding-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
-4. El composer no puede parpadear ni ir con retraso: comprueba con `tui_pty` si tocas teclas.
+4. Estado que necesite: `crates/loomcoding-tui/src/app/` (`mod.rs` define `App`; ver el índice de módulos en el README del crate).
+5. El composer no puede parpadear ni ir con retraso: comprueba con `tui_pty` si tocas teclas.
 5. Si el comando lleva argumento, añádelo a la lista de `slash_query` (`app/prefs.rs`) para que el popup no se
    cierre al teclearlo, y resuelve los rechazos **antes** de borrar el compositor (así se conserva el texto).
 

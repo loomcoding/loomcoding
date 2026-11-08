@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1049" height="176" viewBox="0 0 1049 176" role="img" aria-labelledby="titulo">
+<title id="titulo">Cabecera de filtrado en la salida de bash</title>
+<rect width="1049" height="176" rx="8" fill="#0d1117"/>
+<g font-family="'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Liberation Mono', monospace" font-size="14" fill="#d0d7de" style="white-space:pre">
+<text x="16" y="30" xml:space="preserve"> ╭─ ● bash  (for /L %i in (1,1,40) do @echo ruido) &amp; echo FIN             ﾕ      ﾎ      ｹ1step 2/3                ｵ&lt;</text>
+<text x="16" y="48" xml:space="preserve"> │  │ [filtrado: 39 líneas omitidas de 41 — regla general; el original sigue en  ﾏ ﾜ     2     1                  ｶ&gt;</text>
+<text x="16" y="66" xml:space="preserve"> │  C:\work\.loomcoding\tool-output\tool-call-ba  3Tokens                  ｷｱ</text>
+<text x="16" y="84" xml:space="preserve"> │  sh-ruido-1794092810814588300-0.txt]     ｿ  0                             8   ﾑ 0     4↑7164 ↓30               ｸｲ</text>
+<text x="16" y="102" xml:space="preserve"> │  │ ruido ×40                             ﾀ  1                             9   ﾒ 1     5     4                  ｹｳ   ﾎ</text>
+<text x="16" y="120" xml:space="preserve"> ╰─   … (1 lines hidden) [Ctrl+O to expand] ﾁ  2                             :   ﾓ 2     6MCP not configured · LSPｺｴ   ﾏ</text>
+<text x="16" y="138" xml:space="preserve"> ╭≋ 🤖         5                             ﾂ  3           ｶ                 .   ﾔ 3     7rust-analyzer found · skills ﾐ</text>
+<text x="16" y="156" xml:space="preserve"> ╰─ Hecho: la salida ruidosa llegó filtrada al modelo.     ｷ                 =   ﾕ 4     80/0 cards, 0 scopes     ｼ    ﾑ</text>
+</g>
+</svg>

@@ -4,6 +4,7 @@ pub mod clipboard;
 pub mod commands;
 pub mod commands_alias;
 pub mod frame;
+pub mod help_topics;
 pub mod mascot;
 pub mod permission_flow;
 pub mod prefs;

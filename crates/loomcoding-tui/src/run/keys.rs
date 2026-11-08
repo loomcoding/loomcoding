@@ -195,9 +195,12 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
         handle_temas_key(app, code);
         return None;
     }
+    // Con la ayuda abierta, Tab alterna entre atajos y temas; las demás teclas no llegan al compositor.
     if app.help_open {
-        if matches!(code, KeyCode::F(1) | KeyCode::Esc | KeyCode::Char('?')) {
-            app.help_open = false;
+        match code {
+            KeyCode::F(1) | KeyCode::Esc | KeyCode::Char('?') => app.help_open = false,
+            KeyCode::Tab => app.help_next_view(),
+            _ => {}
         }
         return None;
     }
@@ -572,7 +575,7 @@ pub fn handle_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<St
     // `?` abre la ayuda solo con el compositor vacío y sin otro panel abierto; con texto es un
     // carácter más. Los diálogos de permiso y de pregunta ya han consumido la tecla arriba.
     if code == KeyCode::F(1) || (code == KeyCode::Char('?') && help_key_is_free(app, mods)) {
-        app.help_open = true;
+        app.open_shortcuts_help();
         return None;
     }
     if code == KeyCode::Char('t') && mods.contains(KeyModifiers::CONTROL) {

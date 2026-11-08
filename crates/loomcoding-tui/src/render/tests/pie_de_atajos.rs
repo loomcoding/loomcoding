@@ -38,7 +38,7 @@ fn overlay_text(buf: &ratatui::buffer::Buffer) -> String {
         .expect("el recuadro de ayuda tiene título");
     let bottom = rows
         .iter()
-        .position(|row| row.contains("Press F1"))
+        .position(|row| row.contains("F1/Esc close"))
         .expect("el recuadro de ayuda tiene cierre");
     rows[top + 1..bottom].join("\n")
 }

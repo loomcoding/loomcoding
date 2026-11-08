@@ -156,7 +156,7 @@ fn overlays_render_across_terminal_sizes_and_hide_the_composer_cursor() {
     app.help_open = true;
     let help = buffer_of(&mut app, 80, 24);
     assert!(help.contains("Shift+Tab"));
-    assert!(help.contains("Press F1 or Esc to close"));
+    assert!(help.contains("F1/Esc close · Tab topics"));
 }
 
 #[test]

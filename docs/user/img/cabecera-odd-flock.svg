@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1057" height="212" viewBox="0 0 1057 212" role="img" aria-labelledby="titulo">
+<title id="titulo">Cabecera con la etiqueta ODD y el flock</title>
+<rect width="1057" height="212" rx="8" fill="#0d1117"/>
+<g font-family="'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Liberation Mono', monospace" font-size="14" fill="#d0d7de" style="white-space:pre">
+<text x="16" y="30" xml:space="preserve"> loom · mock-model · ready · ODD · 0 subagents running · 0 jobsｽﾙ                     ｳ       ｴ      ﾙ  ﾈ ﾝ     ﾒｽ  ﾎ    .</text>
+<text x="16" y="48" xml:space="preserve"> ╭» 👤                 ﾅﾌ                -      ﾗ         ｾ                ﾑ             ｵ Session                  =</text>
+<text x="16" y="66" xml:space="preserve"> ╰─ vigila los fallos del build         &lt;      ﾘ         ｿ                ﾒ             ｶ responding · 0.0s        *</text>
+<text x="16" y="84" xml:space="preserve"> ╭─ ● job_start  echo FAIL uno          &gt;    ﾗ ﾙ         ﾀ                ﾓ             ｷ step 1/3                 +</text>
+<text x="16" y="102" xml:space="preserve"> ╰─ │ Started background job shell-1. Watching output for /FAIL/ (up to 5 notices).     ｸ0     ﾝ                   -</text>
+<text x="16" y="120" xml:space="preserve"> ╭─ ◆ job  vigilado   ﾉﾐ                     ﾙ ﾛ         ﾂ                ﾕ      ﾎ      ｹ1Tokens                  ｵ&lt;</text>
+<text x="16" y="138" xml:space="preserve"> │  │ watching: 1 alert                      ﾚ ﾜ         ﾃ                       ﾏ ﾜ    ｺ2↑10657 ↓37              ｶ&gt;</text>
+<text x="16" y="156" xml:space="preserve"> ╰─ │ exit 0  1       ﾋ                     ｾﾛ ﾝ         ﾄ                       ﾐ ﾝ    ｻ3     2                  ｷｱ</text>
+<text x="16" y="174" xml:space="preserve"> ╭≋ 🤖         2       ﾌ                     ｿﾜ 0         ﾅ                       ﾑ 0    ｼ4MCP not configured · LSPｸｲ</text>
+<text x="16" y="192" xml:space="preserve"> ╰─ job lanzado, vigilo la salida           ﾀ  1         ﾆ                   9   ﾒ 1     5rust-analyzer found · skills ﾎ</text>
+</g>
+</svg>

@@ -32,6 +32,7 @@ mod events;
 mod flow_label;
 pub use flow_label::EtiquetaFlujo;
 mod flow_command;
+mod help_command;
 mod logo_fx_state;
 mod model_effort;
 mod pointer;
@@ -395,6 +396,8 @@ pub struct App {
     /// y al elegir fija el proveedor por el mismo camino de guardado que `/model`.
     pub quick_provider_picker: bool,
     pub help_open: bool,
+    /// Vista del recuadro de ayuda: atajos, índice de temas, un comando o un tema.
+    pub help_view: crate::help_topics::HelpView,
     /// Popup de `/agents` abierto, con el informe que mostraba el registro al abrirlo.
     pub agents_open: bool,
     pub agent_rows: Vec<AgentRow>,
@@ -595,6 +598,7 @@ impl App {
             quick_effort_picker: None,
             quick_provider_picker: false,
             help_open: false,
+            help_view: crate::help_topics::HelpView::default(),
             agents_open: false,
             agent_rows: Vec::new(),
             agents_selected: 0,

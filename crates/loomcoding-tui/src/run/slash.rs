@@ -78,6 +78,14 @@ pub(super) fn execute_slash_command(
             return None;
         }
     }
+    // `/help` igual: un argumento que no es comando ni tema conserva el texto escrito.
+    if command == Command::Help {
+        let arg = typed.strip_prefix("/help").map(str::trim).unwrap_or("");
+        if let Err(message) = app.help_command(arg) {
+            app.slash_feedback = Some(message);
+            return None;
+        }
+    }
     if command == Command::Cancel && !app.turn_in_flight {
         app.slash_feedback = Some("No active turn to cancel".into());
         return None;
@@ -87,7 +95,6 @@ pub(super) fn execute_slash_command(
     app.slash_dismissed = None;
     app.history.reset();
     match command {
-        Command::Help => handle_key(app, KeyCode::F(1), KeyModifiers::NONE),
         Command::Sessions => handle_key(app, KeyCode::F(3), KeyModifiers::NONE),
         Command::Settings => handle_key(app, KeyCode::F(2), KeyModifiers::NONE),
         Command::Queue => handle_key(app, KeyCode::Char('k'), KeyModifiers::CONTROL),
@@ -210,7 +217,8 @@ pub(super) fn execute_slash_command(
         | Command::Effort
         | Command::Provider
         | Command::Ui
-        | Command::Flow => None,
+        | Command::Flow
+        | Command::Help => None,
         Command::Quit => handle_key(app, KeyCode::Char('q'), KeyModifiers::CONTROL),
         Command::Parent => {
             if !app.go_parent() {

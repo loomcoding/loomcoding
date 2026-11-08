@@ -12,6 +12,7 @@ use ratatui::Terminal;
 
 mod support;
 use support::*;
+mod ayuda;
 mod cabecera_y_pie;
 mod caja_usuario;
 mod carril;

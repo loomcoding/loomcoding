@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1049" height="752" viewBox="0 0 1049 752" role="img" aria-labelledby="titulo">
+<title id="titulo">Pantalla principal de Loomcoding con el compositor</title>
+<rect width="1049" height="752" rx="8" fill="#0d1117"/>
+<g font-family="'Cascadia Mono', 'Consolas', 'DejaVu Sans Mono', 'Liberation Mono', monospace" font-size="14" fill="#d0d7de" style="white-space:pre">
+<text x="16" y="30" xml:space="preserve"> loom · mock-model · ready · ODD        &lt; ﾔ  ﾖﾅﾘ         ｿﾛ               ﾒ             ｶ      ﾛ  ﾊ                *</text>
+<text x="16" y="48" xml:space="preserve"> ╭» 👤                 ﾇﾎ                &gt;    ﾗ ﾙ         ﾀ                ﾓ      ﾌ      ｷﾝSession                  +</text>
+<text x="16" y="66" xml:space="preserve"> ╰─ ejecuta el ruido  ﾈﾏ                     ﾘ ﾚ         ﾁ                ﾔ      ﾍ      ｸ0responding · 0.0s        -</text>
+<text x="16" y="84" xml:space="preserve"> ╭─ ● bash  (for /L %i in (1,1,40) do @echo ruido) &amp; echo FIN             ﾕ      ﾎ      ｹ1step 2/3                ｵ&lt;</text>
+<text x="16" y="102" xml:space="preserve"> │  │ [filtrado: 39 líneas omitidas de 41 — regla general; el original sigue en  ﾏ ﾜ     2     1                  ｶ&gt;</text>
+<text x="16" y="120" xml:space="preserve"> │  C:\work\.loomcoding\tool-output\tool-call-ba  3Tokens                  ｷｱ</text>
+<text x="16" y="138" xml:space="preserve"> │  sh-ruido-1794092810814588300-0.txt]     ｿ  0                             8   ﾑ 0     4↑7164 ↓30               ｸｲ</text>
+<text x="16" y="156" xml:space="preserve"> │  │ ruido ×40                             ﾀ  1                             9   ﾒ 1     5     4                  ｹｳ   ﾎ</text>
+<text x="16" y="174" xml:space="preserve"> ╰─   … (1 lines hidden) [Ctrl+O to expand] ﾁ  2                             :   ﾓ 2     6MCP not configured · LSPｺｴ   ﾏ</text>
+<text x="16" y="192" xml:space="preserve"> ╭≋ 🤖         5                             ﾂ  3           ｶ                 .   ﾔ 3     7rust-analyzer found · skills ﾐ</text>
+<text x="16" y="210" xml:space="preserve"> ╰─ Hecho: la salida ruidosa llegó filtrada al modelo.     ｷ                 =   ﾕ 4     80/0 cards, 0 scopes     ｼ    ﾑ</text>
+<text x="16" y="228" xml:space="preserve"> ｶ  ｼ         7                            9ﾄ  5           ｸ                       5                              ｽ    ﾒ</text>
+<text x="16" y="246" xml:space="preserve"> ｷ  ｽ         8                  =         :ﾅ  6       0   ｹ    ﾘ3                 6      Tools                   ｾ    ﾓ</text>
+<text x="16" y="264" xml:space="preserve"> ｸ  ｾ         9                  *         .ﾆ          1   ｺ    ﾙ4                 7      ● bash                  ｿ    ﾔ</text>
+<text x="16" y="282" xml:space="preserve"> ｹ  ｿ         :                  +         =ﾇ          2   ｻ    ﾚ5                 8                              ﾀ    ﾕ</text>
+<text x="16" y="300" xml:space="preserve"> ｺ  ﾀ         .                  -         *           3   ｼ    ﾛ6                 9                              ﾁ    ﾖ</text>
+<text x="16" y="318" xml:space="preserve"> ｻ  ﾁ    ｺ    =           ｿ      &lt;         +           4   ｽ    ﾜ7                                                     ﾗ</text>
+<text x="16" y="336" xml:space="preserve"> ｼ  ﾂ    ｻ                ﾀ      &gt;         -           5   ｾ    ﾝ8                                                  ﾔ  ﾘ</text>
+<text x="16" y="354" xml:space="preserve"> ｽ       ｼ                ﾁ      ｱ         &lt;           6   ｿ    09                                                  ﾕ  ﾙ</text>
+<text x="16" y="372" xml:space="preserve"> ｾ       ｽ                ﾂ      ｲ                     7   ﾀ     :         =                                        ﾖ</text>
+<text x="16" y="390" xml:space="preserve"> ｿ       ｾ       ｲ        ﾃ      ｳ                     8   ﾁ     .   ﾎ     *                                        ﾗ</text>
+<text x="16" y="408" xml:space="preserve">         ｿ       ｳ        ﾄ 4    ｴ                     9         =   ﾏ     +                                        ﾘ</text>
+<text x="16" y="426" xml:space="preserve">         ﾀ       ｴ        ﾅ 5    ｵ                     :         *   ﾐ     -                                        ﾙ</text>
+<text x="16" y="444" xml:space="preserve">         ﾁ       ｵ        ﾆ 6    ｶ                     .         +   ﾑ     &lt;          2                             ﾚ</text>
+<text x="16" y="462" xml:space="preserve">      ﾙ  ﾂ       ｶ .      ﾇ 7    ｷ                               -   ﾒ   ｹ &gt;          3                  ﾅ          ﾛ</text>
+<text x="16" y="480" xml:space="preserve">      ﾚ  ﾃ       ｷ =        8  ﾐ ｸ                               &lt;   ﾓ   ｺ ｱ          4                  ﾆ      ﾕ   ﾜ</text>
+<text x="16" y="498" xml:space="preserve">      ﾛ  ﾄ       ｸ *        9  ﾑ                                         ｻ ｲ          5                  ﾇ      ﾖ   ﾝ</text>
+<text x="16" y="516" xml:space="preserve">      ﾜ  ﾅ       ｹ +        :  ﾒ                                         ｼ            6            ｽ     ﾈ      ﾗ   0</text>
+<text x="16" y="534" xml:space="preserve">      ﾝ  ﾆ       ｺ -        .  ﾓ                                         ｽ                         ｾ     ﾉ      ﾘ</text>
+<text x="16" y="552" xml:space="preserve">     ﾊ0  ﾇ       ｻ &lt;        =  ﾔ                                         ｾ                         ｿ     ﾊ      ﾙ</text>
+<text x="16" y="570" xml:space="preserve">     ﾋ1          ｼ &gt;        *  ﾕ                                         ｿ                         ﾀ     ﾋ      ﾚ</text>
+<text x="16" y="588" xml:space="preserve">     ﾌ2          ｽ ｱ        + ｸﾖ                                         ﾀ                         ﾁ     ﾌ      ﾛ</text>
+<text x="16" y="606" xml:space="preserve">     ﾍ3          ｾ ｲ          ｹﾗ                                         ﾁ                ﾑ        ﾂ     ﾍ      ﾜ</text>
+<text x="16" y="624" xml:space="preserve">     ﾎ4      ﾊ   ｿ ｳ          ｺﾘ                                         ﾂ                ﾒ        ﾃ     ﾎ      ﾝ</text>
+<text x="16" y="642" xml:space="preserve">     ﾏ5      ﾋ     ｴ          ｻﾙ                                                          ﾓ        ﾄ            0</text>
+<text x="16" y="660" xml:space="preserve">  ⠀⠑⢼⡧⠊⠀     ﾌ     ｵ          ｼﾚ                                                          ﾔ        ﾅ            1</text>
+<text x="16" y="678" xml:space="preserve">  ⠀⠀⠎⠱⠀⠀  done     ｶ           ﾛ                                                          ﾕ        ﾆ</text>
+<text x="16" y="696" xml:space="preserve">             ﾎ     ｷ                                                                               ﾇ</text>
+<text x="16" y="714" xml:space="preserve"> &gt; Describe what you want to build…                                                                ﾈ</text>
+<text x="16" y="732" xml:space="preserve">enter send  ctrl+o fold  ctrl+b panel  ? shortcuts                                                ctx 3.6k (sin ventana)</text>
+</g>
+</svg>

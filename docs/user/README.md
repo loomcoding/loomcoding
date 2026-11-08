@@ -1,0 +1,117 @@
+# Loomcoding user documentation
+
+This is the user guide. The reference version is in English under [`en/`](en/start/index.md), and the Spanish mirror is in [`es/`](es/start/index.md). Both trees have the same pages, paths and section titles.
+
+## Index
+
+### Start
+
+| Page | English | Español |
+|---|---|---|
+| Start here | [en](en/start/index.md) | [es](es/start/index.md) |
+| Install from source | [en](en/start/install.md) | [es](es/start/install.md) |
+| What happens on the first run | [en](en/start/first-run.md) | [es](es/start/first-run.md) |
+| Connect a cloud provider | [en](en/start/cloud-provider.md) | [es](es/start/cloud-provider.md) |
+| Run a local model server | [en](en/start/local-provider.md) | [es](es/start/local-provider.md) |
+| Send your first prompt | [en](en/start/first-prompt.md) | [es](es/start/first-prompt.md) |
+
+### Concepts
+
+| Page | English | Español |
+|---|---|---|
+| Agent, subagents and jobs | [en](en/concepts/agent-subagents-jobs.md) | [es](es/concepts/agent-subagents-jobs.md) |
+| Sessions | [en](en/concepts/sessions.md) | [es](es/concepts/sessions.md) |
+| Context and compaction | [en](en/concepts/context-and-compaction.md) | [es](es/concepts/context-and-compaction.md) |
+| Permissions | [en](en/concepts/permissions.md) | [es](es/concepts/permissions.md) |
+| ODD and flows (`/flow`) | [en](en/concepts/flows-odd.md) | [es](es/concepts/flows-odd.md) |
+| A2A | [en](en/concepts/a2a.md) | [es](es/concepts/a2a.md) |
+
+### Guides
+
+| Page | English | Español |
+|---|---|---|
+| Use local models | [en](en/guides/use-local-models.md) | [es](es/guides/use-local-models.md) |
+| Create a profile agent | [en](en/guides/create-a-profile-agent.md) | [es](es/guides/create-a-profile-agent.md) |
+| Use remote A2A agents | [en](en/guides/use-remote-a2a-agents.md) | [es](es/guides/use-remote-a2a-agents.md) |
+| Watch a job | [en](en/guides/watch-a-job.md) | [es](es/guides/watch-a-job.md) |
+| Turn on output compression | [en](en/guides/turn-on-output-compression.md) | [es](es/guides/turn-on-output-compression.md) |
+| Measure with `RUST_LOG` | [en](en/guides/measure-with-rust-log.md) | [es](es/guides/measure-with-rust-log.md) |
+| Customize the interface | [en](en/guides/customize-the-interface.md) | [es](es/guides/customize-the-interface.md) |
+
+### Reference
+
+Checked against the code by `cargo test`: a command or a setting that is missing here fails the build.
+
+| Page | English | Español |
+|---|---|---|
+| Commands (`/…`) | [en](en/reference/commands.md) | [es](es/reference/commands.md) |
+| Keyboard shortcuts | [en](en/reference/shortcuts.md) | [es](es/reference/shortcuts.md) |
+| Configuration (`loomcoding.toml`) | [en](en/reference/configuration.md) | [es](es/reference/configuration.md) |
+| Environment variables | [en](en/reference/environment.md) | [es](es/reference/environment.md) |
+| Profile folders | [en](en/reference/profile-folders.md) | [es](es/reference/profile-folders.md) |
+
+### Problems
+
+Symptom, cause, fix. Start from the [index](en/problems/index.md) ([es](es/problems/index.md)).
+
+| Page | English | Español |
+|---|---|---|
+| The model does not answer | [en](en/problems/no-response-from-the-model.md) | [es](es/problems/no-response-from-the-model.md) |
+| The local server is down | [en](en/problems/local-server-down.md) | [es](es/problems/local-server-down.md) |
+| A change did not apply | [en](en/problems/change-did-not-apply.md) | [es](es/problems/change-did-not-apply.md) |
+| The session does not open | [en](en/problems/cannot-open-the-session.md) | [es](es/problems/cannot-open-the-session.md) |
+| The output looks filtered | [en](en/problems/output-looks-filtered.md) | [es](es/problems/output-looks-filtered.md) |
+| The turn does not finish | [en](en/problems/turn-wont-finish.md) | [es](es/problems/turn-wont-finish.md) |
+| A tool was denied | [en](en/problems/tool-was-denied.md) | [es](es/problems/tool-was-denied.md) |
+
+### Images
+
+Screenshots in [`img/`](img/ORIGEN.md) are SVG files generated from real terminal dumps by `scripts/capturas/generar.ps1`. Run it with `-Check` to verify that none is stale.
+
+## Style guide
+
+1. **Paragraphs of four lines at most.** If you need more, write a list or a table. Lists, tables, quotes and code blocks do not count as paragraphs.
+2. **Schematize first.** Use lists, tables, numbered steps and Mermaid diagrams before prose.
+3. **Example first, explanation after.**
+4. **Open every page with the three headers, in this order, before the first `##` section:**
+   - English: `**What it is**`, `**What it is for**`, `**How**`.
+   - Español: `**Qué es**`, `**Para qué**`, `**Cómo**`.
+   The opening takes five lines at most.
+5. **One idea per page.** When a page grows long, split it.
+6. **Titles answer a question or name an action.** Write "Switch model", not "Models".
+7. **One image per concept, only when it saves text.** Every image needs alt text. Diagrams are Mermaid; screenshots are generated from real terminal dumps, never drawn by hand.
+8. **No personal data.** No Windows user names, no absolute paths from your machine, no emails, no real names. Use placeholders such as `<user>` and `@example.invalid`.
+9. **Every setting and every command states its default value and whether it requires a restart.** Use the table in the template.
+10. **Neutral tone in both languages.** No regional slang, no jokes that depend on a country.
+11. **Parity.** A page exists in `en/` and in `es/` at the same path, with the same number of `##` sections. `en/` is the reference.
+12. **Relative links only,** and every link must resolve. Link to technical documents when needed; do not copy them.
+13. **Start from the templates:** [`en/_template.md`](en/_template.md) and [`es/_plantilla.md`](es/_plantilla.md). Files whose name starts with `_` are not pages.
+
+## How the rules are checked
+
+The test `docs_usuario_cumple_la_guardia` in `crates/loomcoding-cli/tests/docs_usuario.rs` runs with `cargo test`. It fails, naming file and line, when a page:
+
+- has a paragraph of more than four lines;
+- has a relative link that does not resolve (URLs are not checked);
+- contains a personal data pattern (a Windows user folder, a home folder with a real name, or an email other than `@example.invalid`);
+- lacks the opening headers of its language, or places them after the first `##` section;
+- has an image with empty alt text;
+- exists in one language and not in the other, or has a different number of `##` sections.
+
+## Build and publish
+
+The website is a Docusaurus 3.9.2 site in [`site/`](../../site/). It reads the pages in `en/` and `es/` directly, so there are no copies to keep in sync. The sidebars come from the folder structure, and the search covers both languages.
+
+Build it locally with Node 20 or newer, using the lockfile in `site/`:
+
+```bash
+cd site
+npm ci
+npm run start    # development server with live reload
+npm run build    # production build in site/build; fails on a broken link
+npm run check    # after the build: every page has HTML and appears in the sidebar
+```
+
+A push to `master` that changes `docs/user/`, `site/` or the workflow publishes the site to GitHub Pages ([`.github/workflows/docs.yml`](../../.github/workflows/docs.yml)). You can also run it by hand from the Actions tab.
+
+The owner of the domain must do this once. In the repository settings, open Pages and choose "GitHub Actions" as the source. At the DNS provider of `loomcoding.com`, create a `CNAME` record for `www` or the four `A` records of GitHub Pages for the apex; GitHub's documentation lists the current addresses. Then check that Pages shows `loomcoding.com` as the custom domain (it comes from `site/static/CNAME`) and enable HTTPS when it is offered.
