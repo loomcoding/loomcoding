@@ -83,8 +83,8 @@ Pulsa Tab hasta que la transcripción tenga el foco.
 | Selector de sesiones (F3) | Arriba y Abajo, o j y k, mueven. Enter abre. n inicia una sesión nueva. Ctrl+F activa o desactiva la búsqueda. Esc sale primero de la búsqueda; después cierra el selector si se abrió desde un chat, y si no, sale. |
 | A2A (`/a2a`) | Tab o Derecha cambian el foco. Arriba y Abajo mueven. RePág y AvPág desplazan el detalle. Inicio va al principio. Esc o q lo cierra. |
 | Agentes (`/agents`) | Arriba y Abajo mueven. Tab y Shift+Tab cambian el foco. RePág y AvPág saltan de 5 en 5. a aprueba y r rechaza el agente seleccionado. e lo edita. / filtra por texto, t por etiqueta, x limpia los filtros. Esc o q lo cierra. |
-| Ayuda (F1) | F1, ? o Esc lo cierra. |
+| Ayuda (F1, `?`, `/help`) | F1, ? o Esc lo cierra. Tab alterna entre los atajos y los temas de ayuda. |
 
-## Diferencias con el panel de ayuda
+## El panel de ayuda
 
-El panel de ayuda (F1) dice que Enter y Ctrl+J envían la petición. En el código, Enter envía la petición y Ctrl+J inserta un salto de línea. Esta página sigue al código.
+El panel de ayuda (F1) y esta página coinciden: Enter envía la petición y Ctrl+J inserta un salto de línea. El panel también lista los temas: `/help topics`.

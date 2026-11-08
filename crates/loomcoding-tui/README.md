@@ -7,7 +7,7 @@ composer y pintado, sobre `ratatui` y los widgets de `cloth`.
 el daemon y el IPC (`loomcoding-cli`).
 
 **Tipos clave:** `App` (`app/mod.rs`: todo el estado; sus métodos viven en `app/*.rs` por responsabilidad), `Command` y la tabla de comandos
-(`commands.rs`), `PermissionDialog` (`permission_flow.rs`), el rail de subagentes (`rail.rs`).
+(`commands.rs`), la ayuda de `/help` (`help_topics.rs`: `HelpView`, `command_help`, `TOPICS`), `PermissionDialog` (`permission_flow.rs`), el rail de subagentes (`rail.rs`).
 
 **Puntos de entrada:** `run::run` (arranque y bucle), `run::handle_key` y `run::handle_event`
 (teclas y eventos), `render/` (pintado, un fichero por zona; `render/mod.rs` orquesta), `commands.rs` más el `match` de comandos en `run/slash.rs`.

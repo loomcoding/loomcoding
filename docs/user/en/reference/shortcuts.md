@@ -8,7 +8,7 @@ The keys that Loomcoding handles in the composer, the transcript, the global scr
 
 - Finding a key for an action without opening the help panel.
 - Knowing which key works in which area.
-- Checking the difference between the help panel and the code, listed at the end.
+- Checking the help panel, which lists the same keys, at the end.
 
 **How**
 
@@ -83,8 +83,8 @@ Press Tab until the transcript has focus.
 | Session picker (F3) | Up and Down, or j and k, move. Enter opens. n starts a new session. Ctrl+F toggles search. Esc leaves search first; then it closes the picker when opened from a chat, and quits otherwise. |
 | A2A (`/a2a`) | Tab or Right change focus. Up and Down move. PageUp and PageDown scroll the details. Home goes to the top. Esc or q closes it. |
 | Agents (`/agents`) | Up and Down move. Tab and Shift+Tab change focus. PageUp and PageDown jump 5. a approves and r rejects the selected agent. e edits it. / filters by text, t by tag, x clears the filters. Esc or q closes it. |
-| Help (F1) | F1, ? or Esc closes it. |
+| Help (F1, `?`, `/help`) | F1, ? or Esc closes it. Tab switches between the shortcuts and the help topics. |
 
-## Differences from the help panel
+## The help panel
 
-The help panel (F1) says that Enter and Ctrl+J both send the prompt. In the code, Enter sends the prompt and Ctrl+J inserts a new line. This page follows the code.
+The help panel (F1) and this page agree: Enter sends the prompt, and Ctrl+J inserts a new line. The panel also lists the topics: `/help topics`.

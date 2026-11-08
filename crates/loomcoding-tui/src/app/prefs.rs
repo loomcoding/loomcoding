@@ -182,7 +182,7 @@ impl App {
         let query = trimmed.strip_prefix('/')?;
         let command = query.split_whitespace().next().unwrap_or(query);
         let has_args = command.len() < query.len();
-        // `attach`, `verbose`, `logofx`, `model`, `effort`, `provider` y `ui` aceptan argumentos y siguen mostrando el popup.
+        // `attach`, `verbose`, `logofx`, `model`, `effort`, `provider`, `ui`, `flow` y `help` aceptan argumentos y siguen mostrando el popup.
         if command.contains('/')
             || (has_args
                 && !matches!(
@@ -195,6 +195,7 @@ impl App {
                         | "provider"
                         | "ui"
                         | "flow"
+                        | "help"
                 ))
         {
             return None;

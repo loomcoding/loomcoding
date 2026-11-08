@@ -294,7 +294,7 @@ fn slash_escape_preserves_literal_text_and_unknown_commands_do_not_dispatch() {
         "explain /help",
         "/tmp/file.rs",
         "//literal",
-        "/help me",
+        "/helpers are here",
         "/help\nsecond line",
     ] {
         let mut app = App::new();

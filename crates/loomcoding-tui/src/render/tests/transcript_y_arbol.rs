@@ -320,7 +320,7 @@ fn help_overlay_lists_subagent_navigation() {
     assert!(content.contains("/parent"), "falta /parent: {content}");
     assert!(content.contains("↑/↓"), "falta ↑/↓ del rail: {content}");
     assert!(
-        content.contains("Press F1 or Esc to close"),
+        content.contains("F1/Esc close · Tab topics"),
         "la ayuda no cabe con las líneas nuevas: {content}"
     );
 }
@@ -437,7 +437,7 @@ fn slash_menu_renders_filters_and_respects_overlays_and_small_sizes() {
     app.help_open = true;
     let content = buffer_of(&mut app, 100, 30);
     assert!(!content.contains("Tab complete"));
-    assert!(content.contains("Press F1 or Esc to close"));
+    assert!(content.contains("F1/Esc close · Tab topics"));
 }
 
 #[test]

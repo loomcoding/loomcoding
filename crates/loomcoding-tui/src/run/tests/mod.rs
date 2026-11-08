@@ -10,6 +10,7 @@ use ratatui::layout::Rect;
 mod support;
 use support::*;
 mod agent_command;
+mod ayuda;
 mod block_navigation;
 mod commands_ui;
 mod dialogs;

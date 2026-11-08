@@ -29,7 +29,7 @@ Un prompt es un mensaje que escribes en el compositor. Esta página envía uno e
 |---|---|---|---|
 | Enter | No aplica | No | Envía el prompt. |
 | Ctrl+J | No aplica | No | Inserta un salto de línea en el compositor. |
-| `/help` | No aplica | No | Abre los atajos de teclado. |
+| `/help` | No aplica | No | Abre los atajos de teclado. `/help model` explica un comando. |
 | `/cancel` | No aplica | No | Cancela el turno activo y pausa la cola de prompts pendientes. |
 | `/new` | No aplica | No | Inicia una sesión nueva. Solo cuando el agente está inactivo. |
 | `/sessions` | No aplica | No | Cambia a otra sesión. Solo cuando el agente está inactivo. |

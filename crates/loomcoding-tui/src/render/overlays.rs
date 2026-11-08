@@ -1,6 +1,8 @@
 //! Superposiciones sueltas: cola de prompts, inspector de herramientas y ayuda.
 
+use super::ayuda::draw_help_page;
 use super::*;
+use crate::help_topics::HelpView;
 
 pub(super) fn draw_prompt_queue(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width.min(78).saturating_sub(2);
@@ -206,7 +208,15 @@ pub(super) fn draw_tool_inspector(frame: &mut Frame, area: Rect, app: &mut App) 
     );
 }
 
+/// Ayuda con `F1`, `?` o `/help`: los atajos, o la página de un tema o de un comando (`ayuda.rs`).
 pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
+    match app.help_view {
+        HelpView::Shortcuts => draw_shortcuts_overlay(frame, area, app),
+        vista => draw_help_page(frame, area, app, vista),
+    }
+}
+
+fn draw_shortcuts_overlay(frame: &mut Frame, area: Rect, app: &App) {
     let width = area.width.min(78).saturating_sub(2);
     // Veintiuna líneas de contenido más el marco: el recuadro ocupa 23 de las 24 filas de 80×24,
     // y así no se corta ninguna. La indicación de cierre va en el borde inferior.
@@ -225,7 +235,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     let block = Block::default()
         .title(" CodeL∞M · Keyboard shortcuts ")
         .title_bottom(Line::styled(
-            "Press F1 or Esc to close",
+            "F1/Esc close · Tab topics",
             app.theme.styles.muted,
         ))
         .borders(Borders::ALL)
@@ -235,7 +245,7 @@ pub(super) fn draw_help_overlay(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(block, popup);
     frame.render_widget(
         Paragraph::new(vec![
-            Line::from("Enter/Ctrl+J Send prompt · Ctrl+J inserts a newline"),
+            Line::from("Enter       Send prompt · Ctrl+J inserts a newline"),
             Line::from("Tab/Shift+Tab Switch composer/transcript"),
             Line::from("↑/↓ + Enter Open subagent (rail focused)"),
             Line::from("Alt+←/parent Back to the parent session"),

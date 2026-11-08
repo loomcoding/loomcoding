@@ -29,7 +29,7 @@ A prompt is a message you type in the composer. This page sends one in a project
 |---|---|---|---|
 | Enter | Not applicable | No | Sends the prompt. |
 | Ctrl+J | Not applicable | No | Inserts a new line in the composer. |
-| `/help` | Not applicable | No | Opens the keyboard shortcuts. |
+| `/help` | Not applicable | No | Opens the keyboard shortcuts. `/help model` explains one command. |
 | `/cancel` | Not applicable | No | Cancels the active turn and pauses the queue of pending prompts. |
 | `/new` | Not applicable | No | Starts a new session. Only when the agent is idle. |
 | `/sessions` | Not applicable | No | Switches to another session. Only when the agent is idle. |

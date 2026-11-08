@@ -32,7 +32,7 @@ Entries follow the order of the code table. "When idle" means no turn is running
 
 | Command | What it does | Example | Available when |
 |---|---|---|---|
-| `/help` | Opens the keyboard shortcuts panel. Same as F1. | `/help` | Always. |
+| `/help` | Opens the help panel. Alone, it shows the keyboard shortcuts (same as F1). `/help topics` lists the topics. `/help <command>` shows one command's usage and example. `/help <topic>` opens a topic page. Tab switches between the shortcuts and the topics. | `/help model`, `/help topics` | Always. An unknown name is refused: the text stays in the composer, with a suggestion when one is close. |
 | `/new` | Starts a new session. | `/new` | When idle. Otherwise: "Wait for the active turn before switching sessions". |
 | `/sessions` | Opens the session picker. Same as F3. | `/sessions` | When idle, with the same message as `/new`. |
 | `/settings` | Opens the provider and model settings panel. Same as F2. | `/settings` | When provider settings are loaded. |
@@ -90,6 +90,7 @@ A refused command keeps its text in the composer and shows one of these messages
 | A usage line that shows the accepted arguments | `/verbose`, `/ui`, `/flow` |
 | Unknown row: <name>. Rows: theme, style, layout, carril, effects, spinner, mascot, sidebar, mouse | `/ui` |
 | Unknown command · /help for commands · Esc to send as text | Any unknown word that starts with a slash |
+| No help for '<name>' · did you mean /<name>? · /help lists the topics | `/help`, with a name that is not a command or a topic |
 
 ## Next steps
 

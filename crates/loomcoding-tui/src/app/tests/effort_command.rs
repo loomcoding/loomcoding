@@ -251,5 +251,5 @@ fn help_lists_effort_inside_an_80_by_24_frame() {
     assert!(content.contains("/effort"), "{content}");
     // Si el contenido no cabe, el marco inferior no se dibuja y falta el cierre.
     assert!(content.contains("Ctrl+C/Q"), "{content}");
-    assert!(content.contains("Press F1 or Esc to close"), "{content}");
+    assert!(content.contains("F1/Esc close · Tab topics"), "{content}");
 }

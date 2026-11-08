@@ -32,7 +32,7 @@ Las entradas siguen el orden de la tabla del código. «Sin turno en marcha» si
 
 | Comando | Qué hace | Ejemplo | Disponible cuando |
 |---|---|---|---|
-| `/help` | Abre el panel de atajos de teclado. Igual que F1. | `/help` | Siempre. |
+| `/help` | Abre el panel de ayuda. Solo, muestra los atajos de teclado (igual que F1). `/help topics` lista los temas. `/help <comando>` muestra el uso y un ejemplo de un comando. `/help <tema>` abre la página de un tema. Tab alterna entre los atajos y los temas. | `/help model`, `/help topics` | Siempre. Un nombre desconocido se rechaza: el texto queda en el compositor, con una sugerencia si hay una cercana. |
 | `/new` | Inicia una sesión nueva. | `/new` | Sin turno en marcha. Si no: «Wait for the active turn before switching sessions». |
 | `/sessions` | Abre el selector de sesiones. Igual que F3. | `/sessions` | Sin turno en marcha, con el mismo mensaje que `/new`. |
 | `/settings` | Abre el panel de ajustes de proveedor y modelo. Igual que F2. | `/settings` | Cuando los ajustes del proveedor están cargados. |
@@ -57,7 +57,7 @@ Las entradas siguen el orden de la tabla del código. «Sin turno en marcha» si
 | `/logofx` | Fija los efectos del logotipo: `on`, `off`, o un número de segundos entre ráfagas. | `/logofx 30` | Siempre. |
 | `/verbose` | Muestra u oculta los avisos de peticiones del proveedor en la transcripción. Sin argumento, alterna. | `/verbose on` | Siempre. Cambia solo esta sesión; no se guarda. |
 | `/flow` | Lista los modos de flujo, o guarda uno como activado o desactivado. | `/flow odd off` | Siempre. Guardar necesita un proyecto abierto. Se aplica al reiniciar. |
-| `/agent` | Ejecuta un agente con nombre sobre una tarea. También puedes escribir `@<nombre>`. | `/agent <nombre> [--skills a,b] <tarea>` | Cuando el agente está cargado y es utilizable. |
+| `/agent` | Ejecuta un agente con nombre sobre una tarea. También puedes escribir `@<name>`. | `/agent <name> [--skills a,b] <task>` | Cuando el agente está cargado y es utilizable. |
 | `/focus` | Envía lo que escribas a continuación a un subagente. Sin identificador, vuelve a esta sesión. | `/focus <id>` | El identificador debe pertenecer a un subagente vivo. Ctrl+G los recorre. |
 | `/agents` | Lista los agentes cargados. | `/agents` | Siempre. |
 | `/a2a` | Abre el panel de tarjetas, tareas e intercambios A2A. | `/a2a` | Siempre. |
@@ -90,6 +90,7 @@ Un comando rechazado conserva su texto en el compositor y muestra uno de estos m
 | Una línea de uso que muestra los argumentos admitidos | `/verbose`, `/ui`, `/flow` |
 | Unknown row: <nombre>. Rows: theme, style, layout, carril, effects, spinner, mascot, sidebar, mouse | `/ui` |
 | Unknown command · /help for commands · Esc to send as text | Cualquier palabra desconocida que empiece por barra |
+| No help for '<name>' · did you mean /<name>? · /help lists the topics | `/help`, con un nombre que no es comando ni tema |
 
 ## Siguientes pasos
 

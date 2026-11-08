@@ -41,6 +41,7 @@ use provider_picker::draw_provider_picker;
 
 mod ui_root;
 
+mod ayuda;
 mod overlays;
 use overlays::*;
 
