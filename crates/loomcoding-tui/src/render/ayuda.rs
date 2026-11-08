@@ -51,7 +51,7 @@ fn contenido(vista: HelpView) -> (String, &'static str, Vec<Line<'static>>) {
                     .map(|(id, descripcion, _)| Line::from(format!("{id:<12} {descripcion}"))),
             );
             (
-                " CodeL∞M · Help topics ".into(),
+                " L∞MCoding · Help topics ".into(),
                 "F1/Esc close · Tab shortcuts",
                 lineas,
             )
@@ -71,7 +71,7 @@ fn contenido(vista: HelpView) -> (String, &'static str, Vec<Line<'static>>) {
                 Line::from(format!("Docs: {COMMANDS_DOC}")),
             ];
             (
-                format!(" CodeL∞M · {} ", nombre_y_descripcion.0),
+                format!(" L∞MCoding · {} ", nombre_y_descripcion.0),
                 "F1/Esc close · Tab topics",
                 lineas,
             )
@@ -88,7 +88,7 @@ fn contenido(vista: HelpView) -> (String, &'static str, Vec<Line<'static>>) {
                 Line::from(format!("Docs: {ruta}")),
             ];
             (
-                format!(" CodeL∞M · Topic: {id} "),
+                format!(" L∞MCoding · Topic: {id} "),
                 "F1/Esc close · Tab topics",
                 lineas,
             )

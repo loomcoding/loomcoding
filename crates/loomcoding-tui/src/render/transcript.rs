@@ -256,7 +256,7 @@ pub(super) fn draw_transcript(
     if !flat {
         frame.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled("CodeL∞M", app.theme.styles.heading),
+                Span::styled("L∞MCoding", app.theme.styles.heading),
                 Span::styled("  ·  project conversation", app.theme.styles.muted),
                 Span::styled(
                     format!("  ·  {}", app.theme_preset.name()),

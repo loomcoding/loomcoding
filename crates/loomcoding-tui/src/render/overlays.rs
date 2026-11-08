@@ -233,7 +233,7 @@ fn draw_shortcuts_overlay(frame: &mut Frame, area: Rect, app: &App) {
     );
     frame.render_widget(Clear, popup);
     let block = Block::default()
-        .title(" CodeL∞M · Keyboard shortcuts ")
+        .title(" L∞MCoding · Keyboard shortcuts ")
         .title_bottom(Line::styled(
             "F1/Esc close · Tab topics",
             app.theme.styles.muted,

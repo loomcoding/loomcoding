@@ -276,8 +276,8 @@ fn renders_items_and_input() {
     let content = buffer_of(&mut app, 40, 10);
     assert!(content.contains("hello"));
     assert!(content.contains('x'));
-    assert!(content.contains("CodeL∞M"));
-    assert!(content.contains("CODEL∞M / WORKSPACE"));
+    assert!(content.contains("L∞MCoding"));
+    assert!(content.contains("L∞MCODING / WORKSPACE"));
 }
 
 #[test]
@@ -612,7 +612,7 @@ fn workspace_header_is_unchanged() {
         ..Default::default()
     });
     let content = buffer_of(&mut app, 120, 30);
-    assert!(content.contains("CODEL∞M / WORKSPACE"));
+    assert!(content.contains("L∞MCODING / WORKSPACE"));
     // La cabecera de espacio de trabajo conserva su línea de capacidades (tres filas primeras).
     let primeras: String = content.chars().take(3 * 120).collect();
     assert!(primeras.contains("MCP not configured"), "{primeras}");

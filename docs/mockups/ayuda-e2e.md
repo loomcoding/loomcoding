@@ -13,7 +13,7 @@ Capturados con `cargo test -p loomcoding-cli --test tui_pty_ayuda` (perfil aisla
                                                                                                     rust-analyzer found · skills
                                                                                                     0/0 cards, 0 scopes
 
-                           ╭ CodeL∞M · /model ────────────────────────────────────────────────────────╮
+                           ╭ L∞MCoding · /model ──────────────────────────────────────────────────────╮
                            │Change the model: /model <id> (no id: pick from the catalog)              │
                            │                                                                          │
                            │Usage: /model [<id>]                                                      │
@@ -58,7 +58,7 @@ enter send  ctrl+o fold  ctrl+b panel  ? shortcuts
                                                                                                     rust-analyzer found · skills
                                                                                                     0/0 cards, 0 scopes
 
-                           ╭ CodeL∞M · Help topics ───────────────────────────────────────────────────╮
+                           ╭ L∞MCoding · Help topics ─────────────────────────────────────────────────╮
                            │/help <command>   one command, e.g. /help model                           │
                            │/help <topic>     one topic, e.g. /help flows                             │
                            │                                                                          │

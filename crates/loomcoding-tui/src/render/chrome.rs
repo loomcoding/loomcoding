@@ -99,7 +99,7 @@ pub(super) fn draw_workspace_header(frame: &mut Frame, area: Rect, app: &App) {
     };
     let mut text = vec![
         Span::styled(
-            " CODEL∞M / WORKSPACE  ",
+            " L∞MCODING / WORKSPACE  ",
             app.theme.styles.heading.add_modifier(Modifier::BOLD),
         ),
         loomcoding_cloth::widgets::chip(state, tone, &app.theme),

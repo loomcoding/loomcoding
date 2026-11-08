@@ -6,7 +6,7 @@ Un solo acento (rosa del logo), glifos de estado y nada de cajas.
 ```text
 
 === HOY  (reconstruido del volcado e2e) ============================================================
- CODEL∞M ╱╱╱╱  ~/proyecto  • mock-model  • ready  • 0 subagents running · 0 jobs
+ L∞MCODING ╱╱╱╱  ~/proyecto  • mock-model  • ready  • 0 subagents running · 0 jobs
    MCP not configured  ·  LSP rust-analyzer found  ·  skills 0/0 cards, 0 scopes
  ╭» You                                                           │CODELOOM
  ╰─ delega la inspeccion                                          │~/proyecto
