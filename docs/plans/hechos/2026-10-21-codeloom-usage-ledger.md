@@ -16,7 +16,7 @@
 - Comprobaciones: `cargo build`, `cargo test -p <crate>`, `cargo clippy -p <crate> -- -D warnings`, `rustfmt --edition 2021 --check <ficheros>`.
 - Entorno de build (Git Bash): `export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER='C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.35.32215\bin\Hostx64\x64\link.exe' CARGO_TARGET_DIR='E:/workspace/personal/loom/target' CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0`. No crear otros `target*`. Formatear solo con `rustfmt --edition 2021 <ruta>`, nunca `cargo fmt --all`. Ficheros en LF (`tr -cd '\r' < f | wc -c` debe dar 0; no conviertas finales de línea).
 - Comentarios en español «pijo», sin tacos ni andalucismos. No `git checkout/restore/stash/reset` ni push.
-- **Probar contra datos reales cuando se toque el catálogo**: el JSON real está en `C:\Users\negrero\.codeloom\models-dev.json` (solo lectura).
+- **Probar contra datos reales cuando se toque el catálogo**: el JSON real está en `C:\Users\<usuario>\.codeloom\models-dev.json` (solo lectura).
 - Un fallo al guardar un apunte nunca rompe ni retrasa el turno.
 
 ## Review Focus

@@ -10,7 +10,7 @@
 
 **Stack:** Rust, `serde`/`serde_json`, `reqwest` (ya en core), `tokio`, `ratatui`.
 
-**Spec:** `docs/specs/hechos/2026-10-21-codeloom-models-catalog-design.md` (leerla antes). Muestra real del JSON, solo lectura: `C:\Users\negrero\AppData\Local\Temp\claude\E--workspace-personal-loom\dc105655-c40d-4e39-bc4c-3e4178431c74\scratchpad\modelsdev.json`.
+**Spec:** `docs/specs/hechos/2026-10-21-codeloom-models-catalog-design.md` (leerla antes). Muestra real del JSON, solo lectura: `C:\Users\<usuario>\AppData\Local\Temp\claude\E--workspace-personal-loom\dc105655-c40d-4e39-bc4c-3e4178431c74\scratchpad\modelsdev.json`.
 
 ## Restricciones globales
 

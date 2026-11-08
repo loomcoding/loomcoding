@@ -250,7 +250,7 @@ simula la recuperación de un proceso externo real.
 
 Los checks globales pasaron: `cargo build` (aviso existente por `main.rs` compartido entre
 `loom` y `loomcoding`), `cargo test` (1.712 pasaron, 13 ignorados), `cargo fmt --check` y
-`cargo clippy -- -D warnings`. Target: `C:\Users\negrero\AppData\Local\Temp\loomcoding-final-target`.
+`cargo clippy -- -D warnings`. Target: `C:\Users\<usuario>\AppData\Local\Temp\loomcoding-final-target`.
 
 ## Cierre de verificaciones 2026-10-28
 
@@ -265,7 +265,7 @@ decisión, agente y ronda caben en una sola línea. En el árbol actual pasaron
 `cargo fmt --all --check`, `cargo build`, `cargo test` (1.728 pasaron, 14 ignorados),
 `cargo clippy -- -D warnings` y `git diff --check`. Build y Clippy solo muestran el warning
 existente de `main.rs` compartido por ambos binarios. Target aislado:
-`C:\Users\negrero\AppData\Local\Temp\loomcoding-final-target`. Queda pendiente observar el
+`C:\Users\<usuario>\AppData\Local\Temp\loomcoding-final-target`. Queda pendiente observar el
 workflow en una terminal interactiva real; la prueba de render no sustituye esa revisión.
 
 ## Correcciones tras prueba interactiva 2026-10-29
@@ -282,7 +282,7 @@ legibles, la instancia pasa a `failed`; el implementador no se inicia. Las regre
 la recuperación por paths omitidos, fallo por archivos ausentes y el bloqueo de `bash`,
 delegación y polling del padre mientras la instancia está activa.
 
-Verificación en `C:\Users\negrero\AppData\Local\Temp\loomcoding-workflow-fix-target`:
+Verificación en `C:\Users\<usuario>\AppData\Local\Temp\loomcoding-workflow-fix-target`:
 `cargo fmt --all --check`, `cargo build`, `cargo test` (1.730 pasaron, 14 ignorados),
 `cargo clippy -- -D warnings` y `git diff --check` correctos. Se conservan únicamente los
 warnings existentes: `main.rs` compartido por los dos binarios en build y warnings de Cargo en

@@ -300,7 +300,7 @@ TUI depende de capacidades, fuente, terminal, tema activo y estado de la sesión
   [Mindfork](https://github.com/vshylov/mindfork-rs); [Pawan](https://github.com/dirmacs/pawan)
   para sus tarjetas compactas y el indicador de thinking. SHA inspeccionados,
   licencias, rutas y conclusiones: `repos-analisis.md`.
-- Crush instalado: `go version -m C:\Users\negrero\bin\crush.exe`.
+- Crush instalado: `go version -m C:\Users\<usuario>\bin\crush.exe`.
 - Fuente local Crush, commit `852f410573e199fa0235cd8a8f32d6b0840373d3`:
   `internal/ui/model/ui.go`, `sidebar.go`, `layout_test.go`,
   `internal/ui/chat/{assistant,tools,file,shell}.go`,

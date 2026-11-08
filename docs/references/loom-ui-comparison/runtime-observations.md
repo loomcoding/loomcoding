@@ -23,7 +23,7 @@ shift+tab  cycle modes ·  /help  info & shortcuts
 → [cursor]
 
 build · llama-server/local · 0/70k 0%
-C:\Users\negrero\AppData\Local\Temp\loom-mastracode-visual-capture
+C:\Users\<usuario>\AppData\Local\Temp\loom-mastracode-visual-capture
 ```
 
 `/help` mostró una lista de comandos agrupada visualmente con atajos. Incluye

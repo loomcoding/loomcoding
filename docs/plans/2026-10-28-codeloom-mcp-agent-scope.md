@@ -100,4 +100,4 @@ detallado de estado en la TUI quedan pendientes.
 `cargo build` correcto (aviso existente: `main.rs` comparte los bins `loom` y `loomcoding`);
 `cargo test`: 1.712 pasaron y 13 ignorados; `cargo fmt --check` y
 `cargo clippy -- -D warnings` correctos. Se usó el target temporal
-`C:\Users\negrero\AppData\Local\Temp\loomcoding-final-target`.
+`C:\Users\<usuario>\AppData\Local\Temp\loomcoding-final-target`.

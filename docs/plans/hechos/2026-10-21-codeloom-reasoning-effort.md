@@ -8,7 +8,7 @@
 
 **Arquitectura:** el catálogo ya existente (`codeloom_core::catalog`) gana el soporte de razonamiento por modelo; la configuración y `ProviderRequest` llevan `effort`; cada proveedor lo traduce a su forma; el diálogo añade un campo.
 
-**Spec:** `docs/specs/hechos/2026-10-21-codeloom-reasoning-effort-design.md` (leerla antes). Muestra real del JSON, solo lectura: `C:\Users\negrero\AppData\Local\Temp\claude\E--workspace-personal-loom\dc105655-c40d-4e39-bc4c-3e4178431c74\scratchpad\modelsdev.json` (clave `reasoning_options` de cada modelo).
+**Spec:** `docs/specs/hechos/2026-10-21-codeloom-reasoning-effort-design.md` (leerla antes). Muestra real del JSON, solo lectura: `C:\Users\<usuario>\AppData\Local\Temp\claude\E--workspace-personal-loom\dc105655-c40d-4e39-bc4c-3e4178431c74\scratchpad\modelsdev.json` (clave `reasoning_options` de cada modelo).
 
 ## Restricciones globales
 

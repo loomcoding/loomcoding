@@ -204,7 +204,7 @@ cargo clippy -- -D warnings
 Los cuatro checks volvieron a pasar tras completar los casos locales: `cargo build` (aviso
 existente de `main.rs` compartido entre los bins `loom` y `loomcoding`), `cargo test` (1.712
 pasaron, 13 ignorados), `cargo fmt --check` y `cargo clippy -- -D warnings`. Se usó el target
-temporal `C:\\Users\\negrero\\AppData\\Local\\Temp\\loomcoding-final-target`. La evaluación T5
+temporal `C:\\Users\\<usuario>\\AppData\\Local\\Temp\\loomcoding-final-target`. La evaluación T5
 sigue pendiente; la combinación Gemini permanece Preview.
 
 - Spec: `docs/specs/2026-10-28-codeloom-programmatic-tool-calling.md`.
