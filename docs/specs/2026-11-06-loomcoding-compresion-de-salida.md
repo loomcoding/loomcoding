@@ -145,8 +145,10 @@ a mano (necesarios para elegir regla y leer `raw`).
 
 ## Estado tras la implementación
 
-**Qué se hizo.** Tareas 1, 2, 3 y 5 del plan (las tres primeras en los commits `8652d55`, `4978180` y `849fb27`; la
-tarea 5 en el worktree `compresion`, pendiente de commit). Tarea 4 aplazada hasta medir.
+**Qué se hizo.** Tareas 1, 2, 3 y 5 del plan (commits `8652d55`, `4978180`, `849fb27` y `d82c3ac`), más el registro de
+`tracing` a fichero y la prueba e2e en PTY (`894b4e7`), todo mergeado en `master` (`18402d6`). Tarea 4 aplazada hasta
+medir. Guías: `docs/output-filter.md` (uso, funcionamiento interno, medición, criterios de decisión y cómo añadir una
+regla) y `docs/logging.md` (el registro).
 
 - Módulo `output_filter/`: reglas generales, cabecera R1, original en `ToolSpill` y `raw: true` en `bash` y
   `job_output`; reglas por comando para `cargo test|build|check|clippy`, `git status` y `npm|pnpm install`.
@@ -167,11 +169,16 @@ tarea 5 en el worktree `compresion`, pendiente de commit). Tarea 4 aplazada hast
 3. Límite de tiempo en pruebas: `MAX_FILTER_TIME` vale 30 s en `cargo test` para que la carga de la máquina no vuelva
    intermitentes las reglas; el límite de 50 ms rige en la compilación normal. La prueba del tamaño (2 MiB) es exacta.
 4. Tarea 4 (dedup de lecturas en el historial) aplazada hasta medir.
-5. La prueba e2e con PTY (`tui_pty_*`, cabecera de filtrado en pantalla) no está hecha: la TUI aún no pinta el evento.
-6. El estado de medición es global por proceso, como pide la spec; las pruebas de la capa de turno comparten ese estado
-   y por eso solo ejercen un uso cada una.
-7. La traza `tracing` no tiene suscriptor en el binario actual: en `crates/` no se instala ninguno.
+5. La TUI no pinta el evento `OutputFiltered` (lo ignora). La prueba e2e en PTY (`tui_pty_compresion.rs`, volcado en
+   `docs/mockups/compresion-e2e.md`) sí existe y comprueba la cabecera, el original en disco y la línea del registro.
+6. El estado de medición es global por proceso, como pide la spec; en `cargo test` cada hilo tiene el suyo para que las
+   pruebas no dependan del orden de ejecución.
+7. Las re-peticiones no salen en el registro de `tracing`, solo en el aviso de desactivación y en
+   `FilterStats::resumen()`.
 
-**Medición y decisión sobre activarlo por defecto.** Sin cifras aún: no hay datos de ahorro ni de re-peticiones sobre
-sesiones reales, y no se inventa ninguna. El filtro sigue **apagado por defecto**. Se activará por defecto solo para las
-reglas que demuestren ahorro sin re-peticiones en sesiones reales, una vez medidas.
+**Medición y decisión sobre activarlo por defecto.** Hay **una sola muestra** (2026-11-07, proyecto de juguete con 60
+tests, modelo local, `cargo test`): 2258 bytes originales, 653 enviados (−71 %), con la respuesta del modelo correcta.
+Demuestra que la tubería funciona de extremo a extremo y nada más: no es representativa y no decide. No hay todavía
+datos de ahorro ni de re-peticiones sobre sesiones reales, y no se inventa ninguno. El filtro sigue **apagado por
+defecto**. Se activará por defecto solo para las reglas que demuestren ahorro sin re-peticiones en uso real (receta y
+criterios en `docs/output-filter.md`, «Cómo medir con una sesión real» y «Cómo decidir qué viene después»).

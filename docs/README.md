@@ -33,6 +33,8 @@ ejecutarlo).
   desarrollado y verificado. Es historial, no una cola de trabajo.
 - [`modelos-locales.md`](modelos-locales.md): cómo declarar llama-server, Strata y PolyStrata una vez por perfil, descubrir sus modelos y cambiar entre ellos con `/provider`, `/model` y `/effort`.
 - [`odd.md`](odd.md): el modo de desarrollo orgánico (ODD), activo por defecto: documento de feature, casillas con evidencia, cierre bloqueante, fase en la cabecera, `[flows.odd] enabled` y `/flow`.
+- [`output-filter.md`](output-filter.md): la compresión de la salida de herramientas (`bash`, `job_output`): qué quita, cómo se apaga, cómo medirla con una sesión real, qué criterio decide activarla por defecto y cómo añadir una regla. Apagada por defecto.
+- [`logging.md`](logging.md): el registro de `tracing` a fichero con `RUST_LOG` (rutas, rotación, destinos `output_filter` y `odd`, privacidad); es la forma de medir ODD y la compresión.
 - [`visual-e2e.md`](visual-e2e.md): cómo ver y probar la TUI con un PTY en `cargo test` o
   con `ttyd` y Chrome.
 - [`INDEX.md`](INDEX.md): estado cotejado con el código de todos los

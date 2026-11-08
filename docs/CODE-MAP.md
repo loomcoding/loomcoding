@@ -157,7 +157,7 @@ Cabe señalar que el menú izquierdo solo se pinta con el layout `Workspace` (�
 1. Instalación del suscriptor (solo con `RUST_LOG` definida y no vacía): `crates/loomcoding-cli/src/registro_tracing.rs`
    (`instala`, `instala_con`, escritor acotado a 5 MiB con copia `.1`). Lo llaman el cliente y el daemon en
    `crates/loomcoding-cli/src/main.rs`, con un fichero por proceso: `<perfil>/.loomcoding/logs/loomcoding-<rol>.log`.
-2. Spec: `docs/specs/2026-11-07-loomcoding-registro-tracing.md`. Guía de uso: `docs/output-filter.md` y `docs/odd.md`.
+2. Spec: `docs/specs/2026-11-07-loomcoding-registro-tracing.md`. Guía completa: `docs/logging.md`; medición de cada función: `docs/output-filter.md` y `docs/odd.md`.
 
 ## Quiero tocar A2A (cliente o servidor)
 

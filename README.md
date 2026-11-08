@@ -46,6 +46,14 @@ Loomcoding is implemented and in daily use. It provides:
   `/compact`, and background pre-compaction.
 - Caps on tool output, prompt sections, and loops control context and cost; see
   the context and cost guidelines in the documentation.
+- An optional, deterministic **output filter** (off by default, `[output_filter] enabled = true`) that strips noise
+  from `bash` and `job_output` results before they reach the model (ANSI, progress bars, repeated lines, and
+  per-command rules for `cargo`, `git status`, `npm`/`pnpm install`). It never filters silently: every trimmed output
+  carries a header with the path to the full original, and `raw: true` returns it untouched. See
+  [`docs/output-filter.md`](docs/output-filter.md).
+- Opt-in file logging for measurement and debugging: set `RUST_LOG` (for example `RUST_LOG=output_filter=info`) and
+  the client and daemon write bounded log files under the profile directory, never to the terminal. See
+  [`docs/logging.md`](docs/logging.md).
 
 **Not implemented yet:** OAuth2 flows that require user interaction
 (authorization code or device flow), built-in TLS when serving agents, MCP,

@@ -29,7 +29,7 @@ release.
   `<perfil>/.loomcoding/logs/loomcoding-<rol>.log` (`cliente` o `daemon`). Sin `RUST_LOG` no se instala nada ni se crea
   fichero. Nunca se escribe en stdout ni en stderr.
 - Cota de 5 MiB por fichero, con una sola copia anterior (`.1`). Un fallo de E/S nunca impide arrancar.
-- Sin dependencias nuevas (`tracing-subscriber` con `env-filter`, ya en el espacio de trabajo). Spec:
+- Sin dependencias nuevas declaradas (`tracing-subscriber` con `env-filter` ya estaba en el espacio de trabajo; `Cargo.lock` incorpora sus transitivas). Guía: `docs/logging.md`. Spec:
   `docs/specs/2026-11-07-loomcoding-registro-tracing.md`.
 
 ### Desarrollo orgánico (ODD)

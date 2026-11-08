@@ -8,6 +8,7 @@ Context for agents working in the `loomcoding` repository. Read this before acti
 - Where do I touch for X? -> `docs/CODE-MAP.md`
 - What must I not break, and how do I check? -> `docs/INVARIANTS.md`
 - What is this crate for? -> `crates/<crate>/README.md`
+- How do I measure or debug (`RUST_LOG`)? -> `docs/logging.md`; the optional tool-output filter -> `docs/output-filter.md`
 - Which specs and plans are current? -> `docs/INDEX.md` (read it before implementing; if the
   document you meant to follow is superseded, read the one that replaces it)
 

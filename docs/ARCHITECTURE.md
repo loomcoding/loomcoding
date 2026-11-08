@@ -92,6 +92,10 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
 6. **Herramientas.** Si el modelo pide tools, `agent/dispatch.rs::execute_tools` las
    ejecuta contra el `ToolRegistry` (`tools/mod.rs`): las `Parallel` a la vez, las
    `Exclusive` como barrera. El permiso se decide en `permission/mod.rs`.
+   Si `[output_filter]` está encendido (apagado por defecto), el resultado de `bash` y `job_output` pasa antes por
+   `output_filter::contenido_para_modelo` (único enganche, en `agent/turn.rs`): quita ruido con listas blancas de señal,
+   antepone una cabecera con la ruta del original y publica `LiveEvent::OutputFiltered`. Nunca toca la respuesta de un
+   subagente ni de una tarea A2A. Guía: `docs/output-filter.md`.
 7. **Eventos.** Todo lo observable se publica como `LiveEvent` en el `EventBus`
    (`event/mod.rs`). El daemon se suscribe (`bus.subscribe()` en `server/agent_build.rs` y `server/client.rs`) y reenvía
    al cliente.
@@ -109,6 +113,8 @@ Un cliente TUI habla con un **daemon** por IPC; el daemon es quien ejecuta el mo
 | Bus de eventos | `LiveEvent`, `EventBus` | `crates/loomcoding-core/src/event/mod.rs` |
 | Sesiones | `trait SessionStore`, `SqliteStore` | `crates/loomcoding-core/src/session/{mod,sqlite}.rs` |
 | Límites del agente | `LimitsConfig` (`[limits]`), `stop_reason_budgets`, `LimitedProvider`, `KillReport` | `crates/loomcoding-core/src/config/agent_limits.rs`, `agent/{stop,step_limit,kill}.rs`, `provider/limited.rs` |
+| Filtro de salida | `FilterConfig` (`[output_filter]`, apagado por defecto), `contenido_para_modelo`, `FilterStats` | `crates/loomcoding-core/src/output_filter/` (`enviar.rs`, `mod.rs`, reglas `cargo.rs`/`git.rs`/`packages.rs`, `stats.rs`); guía `docs/output-filter.md` |
+| Registro y medición | suscriptor de `tracing` a fichero, solo con `RUST_LOG` | `crates/loomcoding-cli/src/registro_tracing.rs`; guía `docs/logging.md` |
 | Subagentes | `SubagentLauncher`, `InProcessSubagentLauncher`, `SubagentPhase`, observador de fases, vigilante de latidos y supervisor | `crates/loomcoding-core/src/subagent/` (`mod.rs`, `launcher.rs`, `phase.rs`, `phase_observer.rs`, `watchdog.rs`, `supervisor.rs`, `supervisor_driver.rs`, `input/` (buzón en `mod.rs`, responder del hijo en `responder.rs`), y el ciclo de vida en `admission.rs`, `local_run.rs`, `remote.rs`, `control.rs`) |
 
 Ojo con el nombre: `crates/loomcoding-core/src/registry/` es el **registro de agentes**

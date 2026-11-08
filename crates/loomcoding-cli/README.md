@@ -11,7 +11,7 @@ proveedor desde la configuración), `run_server`, `connect_or_start`, `serve_con
 `run_agent_worker` (`server/worker.rs`; `run_server` y `connect_or_start` en `server/daemon.rs`), `send`/`receive` y `load_or_create_token` (`ipc.rs`).
 
 **Puntos de entrada:** `main.rs` (autodetecta standalone o plugin de `herdr`); `server/`
-(daemon, cliente, protocolo, gestor de agentes); `credentials.rs` y `home.rs` (perfil y credenciales).
+(daemon, cliente, protocolo, gestor de agentes); `credentials.rs` y `home.rs` (perfil y credenciales); `registro_tracing.rs` (suscriptor de `tracing` a fichero, solo con `RUST_LOG`; guía `docs/logging.md`).
 
 **Cómo se testea:** `tests/e2e.rs` (con `wiremock`) y `tests/tui_pty.rs` (TUI real en un PTY,
 vía `loomcoding-e2e`; ver `docs/visual-e2e.md`).

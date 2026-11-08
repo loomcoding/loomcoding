@@ -9,7 +9,7 @@ cliente de red de A2A (eso es `loomcoding-a2a`).
 **Tipos clave:** `AgentLoop` (`agent/mod.rs`; sus métodos, en `agent/*.rs`), `trait Provider` (`provider/mod.rs`),
 `trait Tool` y `ToolRegistry` (`tools/mod.rs`), `LiveEvent` y `EventBus` (`event/mod.rs`),
 `trait SessionStore` y `SqliteStore` (`session/`), `SubagentPhase` (`subagent/phase.rs`),
-`AgentsConfig` (`config/mod.rs`), `LimitsConfig` (`config/agent_limits.rs`; `[limits]`), `LimitedProvider` (`provider/limited.rs`), `Gauntlet` y `GauntletPhase` (`gauntlet.rs`; herramienta en `tools/gauntlet/`).
+`AgentsConfig` (`config/mod.rs`), `LimitsConfig` (`config/agent_limits.rs`; `[limits]`), `LimitedProvider` (`provider/limited.rs`), `Gauntlet` y `GauntletPhase` (`gauntlet.rs`; herramienta en `tools/gauntlet/`), `FilterConfig` y `contenido_para_modelo` (`output_filter/`; compresión de la salida de `bash` y `job_output`, apagada por defecto), `MessageOrigin` (`message/mod.rs`; `Human`, `Internal` y `Job(id)`).
 
 **Puntos de entrada:** `AgentLoop::run` y `run_message` (`agent/entry.rs`); el turno, en `agent/turn.rs`; la compactación, en `agent/compaction.rs`;
 `dispatch::execute_tools` (`agent/dispatch.rs`); `project_registry` (`tools/mod.rs`, registra
@@ -27,5 +27,7 @@ y no corren por defecto.
 - Cancelar un proceso exige matar el **árbol** (`tools/bash.rs::kill_tree`); `kill_on_drop` solo mata al shell.
 - `SubagentPhase::can_transition_to` es la única tabla de transiciones: no la dupliques. Igual con `GauntletPhase`.
 - Todo cambio de fase del gauntlet pasa por `tools/gauntlet/helpers.rs::save` (persiste y publica el evento).
+- `output_filter/`: solo `bash` y `job_output`, jamás subagentes ni A2A; un único enganche (`agent/turn.rs`); lo que no se reconoce como ruido **se conserva**; sin original recuperable la salida pasa intacta. Las capturas de `output_filter/fixtures/` van anonimizadas. Guía: `docs/output-filter.md`.
+- `MessageOrigin` solo vive en el proceso y en la persistencia: no llega al proveedor ni a ningún mensaje A2A (hay pruebas).
 
 Mapa general: `docs/ARCHITECTURE.md`. Tareas habituales: `docs/CODE-MAP.md`.
