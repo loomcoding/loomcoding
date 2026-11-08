@@ -1,5 +1,7 @@
 # Empezar aquí
 
+> **Experimental.** Loomcoding está en desarrollo activo. Los ajustes, los ficheros y los protocolos pueden cambiar sin aviso. No lo uses en producción.
+
 **Qué es**
 
 Loomcoding es un agente de código para la terminal. Esta sección lleva de un perfil nuevo a un primer prompt con respuesta.

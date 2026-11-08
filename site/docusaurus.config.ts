@@ -38,8 +38,8 @@ const instanciaDocs = (id: string, carpeta: string, routeBasePath: string) => [
 ];
 
 const config: Config = {
-  title: 'Loomcoding',
-  tagline: 'Documentación de usuario',
+  title: 'Loomcoding (experimental)',
+  tagline: 'Experimental · User documentation / Documentación de usuario',
 
   url: 'https://loomcoding.com',
   baseUrl: '/',
@@ -96,7 +96,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Loomcoding',
+      title: 'Loomcoding · experimental',
       items: [
         {
           to: '/',

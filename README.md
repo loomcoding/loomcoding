@@ -17,7 +17,7 @@
 > the event protocol may change without notice between versions. Do not use it in production or
 > in critical workflows. Breaking changes are accepted until a stable version is announced.
 
-# Loomcoding
+# Loomcoding (experimental)
 
 Loomcoding is a **Rust coding agent** with a **ratatui** terminal interface. It
 coordinates agents, subagents, and jobs, and can run on its own or integrate
